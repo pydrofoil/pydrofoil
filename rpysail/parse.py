@@ -196,12 +196,10 @@ class TupleType(Type):
 class EnumType(Type):
     def __init__(self, name):
         self.name = name
-        self.definition = None
 
 class UnionType(Type):
     def __init__(self, name):
         self.name = name
-        self.definition = None
 
 class FunctionType(Type):
     def __init__(self, argtype, restype):

@@ -61,3 +61,4 @@ def test_full():
         f.write(res)
     d = {}
     exec res in d
+    d['func_zmain'](())

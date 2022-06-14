@@ -28,20 +28,25 @@ class Codegen(object):
     def update_global_pyname(self, name, pyname):
         self.globalnames[name].pyname = pyname
 
-    def add_local(self, name, typ, ast):
-        self.localnames[name] = NameInfo(name, typ, ast)
+    def add_local(self, name, pyname, typ, ast):
+        self.localnames[name] = NameInfo(pyname, typ, ast)
 
     def getname(self, name):
         if name not in self.localnames:
             return self.globalnames[name].pyname
         return name
 
+    def getinfo(self, name):
+        if name in self.localnames:
+            return self.localnames[name]
+        else:
+            return self.globalnames[name]
+
     def gettarget(self, name):
-        if name == "return":
-            return "return_"
-        if name not in self.localnames:
-            return self.globalnames[name].pyname
-        return name
+        return self.getinfo(name).pyname
+
+    def gettyp(self, name):
+        return self.getinfo(name).typ
 
     @contextmanager
     def enter_scope(self, ast):
@@ -70,6 +75,7 @@ def parse_and_make_code(s):
     ast = parse.parser.parse(parse.lexer.lex(s))
     c = Codegen()
     c.emit("import operator")
+    c.emit("from rpysail.test import supportcode")
     c.emit("class Registers(object): pass")
     c.emit("r = Registers()")
     try:
@@ -98,7 +104,7 @@ class __extend__(parse.Enum):
         self.pyname = name
         with codegen.emit_indent("class %s(object):" % name):
             for index, name in enumerate(self.names, start=codegen.last_enum):
-                codegen.add_global(name, "%s.%s" % (self.pyname, name), self, self)
+                codegen.add_global(name, "%s.%s" % (self.pyname, name), parse.EnumType(self.name), self)
                 codegen.emit("%s = %s" % (name, index))
             codegen.last_enum += len(self.names) + 1 # gap of 1
             codegen.add_global(self.name, self.pyname, self, self)
@@ -133,7 +139,9 @@ class __extend__(parse.Union):
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
         if self.definition is not None:
-            codegen.add_global(self.name, self.definition, self.typ, self)
+            name = eval(self.definition)
+            if name == "not": name = "not_"
+            codegen.add_global(self.name, "supportcode.%s" % (name, ), self.typ, self)
         else:
             codegen.add_global(self.name, None, self.typ, self)
 
@@ -152,24 +160,29 @@ class __extend__(parse.Function):
         args = self.args
         with codegen.emit_indent("def %s(%s):" % (pyname, ", ".join(args))):
             with codegen.enter_scope(self):
+                codegen.add_local('return', 'return_', typ.restype, self)
                 for i, arg in enumerate(args):
-                    codegen.add_local(arg, typ.argtype.elements[i], self)
-                codegen.emit("pc = 0")
-                with codegen.emit_indent("while 1:"):
-                    jumptargets = {0}
-                    for i, op in enumerate(self.body):
-                        if isinstance(op, (parse.Goto, parse.ConditionalJump)):
-                            jumptargets.add(op.target)
-                    codegen.level += 1
-                    for i, op in enumerate(self.body):
-                        if i in jumptargets:
-                            codegen.level -= 1
-                            codegen.emit("if pc == %s:" % i)
-                            codegen.level += 1
-                        codegen.emit("# %s" % (op, ))
-                        op.make_op_code(codegen)
-                        op.make_op_jump(codegen, i)
-                    codegen.level -= 1
+                    codegen.add_local(arg, arg, typ.argtype.elements[i], self)
+                jumptargets = {0}
+                for i, op in enumerate(self.body):
+                    if isinstance(op, (parse.Goto, parse.ConditionalJump)):
+                        jumptargets.add(op.target)
+                if len(jumptargets) > 1:
+                    codegen.emit("pc = 0")
+                    codegen.emit("while 1:")
+                    codegen.level += 2
+                else:
+                    jumptargets = set()
+                for i, op in enumerate(self.body):
+                    if i in jumptargets:
+                        codegen.level -= 1
+                        codegen.emit("if pc == %s:" % i)
+                        codegen.level += 1
+                    codegen.emit("# %s" % (op, ))
+                    op.make_op_code(codegen)
+                    op.make_op_jump(codegen, i)
+                if len(jumptargets) > 1:
+                    codegen.level -= 2
         codegen.emit()
 
 # ____________________________________________________________
@@ -186,7 +199,7 @@ class __extend__(parse.Statement):
 class __extend__(parse.LocalVarDeclaration):
     def make_op_code(self, codegen):
         codegen.emit("# %s: %s" % (self.name, self.typ))
-        codegen.add_local(self.name, self.typ, self)
+        codegen.add_local(self.name, self.name, self.typ, self)
         if self.value is not None:
             codegen.emit("%s = %s" % (self.name, self.value.to_code(codegen)))
 
@@ -200,8 +213,12 @@ class __extend__(parse.Operation):
                 op = "XXX_" + name[1:]
         else:
             op = codegen.getname(name)
+        if not self.args:
+            args = '()'
+        else:
+            args = ", ".join([arg.to_code(codegen) for arg in self.args])
         result = codegen.gettarget(self.result)
-        codegen.emit("%s = %s(%s)" % (result, op, ", ".join([arg.to_code(codegen) for arg in self.args])))
+        codegen.emit("%s = %s(%s)" % (result, op, args))
 
 class __extend__(parse.ConditionalJump):
     def make_op_code(self, codegen):
@@ -210,6 +227,7 @@ class __extend__(parse.ConditionalJump):
     def make_op_jump(self, codegen, i):
         with codegen.emit_indent("if not (%s):" % (self.condition.to_code(codegen))):
             codegen.emit("pc = %s" % (self.target, ))
+            codegen.emit("continue")
 
 class __extend__(parse.Goto):
     def make_op_code(self, codegen):
@@ -221,6 +239,8 @@ class __extend__(parse.Goto):
 class __extend__(parse.Assignment):
     def make_op_code(self, codegen):
         result = codegen.gettarget(self.result)
+        typ = codegen.gettyp(self.result)
+        othertyp = self.value.gettyp(codegen)
         codegen.emit("%s = %s" % (result, self.value.to_code(codegen)))
 
 class __extend__(parse.TupleElementAssignment):
@@ -252,17 +272,31 @@ class __extend__(parse.Expression):
     def to_code(self, codegen):
         raise NotImplementedError
 
+    def gettyp(self, codegen):
+        raise NotImplementedError
+
+
 class __extend__(parse.Var):
     def to_code(self, codegen):
         return codegen.getname(self.name)
+
+    def gettyp(self, codegen):
+        return codegen.gettyp(self.name)
 
 class __extend__(parse.Number):
     def to_code(self, codegen):
         return str(self.number)
 
+    def gettyp(self, codegen):
+        return parse.NamedType('%i64')
+
 class __extend__(parse.Unit):
     def to_code(self, codegen):
         return '()'
+
+    def gettyp(self, codegen):
+        return parse.NamedType('%unit')
+
 
 # ____________________________________________________________
 # conditions

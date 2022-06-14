@@ -9,6 +9,7 @@ class Info(object):
 class ResolveNamesVisitor(Visitor):
     def __init__(self):
         self.names = {} # string -> Info
+        self.current_function = None
 
     def getinfo(self, name):
         return self.names[name]
@@ -48,3 +49,19 @@ class ResolveNamesVisitor(Visitor):
     def visit_UnionType(self, ast):
         info = self.getinfo(ast.name)
         ast.definition = info
+
+    def visit_LocalVarDeclaration(self, ast):
+        info = self.current_function.localtypes[ast.name] = Info()
+        info.typ = ast.typ
+
+    def visit_Function(self, ast):
+        info = self.getinfo(ast.name)
+        info.value = ast
+        self.current_function = ast
+        ast.localtypes = {}
+        if ast.args:
+            for typ, arg in zip(info.typ.argtype.elements, ast.args):
+                info = ast.localtypes[arg] = Info()
+                info.typ = typ
+
+

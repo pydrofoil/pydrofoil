@@ -152,6 +152,7 @@ class Function(Declaration):
         self.name = name
         self.args = args
         self.body = body
+        self.localtypes = None
 
     def _dot(self, dotgen):
         arcs = []

@@ -11,7 +11,10 @@ def test_parse_full():
     res = parser.parse(lexer.lex(s))
     visitor = ResolveNamesVisitor()
     res.visit(visitor)
-    assert visitor.names['zjum'] # exists
-    assert visitor.names['zJGT'].value == 2
+    assert visitor.names['zjump'] # exists
+    assert visitor.names['zJGT'].value == 1
     assert visitor.names['zAINST'] # exists
+    assert visitor.names['zsail_mask'].value is not None
+    assert visitor.names['zcompute_value'].value.localtypes['zashadowz31_lz30'].typ.name == "%bv16"
+    assert visitor.names['zcompute_value'].value.localtypes['za'].typ.name == "%bv1"
 

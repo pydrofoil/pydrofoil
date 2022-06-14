@@ -57,6 +57,16 @@ lexer = lg.build()
 # ____________________________________________________________
 # AST classes
 
+class Visitor(object):
+    def visit(self, ast):
+        meth = getattr(self, "visit_%s" % type(ast).__name__, None)
+        if meth is not None:
+            return meth(ast)
+        return self.default_visit(ast)
+    
+    def default_visit(self, ast):
+        pass
+
 class BaseAst(BaseBox):
     def __eq__(self, other):
         if type(self) != type(other):
@@ -98,6 +108,15 @@ class BaseAst(BaseBox):
         for target, label in arcs:
             dotgen.emit_edge(str(id(self)), str(id(target)), label)
 
+    def visit(self, visitor):
+        visitor.visit(self)
+        for key, value in self.__dict__.items():
+            if isinstance(value, BaseAst):
+                value.visit(visitor)
+            elif isinstance(value, list) and value and isinstance(value[0], BaseAst):
+                for item in value:
+                    item.visit(visitor)
+
 
 class File(BaseAst):
     def __init__(self, declarations, sourcepos=None):
@@ -107,17 +126,14 @@ class Declaration(BaseAst):
     pass
 
 class Enum(Declaration):
-    def __init__(self, name, values, sourcepos=None):
+    def __init__(self, name, names, sourcepos=None):
         self.name = name
-        self.values = values
-
-    def __repr__(self):
-        return "Enum(%r, %r)" % (self.name, self.values)
-
+        self.names = names
 
 class Union(Declaration):
-    def __init__(self, name, types, sourcepos=None):
+    def __init__(self, name, names, types, sourcepos=None):
         self.name = name
+        self.names = names
         self.types = types
 
 class GlobalVal(Declaration):
@@ -175,10 +191,12 @@ class TupleType(Type):
 class EnumType(Type):
     def __init__(self, name):
         self.name = name
+        self.definition = None
 
 class UnionType(Type):
     def __init__(self, name):
         self.name = name
+        self.definition = None
 
 class FunctionType(Type):
     def __init__(self, argtype, restype):
@@ -301,7 +319,7 @@ def enumcontent(p):
     if len(p) == 1:
         return Enum(None, [p[0].value])
     else:
-        return Enum(None, [p[0].value] + p[2].values)
+        return Enum(None, [p[0].value] + p[2].names)
 
 @pg.production('union : UNION NAME LBRACE unioncontent RBRACE')
 def union(p):
@@ -311,9 +329,9 @@ def union(p):
 @pg.production('unioncontent : NAME COLON type | NAME COLON type COMMA unioncontent')
 def unioncontent(p):
     if len(p) == 3:
-        return Union(None, [(p[0].value, p[2])])
+        return Union(None, [p[0].value], [p[2]])
     else:
-        return Union(None, [(p[0].value, p[2])] + p[4].types)
+        return Union(None, [p[0].value] + p[4].names, [p[2]] + p[4].types)
 
 @pg.production('globalval : VAL NAME COLON type | VAL NAME EQUAL STRING COLON type')
 def globalval(p):

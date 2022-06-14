@@ -41,11 +41,12 @@ union zinstr {
 }
 """))
     assert res.declarations[0] == Union('zinstr',
-            [('zAINST', NamedType('%bv16')),
-             ('zCINST', TupleType([
+            ['zAINST', 'zCINST'],
+            [NamedType('%bv16'),
+             TupleType([
                  NamedType('%bv1'), EnumType('zarithmetic_op'),
                  TupleType([NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]),
-                 EnumType('zjump')])),
+                 EnumType('zjump')]),
             ])
 
 def test_globalval():

@@ -30,7 +30,6 @@ class ResolveNamesVisitor(Visitor):
         info.typ = ast
         for index, name in enumerate(ast.names):
             info = self.addinfo(name)
-            info.value = index
             info.ast = ast
 
     def visit_Union(self, ast):

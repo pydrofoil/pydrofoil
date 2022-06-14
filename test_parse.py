@@ -187,6 +187,10 @@ fn zdecode(zmergez3var) {
   zgaz320_lz313 : %enum zjump;
   zgaz320_lz313 = zdecode_jump_backwards(zjump_lz34);
   zgsz349_lz314 : (%bv1, %enum zarithmetic_op, (%bool, %bool, %bool), %enum zjump);
+  zgsz349_lz314.0 = za_lz37;
+  zgsz349_lz314.1 = zgaz318_lz311;
+  zgsz349_lz314.2 = zgaz319_lz312;
+  zgsz349_lz314.3 = zgaz320_lz313;
   zgaz321_lz310 = zgsz349_lz314;
   zgaz322_lz38 = zCINST(zgaz321_lz310);
   zgsz399_lz39 : %union zinstr;

@@ -181,6 +181,12 @@ class Assignment(Statement):
         self.result = result
         self.value = value
 
+class TupleElementAssignment(Statement):
+    def __init__(self, tup, index, value):
+        self.tup = tup
+        self.index = index
+        self.value = value
+
 class End(Statement):
     pass
 
@@ -198,10 +204,6 @@ class Number(Expression):
     def __init__(self, number):
         self.number = number
 
-class TupleElement(Expression):
-    def __init__(self, name, number):
-        self.name = name
-        self.number = number
 
 # ____________________________________________________________
 # parser
@@ -318,9 +320,12 @@ def op(p):
 def op(p):
     return Goto(int(p[1].value))
 
-@pg.production('assignment : NAME EQUAL NAME')
+@pg.production('assignment : NAME EQUAL NAME | NAME DOT NUMBER EQUAL NAME')
 def op(p):
-    return Assignment(p[0].value, p[2].value)
+    if len(p) == 3:
+        return Assignment(p[0].value, p[2].value)
+    else:
+        return TupleElementAssignment(p[0].value, int(p[2].value), p[4].value)
 
 @pg.production('lhs : NAME | NAME DOT NUMBER')
 def op(p):

@@ -71,6 +71,34 @@ class BaseAst(BaseBox):
     def __repr__(self):
         return "%s(%s)" % (type(self).__name__, ", ".join(sorted("%s=%r" % (key, value) for key, value in self.__dict__.items())))
 
+    def view(self):
+        from rpython.translator.tool.make_dot import DotGen
+        from dotviewer import graphclient
+        import pytest
+        dotgen = DotGen('G')
+        self._dot(dotgen)
+        p = pytest.ensuretemp("pyparser").join("temp.dot")
+        p.write(dotgen.generate(target=None))
+        graphclient.display_dot_file(str(p))
+
+    def _dot(self, dotgen):
+        arcs = []
+        label = [type(self).__name__]
+        for key, value in self.__dict__.items():
+            if isinstance(value, BaseAst):
+                arcs.append((value, key))
+                value._dot(dotgen)
+            elif isinstance(value, list) and value and isinstance(value[0], BaseAst):
+                for index, item in enumerate(value):
+                    arcs.append((item, "%s[%s]" % (key, index)))
+                    item._dot(dotgen)
+            else:
+                label.append("%s = %r" % (key, value))
+        dotgen.emit_node(str(id(self)), shape="box", label = "\n".join(label))
+        for target, label in arcs:
+            dotgen.emit_edge(str(id(self)), str(id(target)), label)
+
+
 class File(BaseAst):
     def __init__(self, declarations, sourcepos=None):
         self.declarations = declarations
@@ -104,10 +132,31 @@ class Register(Declaration):
         self.typ = typ
 
 class Function(Declaration):
-    def __init__(self, name, arguments, body, sourcepos=None):
+    def __init__(self, name, args, body, sourcepos=None):
         self.name = name
-        self.arguments = arguments
+        self.args = args
         self.body = body
+
+    def _dot(self, dotgen):
+        arcs = []
+        label = ["Function", "name = %r" % (self.name, ), "args = %r" % (self.args, )]
+        for op in self.body:
+            op._dot(dotgen)
+        dotgen.emit_node(str(id(self)), shape="box", label = type(self).__name__ + "\n" + "\n".join(label))
+        dotgen.emit_edge(str(id(self)), str(id(self.body[0])), "start")
+        for index, op in enumerate(self.body):
+            if isinstance(op, End):
+                pass
+            elif isinstance(op, Failure):
+                pass
+            elif isinstance(op, Goto):
+                dotgen.emit_edge(str(id(op)), str(id(self.body[op.target])))
+            elif isinstance(op, ConditionalJump):
+                dotgen.emit_edge(str(id(op)), str(id(self.body[op.target])), "true")
+                dotgen.emit_edge(str(id(op)), str(id(self.body[index + 1])), "false")
+            else:
+                dotgen.emit_edge(str(id(op)), str(id(self.body[index + 1])))
+
 
 class Type(BaseAst):
     pass
@@ -135,12 +184,6 @@ class FunctionType(Type):
     def __init__(self, argtype, restype):
         self.argtype = argtype
         self.restype = restype
-
-class Function(Declaration):
-    def __init__(self, name, args, body):
-        self.name = name
-        self.args = args
-        self.body = body
 
 class Statement(BaseAst):
     pass
@@ -190,7 +233,7 @@ class UnionVariantCheck(Condition):
     def __init__(self, var, variant):
         self.var = var
         self.variant = variant
-        
+
 class Assignment(Statement):
     def __init__(self, result, value):
         self.result = result
@@ -207,7 +250,7 @@ class End(Statement):
 
 class Failure(Statement):
     pass
-        
+
 class Expression(BaseAst):
     pass
 

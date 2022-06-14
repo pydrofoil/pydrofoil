@@ -1,7 +1,11 @@
-from parse import *
+from rpysail.parse import *
+
+import os
+
+cir = os.path.join(os.path.dirname(__file__), "c.ir")
 
 def test_lex_full():
-    with open("c.ir", "rb") as f:
+    with open(cir, "rb") as f:
         s = f.read()
     try:
         for tok in lexer.lex(s):
@@ -211,7 +215,7 @@ fn zdecode(zmergez3var) {
 }"""))
 
 def test_parse_full():
-    with open("c.ir", "rb") as f:
+    with open(cir, "rb") as f:
         s = f.read()
     try:
         res = parser.parse(lexer.lex(s))

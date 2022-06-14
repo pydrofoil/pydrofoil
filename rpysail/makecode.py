@@ -11,6 +11,82 @@ class NameInfo(object):
         return "NameInfo(%r, %r, %r)" % (self.pyname, self.typ, self.ast)
 
 
+class Codegen(object):
+    def __init__(self, namespaces):
+        self.code = []
+        self.level = 0
+        self.last_enum = 0
+        self.globalnames = {}
+        self.localnames = None
+        self.namespaces = namespaces
+        self.add_global("false", "False", parse.NamedType('%bool'), None)
+        self.add_global("true", "True", parse.NamedType('%bool'), None)
+
+    def add_global(self, name, pyname, typ, ast):
+        assert name not in self.globalnames
+        self.globalnames[name] = NameInfo(pyname, typ, ast)
+
+    def update_global_pyname(self, name, pyname):
+        self.globalnames[name].pyname = pyname
+
+    def add_local(self, name, typ, ast):
+        self.localnames[name] = NameInfo(name, typ, ast)
+
+    def getname(self, name):
+        if name not in self.localnames:
+            return self.globalnames[name].pyname
+        return name
+
+    def gettarget(self, name):
+        if name == "return":
+            return "return_"
+        if name not in self.localnames:
+            return self.globalnames[name].pyname
+        return name
+
+    @contextmanager
+    def enter_scope(self, ast):
+        old_localnames = self.localnames
+        self.localnames = {}
+        yield
+        ast.localnames = self.localnames
+        self.localnames = old_localnames
+
+    @contextmanager
+    def emit_indent(self, line):
+        self.emit(line)
+        self.level += 1
+        yield
+        self.level -= 1
+
+    def emit(self, line=''):
+        if not line.strip():
+            self.code.append('')
+        else:
+            self.code.append("    " * self.level + line)
+
+
+def parse_and_make_code(s):
+    from rpysail import parse, addtypes
+    ast = parse.parser.parse(parse.lexer.lex(s))
+    visitor = addtypes.ResolveNamesVisitor()
+    ast.visit(visitor)
+    visitor.current_function = None
+    c = Codegen(visitor)
+    c.emit("import operator")
+    c.emit("class Registers(object): pass")
+    c.emit("r = Registers()")
+    try:
+        ast.make_code(c)
+    except Exception:
+        print "\n".join(c.code)
+        raise
+    return "\n".join(c.code)
+    
+
+# ____________________________________________________________
+# declarations
+
 class __extend__(parse.File):
     def make_code(self, codegen):
         for decl in self.declarations:
@@ -100,6 +176,9 @@ class __extend__(parse.Function):
                     codegen.level -= 1
         codegen.emit()
 
+# ____________________________________________________________
+# operations
+
 class __extend__(parse.Statement):
     def make_op_code(self, codegen):
         raise NotImplementedError
@@ -171,6 +250,9 @@ class __extend__(parse.TemplatedOperation):
     def make_op_code(self, codegen):
         codegen.emit("XXX")
 
+# ____________________________________________________________
+# expressions
+
 class __extend__(parse.Expression):
     def to_code(self, codegen):
         raise NotImplementedError
@@ -186,6 +268,9 @@ class __extend__(parse.Number):
 class __extend__(parse.Unit):
     def to_code(self, codegen):
         return '()'
+
+# ____________________________________________________________
+# conditions
 
 class __extend__(parse.Condition):
     def to_code(self, codegen):
@@ -209,74 +294,3 @@ class __extend__(parse.UnionVariantCheck):
         pyname = typeast.pynames[index]
         return "type(%s) is %s" % (self.var, pyname)
 
-class Codegen(object):
-    def __init__(self, namespaces):
-        self.code = []
-        self.level = 0
-        self.last_enum = 0
-        self.globalnames = {}
-        self.localnames = None
-        self.namespaces = namespaces
-        self.add_global("false", "False", parse.NamedType('%bool'), None)
-        self.add_global("true", "True", parse.NamedType('%bool'), None)
-
-    def add_global(self, name, pyname, typ, ast):
-        assert name not in self.globalnames
-        self.globalnames[name] = NameInfo(pyname, typ, ast)
-
-    def update_global_pyname(self, name, pyname):
-        self.globalnames[name].pyname = pyname
-
-    def add_local(self, name, typ, ast):
-        self.localnames[name] = NameInfo(name, typ, ast)
-
-    def getname(self, name):
-        if name not in self.localnames:
-            return self.globalnames[name].pyname
-        return name
-
-    def gettarget(self, name):
-        if name == "return":
-            return "return_"
-        if name not in self.localnames:
-            return self.globalnames[name].pyname
-        return name
-
-    @contextmanager
-    def enter_scope(self, ast):
-        old_localnames = self.localnames
-        self.localnames = {}
-        yield
-        ast.localnames = self.localnames
-        self.localnames = old_localnames
-
-    @contextmanager
-    def emit_indent(self, line):
-        self.emit(line)
-        self.level += 1
-        yield
-        self.level -= 1
-
-    def emit(self, line=''):
-        if not line.strip():
-            self.code.append('')
-        else:
-            self.code.append("    " * self.level + line)
-
-def parse_and_make_code(s):
-    from rpysail import parse, addtypes
-    ast = parse.parser.parse(parse.lexer.lex(s))
-    visitor = addtypes.ResolveNamesVisitor()
-    ast.visit(visitor)
-    visitor.current_function = None
-    c = Codegen(visitor)
-    c.emit("import operator")
-    c.emit("class Registers(object): pass")
-    c.emit("r = Registers()")
-    try:
-        ast.make_code(c)
-    except Exception:
-        print "\n".join(c.code)
-        raise
-    return "\n".join(c.code)
-    

@@ -210,7 +210,6 @@ class __extend__(parse.ConditionalJump):
     def make_op_jump(self, codegen, i):
         with codegen.emit_indent("if not (%s):" % (self.condition.to_code(codegen))):
             codegen.emit("pc = %s" % (self.target, ))
-        codegen.emit("pc = %s" % (i + 1, ))
 
 class __extend__(parse.Goto):
     def make_op_code(self, codegen):

@@ -48,6 +48,11 @@ class __extend__(parse.GlobalVal):
         if self.definition is not None:
             codegen.emit("%s = 'XXX define me %s'" % (self.name, self.definition))
 
+class __extend__(parse.Register):
+    def make_code(self, codegen):
+        codegen.emit("# %s" % (self, ))
+
+
 class __extend__(parse.Function):
     def make_code(self, codegen):
         pyname = "func_" + self.name.lstrip("z")
@@ -167,6 +172,8 @@ def parse_and_make_code(s):
     visitor = addtypes.ResolveNamesVisitor()
     ast.visit(visitor)
     c = Codegen(visitor)
+    c.emit("class Registers(object): pass")
+    c.emit("r = Registers()")
     try:
         ast.make_code(c)
     except Exception:

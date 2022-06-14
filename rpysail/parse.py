@@ -1,6 +1,8 @@
 from rply import LexerGenerator, LexingError, ParserGenerator
 from rply.token import BaseBox
 
+from rpython.tool.pairtype import extendabletype
+
 # ____________________________________________________________
 # lexer
 
@@ -68,6 +70,8 @@ class Visitor(object):
         pass
 
 class BaseAst(BaseBox):
+    __metaclass__ = extendabletype
+
     def __eq__(self, other):
         if type(self) != type(other):
             return NotImplemented

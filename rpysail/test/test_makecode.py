@@ -18,6 +18,8 @@ enum zjump {
 }
 """)
     assert res == """\
+class Registers(object): pass
+r = Registers()
 class Enum_zjump(object):
     0 = zJDONT
     1 = zJGT
@@ -36,6 +38,8 @@ union zinstr {
 }
 """)
     assert res == """\
+class Registers(object): pass
+r = Registers()
 class Union_instr(object):
     pass
 class Union_instr_AINST(Union_instr):
@@ -53,3 +57,4 @@ def test_full():
     with open(cir, "rb") as f:
         s = f.read()
     res = parse_and_make_code(s)
+    print res

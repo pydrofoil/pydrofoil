@@ -109,6 +109,10 @@ class __extend__(parse.Assignment):
     def make_op_code(self, codegen, local_namespace):
         codegen.emit("%s = %s" % (self.result, self.value.to_code(codegen, local_namespace)))
 
+class __extend__(parse.TupleElementAssignment):
+    def make_op_code(self, codegen, local_namespace):
+        codegen.emit("%s.tup%s = %s" % (self.tup, self.index, self.value.to_code(codegen, local_namespace)))
+
 class __extend__(parse.End):
     def make_op_code(self, codegen, local_namespace):
         codegen.emit("return return_")
@@ -123,6 +127,9 @@ class __extend__(parse.Failure):
     def make_op_jump(self, codegen, i, local_namespace):
         pass
 
+class __extend__(parse.TemplatedOperation):
+    def make_op_code(self, codegen, local_namespace):
+        codegen.emit("XXX")
 
 class __extend__(parse.Expression):
     def to_code(self, codegen, local_namespace):
@@ -136,6 +143,10 @@ class __extend__(parse.Number):
     def to_code(self, codegen, local_namespace):
         return str(self.number)
 
+class __extend__(parse.Unit):
+    def to_code(self, codegen, local_namespace):
+        return '()'
+
 class __extend__(parse.Condition):
     def to_code(self, codegen, local_namespace):
         raise NotImplementedError
@@ -148,6 +159,12 @@ class __extend__(parse.Comparison):
     def to_code(self, codegen, local_namespace):
         return "%s(%s)" % (self.operation, ", ".join([arg.to_code(codegen, local_namespace) for arg in self.args]))
 
+class __extend__(parse.UnionVariantCheck):
+    def to_code(self, codegen, local_namespace):
+        typeast = codegen.namespaces.names[self.variant].ast
+        index = typeast.names.index(self.variant)
+        pyname = typeast.pynames[index]
+        return "type(%s) is %s" % (self.var, pyname)
 
 class Codegen(object):
     def __init__(self, namespaces):
@@ -171,6 +188,7 @@ def parse_and_make_code(s):
     ast = parse.parser.parse(parse.lexer.lex(s))
     visitor = addtypes.ResolveNamesVisitor()
     ast.visit(visitor)
+    visitor.current_function = None
     c = Codegen(visitor)
     c.emit("class Registers(object): pass")
     c.emit("r = Registers()")

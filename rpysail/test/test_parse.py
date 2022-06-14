@@ -9,7 +9,7 @@ def test_lex_full():
         s = f.read()
     try:
         for tok in lexer.lex(s):
-            print(tok)
+            pass
     except LexingError as e:
         print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
         assert 0

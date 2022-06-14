@@ -61,11 +61,20 @@ class __extend__(parse.Function):
         with codegen.emit_indent("def %s(%s):" % (pyname, ", ".join(args))):
             codegen.emit("pc = 0")
             with codegen.emit_indent("while 1:"):
+                jumptargets = {0}
                 for i, op in enumerate(self.body):
-                    with codegen.emit_indent("if pc == %s:" % i):
-                        codegen.emit("# %s" % (op, ))
-                        op.make_op_code(codegen, self.localtypes)
-                        op.make_op_jump(codegen, i, self.localtypes)
+                    if isinstance(op, (parse.Goto, parse.ConditionalJump)):
+                        jumptargets.add(op.target)
+                codegen.level += 1
+                for i, op in enumerate(self.body):
+                    if i in jumptargets:
+                        codegen.level -= 1
+                        codegen.emit("if pc == %s:" % i)
+                        codegen.level += 1
+                    codegen.emit("# %s" % (op, ))
+                    op.make_op_code(codegen, self.localtypes)
+                    op.make_op_jump(codegen, i, self.localtypes)
+                codegen.level -= 1
 
 
 class __extend__(parse.Statement):
@@ -73,7 +82,7 @@ class __extend__(parse.Statement):
         raise NotImplementedError
 
     def make_op_jump(self, codegen, i, local_namespace):
-        codegen.emit("pc = %s" % (i + 1, ))
+        pass
 
 
 class __extend__(parse.LocalVarDeclaration):
@@ -94,7 +103,7 @@ class __extend__(parse.ConditionalJump):
         pass
 
     def make_op_jump(self, codegen, i, local_namespace):
-        with codegen.emit_indent("if %s:" % (self.condition.to_code(codegen, local_namespace))):
+        with codegen.emit_indent("if not (%s):" % (self.condition.to_code(codegen, local_namespace))):
             codegen.emit("pc = %s" % (self.target, ))
         codegen.emit("pc = %s" % (i + 1, ))
 

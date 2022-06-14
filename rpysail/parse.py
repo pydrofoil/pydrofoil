@@ -173,8 +173,8 @@ class Function(Declaration):
             elif isinstance(op, Goto):
                 dotgen.emit_edge(str(id(op)), str(id(self.body[op.target])))
             elif isinstance(op, ConditionalJump):
-                dotgen.emit_edge(str(id(op)), str(id(self.body[op.target])), "true")
-                dotgen.emit_edge(str(id(op)), str(id(self.body[index + 1])), "false")
+                dotgen.emit_edge(str(id(op)), str(id(self.body[op.target])), "false")
+                dotgen.emit_edge(str(id(op)), str(id(self.body[index + 1])), "true")
             else:
                 dotgen.emit_edge(str(id(op)), str(id(self.body[index + 1])))
 

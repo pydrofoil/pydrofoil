@@ -3,6 +3,7 @@ from rpysail.makecode import *
 import os
 
 cir = os.path.join(os.path.dirname(__file__), "c.ir")
+outpy = os.path.join(os.path.dirname(__file__), "out.py")
 
 def test_enum():
     res = parse_and_make_code("""
@@ -57,4 +58,7 @@ def test_full():
     with open(cir, "rb") as f:
         s = f.read()
     res = parse_and_make_code(s)
-    print res
+    with open(outpy, "w") as f:
+        f.write(res)
+    d = {}
+    exec res in d

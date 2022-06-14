@@ -11,4 +11,7 @@ def test_parse_full():
     res = parser.parse(lexer.lex(s))
     visitor = ResolveNamesVisitor()
     res.visit(visitor)
+    assert visitor.names['zjum'] # exists
+    assert visitor.names['zJGT'].value == 2
+    assert visitor.names['zAINST'] # exists
 

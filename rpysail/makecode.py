@@ -12,13 +12,12 @@ class NameInfo(object):
 
 
 class Codegen(object):
-    def __init__(self, namespaces):
+    def __init__(self):
         self.code = []
         self.level = 0
         self.last_enum = 0
         self.globalnames = {}
         self.localnames = None
-        self.namespaces = namespaces
         self.add_global("false", "False", parse.NamedType('%bool'), None)
         self.add_global("true", "True", parse.NamedType('%bool'), None)
 
@@ -67,12 +66,9 @@ class Codegen(object):
 
 
 def parse_and_make_code(s):
-    from rpysail import parse, addtypes
+    from rpysail import parse
     ast = parse.parser.parse(parse.lexer.lex(s))
-    visitor = addtypes.ResolveNamesVisitor()
-    ast.visit(visitor)
-    visitor.current_function = None
-    c = Codegen(visitor)
+    c = Codegen()
     c.emit("import operator")
     c.emit("class Registers(object): pass")
     c.emit("r = Registers()")
@@ -289,8 +285,5 @@ class __extend__(parse.Comparison):
 
 class __extend__(parse.UnionVariantCheck):
     def to_code(self, codegen):
-        typeast = codegen.namespaces.names[self.variant].ast
-        index = typeast.names.index(self.variant)
-        pyname = typeast.pynames[index]
-        return "type(%s) is %s" % (self.var, pyname)
+        return "type(%s) is %s" % (self.var, codegen.getname(self.variant))
 

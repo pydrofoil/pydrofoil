@@ -55,6 +55,14 @@ val zneq_int : (%i, %i) ->  %bool
         GlobalVal('zneq_int', None, FunctionType(TupleType([NamedType('%i')] * 2), NamedType('%bool'))),
     ]
 
+def test_register():
+    res = parser.parse(lexer.lex("""
+register zPC : %bv16
+"""))
+    assert res.declarations == [
+        Register('zPC', NamedType('%bv16'))
+    ]
+
 def test_function():
     res = parser.parse(lexer.lex("""
 fn zneq_int(zx, zy) {
@@ -95,7 +103,7 @@ fn zsail_mask(zlen, zv) {
             LocalVarDeclaration('zgaz31_lz31', NamedType('%i')),
             Operation('zgaz31_lz31', 'zbitvector_length', [Var('zv')]),
             Operation('zgaz32_lz30', 'zlteq_int', [Var('zlen'), Var('zgaz31_lz31')]),
-            ConditionalJump('zgaz32_lz30', 7, '"/home/cfbolz/.opam/default/share/sail/lib/vector_dec.sail 81:29 - 81:100"'),
+            ConditionalJump(VarCondition('zgaz32_lz30'), 7, '"/home/cfbolz/.opam/default/share/sail/lib/vector_dec.sail 81:29 - 81:100"'),
             Operation('return', 'zsail_zzero_extend', [Var('zv'), Var('zlen')]),
             Goto(8),
             Operation('return', 'ztruncate', [Var('zv'), Var('zlen')]),
@@ -130,9 +138,9 @@ fn zbits1_to_bool(zb) {
   end;
 }
     """))
-    assert res.declarations[0].body[2] == Assignment('zb__0_lz33', 'zb')
-    assert res.declarations[0].body[5] == ConditionalJumpComparison(
-            '@not', [Var('zgsz311_lz34')], 7, '"f.sail 13:27 - 16:1"')
+    assert res.declarations[0].body[2] == Assignment('zb__0_lz33', Var('zb'))
+    assert res.declarations[0].body[5] == ConditionalJump(
+            Comparison('@not', [Var('zgsz311_lz34')]), 7, '"f.sail 13:27 - 16:1"')
 
 def test_function4():
     res = parser.parse(lexer.lex("""
@@ -201,3 +209,13 @@ fn zdecode(zmergez3var) {
   return = zgsz344_lz30;
   end;
 }"""))
+
+def test_parse_full():
+    with open("c.ir", "rb") as f:
+        s = f.read()
+    try:
+        res = parser.parse(lexer.lex(s))
+    except LexingError as e:
+        print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
+        assert 0
+

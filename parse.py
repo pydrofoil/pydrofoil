@@ -23,11 +23,16 @@ addkeyword('end')
 addkeyword('failure')
 addkeyword('goto')
 addkeyword('jump')
+addkeyword('register')
+addkeyword('is')
+addkeyword('as')
 
 addtok('PERCENTENUM', r'%enum')
 addtok('PERCENTUNION', r'%union')
 
-addtok('NUMBER', r'(0b)?\d+')
+addtok('BINNUMBER', r'0b[01]+')
+addtok('HEXNUMBER', r'0x[0-9a-fA-F]+')
+addtok('NUMBER', r'\d+')
 addtok('NAME', r'[a-zA-Z_%@][a-zA-Z_0-9]*')
 addtok('STRING', r'"[^"]*"')
 addtok('ARROW', r'->')
@@ -169,13 +174,23 @@ class ConditionalJump(Statement):
         self.target = target
         self.sourcecomment = sourcecomment
 
-class ConditionalJumpComparison(Statement):
-    def __init__(self, operation, args, target, sourcecomment):
+class Condition(BaseAst):
+    pass
+
+class VarCondition(Condition):
+    def __init__(self, name):
+        self.name = name
+
+class Comparison(Condition):
+    def __init__(self, operation, args):
         self.operation = operation
         self.args = args
-        self.target = target
-        self.sourcecomment = sourcecomment
 
+class UnionVariantCheck(Condition):
+    def __init__(self, var, variant):
+        self.var = var
+        self.variant = variant
+        
 class Assignment(Statement):
     def __init__(self, result, value):
         self.result = result
@@ -204,6 +219,19 @@ class Number(Expression):
     def __init__(self, number):
         self.number = number
 
+class TupleElement(Expression):
+    def __init__(self, tup, element):
+        self.tup = tup
+        self.element = element
+
+class Cast(Expression):
+    def __init__(self, expr, variant, field=None):
+        self.expr = expr
+        self.variant = variant
+        self.field = field
+
+class Unit(Expression):
+    pass
 
 # ____________________________________________________________
 # parser
@@ -216,7 +244,7 @@ def file(p):
         return File(p)
     return File(p[0].declarations + [p[1]])
 
-@pg.production('declaration : enum | union | globalval | function')
+@pg.production('declaration : enum | union | globalval | function | register')
 def declaration(p):
     return p[0]
 
@@ -262,6 +290,10 @@ def args(p):
     else:
         return Function(None, [p[0].value] + p[2].args, None)
 
+@pg.production('register : REGISTER NAME COLON type')
+def register(p):
+    return Register(p[1].value, p[3])
+
 @pg.production('operations : operation SEMICOLON | operation SEMICOLON operations')
 def operations(p):
     if len(p) == 2:
@@ -303,35 +335,48 @@ def opargs_(p):
     else:
         return Operation(None, None, [p[0]] + p[2].args)
 
-@pg.production('expr : NAME | NUMBER')
+@pg.production('expr : NAME | NUMBER | BINNUMBER | HEXNUMBER | NAME DOT NAME | LPAREN RPAREN | NAME AS NAME | NAME AS NAME DOT NAME')
 def expr(p):
     if p[0].gettokentype() == "NAME":
         return Var(p[0].value)
-    return Number(p[0].value)
+    elif p[0].gettokentype() == "BINNUMBER":
+        return Number(int(p[0].value[2:], 2))
+    elif p[0].gettokentype() == "HEXNUMBER":
+        return Number(int(p[0].value[2:], 16))
+    elif p[0].gettokentype() == "NUMBER":
+        return Number(int(p[0].value))
+    elif p[0].gettokentype() == "LPAREN":
+        return Unit()
+    elif len(p) == 3 and p[1].gettokentype() == "DOT":
+        return TupleElement(Var(p[0].value), p[2].value)
+    elif len(p) == 3 and p[1].gettokentype() == "AS":
+        return Cast(Var(p[0].value), p[2].value)
+    elif len(p) == 5 and p[1].gettokentype() == "AS":
+        return Cast(Var(p[0].value), p[2].value, p[4].value)
+    assert 0
 
+@pg.production('conditionaljump : JUMP condition GOTO NUMBER BACKTICK STRING')
+def conditionaljump(p):
+    return ConditionalJump(p[1], int(p[3].value), p[5].value)
 
-@pg.production('conditionaljump : JUMP NAME GOTO NUMBER BACKTICK STRING | JUMP NAME LPAREN opargs RPAREN GOTO NUMBER BACKTICK STRING')
-def op(p):
-    if len(p) == 6:
-        return ConditionalJump(p[1].value, int(p[3].value), p[5].value)
-    return ConditionalJumpComparison(p[1].value, p[3].args, int(p[6].value), p[8].value)
+@pg.production('condition : NAME | NAME LPAREN opargs RPAREN | NAME IS NAME')
+def condition(p):
+    if len(p) == 1:
+        return VarCondition(p[0].value)
+    if len(p) == 4:
+        return Comparison(p[0].value, p[2].args)
+    return UnionVariantCheck(p[0].value, p[2].value)
 
 @pg.production('goto : GOTO NUMBER')
 def op(p):
     return Goto(int(p[1].value))
 
-@pg.production('assignment : NAME EQUAL NAME | NAME DOT NUMBER EQUAL NAME')
+@pg.production('assignment : NAME EQUAL expr | NAME DOT NUMBER EQUAL expr')
 def op(p):
     if len(p) == 3:
-        return Assignment(p[0].value, p[2].value)
+        return Assignment(p[0].value, p[2])
     else:
-        return TupleElementAssignment(p[0].value, int(p[2].value), p[4].value)
-
-@pg.production('lhs : NAME | NAME DOT NUMBER')
-def op(p):
-    if len(p) == 1:
-        return Var(p[0].value)
-    return TupleElement(p[0].value, int(p[2].value))
+        return TupleElementAssignment(p[0].value, int(p[2].value), p[4])
 
 @pg.production('end : END')
 def end(p):

@@ -141,9 +141,10 @@ class Statement(BaseAst):
     pass
 
 class LocalVarDeclaration(Statement):
-    def __init__(self, name, typ):
+    def __init__(self, name, typ, value=None):
         self.name = name
         self.typ = typ
+        self.value = value
 
 class Operation(Statement):
     def __init__(self, result, name, args):
@@ -195,6 +196,11 @@ class Var(Expression):
 
 class Number(Expression):
     def __init__(self, number):
+        self.number = number
+
+class TupleElement(Expression):
+    def __init__(self, name, number):
+        self.name = name
         self.number = number
 
 # ____________________________________________________________
@@ -267,9 +273,12 @@ def operations(p):
 def operation(p):
     return p[0]
 
-@pg.production('localvardeclaration : NAME COLON type')
+@pg.production('localvardeclaration : NAME COLON type | NAME COLON type EQUAL expr')
 def localvardeclaration(p):
-    return LocalVarDeclaration(p[0].value, p[2])
+    if len(p) == 3:
+        return LocalVarDeclaration(p[0].value, p[2])
+    return LocalVarDeclaration(p[0].value, p[2], p[4])
+
 
 @pg.production('op : NAME EQUAL NAME LPAREN opargs RPAREN')
 def op(p):
@@ -306,6 +315,12 @@ def op(p):
 @pg.production('assignment : NAME EQUAL NAME')
 def op(p):
     return Assignment(p[0].value, p[2].value)
+
+@pg.production('lhs : NAME | NAME DOT NUMBER')
+def op(p):
+    if len(p) == 1:
+        return Var(p[0].value)
+    return TupleElement(p[0].value, int(p[2].value))
 
 @pg.production('end : END')
 def end(p):

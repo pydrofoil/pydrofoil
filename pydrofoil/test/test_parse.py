@@ -215,6 +215,18 @@ fn zdecode(zmergez3var) {
   end;
 }"""))
 
+def test_ztup_bug():
+    res = parser.parse(lexer.lex("""
+val zassign_dest : ((%bool, %bool, %bool), %bv16) ->  %unit
+
+fn zassign_dest(zgsz371, zvalue) {
+  za_lz30 : %bool;
+  za_lz30 = zgsz371.ztup0;
+  end;
+}
+    """))
+    assert res.declarations[1].body[1] == Assignment(result='za_lz30', value=TupleElement(element='ztup0', tup=Var(name='zgsz371')))
+
 def test_parse_full():
     with open(cir, "rb") as f:
         s = f.read()

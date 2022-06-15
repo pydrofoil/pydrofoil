@@ -395,7 +395,7 @@ def opargs(p):
 
 @pg.production('expr : NAME | NUMBER | BINNUMBER | HEXNUMBER | NAME DOT NAME | LPAREN RPAREN | NAME AS NAME | NAME AS NAME DOT NAME')
 def expr(p):
-    if p[0].gettokentype() == "NAME":
+    if len(p) == 1 and p[0].gettokentype() == "NAME":
         return Var(p[0].value)
     elif p[0].gettokentype() == "BINNUMBER":
         return Number(int(p[0].value[2:], 2))

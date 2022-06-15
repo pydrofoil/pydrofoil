@@ -1,3 +1,5 @@
+# convert *.hack files (string) to *.hack.bin (binary)
+# see https://www.nand2tetris.org/
 def main():
     import sys
     with open(sys.argv[1]) as f:

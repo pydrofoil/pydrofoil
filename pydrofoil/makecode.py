@@ -87,6 +87,7 @@ def parse_and_make_code(s):
     from pydrofoil import parse
     ast = parse.parser.parse(parse.lexer.lex(s))
     c = Codegen()
+    c.emit("from rpython.rlib.rbigint import rbigint")
     c.emit("import operator")
     c.emit("from pydrofoil.test import supportcode")
     c.emit("class Registers(object): pass")
@@ -141,7 +142,7 @@ class __extend__(parse.Union):
                     continue
                 if isinstance(typ, parse.TupleType):
                     argtypes = typ.elements
-                    args = ["a%s" % i for i in range(len(argtypes))]
+                    args = ["ztup%s" % i for i in range(len(argtypes))]
                 else:
                     argtypes = [typ]
                     args = ["a"]
@@ -300,7 +301,7 @@ class __extend__(parse.Var):
 
 class __extend__(parse.Number):
     def to_code(self, codegen):
-        return str(self.number)
+        return "rbigint.fromint(%s)" % (self.number, )
 
     def gettyp(self, codegen):
         return types.Int()
@@ -312,6 +313,36 @@ class __extend__(parse.Unit):
     def gettyp(self, codegen):
         return types.Unit()
 
+class __extend__(parse.TupleElement):
+    def to_code(self, codegen):
+        return "%s.%s" % (self.tup.to_code(codegen), self.element)
+
+    def gettyp(self, codegen):
+        tuptyp = self.tup.gettyp(codegen)
+        assert self.element.startswith("ztup")
+        return tuptyp.elements[int(self.element[len('ztup'):])]
+
+class __extend__(parse.Cast):
+    def to_code(self, codegen):
+        expr = self.expr.to_code(codegen) 
+        if self.field:
+            field = self.field
+        else:
+            field = 'a'
+        # XXX cleaner typeerror
+        return "%s.%s if isinstance(%s, %s) else 1/0" % (expr, field, expr, codegen.getname(self.variant))
+
+    def gettyp(self, codegen):
+        # XXX clean up
+        unionast = self.expr.gettyp(codegen).ast
+        index = unionast.names.index(self.variant)
+        typ = unionast.types[index].resolve_type(codegen)
+        if self.field is not None:
+            assert isinstance(typ, types.TupleType)
+            assert self.field.startswith('ztup')
+            return typ.elements[int(self.field[len('ztup'):])]
+        else:
+            return typ
 
 # ____________________________________________________________
 # conditions

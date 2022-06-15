@@ -62,10 +62,5 @@ class Bool(Type):
     pass
 
 @unique
-class Tuple(Type):
-    def __init__(self, subtypes):
-        self.subtypes = subtypes
-
-@unique
 class Unit(Type):
     pass

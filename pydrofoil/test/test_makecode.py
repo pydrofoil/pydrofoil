@@ -46,10 +46,10 @@ class Union_zinstr_zAINST(Union_zinstr):
     def __init__(self, a):
         self.a = a # NamedType('%bv16')
 class Union_zinstr_zCINST(Union_zinstr):
-    def __init__(self, a0, a1, a2):
-        self.a0 = a0 # NamedType('%bv1')
-        self.a1 = a1 # TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
-        self.a2 = a2 # NamedType('%bool')
+    def __init__(self, ztup0, ztup1, ztup2):
+        self.ztup0 = ztup0 # NamedType('%bv1')
+        self.ztup1 = ztup1 # TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
+        self.ztup2 = ztup2 # NamedType('%bool')
 """ in res
 
 def test_full():

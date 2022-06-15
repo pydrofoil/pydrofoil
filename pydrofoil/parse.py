@@ -448,8 +448,12 @@ def failure(p):
 
 # types
 
-@pg.production('type : namedtype | tupletype | enumtype | uniontype | functiontype')
+@pg.production('type : simpletype  | functiontype')
 def typ(p):
+    return p[0]
+
+@pg.production('simpletype : namedtype | tupletype | enumtype | uniontype')
+def simpletype(p):
     return p[0]
 
 @pg.production('namedtype : NAME')
@@ -475,7 +479,7 @@ def enumtype(p):
 def uniontype(p):
     return UnionType(p[1].value)
 
-@pg.production('functiontype : type ARROW type')
+@pg.production('functiontype : simpletype ARROW simpletype')
 def functiontype(p):
     return FunctionType(p[0], p[2])
 

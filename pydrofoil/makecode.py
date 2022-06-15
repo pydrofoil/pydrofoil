@@ -215,10 +215,15 @@ class __extend__(parse.Statement):
 class __extend__(parse.LocalVarDeclaration):
     def make_op_code(self, codegen):
         codegen.emit("# %s: %s" % (self.name, self.typ))
-        codegen.add_local(self.name, self.name, self.typ.resolve_type(codegen), self)
-        if self.value is not None:
+        typ = self.typ.resolve_type(codegen)
+        codegen.add_local(self.name, self.name, typ, self)
+        if isinstance(typ, types.TupleType):
+            assert self.value is None
+            # need to make a tuple instance
             result = codegen.gettarget(self.name)
-            typ = codegen.gettyp(self.name)
+            codegen.emit("%s = Tuple%s()" % (result, id(typ)))
+        elif self.value is not None:
+            result = codegen.gettarget(self.name)
             othertyp = self.value.gettyp(codegen)
             rhs = pair(othertyp, typ).convert(self.value, codegen)
             codegen.emit("%s = %s" % (result, rhs))
@@ -266,7 +271,7 @@ class __extend__(parse.Assignment):
 
 class __extend__(parse.TupleElementAssignment):
     def make_op_code(self, codegen):
-        codegen.emit("%s.tup%s = %s" % (self.tup, self.index, self.value.to_code(codegen)))
+        codegen.emit("%s.ztup%s = %s" % (self.tup, self.index, self.value.to_code(codegen)))
 
 class __extend__(parse.End):
     def make_op_code(self, codegen):

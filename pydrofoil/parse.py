@@ -485,4 +485,18 @@ def uniontype(p):
 def functiontype(p):
     return FunctionType(p[0], p[2])
 
+def print_conflicts():
+    if parser.lr_table.rr_conflicts:
+        print("rr conflicts")  
+    for rule_num, token, conflict in parser.lr_table.rr_conflicts:
+        print(rule_num, token, conflict)
+
+    if parser.lr_table.sr_conflicts:
+        print("sr conflicts")
+    for rule_num, token, conflict in parser.lr_table.sr_conflicts:
+        print(rule_num, token, conflict)
+        
 parser = pg.build()
+print_conflicts()
+
+

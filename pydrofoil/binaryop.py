@@ -18,9 +18,12 @@ class __extend__(pairtype(types.GenericBitVector, types.BitVector)):
          assert to.width <= 64
          return "%s.touint()" % ast.to_code(codegen)
 
-
 class __extend__(pairtype(types.Int, types.BitVector)):
     def convert((from_, to), ast, codegen):
          assert to.width <= 64
          return "%s.touint()" % ast.to_code(codegen)
+
+class __extend__(pairtype(types.MachineInt, types.Int)):
+    def convert((from_, to), ast, codegen):
+         return "rbigint.fromint(%s)" % ast.to_code(codegen)
 

@@ -88,6 +88,7 @@ def parse_and_make_code(s):
     ast = parse.parser.parse(parse.lexer.lex(s))
     c = Codegen()
     c.emit("from rpython.rlib.rbigint import rbigint")
+    c.emit("from rpython.rlib import rarithmetic")
     c.emit("import operator")
     c.emit("from pydrofoil.test import supportcode")
     c.emit("class Registers(object): pass")
@@ -216,7 +217,11 @@ class __extend__(parse.LocalVarDeclaration):
         codegen.emit("# %s: %s" % (self.name, self.typ))
         codegen.add_local(self.name, self.name, self.typ.resolve_type(codegen), self)
         if self.value is not None:
-            codegen.emit("%s = %s" % (self.name, self.value.to_code(codegen)))
+            result = codegen.gettarget(self.name)
+            typ = codegen.gettyp(self.name)
+            othertyp = self.value.gettyp(codegen)
+            rhs = pair(othertyp, typ).convert(self.value, codegen)
+            codegen.emit("%s = %s" % (result, rhs))
 
 class __extend__(parse.Operation):
     def make_op_code(self, codegen):
@@ -279,7 +284,19 @@ class __extend__(parse.Failure):
 
 class __extend__(parse.TemplatedOperation):
     def make_op_code(self, codegen):
-        codegen.emit("XXX")
+        if self.name == "@slice":
+            arg, num = self.args
+            typ = arg.gettyp(codegen)
+            assert isinstance(typ, types.BitVector)
+            assert isinstance(num, parse.Number)
+            assert isinstance(self.templateparam, parse.Number)
+            width = self.templateparam.number
+            restyp = codegen.gettyp(self.result)
+            result = codegen.gettarget(self.result)
+            assert restyp.width == width
+            codegen.emit("%s = (%s >> %s) & rarithmetic.r_uint(0x%x)" % (result, arg.to_code(codegen), num.number, (1 << width) - 1))
+        else:
+            codegen.emit("XXX")
 
 # ____________________________________________________________
 # expressions
@@ -359,6 +376,9 @@ class __extend__(parse.Comparison):
     def to_code(self, codegen):
         op = self.operation
         if op.startswith("@"):
+            if op == "@not":
+                arg, = self.args
+                return "not %s" % (arg.to_code(codegen), )
             op = "XXX_" + op[1:]
         return "%s(%s)" % (op, ", ".join([arg.to_code(codegen) for arg in self.args]))
 

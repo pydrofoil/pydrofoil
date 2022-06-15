@@ -386,14 +386,8 @@ def op(p):
 def op(p):
     return TemplatedOperation(p[0].value, p[2].value, p[6], p[9].args)
 
-@pg.production('opargs : LPAREN RPAREN | opargs_')
+@pg.production('opargs : expr | expr COMMA opargs')
 def opargs(p):
-    if len(p) == 2:
-        return Operation(None, None, [])
-    return p[0]
-
-@pg.production('opargs_ : expr | expr COMMA opargs_')
-def opargs_(p):
     if len(p) == 1:
         return Operation(None, None, [p[0]])
     else:

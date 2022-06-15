@@ -10,13 +10,15 @@ SAIL:=sail
 endif
 SAIL_LIB_DIR:=$(SAIL_DIR)/lib
 
-nand2tetris.c: nand2tetris.sail
-	$(SAIL) -O -memo_z3 -c nand2tetris.sail 1> $@
+all: nand2tetris_c
+
+nand2tetris.c: nand2tetris.sail Makefile
+	$(SAIL) -O -memo_z3 -c_no_main -c nand2tetris.sail 1> $@
 
 C_WARNINGS=-Wall -Wno-unused-but-set-variable -Wno-unused-label -Wno-unused-function -Wno-maybe-uninitialized
 C_OPT=-O2
 GCOV_FLAGS=
 nand2tetris_c: nand2tetris.c nandsupport.c $(SAIL_LIB_DIR)/sail.h $(SAIL_LIB_DIR)/*.c Makefile
-	gcc $(C_OPT) $(C_WARNINGS) $(GCOV_FLAGS) -g -I $(SAIL_LIB_DIR) $< $(SAIL_LIB_DIR)/*.c -lgmp -lz -o $@
+	gcc $(C_OPT) $(C_WARNINGS) $(GCOV_FLAGS) -g -I $(SAIL_LIB_DIR) nandsupport.c $< $(SAIL_LIB_DIR)/*.c -lgmp -lz -o $@
 
 

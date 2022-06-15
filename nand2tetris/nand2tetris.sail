@@ -24,6 +24,8 @@ val read_mem = { _: "my_read_mem" }
 val read_rom = { _: "my_read_rom" }
   : bits(16) -> bits(16)
 
+val print_debug = { _: "my_print_debug" }
+  : (bits(64), bits(16), bits(16), bits(16)) -> unit
 
 register PC : bits(16)
 register A : bits(16)
@@ -98,7 +100,7 @@ function clause decode 0b0 @ x : bits(15)
  = Some(AINST(sail_zero_extend(x, 16)))
 
 function clause execute(AINST(x)) = {
-  A = x
+  A = x; PC = PC + 1
 }
 
 // C instruction
@@ -161,7 +163,7 @@ function maybe_jump(value : bits(16), j : jump) -> unit = {
       JLE   => signed(value) <= 0,
       JMP   => true
     };
-    if cond then {PC = A;}
+    if cond then {PC = A;} else {PC = PC + 1;}
 }
 
 function clause execute(CINST(a, op, dest, jump)) = {
@@ -170,22 +172,42 @@ function clause execute(CINST(a, op, dest, jump)) = {
   maybe_jump(value, jump)
 }
 
-val run : unit -> unit effect {rreg, wreg, wmv}
 
-function run() = {
+val fetch_decode_execute : unit -> bool
+
+function fetch_decode_execute () = {
     let instr : bits(16) = read_rom(PC);
     let x = decode(instr);
+    cont : bool = false;
     match x {
-        Some(instr) => { execute(instr); run() },
-        None() => ()
+        Some(instr) => { execute(instr); cont = true; },
+        None() => { cont = false;}
+    };
+    return cont;
+}
+
+val run : bits(64) -> unit effect {rreg, wreg, wmv}
+
+function run(limit) = {
+    cycle_count : bits(64) = 0x0000000000000000;
+    cont : bool = true;
+    while (cont) do {
+        cont = false;
+        print_debug(cycle_count, PC, A, D);
+        if fetch_decode_execute() then {
+            if signed(cycle_count) < signed(limit) then {
+                cont = true;
+            }
+        };
+        cycle_count = cycle_count + 1;
     }
 }
 
-function main() -> unit = {
+function main(limit : bits(64)) -> unit = {
     PC = 0x0000;
     A = 0x0000;
     D = 0x0000;
-    run()
+    run(limit)
 }
 
 

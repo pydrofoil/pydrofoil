@@ -17,6 +17,7 @@ class Codegen(object):
         self.level = 0
         self.last_enum = 0
         self.globalnames = {}
+        self.namedtypes = {}
         self.localnames = None
         self.add_global("false", "False", types.Bool(), None)
         self.add_global("true", "True", types.Bool(), None)
@@ -25,6 +26,14 @@ class Codegen(object):
         assert isinstance(typ, types.Type)
         assert name not in self.globalnames
         self.globalnames[name] = NameInfo(pyname, typ, ast)
+
+    def add_named_type(self, name, pyname, typ, ast):
+        assert isinstance(typ, types.Type)
+        assert name not in self.namedtypes
+        self.namedtypes[name] = NameInfo(pyname, typ, ast)
+
+    def get_named_type(self, name):
+        return self.namedtypes[name].typ
 
     def update_global_pyname(self, name, pyname):
         self.globalnames[name].pyname = pyname
@@ -73,11 +82,11 @@ class Codegen(object):
 
 
 def parse_and_make_code(s):
-    from rpysail import parse
+    from pydrofoil import parse
     ast = parse.parser.parse(parse.lexer.lex(s))
     c = Codegen()
     c.emit("import operator")
-    c.emit("from rpysail.test import supportcode")
+    c.emit("from pydrofoil.test import supportcode")
     c.emit("class Registers(object): pass")
     c.emit("r = Registers()")
     try:
@@ -109,7 +118,7 @@ class __extend__(parse.Enum):
                 codegen.add_global(name, "%s.%s" % (self.pyname, name), types.Enum(self), self)
                 codegen.emit("%s = %s" % (name, index))
             codegen.last_enum += len(self.names) + 1 # gap of 1
-            #codegen.add_global(self.name, self.pyname, types.Enum(self), self)
+            codegen.add_named_type(self.name, self.pyname, types.Enum(self), self)
         codegen.emit()
 
 class __extend__(parse.Union):
@@ -119,6 +128,7 @@ class __extend__(parse.Union):
         with codegen.emit_indent("class %s(object):" % name):
             codegen.emit("pass")
         self.pynames = []
+        codegen.add_named_type(self.name, self.pyname, types.Union(self), self)
         for name, typ in zip(self.names, self.types):
             pyname = self.pyname + "_" + name
             codegen.add_global(name, pyname, types.Union(self), self)
@@ -343,9 +353,15 @@ class __extend__(parse.NamedType):
             return types.BitVector(int(name[3:]))
         if name == "%unit":
             return types.Unit()
+        if name == "%i64":
+            return types.MachineInt()
         xxx
 
 class __extend__(parse.EnumType):
+    def resolve_type(self, codegen):
+        return codegen.get_named_type(self.name)
+
+class __extend__(parse.UnionType):
     def resolve_type(self, codegen):
         return codegen.get_named_type(self.name)
 

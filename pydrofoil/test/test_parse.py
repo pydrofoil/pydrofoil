@@ -1,4 +1,4 @@
-from rpysail.parse import *
+from pydrofoil.parse import *
 
 import os
 

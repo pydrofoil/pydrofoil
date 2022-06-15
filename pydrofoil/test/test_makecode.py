@@ -1,4 +1,4 @@
-from rpysail.makecode import *
+from pydrofoil.makecode import *
 
 import os
 

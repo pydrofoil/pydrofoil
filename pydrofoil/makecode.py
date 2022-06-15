@@ -1,4 +1,4 @@
-from rpysail import parse
+from pydrofoil import parse, types
 from contextlib import contextmanager
 
 class NameInfo(object):
@@ -18,10 +18,11 @@ class Codegen(object):
         self.last_enum = 0
         self.globalnames = {}
         self.localnames = None
-        self.add_global("false", "False", parse.NamedType('%bool'), None)
-        self.add_global("true", "True", parse.NamedType('%bool'), None)
+        self.add_global("false", "False", types.Bool(), None)
+        self.add_global("true", "True", types.Bool(), None)
 
     def add_global(self, name, pyname, typ, ast):
+        assert isinstance(typ, types.Type)
         assert name not in self.globalnames
         self.globalnames[name] = NameInfo(pyname, typ, ast)
 
@@ -29,6 +30,7 @@ class Codegen(object):
         self.globalnames[name].pyname = pyname
 
     def add_local(self, name, pyname, typ, ast):
+        assert isinstance(typ, types.Type)
         self.localnames[name] = NameInfo(pyname, typ, ast)
 
     def getname(self, name):
@@ -104,10 +106,10 @@ class __extend__(parse.Enum):
         self.pyname = name
         with codegen.emit_indent("class %s(object):" % name):
             for index, name in enumerate(self.names, start=codegen.last_enum):
-                codegen.add_global(name, "%s.%s" % (self.pyname, name), parse.EnumType(self.name), self)
+                codegen.add_global(name, "%s.%s" % (self.pyname, name), types.Enum(self), self)
                 codegen.emit("%s = %s" % (name, index))
             codegen.last_enum += len(self.names) + 1 # gap of 1
-            codegen.add_global(self.name, self.pyname, self, self)
+            #codegen.add_global(self.name, self.pyname, types.Enum(self), self)
         codegen.emit()
 
 class __extend__(parse.Union):
@@ -119,7 +121,7 @@ class __extend__(parse.Union):
         self.pynames = []
         for name, typ in zip(self.names, self.types):
             pyname = self.pyname + "_" + name
-            codegen.add_global(name, pyname, typ, self)
+            codegen.add_global(name, pyname, types.Union(self), self)
             self.pynames.append(pyname)
             with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                 if isinstance(typ, parse.NamedType) and typ.name == "%unit":
@@ -141,14 +143,14 @@ class __extend__(parse.GlobalVal):
         if self.definition is not None:
             name = eval(self.definition)
             if name == "not": name = "not_"
-            codegen.add_global(self.name, "supportcode.%s" % (name, ), self.typ, self)
+            codegen.add_global(self.name, "supportcode.%s" % (name, ), self.typ.resolve_type(codegen), self)
         else:
-            codegen.add_global(self.name, None, self.typ, self)
+            codegen.add_global(self.name, None,  self.typ.resolve_type(codegen), self)
 
 class __extend__(parse.Register):
     def make_code(self, codegen):
         codegen.emit("# %s" % (self, ))
-        codegen.add_global(self.name, "r.%s" % self.name, self.typ, self)
+        codegen.add_global(self.name, "r.%s" % self.name, self.typ.resolve_type(codegen), self)
 
 
 class __extend__(parse.Function):
@@ -199,7 +201,7 @@ class __extend__(parse.Statement):
 class __extend__(parse.LocalVarDeclaration):
     def make_op_code(self, codegen):
         codegen.emit("# %s: %s" % (self.name, self.typ))
-        codegen.add_local(self.name, self.name, self.typ, self)
+        codegen.add_local(self.name, self.name, self.typ.resolve_type(codegen), self)
         if self.value is not None:
             codegen.emit("%s = %s" % (self.name, self.value.to_code(codegen)))
 
@@ -320,3 +322,37 @@ class __extend__(parse.UnionVariantCheck):
     def to_code(self, codegen):
         return "type(%s) is %s" % (self.var, codegen.getname(self.variant))
 
+# ____________________________________________________________
+# types
+
+
+class __extend__(parse.Type):
+    def resolve_type(self, codegen):
+        raise NotImplementedError
+
+class __extend__(parse.NamedType):
+    def resolve_type(self, codegen):
+        name = self.name
+        if name == "%bool":
+            return types.Bool()
+        if name == "%i":
+            return types.Int()
+        if name == "%bv":
+            return types.GenericBitVector()
+        if name.startswith("%bv"):
+            return types.BitVector(int(name[3:]))
+        if name == "%unit":
+            return types.Unit()
+        xxx
+
+class __extend__(parse.EnumType):
+    def resolve_type(self, codegen):
+        return codegen.get_named_type(self.name)
+
+class __extend__(parse.FunctionType):
+    def resolve_type(self, codegen):
+        return types.FunctionType(self.argtype.resolve_type(codegen), self.restype.resolve_type(codegen))
+
+class __extend__(parse.TupleType):
+    def resolve_type(self, codegen):
+        return types.TupleType(tuple([e.resolve_type(codegen) for e in self.elements]))

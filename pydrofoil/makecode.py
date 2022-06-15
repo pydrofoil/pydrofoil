@@ -1,4 +1,6 @@
-from pydrofoil import parse, types
+from rpython.tool.pairtype import pair
+
+from pydrofoil import parse, types, binaryop
 from contextlib import contextmanager
 
 class NameInfo(object):
@@ -253,7 +255,8 @@ class __extend__(parse.Assignment):
         result = codegen.gettarget(self.result)
         typ = codegen.gettyp(self.result)
         othertyp = self.value.gettyp(codegen)
-        codegen.emit("%s = %s" % (result, self.value.to_code(codegen)))
+        rhs = pair(othertyp, typ).convert(self.value, codegen)
+        codegen.emit("%s = %s" % (result, rhs))
 
 class __extend__(parse.TupleElementAssignment):
     def make_op_code(self, codegen):
@@ -300,14 +303,14 @@ class __extend__(parse.Number):
         return str(self.number)
 
     def gettyp(self, codegen):
-        return parse.NamedType('%i64')
+        return types.Int()
 
 class __extend__(parse.Unit):
     def to_code(self, codegen):
         return '()'
 
     def gettyp(self, codegen):
-        return parse.NamedType('%unit')
+        return types.Unit()
 
 
 # ____________________________________________________________

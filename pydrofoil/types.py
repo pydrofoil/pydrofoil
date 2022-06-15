@@ -42,6 +42,9 @@ class BitVector(Type):
     def __init__(self, width):
         self.width = width
 
+    def __repr__(self):
+        return "BitVector(%s)" % (self.width, )
+
 @unique
 class GenericBitVector(Type):
     pass

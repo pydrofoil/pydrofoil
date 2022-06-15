@@ -15,6 +15,9 @@ all: nand2tetris_c
 nand2tetris.c: nand2tetris.sail Makefile
 	$(SAIL) -O -memo_z3 -c_no_main -c nand2tetris.sail 1> $@
 
+nand2tetris.jib: nand2tetris.sail Makefile
+	$(SAIL) -O -memo_z3 -c_no_main -ir nand2tetris.sail 1> $@
+
 C_WARNINGS=-Wall -Wno-unused-but-set-variable -Wno-unused-label -Wno-unused-function -Wno-maybe-uninitialized
 C_OPT=-O2
 GCOV_FLAGS=

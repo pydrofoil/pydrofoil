@@ -53,12 +53,13 @@ class Union_zinstr_zCINST(Union_zinstr):
 """ in res
 
 def test_full():
-
+    import py
     with open(cir, "rb") as f:
         s = f.read()
     res = parse_and_make_code(s)
     with open(outpy, "w") as f:
         f.write(res)
     d = {}
-    exec res in d
+    res = py.code.Source(res)
+    exec res.compile() in d
     d['func_zmain'](())

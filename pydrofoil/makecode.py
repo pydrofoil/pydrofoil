@@ -98,7 +98,7 @@ def parse_and_make_code(s):
         print "\n".join(c.code)
         raise
     return "\n".join(c.code)
-    
+
 
 # ____________________________________________________________
 # declarations
@@ -266,14 +266,14 @@ class __extend__(parse.TupleElementAssignment):
 class __extend__(parse.End):
     def make_op_code(self, codegen):
         codegen.emit("return return_")
-    
+
     def make_op_jump(self, codegen, i):
         pass
 
 class __extend__(parse.Failure):
     def make_op_code(self, codegen):
         codegen.emit("raise TypeError")
-    
+
     def make_op_jump(self, codegen, i):
         pass
 
@@ -324,7 +324,7 @@ class __extend__(parse.TupleElement):
 
 class __extend__(parse.Cast):
     def to_code(self, codegen):
-        expr = self.expr.to_code(codegen) 
+        expr = self.expr.to_code(codegen)
         if self.field:
             field = self.field
         else:

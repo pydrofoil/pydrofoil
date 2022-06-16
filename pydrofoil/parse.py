@@ -1,4 +1,4 @@
-from rply import LexerGenerator, LexingError, ParserGenerator
+from rply import LexerGenerator, LexingError, ParserGenerator, ParsingError
 from rply.token import BaseBox
 
 from rpython.tool.pairtype import extendabletype
@@ -19,6 +19,7 @@ def addkeyword(kw):
 
 addkeyword('enum')
 addkeyword('union')
+addkeyword('struct')
 addkeyword('val')
 addkeyword('fn')
 addkeyword('end')
@@ -28,6 +29,7 @@ addkeyword('jump')
 addkeyword('register')
 addkeyword('is')
 addkeyword('as')
+addkeyword('let')
 
 addtok('PERCENTENUM', r'%enum')
 addtok('PERCENTUNION', r'%union')
@@ -140,6 +142,12 @@ class Union(Declaration):
         self.names = names
         self.types = types
 
+class Struct(Declaration):
+    def __init__(self, name, names, types, sourcepos=None):
+        self.name = name
+        self.names = names
+        self.types = types
+
 class GlobalVal(Declaration):
     def __init__(self, name, definition, typ, sourcepos=None):
         self.name = name
@@ -150,6 +158,12 @@ class Register(Declaration):
     def __init__(self, name, typ):
         self.name = name
         self.typ = typ
+
+class Let(Declaration):
+    def __init__(self, name, typ, body):
+        self.name = name
+        self.typ = typ
+        self.body = body
 
 class Function(Declaration):
     def __init__(self, name, args, body, sourcepos=None):
@@ -312,7 +326,7 @@ def file(p):
         return File(p)
     return File(p[0].declarations + [p[1]])
 
-@pg.production('declaration : enum | union | globalval | function | register')
+@pg.production('declaration : enum | union | struct | globalval | function | register | let')
 def declaration(p):
     return p[0]
 
@@ -330,8 +344,11 @@ def enumcontent(p):
 
 @pg.production('union : UNION NAME LBRACE unioncontent RBRACE')
 def union(p):
-    p[3].name = p[1].value
-    return p[3]
+    return Union(p[1].value, p[3].names, p[3].types)
+
+@pg.production('struct : STRUCT NAME LBRACE unioncontent RBRACE')
+def struct(p):
+    return Struct(p[1].value, p[3].names, p[3].types)
 
 @pg.production('unioncontent : NAME COLON type | NAME COLON type COMMA unioncontent')
 def unioncontent(p):
@@ -361,6 +378,10 @@ def args(p):
 @pg.production('register : REGISTER NAME COLON type')
 def register(p):
     return Register(p[1].value, p[3])
+
+@pg.production('let : LET LPAREN NAME COLON type RPAREN LBRACE operations RBRACE')
+def let(p):
+    return Let(p[2].value, p[4], p[7].body)
 
 @pg.production('operations : operation SEMICOLON | operation SEMICOLON operations')
 def operations(p):

@@ -3,6 +3,7 @@ from pydrofoil.parse import *
 import os
 
 cir = os.path.join(os.path.dirname(__file__), "c.ir")
+mipsir = os.path.join(os.path.dirname(__file__), "mips.ir")
 
 def test_lex_full():
     with open(cir, "rb") as f:
@@ -48,6 +49,32 @@ union zinstr {
                  TupleType([NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]),
                  EnumType('zjump')]),
             ])
+
+def test_struct():
+    res = parser.parse(lexer.lex("""
+struct zXContextReg {
+  zXContextReg_chunk_0: %bv64
+}
+"""))
+    assert res.declarations[0] == Struct('zXContextReg',
+        ['zXContextReg_chunk_0'],
+        [NamedType('%bv64')],
+    )
+
+def test_let():
+    res = parser.parse(lexer.lex("""
+let (ztrace: %bool) {
+  zgsz30_lz30 : %bool;
+  zgsz30_lz30 = false;
+  ztrace = zgsz30_lz30;
+}"""))
+    assert res.declarations[0] == Let("ztrace", NamedType("%bool"),
+        [
+            LocalVarDeclaration('zgsz30_lz30', NamedType('%bool')),
+            Assignment('zgsz30_lz30', Var('false')),
+            Assignment('ztrace', Var('zgsz30_lz30')),
+        ])
+
 
 def test_globalval():
     res = parser.parse(lexer.lex("""
@@ -236,3 +263,11 @@ def test_parse_full():
         print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
         assert 0
 
+def test_parse_full():
+    with open(mipsir, "rb") as f:
+        s = f.read()
+    try:
+        res = parser.parse(lexer.lex(s))
+    except (LexingError, ParsingError) as e:
+        print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
+        assert 0

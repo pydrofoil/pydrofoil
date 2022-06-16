@@ -23,6 +23,7 @@ addkeyword('struct')
 addkeyword('val')
 addkeyword('fn')
 addkeyword('end')
+addkeyword('arbitrary')
 addkeyword('failure')
 addkeyword('goto')
 addkeyword('jump')
@@ -30,14 +31,17 @@ addkeyword('register')
 addkeyword('is')
 addkeyword('as')
 addkeyword('let')
+addkeyword('undefined')
 
 addtok('PERCENTENUM', r'%enum')
 addtok('PERCENTUNION', r'%union')
+addtok('PERCENTSTRUCT', r'%struct')
+addtok('PERCENTVEC', r'%vec')
 
 addtok('BINBITVECTOR', r'0b[01]+')
 addtok('HEXBITVECTOR', r'0x[0-9a-fA-F]+')
 addtok('NUMBER', r'\d+')
-addtok('NAME', r'[a-zA-Z_%@][a-zA-Z_0-9]*')
+addtok('NAME', r'[a-zA-Z_%@$][a-zA-Z_0-9]*')
 addtok('STRING', r'"[^"]*"')
 addtok('ARROW', r'->')
 addtok('BACKTICK', r'`')
@@ -52,6 +56,8 @@ addtok('SEMICOLON', r'[;]')
 addtok('LT', r'[<]')
 addtok('GT', r'[>]')
 addtok('DOT', r'[.]')
+addtok('AMPERSAND', r'[&]')
+addtok('STAR', r'[*]')
 
 lg.ignore(r'[ \n]')
 
@@ -215,10 +221,22 @@ class UnionType(Type):
     def __init__(self, name):
         self.name = name
 
+class StructType(Type):
+    def __init__(self, name):
+        self.name = name
+
 class FunctionType(Type):
     def __init__(self, argtype, restype):
         self.argtype = argtype
         self.restype = restype
+
+class RefType(Type):
+    def __init__(self, refto):
+        self.refto = refto
+
+class VecType(Type):
+    def __init__(self, of):
+        self.of = of
 
 class Statement(BaseAst):
     pass
@@ -280,10 +298,24 @@ class TupleElementAssignment(Statement):
         self.index = index
         self.value = value
 
+class StructElementAssignment(Statement):
+    def __init__(self, obj, field, value):
+        self.obj = obj
+        self.field = field
+        self.value = value
+
+class RefAssignment(Statement):
+    def __init__(self, ref, value):
+        self.ref = ref
+        self.value = value
+
 class End(Statement):
     pass
 
 class Failure(Statement):
+    pass
+
+class Arbitrary(Statement):
     pass
 
 class Expression(BaseAst):
@@ -312,8 +344,21 @@ class Cast(Expression):
         self.variant = variant
         self.field = field
 
+class RefOf(Expression):
+    def __init__(self, expr):
+        self.expr = expr
+
+class String(Expression):
+    def __init__(self, string):
+        self.string = string
+
 class Unit(Expression):
     pass
+
+class Undefined(Expression):
+    def __init__(self, typ):
+        self.typ = typ
+
 
 # ____________________________________________________________
 # parser
@@ -392,7 +437,7 @@ def operations(p):
 
 # operations
 
-@pg.production('operation : localvardeclaration | op | templatedop | conditionaljump | goto | assignment | end | failure')
+@pg.production('operation : localvardeclaration | op | templatedop | conditionaljump | goto | assignment | end | failure | arbitrary')
 def operation(p):
     return p[0]
 
@@ -418,10 +463,14 @@ def opargs(p):
     else:
         return Operation(None, None, [p[0]] + p[2].args)
 
-@pg.production('expr : NAME | NUMBER | BINBITVECTOR | HEXBITVECTOR | NAME DOT NAME | LPAREN RPAREN | NAME AS NAME | NAME AS NAME DOT NAME')
+@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | NAME DOT NAME | LPAREN RPAREN | NAME AS NAME | NAME AS NAME DOT NAME | AMPERSAND NAME')
 def expr(p):
     if len(p) == 1 and p[0].gettokentype() == "NAME":
         return Var(p[0].value)
+    if len(p) == 1 and p[0].gettokentype() == "STRING":
+        return String(p[0].value)
+    if len(p) == 3 and p[0].gettokentype() == "UNDEFINED":
+        return Undefined(p[2])
     elif p[0].gettokentype() == "BINBITVECTOR":
         return BitVectorConstant(p[0].value)
     elif p[0].gettokentype() == "HEXBITVECTOR":
@@ -436,30 +485,40 @@ def expr(p):
         return Cast(Var(p[0].value), p[2].value)
     elif len(p) == 5 and p[1].gettokentype() == "AS":
         return Cast(Var(p[0].value), p[2].value, p[4].value)
+    elif len(p) == 2 and p[0].gettokentype() == "AMPERSAND":
+        return RefOf(p[0].value)
     assert 0
 
 @pg.production('conditionaljump : JUMP condition GOTO NUMBER BACKTICK STRING')
 def conditionaljump(p):
     return ConditionalJump(p[1], int(p[3].value), p[5].value)
 
-@pg.production('condition : NAME | NAME LPAREN opargs RPAREN | NAME IS NAME')
+@pg.production('condition : NAME | NAME LPAREN opargs RPAREN | NAME IS NAME | NAME AS NAME IS NAME')
 def condition(p):
     if len(p) == 1:
         return VarCondition(p[0].value)
     if len(p) == 4:
         return Comparison(p[0].value, p[2].args)
-    return UnionVariantCheck(p[0].value, p[2].value)
+    if len(p) == 3:
+        return UnionVariantCheck(Var(p[0].value), p[2].value)
+    return UnionVariantCheck(Cast(Var(p[0].value), p[2].value), p[4].value)
 
 @pg.production('goto : GOTO NUMBER')
 def op(p):
     return Goto(int(p[1].value))
 
-@pg.production('assignment : NAME EQUAL expr | NAME DOT NUMBER EQUAL expr')
+@pg.production('assignment : NAME EQUAL expr | NAME STAR EQUAL expr | NAME DOT NUMBER EQUAL expr | NAME DOT NAME EQUAL expr')
 def op(p):
     if len(p) == 3:
         return Assignment(p[0].value, p[2])
-    else:
+    if len(p) == 4:
+        return RefAssignment(p[0].value, p[3])
+    elif p[2].gettokentype() == "NUMBER":
         return TupleElementAssignment(p[0].value, int(p[2].value), p[4])
+    else:
+        assert p[2].gettokentype() == "NAME"
+        return StructElementAssignment(p[0].value, p[2].value, p[4])
+
 
 @pg.production('end : END')
 def end(p):
@@ -469,6 +528,10 @@ def end(p):
 def failure(p):
     return Failure()
 
+@pg.production('arbitrary : ARBITRARY')
+def arbitrary(p):
+    return Arbitrary()
+
 
 
 # types
@@ -477,7 +540,7 @@ def failure(p):
 def typ(p):
     return p[0]
 
-@pg.production('simpletype : namedtype | tupletype | enumtype | uniontype')
+@pg.production('simpletype : namedtype | tupletype | enumtype | uniontype | structtype | reftype | vectype')
 def simpletype(p):
     return p[0]
 
@@ -504,9 +567,22 @@ def enumtype(p):
 def uniontype(p):
     return UnionType(p[1].value)
 
+@pg.production('structtype : PERCENTSTRUCT NAME')
+def structtype(p):
+    return StructType(p[1].value)
+
 @pg.production('functiontype : simpletype ARROW simpletype')
 def functiontype(p):
     return FunctionType(p[0], p[2])
+
+@pg.production('reftype : AMPERSAND LPAREN structtype RPAREN')
+def reftype(p):
+    return RefType(p[2])
+
+@pg.production('vectype : PERCENTVEC LPAREN simpletype RPAREN')
+def vectype(p):
+    return VecType(p[2])
+
 
 def print_conflicts():
     if parser.lr_table.rr_conflicts:

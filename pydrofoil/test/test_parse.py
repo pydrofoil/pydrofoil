@@ -75,6 +75,18 @@ let (ztrace: %bool) {
             Assignment('ztrace', Var('zgsz30_lz30')),
         ])
 
+def test_reftype():
+    res = parser.parse(lexer.lex("""
+val zzzzz7azzJzzKTLBEntryz3__deref = "reg_deref" : (&(%struct zTLBEntry)) ->  %struct zTLBEntry
+"""))
+    assert res.declarations[0].typ.argtype == TupleType([RefType(StructType('zTLBEntry'))])
+
+def test_vectype():
+
+    res = parser.parse(lexer.lex("""
+register zGPR : %vec(%bv64)
+"""))
+    assert res.declarations[0].typ == VecType(NamedType("%bv64"))
 
 def test_globalval():
     res = parser.parse(lexer.lex("""
@@ -269,5 +281,6 @@ def test_parse_full():
     try:
         res = parser.parse(lexer.lex(s))
     except (LexingError, ParsingError) as e:
+        print e.getsourcepos()
         print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
         assert 0

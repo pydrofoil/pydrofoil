@@ -487,7 +487,7 @@ class __extend__(parse.Comparison):
 
 class __extend__(parse.UnionVariantCheck):
     def to_code(self, codegen):
-        return "type(%s) is not %s" % (self.var, codegen.getname(self.variant))
+        return "type(%s) is not %s" % (self.var.to_code(codegen), codegen.getname(self.variant))
 
 # ____________________________________________________________
 # types

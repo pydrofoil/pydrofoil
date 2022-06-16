@@ -1,4 +1,5 @@
 from rpython.rlib import rarithmetic
+from rpython.rlib.rbigint import rbigint
 
 def my_read_rom(addr):
     l = [
@@ -43,4 +44,5 @@ def raise_type_error():
     raise TypeError
 
 def eq_int(a, b):
-    assert 0
+    assert isinstance(a, rbigint)
+    return a.eq(b)

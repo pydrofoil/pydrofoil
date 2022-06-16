@@ -186,14 +186,16 @@ function fetch_decode_execute () = {
     return cont;
 }
 
-val run : bits(64) -> unit effect {rreg, wreg, wmv}
+val run : (bits(64), bool) -> unit effect {rreg, wreg, wmv}
 
-function run(limit) = {
+function run(limit, debug) = {
     cycle_count : bits(64) = 0x0000000000000000;
     cont : bool = true;
     while (cont) do {
         cont = false;
-        print_debug(cycle_count, PC, A, D);
+        if debug then {
+            print_debug(cycle_count, PC, A, D);
+        };
         if fetch_decode_execute() then {
             if signed(cycle_count) < signed(limit) then {
                 cont = true;
@@ -203,13 +205,15 @@ function run(limit) = {
     }
 }
 
-function main(limit : bits(64)) -> unit = {
+function mymain(limit : bits(64), debug : bool) -> unit = {
     PC = 0x0000;
     A = 0x0000;
     D = 0x0000;
-    run(limit)
+    run(limit, debug)
 }
 
 
+val main : unit -> unit
 
+function main() = { return mymain(0x0000000000000010, false); }
 

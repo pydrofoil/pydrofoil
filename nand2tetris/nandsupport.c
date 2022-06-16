@@ -26,15 +26,17 @@ unit my_print_debug(uint64_t cycle_count, uint64_t PC, uint64_t A, uint64_t D) {
 }
 
 void model_init(void);
-unit zmain(uint64_t);
+unit zmymain(uint64_t, bool);
 void model_fini(void);
 void model_pre_exit();
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s <rom binary>\n", argv[0]);
+    if (argc != 4) {
+        fprintf(stderr, "usage: %s <rom binary> <cycle limit> <debug 1 or 0>\n", argv[0]);
         return -1;
     }
+    uint64_t limit = atol(argv[2]);
+    bool debug = argv[3][0] == '1';
     FILE *fp = fopen(argv[1], "r");
 
     if (!fp) {
@@ -56,7 +58,7 @@ int main(int argc, char* argv[]) {
         }
     }
     model_init();
-    zmain(10);
+    zmymain(limit, debug);
     model_fini();
     model_pre_exit();
     return 0;

@@ -18,7 +18,7 @@ def load_rom(fn):
         if i & 1 == 0:
             data = rarithmetic.r_uint(ord(byte))
         else:
-            l.append((ord(byte) << 8) | data)
+            l.append(rarithmetic.r_uint(ord(byte) << 8) | data)
         i += 1
     MEM.rom = l[:]
 
@@ -49,6 +49,8 @@ def add_bits_int(a, b):
     return a.add(b)
 
 def fast_signed(op, n):
+    if n == 64:
+        return rarithmetic.intmask(op)
     assert n > 0
     u1 = rarithmetic.r_uint(1)
     m = u1 << (n - 1)

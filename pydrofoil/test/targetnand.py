@@ -9,7 +9,6 @@ def main(argv):
     if len(argv) != 3:
         print "usage: %s <binary> <maxcycle>" % (argv[0], )
         return -1
-    import pdb; pdb.set_trace()
     load_rom(argv[1])
     func_zmain(rarithmetic.r_uint(int(argv[2])))
     return 0

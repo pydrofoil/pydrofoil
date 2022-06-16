@@ -22,7 +22,13 @@ int model_main(int argc, char *argv[]);
 
 unit my_print_debug(uint64_t cycle_count, uint64_t PC, uint64_t A, uint64_t D) {
   printf("PC: %ld, A: %ld, D: %ld, cycle count: %ld\n", PC, A, D, cycle_count);
+  return UNIT;
 }
+
+void model_init(void);
+unit zmain(uint64_t);
+void model_fini(void);
+void model_pre_exit();
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {

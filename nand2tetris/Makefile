@@ -13,7 +13,7 @@ SAIL_LIB_DIR:=$(SAIL_DIR)/lib
 all: nand2tetris_c
 
 nand2tetris.c: nand2tetris.sail Makefile
-	$(SAIL) -O -memo_z3 -c_no_main -c nand2tetris.sail 1> $@
+	$(SAIL) -O -memo_z3 -c_no_main -c nand2tetris.sail -c_include nandsupport.h 1> $@
 
 nand2tetris.jib: nand2tetris.sail Makefile
 	$(SAIL) -O -memo_z3 -c_no_main -ir nand2tetris.sail 1> $@

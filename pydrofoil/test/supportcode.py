@@ -1,3 +1,5 @@
+from rpython.rlib import rarithmetic
+
 def my_read_rom(addr):
     l = [
     0b0000000000000010,
@@ -9,8 +11,8 @@ def my_read_rom(addr):
     ]
     import pdb; pdb.set_trace()
     if addr < len(l):
-        return l[addr]
-    return 0
+        return rarithmetic.r_uint(l[addr])
+    return rarithmetic.r_uint(0)
 mem = [0] * 65536
 def my_read_mem(addr):
     return mem[addr]

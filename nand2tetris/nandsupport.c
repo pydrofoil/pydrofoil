@@ -50,7 +50,7 @@ int main(int argc, char* argv[]) {
     uint16_t addr = 0;
     while ((byte = (uint64_t)fgetc(fp)) != EOF) {
         nand_rom_as_bytes[addr++] = (uint8_t)byte;
-        if (addr >= 65536) {
+        if (addr >= 65536 * 2) {
             fprintf(stderr, "rom too large!\n");
             return -3;
         }

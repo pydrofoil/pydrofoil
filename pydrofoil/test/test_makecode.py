@@ -62,4 +62,4 @@ def test_full():
     d = {}
     res = py.code.Source(res)
     exec res.compile() in d
-    d['func_zmain'](())
+    d['func_zmain'](100)

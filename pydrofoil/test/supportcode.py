@@ -9,7 +9,6 @@ def my_read_rom(addr):
     0b0000000000000000, # @0
     0b1110001100001000, # M=D
     ]
-    import pdb; pdb.set_trace()
     if addr < len(l):
         return rarithmetic.r_uint(l[addr])
     return rarithmetic.r_uint(0)

@@ -283,6 +283,32 @@ class __extend__(parse.Operation):
                 else:
                     assert 0
                 return
+            if name.startswith("@bv"):
+                bitvectorop = name[len("@bv"):]
+                width = None
+                for i, (typ, arg) in enumerate(zip(argtyps, self.args)):
+                    if isinstance(typ, types.BitVector):
+                        if width is None:
+                            width = typ.width
+                        else:
+                            assert width == typ.width
+                    elif isinstance(arg, parse.Number):
+                        sargs[i] = str(arg.number)
+                mask = "rarithmetic.r_uint(0x%x)" % ((1 << width) - 1)
+                if bitvectorop == "not":
+                    res = "~%s"
+                elif bitvectorop == "add":
+                    res = "%s + %s"
+                elif bitvectorop == "sub":
+                    res = "%s - %s"
+                elif bitvectorop == "and":
+                    res = "%s & %s"
+                elif bitvectorop == "or":
+                    res = "%s | %s"
+                else:
+                    assert 0
+                codegen.emit("%s = (%s) & %s" % (result, res % tuple(sargs), mask))
+                return
             else:
                 op = "XXX_" + name[1:]
         else:

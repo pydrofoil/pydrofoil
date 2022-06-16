@@ -66,10 +66,10 @@ def test_full():
     res = py.code.Source(res)
     exec res.compile() in d
     supportcode.load_rom(addrom)
-    d['func_zmain'](10)
+    d['func_zmymain'](10, True)
     assert d['r'].zD == 5
     assert d['r'].zA == 0
     assert d['r'].zPC == 11
     supportcode.load_rom(sumrom)
-    d['func_zmain'](2000)
+    d['func_zmymain'](2000, True)
     assert supportcode.my_read_mem(17) == 5050

@@ -415,6 +415,16 @@ class __extend__(parse.Number):
     def gettyp(self, codegen):
         return types.Int()
 
+class __extend__(parse.BitVectorConstant):
+    def to_code(self, codegen):
+        return self.constant
+
+    def gettyp(self, codegen):
+        if self.constant.startswith("0b"):
+            return types.BitVector(len(self.constant) - 2)
+        assert self.constant.startswith("0x")
+        return types.BitVector((len(self.constant) - 2) * 4)
+
 class __extend__(parse.Unit):
     def to_code(self, codegen):
         return '()'

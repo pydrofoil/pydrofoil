@@ -32,8 +32,8 @@ addkeyword('as')
 addtok('PERCENTENUM', r'%enum')
 addtok('PERCENTUNION', r'%union')
 
-addtok('BINNUMBER', r'0b[01]+')
-addtok('HEXNUMBER', r'0x[0-9a-fA-F]+')
+addtok('BINBITVECTOR', r'0b[01]+')
+addtok('HEXBITVECTOR', r'0x[0-9a-fA-F]+')
 addtok('NUMBER', r'\d+')
 addtok('NAME', r'[a-zA-Z_%@][a-zA-Z_0-9]*')
 addtok('STRING', r'"[^"]*"')
@@ -283,6 +283,10 @@ class Number(Expression):
     def __init__(self, number):
         self.number = number
 
+class BitVectorConstant(Expression):
+    def __init__(self, constant):
+        self.constant = constant
+
 class TupleElement(Expression):
     def __init__(self, tup, element):
         self.tup = tup
@@ -393,14 +397,14 @@ def opargs(p):
     else:
         return Operation(None, None, [p[0]] + p[2].args)
 
-@pg.production('expr : NAME | NUMBER | BINNUMBER | HEXNUMBER | NAME DOT NAME | LPAREN RPAREN | NAME AS NAME | NAME AS NAME DOT NAME')
+@pg.production('expr : NAME | NUMBER | BINBITVECTOR | HEXBITVECTOR | NAME DOT NAME | LPAREN RPAREN | NAME AS NAME | NAME AS NAME DOT NAME')
 def expr(p):
     if len(p) == 1 and p[0].gettokentype() == "NAME":
         return Var(p[0].value)
-    elif p[0].gettokentype() == "BINNUMBER":
-        return Number(int(p[0].value[2:], 2))
-    elif p[0].gettokentype() == "HEXNUMBER":
-        return Number(int(p[0].value[2:], 16))
+    elif p[0].gettokentype() == "BINBITVECTOR":
+        return BitVectorConstant(p[0].value)
+    elif p[0].gettokentype() == "HEXBITVECTOR":
+        return BitVectorConstant(p[0].value)
     elif p[0].gettokentype() == "NUMBER":
         return Number(int(p[0].value))
     elif p[0].gettokentype() == "LPAREN":

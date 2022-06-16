@@ -522,9 +522,9 @@ fn zdecode(zmergez3var) {
   zgsz347_lz324 = zsail_zzero_extend(zgsz345_lz322, zgsz346_lz323);
   zgaz315_lz321 = zgsz347_lz324;
   zgaz316_lz319 = zAINST(zgaz315_lz321);
-  zgsz3113_lz320 : %union zinstr;
-  zgsz3113_lz320 = zgaz316_lz319;
-  zgsz344_lz30 = zSomez3z5unionz0zzinstr(zgsz3113_lz320);
+  zgsz3111_lz320 : %union zinstr;
+  zgsz3111_lz320 = zgaz316_lz319;
+  zgsz344_lz30 = zSomez3z5unionz0zzinstr(zgsz3111_lz320);
   goto 61;
   zv__3_lz31 : %bv16;
   zv__3_lz31 = zmergez3var;
@@ -558,9 +558,9 @@ fn zdecode(zmergez3var) {
   zgsz349_lz314.3 = zgaz320_lz313;
   zgaz321_lz310 = zgsz349_lz314;
   zgaz322_lz38 = zCINST(zgaz321_lz310);
-  zgsz3114_lz39 : %union zinstr;
-  zgsz3114_lz39 = zgaz322_lz38;
-  zgsz344_lz30 = zSomez3z5unionz0zzinstr(zgsz3114_lz39);
+  zgsz3112_lz39 : %union zinstr;
+  zgsz3112_lz39 = zgaz322_lz38;
+  zgsz344_lz30 = zSomez3z5unionz0zzinstr(zgsz3112_lz39);
   goto 61;
   zgsz344_lz30 = zNone(());
   return = zgsz344_lz30;
@@ -791,63 +791,71 @@ fn zfetch_decode_execute(zgsz396) {
   end;
 }
 
-val zrun : (%bv64) ->  %unit
+val zrun : (%bv64, %bool) ->  %unit
 
-fn zrun(zlimit) {
+fn zrun(zlimit, zdebug) {
   zcycle_count_lz30 : %bv64;
   zcycle_count_lz30 = 0x0000000000000000;
   zcont_lz31 : %bool;
   zcont_lz31 = true;
-  zgsz3108_lz32 : %bool;
-  zgsz3109_lz33 : %unit;
-  zgsz3108_lz32 = zcont_lz31;
-  jump @not(zgsz3108_lz32) goto 37 ` "nand2tetris.sail 194:4 - 203:5";
+  zgsz3105_lz32 : %bool;
+  zgsz3106_lz33 : %unit;
+  zgsz3105_lz32 = zcont_lz31;
+  jump @not(zgsz3105_lz32) goto 36 ` "nand2tetris.sail 194:4 - 205:5";
   zcont_lz31 = false;
-  zgsz3104_lz313 : %unit;
-  zgsz3104_lz313 = ();
-  zgsz3103_lz312 : %unit;
-  zgsz3103_lz312 = zprint_debug(zcycle_count_lz30, zPC, zA, zD);
-  zgaz331_lz37 : %bool;
-  zgaz331_lz37 = zfetch_decode_execute(());
-  zgsz3102_lz38 : %unit;
-  jump zgaz331_lz37 goto 19 ` "nand2tetris.sail 197:8 - 201:9";
-  zgsz3102_lz38 = ();
-  goto 30;
-  zgaz334_lz39 : %bool;
-  zgaz332_lz310 : %i64;
-  zgaz332_lz310 = @signed::<64>(zcycle_count_lz30);
-  zgaz333_lz311 : %i64;
-  zgaz333_lz311 = @signed::<64>(zlimit);
-  zgaz334_lz39 = @lt(zgaz332_lz310, zgaz333_lz311);
-  jump zgaz334_lz39 goto 28 ` "nand2tetris.sail 198:12 - 200:13";
-  zgsz3102_lz38 = ();
-  goto 30;
+  zgsz3104_lz310 : %unit;
+  zgsz3104_lz310 = ();
+  zgsz3103_lz39 : %unit;
+  jump zdebug goto 15 ` "nand2tetris.sail 196:8 - 198:9";
+  zgsz3103_lz39 = ();
+  goto 16;
+  zgsz3103_lz39 = zprint_debug(zcycle_count_lz30, zPC, zA, zD);
+  zgaz331_lz34 : %bool;
+  zgaz331_lz34 = zfetch_decode_execute(());
+  zgsz3102_lz35 : %unit;
+  jump zgaz331_lz34 goto 22 ` "nand2tetris.sail 199:8 - 203:9";
+  zgsz3102_lz35 = ();
+  goto 33;
+  zgaz334_lz36 : %bool;
+  zgaz332_lz37 : %i64;
+  zgaz332_lz37 = @signed::<64>(zcycle_count_lz30);
+  zgaz333_lz38 : %i64;
+  zgaz333_lz38 = @signed::<64>(zlimit);
+  zgaz334_lz36 = @lt(zgaz332_lz37, zgaz333_lz38);
+  jump zgaz334_lz36 goto 31 ` "nand2tetris.sail 200:12 - 202:13";
+  zgsz3102_lz35 = ();
+  goto 33;
   zcont_lz31 = true;
-  zgsz3102_lz38 = ();
-  zgsz3105_lz34 : %bv = zcycle_count_lz30;
-  zgsz3106_lz35 : %i = 1;
-  zgsz3107_lz36 : %bv;
-  zgsz3107_lz36 = zadd_bits_int(zgsz3105_lz34, zgsz3106_lz35);
-  zcycle_count_lz30 = zgsz3107_lz36;
-  zgsz3109_lz33 = ();
+  zgsz3102_lz35 = ();
+  zcycle_count_lz30 = @bvadd(zcycle_count_lz30, 0x0000000000000001);
+  zgsz3106_lz33 = ();
   goto 6;
   return = ();
   end;
 }
 
-val zmain : (%bv64) ->  %unit
+val zmymain : (%bv64, %bool) ->  %unit
 
-fn zmain(zlimit) {
+fn zmymain(zlimit, zdebug) {
   zPC = 0x0000;
-  zgsz3112_lz32 : %unit;
-  zgsz3112_lz32 = ();
+  zgsz3109_lz32 : %unit;
+  zgsz3109_lz32 = ();
   zA = 0x0000;
-  zgsz3111_lz31 : %unit;
-  zgsz3111_lz31 = ();
+  zgsz3108_lz31 : %unit;
+  zgsz3108_lz31 = ();
   zD = 0x0000;
-  zgsz3110_lz30 : %unit;
-  zgsz3110_lz30 = ();
-  return = zrun(zlimit);
+  zgsz3107_lz30 : %unit;
+  zgsz3107_lz30 = ();
+  return = zrun(zlimit, zdebug);
+  end;
+}
+
+val zmain : (%unit) ->  %unit
+
+fn zmain(zgsz3110) {
+  zgaz335_lz30 : %unit;
+  zgaz335_lz30 = zmymain(0x0000000000000010, false);
+  return = zgaz335_lz30;
   end;
 }
 

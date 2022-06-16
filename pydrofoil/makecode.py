@@ -261,9 +261,7 @@ class __extend__(parse.Operation):
                 sarg1, sarg2 = sargs
                 typ1, typ2 = argtyps
                 if isinstance(arg2, parse.Number):
-                    if isinstance(typ1, types.BitVector):
-                        sarg2 = "rarithmetic.r_uint(%s)" % (arg2.number, )
-                    elif isinstance(typ1, types.MachineInt):
+                    if isinstance(typ1, types.MachineInt):
                         sarg2 = str(arg2.number)
                     else:
                         assert 0
@@ -289,13 +287,11 @@ class __extend__(parse.Operation):
                 bitvectorop = name[len("@bv"):]
                 width = None
                 for i, (typ, arg) in enumerate(zip(argtyps, self.args)):
-                    if isinstance(typ, types.BitVector):
-                        if width is None:
-                            width = typ.width
-                        else:
-                            assert width == typ.width
-                    elif isinstance(arg, parse.Number):
-                        sargs[i] = str(arg.number)
+                    assert isinstance(typ, types.BitVector)
+                    if width is None:
+                        width = typ.width
+                    else:
+                        assert width == typ.width
                 mask = "rarithmetic.r_uint(0x%x)" % ((1 << width) - 1)
                 if bitvectorop == "not":
                     res = "~%s"

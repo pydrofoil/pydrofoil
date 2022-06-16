@@ -234,9 +234,24 @@ class __extend__(parse.LocalVarDeclaration):
 class __extend__(parse.Operation):
     def make_op_code(self, codegen):
         name = self.name
+        result = codegen.gettarget(self.result)
         if name.startswith("@"):
             if name == "@eq":
                 op = "operator.eq"
+                # XXX mess
+                arg1, arg2 = self.args
+                sarg1 = arg1.to_code(codegen)
+                sarg2 = arg2.to_code(codegen)
+                if isinstance(arg2, parse.Number):
+                    typ = arg1.gettyp(codegen)
+                    if isinstance(typ, types.BitVector):
+                        sarg2 = "rarithmetic.r_uint(%s)" % (arg2.number, )
+                    elif isinstance(typ, types.MachineInt):
+                        sarg2 = str(arg2.number)
+                    else:
+                        assert 0
+                codegen.emit("%s = %s == %s" % (result, sarg1, sarg2))
+                return
             else:
                 op = "XXX_" + name[1:]
         else:
@@ -245,7 +260,6 @@ class __extend__(parse.Operation):
             args = '()'
         else:
             args = ", ".join([arg.to_code(codegen) for arg in self.args])
-        result = codegen.gettarget(self.result)
         codegen.emit("%s = %s(%s)" % (result, op, args))
 
 class __extend__(parse.ConditionalJump):

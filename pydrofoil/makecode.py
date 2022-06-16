@@ -384,10 +384,9 @@ class __extend__(parse.TemplatedOperation):
             assert isinstance(self.templateparam, parse.Number)
             width = self.templateparam.number
             restyp = codegen.gettyp(self.result)
-            assert isinstance(restyp, types.MachineInt)
+            assert isinstance(restyp, types.MachineInt) and width == 64
             result = codegen.gettarget(self.result)
-            assert width <= 64
-            codegen.emit("%s = supportcode.fast_signed(%s, %s)" % (result, arg.to_code(codegen), width))
+            codegen.emit("%s = supportcode.fast_signed(%s, %s)" % (result, arg.to_code(codegen), typ.width))
         else:
             codegen.emit("XXX")
 

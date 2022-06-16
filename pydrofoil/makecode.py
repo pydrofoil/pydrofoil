@@ -314,9 +314,21 @@ class __extend__(parse.TemplatedOperation):
             assert isinstance(self.templateparam, parse.Number)
             width = self.templateparam.number
             restyp = codegen.gettyp(self.result)
+            assert isinstance(restyp, types.BitVector)
             result = codegen.gettarget(self.result)
             assert restyp.width == width
             codegen.emit("%s = (%s >> %s) & rarithmetic.r_uint(0x%x)" % (result, arg.to_code(codegen), num.number, (1 << width) - 1))
+        elif self.name == "@signed":
+            arg, = self.args
+            typ = arg.gettyp(codegen)
+            assert isinstance(typ, types.BitVector)
+            assert isinstance(self.templateparam, parse.Number)
+            width = self.templateparam.number
+            restyp = codegen.gettyp(self.result)
+            assert isinstance(restyp, types.MachineInt)
+            result = codegen.gettarget(self.result)
+            assert width <= 64
+            codegen.emit("%s = supportcode.fast_signed(%s, %s)" % (result, arg.to_code(codegen), width))
         else:
             codegen.emit("XXX")
 

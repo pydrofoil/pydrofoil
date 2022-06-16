@@ -30,3 +30,10 @@ def zero_extend(a, b):
 
 def add_bits_int(a, b):
     return a.add(b)
+
+def fast_signed(op, n):
+    assert n > 0
+    u1 = rarithmetic.r_uint(1)
+    m = u1 << (n - 1)
+    op = op & ((u1 << n) - 1) # mask off higher bits to be sure
+    return rarithmetic.intmask((op ^ m) - m)

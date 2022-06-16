@@ -38,3 +38,9 @@ def fast_signed(op, n):
     m = u1 << (n - 1)
     op = op & ((u1 << n) - 1) # mask off higher bits to be sure
     return rarithmetic.intmask((op ^ m) - m)
+
+def raise_type_error():
+    raise TypeError
+
+def eq_int(a, b):
+    assert 0

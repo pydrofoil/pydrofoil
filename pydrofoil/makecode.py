@@ -152,7 +152,7 @@ class __extend__(parse.Union):
             self.pynames.append(pyname)
             with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                 if isinstance(typ, parse.NamedType) and typ.name == "%unit":
-                    codegen.emit("pass")
+                    codegen.emit("def __init__(self, unit): pass")
                     continue
                 if isinstance(typ, parse.TupleType):
                     argtypes = typ.elements
@@ -270,16 +270,18 @@ class __extend__(parse.Operation):
                 assert not isinstance(typ1, (types.Int, types.GenericBitVector))
                 codegen.emit("%s = %s == %s" % (result, sarg1, sarg2))
                 return
-            if name == "@lt":
+            if name in ("@lt", "@gt", "@gteq", "@lteq"):
                 arg1, arg2 = self.args
                 sarg1, sarg2 = sargs
                 typ1, typ2 = argtyps
                 if typ1 is typ2 is types.Int():
-                    codegen.emit("%s = %s.lt(%s)" % (result, sarg1, sarg2))
+                    # codegen.emit("%s = %s.lt(%s)" % (result, sarg1, sarg2))
+                    assert 0
                 elif typ1 is types.MachineInt():
+                    op = {"@lt": "<", "@gt" : ">", "@gteq" : ">=", "@lteq" : "<="}[name]
                     if isinstance(arg2, parse.Number):
                         sarg2 = str(arg2.number)
-                    codegen.emit("%s = %s < %s" % (result, sarg1, sarg2))
+                    codegen.emit("%s = %s %s %s" % (result, sarg1, op, sarg2))
                 else:
                     assert 0
                 return
@@ -438,7 +440,7 @@ class __extend__(parse.Cast):
         else:
             field = 'a'
         # XXX cleaner typeerror
-        return "%s.%s if isinstance(%s, %s) else 1/0" % (expr, field, expr, codegen.getname(self.variant))
+        return "%s.%s if isinstance(%s, %s) else supportcode.raise_type_error()" % (expr, field, expr, codegen.getname(self.variant))
 
     def gettyp(self, codegen):
         # XXX clean up

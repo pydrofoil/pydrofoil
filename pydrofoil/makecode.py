@@ -444,6 +444,11 @@ class __extend__(parse.Comparison):
             if op == "@not":
                 arg, = self.args
                 return "not %s" % (arg.to_code(codegen), )
+            if op == "@neq":
+                arg1, arg2 = self.args
+                typ1 = arg1.gettyp(codegen)
+                assert isinstance(typ1, types.Enum)
+                return "%s != %s" % (arg1.to_code(codegen), arg2.to_code(codegen))
             op = "XXX_cmp_" + op[1:]
         return "%s(%s)" % (op, ", ".join([arg.to_code(codegen) for arg in self.args]))
 

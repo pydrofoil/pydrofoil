@@ -10,20 +10,20 @@ class __extend__(pairtype(types.Type, types.Type)):
 
 class __extend__(pairtype(types.BitVector, types.GenericBitVector)):
     def convert((from_, to), ast, codegen):
-         assert from_.width <= 64
-         return "rbigint.fromrarith_int(%s)" % ast.to_code(codegen)
+        assert from_.width <= 64
+        return "rbigint.fromrarith_int(%s)" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.GenericBitVector, types.BitVector)):
     def convert((from_, to), ast, codegen):
-         assert to.width <= 64
-         return "%s.touint()" % ast.to_code(codegen)
+        assert to.width <= 64
+        return "%s.touint()" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.Int, types.BitVector)):
     def convert((from_, to), ast, codegen):
-         assert to.width <= 64
-         return "%s.touint()" % ast.to_code(codegen)
+        assert to.width <= 64
+        return "%s.touint()" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.MachineInt, types.Int)):
     def convert((from_, to), ast, codegen):
-         return "rbigint.fromint(%s)" % ast.to_code(codegen)
+        return "rbigint.fromint(%s)" % ast.to_code(codegen)
 

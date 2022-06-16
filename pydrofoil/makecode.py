@@ -236,7 +236,7 @@ class __extend__(parse.LocalVarDeclaration):
         codegen.emit("# %s: %s" % (self.name, self.typ))
         typ = self.typ.resolve_type(codegen)
         codegen.add_local(self.name, self.name, typ, self)
-        if isinstance(typ, types.TupleType):
+        if isinstance(typ, types.Tuple):
             assert self.value is None
             # need to make a tuple instance
             result = codegen.gettarget(self.name)
@@ -448,7 +448,7 @@ class __extend__(parse.Cast):
         index = unionast.names.index(self.variant)
         typ = unionast.types[index].resolve_type(codegen)
         if self.field is not None:
-            assert isinstance(typ, types.TupleType)
+            assert isinstance(typ, types.Tuple)
             assert self.field.startswith('ztup')
             return typ.elements[int(self.field[len('ztup'):])]
         else:
@@ -519,8 +519,8 @@ class __extend__(parse.UnionType):
 
 class __extend__(parse.FunctionType):
     def resolve_type(self, codegen):
-        return types.FunctionType(self.argtype.resolve_type(codegen), self.restype.resolve_type(codegen))
+        return types.Function(self.argtype.resolve_type(codegen), self.restype.resolve_type(codegen))
 
 class __extend__(parse.TupleType):
     def resolve_type(self, codegen):
-        return types.TupleType(tuple([e.resolve_type(codegen) for e in self.elements]))
+        return types.Tuple(tuple([e.resolve_type(codegen) for e in self.elements]))

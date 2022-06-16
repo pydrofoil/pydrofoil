@@ -25,7 +25,7 @@ class Enum(Type):
         self.ast = ast
 
 @unique
-class FunctionType(Type):
+class Function(Type):
     def __init__(self, argtype, restype):
         assert isinstance(argtype, Type)
         assert isinstance(restype, Type)
@@ -33,7 +33,7 @@ class FunctionType(Type):
         self.restype = restype
 
 @unique
-class TupleType(Type):
+class Tuple(Type):
     def __init__(self, elements):
         self.elements = elements
 

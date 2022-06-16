@@ -4,6 +4,8 @@ import os
 
 cir = os.path.join(os.path.dirname(__file__), "c.ir")
 outpy = os.path.join(os.path.dirname(__file__), "out.py")
+addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "Add.hack.bin")
+sumrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "sum.hack.bin")
 
 def test_enum():
     res = parse_and_make_code("""
@@ -54,6 +56,7 @@ class Union_zinstr_zCINST(Union_zinstr):
 
 def test_full():
     import py
+    from pydrofoil.test import supportcode
     with open(cir, "rb") as f:
         s = f.read()
     res = parse_and_make_code(s)
@@ -62,7 +65,11 @@ def test_full():
     d = {}
     res = py.code.Source(res)
     exec res.compile() in d
+    supportcode.load_rom(addrom)
     d['func_zmain'](10)
     assert d['r'].zD == 5
     assert d['r'].zA == 0
     assert d['r'].zPC == 11
+    supportcode.load_rom(sumrom)
+    d['func_zmain'](2000)
+    assert supportcode.my_read_mem(17) == 5050

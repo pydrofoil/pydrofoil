@@ -15,6 +15,7 @@ class NameInfo(object):
 
 class Codegen(object):
     def __init__(self):
+        self.declarations = []
         self.code = []
         self.level = 0
         self.last_enum = 0
@@ -23,6 +24,7 @@ class Codegen(object):
         self.localnames = None
         self.add_global("false", "False", types.Bool(), None)
         self.add_global("true", "True", types.Bool(), None)
+        self.declared_types = set()
 
     def add_global(self, name, pyname, typ, ast):
         assert isinstance(typ, types.Type)
@@ -82,9 +84,20 @@ class Codegen(object):
         else:
             self.code.append("    " * self.level + line)
 
+    def emit_declaration(self, line):
+        self.declarations.append(line)
+
+    def declare_tuple(self, typ):
+        if typ in self.declared_types:
+            return
+        self.declared_types.add(typ)
+        self.emit_declaration("class Tuple%s(object): pass" % (id(typ), ))
+
+    def getcode(self):
+        return "\n".join(self.declarations + self.code)
+
 
 def parse_and_make_code(s):
-    from pydrofoil import parse
     ast = parse.parser.parse(parse.lexer.lex(s))
     c = Codegen()
     c.emit("from rpython.rlib.rbigint import rbigint")
@@ -96,9 +109,9 @@ def parse_and_make_code(s):
     try:
         ast.make_code(c)
     except Exception:
-        print "\n".join(c.code)
+        print c.getcode()
         raise
-    return "\n".join(c.code)
+    return c.getcode()
 
 
 # ____________________________________________________________
@@ -143,13 +156,16 @@ class __extend__(parse.Union):
                     continue
                 if isinstance(typ, parse.TupleType):
                     argtypes = typ.elements
+                    fnarg = 't'
                     args = ["ztup%s" % i for i in range(len(argtypes))]
+                    inits = ["t.ztup%s" % i for i in range(len(argtypes))]
                 else:
                     argtypes = [typ]
-                    args = ["a"]
-                with codegen.emit_indent("def __init__(self, %s):" % (", ".join(args), )):
-                    for arg, typ in zip(args, argtypes):
-                        codegen.emit("self.%s = %s # %s" % (arg, arg, typ))
+                    args = inits = ["a"]
+                    fnarg = 'a'
+                with codegen.emit_indent("def __init__(self, %s):" % fnarg):
+                    for arg, init, typ in zip(args, inits, argtypes):
+                        codegen.emit("self.%s = %s # %s" % (arg, init, typ))
         codegen.emit()
 
 class __extend__(parse.GlobalVal):
@@ -224,6 +240,7 @@ class __extend__(parse.LocalVarDeclaration):
             assert self.value is None
             # need to make a tuple instance
             result = codegen.gettarget(self.name)
+            codegen.declare_tuple(typ)
             codegen.emit("%s = Tuple%s()" % (result, id(typ)))
         elif self.value is not None:
             result = codegen.gettarget(self.name)

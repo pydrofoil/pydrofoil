@@ -196,6 +196,9 @@ class __extend__(parse.Function):
                         codegen.level += 1
                     codegen.emit("# %s" % (op, ))
                     op.make_op_code(codegen)
+                    if i + 1 in jumptargets:
+                        # XXX remove two pc assignments
+                        codegen.emit("pc = %s" % (i + 1, ))
                     op.make_op_jump(codegen, i)
                 if len(jumptargets) > 1:
                     codegen.level -= 2
@@ -250,7 +253,7 @@ class __extend__(parse.ConditionalJump):
         pass
 
     def make_op_jump(self, codegen, i):
-        with codegen.emit_indent("if not (%s):" % (self.condition.to_code(codegen))):
+        with codegen.emit_indent("if %s:" % (self.condition.to_code(codegen))):
             codegen.emit("pc = %s" % (self.target, ))
             codegen.emit("continue")
 
@@ -389,7 +392,7 @@ class __extend__(parse.Comparison):
 
 class __extend__(parse.UnionVariantCheck):
     def to_code(self, codegen):
-        return "type(%s) is %s" % (self.var, codegen.getname(self.variant))
+        return "type(%s) is not %s" % (self.var, codegen.getname(self.variant))
 
 # ____________________________________________________________
 # types

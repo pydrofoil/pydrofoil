@@ -20,10 +20,13 @@
 
 TODO:
 - C Warnings fix in sail code
-- Test SetUp. C vs Python
-- New slide format 
-- Write down current status 
-- add jib code as comment in generated code
-- add assert that we are on a 64bit system
+- Test SetUp. C vs Python (John: run generated C emulator on examples, check output from a test_cemulator.py file, hardcoded)
+- New slide format (CF)
+- add jib code as comment Docstrings in generated code (John?)
+- add assert that we are on a 64bit system (John)
 - new implementation for bv that stores number of bits
-- make clean target
+- make clean target (John)
+- cycles as parameter for C emulator binary
+- loopy example
+- try adding a JIT (CF)
+- dump state into file at the end

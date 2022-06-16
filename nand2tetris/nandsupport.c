@@ -41,8 +41,8 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "rom %s could not be loaded\n", argv[1]);
         return -2;
     }
-    nand_rom = calloc(65536, 1);
-    nand_mem = calloc(65536, 1);
+    nand_rom = calloc(65536 * 2, 1);
+    nand_mem = calloc(65536 * 2, 1);
 
     uint8_t *nand_rom_as_bytes = (uint8_t *)nand_rom;
 

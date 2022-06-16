@@ -62,4 +62,7 @@ def test_full():
     d = {}
     res = py.code.Source(res)
     exec res.compile() in d
-    d['func_zmain'](100)
+    d['func_zmain'](10)
+    assert d['r'].zD == 5
+    assert d['r'].zA == 0
+    assert d['r'].zPC == 11

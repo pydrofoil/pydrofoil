@@ -2,12 +2,12 @@ from rpython.rlib import rarithmetic
 
 def my_read_rom(addr):
     l = [
-    0b0000000000000010,
-    0b1110110000010000,
-    0b0000000000000011,
-    0b1110000010010000,
-    0b0000000000000000,
-    0b1110001100001000,
+    0b0000000000000010, # @2
+    0b1110110000010000, # D=A
+    0b0000000000000011, # @3
+    0b1110000010010000, # D=D+A
+    0b0000000000000000, # @0
+    0b1110001100001000, # M=D
     ]
     import pdb; pdb.set_trace()
     if addr < len(l):
@@ -22,8 +22,8 @@ def not_(b):
     return not b
 def and_bool(a, b):
     return not b
-def my_print_debug(*args):
-    print args
+def my_print_debug(cycle_count, pc, a, d):
+    print "PC: %s, A: %s, D: %s, cycle count: %s" % (pc, a, d, cycle_count)
 
 # generic helpers
 

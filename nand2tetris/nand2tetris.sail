@@ -199,7 +199,7 @@ function run(limit) = {
                 cont = true;
             }
         };
-        cycle_count = cycle_count + 1;
+        cycle_count = cycle_count + 0x0000000000000001;
     }
 }
 

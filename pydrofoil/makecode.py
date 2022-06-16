@@ -252,31 +252,45 @@ class __extend__(parse.Operation):
     def make_op_code(self, codegen):
         name = self.name
         result = codegen.gettarget(self.result)
+        sargs = [arg.to_code(codegen) for arg in self.args]
+        argtyps = [arg.gettyp(codegen) for arg in self.args]
         if name.startswith("@"):
+            # XXX mess
             if name == "@eq":
-                op = "operator.eq"
-                # XXX mess
                 arg1, arg2 = self.args
-                sarg1 = arg1.to_code(codegen)
-                sarg2 = arg2.to_code(codegen)
+                sarg1, sarg2 = sargs
+                typ1, typ2 = argtyps
                 if isinstance(arg2, parse.Number):
-                    typ = arg1.gettyp(codegen)
-                    if isinstance(typ, types.BitVector):
+                    if isinstance(typ1, types.BitVector):
                         sarg2 = "rarithmetic.r_uint(%s)" % (arg2.number, )
-                    elif isinstance(typ, types.MachineInt):
+                    elif isinstance(typ1, types.MachineInt):
                         sarg2 = str(arg2.number)
                     else:
                         assert 0
+                assert not isinstance(typ1, (types.Int, types.GenericBitVector))
                 codegen.emit("%s = %s == %s" % (result, sarg1, sarg2))
+                return
+            if name == "@lt":
+                arg1, arg2 = self.args
+                sarg1, sarg2 = sargs
+                typ1, typ2 = argtyps
+                if typ1 is typ2 is types.Int():
+                    codegen.emit("%s = %s.lt(%s)" % (result, sarg1, sarg2))
+                elif typ1 is types.MachineInt():
+                    if isinstance(arg2, parse.Number):
+                        sarg2 = str(arg2.number)
+                    codegen.emit("%s = %s < %s" % (result, sarg1, sarg2))
+                else:
+                    assert 0
                 return
             else:
                 op = "XXX_" + name[1:]
         else:
             op = codegen.getname(name)
-        if not self.args:
+        if not sargs:
             args = '()'
         else:
-            args = ", ".join([arg.to_code(codegen) for arg in self.args])
+            args = ", ".join(sargs)
         codegen.emit("%s = %s(%s)" % (result, op, args))
 
 class __extend__(parse.ConditionalJump):
@@ -430,7 +444,7 @@ class __extend__(parse.Comparison):
             if op == "@not":
                 arg, = self.args
                 return "not %s" % (arg.to_code(codegen), )
-            op = "XXX_" + op[1:]
+            op = "XXX_cmp_" + op[1:]
         return "%s(%s)" % (op, ", ".join([arg.to_code(codegen) for arg in self.args]))
 
 class __extend__(parse.UnionVariantCheck):

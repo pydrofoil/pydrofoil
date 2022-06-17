@@ -1,4 +1,4 @@
-16.06.2022 - by JW
+15.06.2022 - by JW
 - see console history log for setup
 - nand 2 tetris (https://www.nand2tetris.org/) cpu case study works
 - ocaml setup: ocamlInstallationGuide.pdf
@@ -14,10 +14,13 @@
 - use printf of cpu state (PC, A, D, cycle) for now
 
 
-17.06.2022 -
+16.06.2022 -
 - start some docs
 - fixed warnings in nand2tetris
-- hacked a jit together, 300x faster than the C emulator
+- hacked a jit for nand together, 300x faster than the C emulator
+- added enough to the parser to parse MIPS
+
+17.06.2022 -
 
 TODO:
 - C Warnings fix in sail code

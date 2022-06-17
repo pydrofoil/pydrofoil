@@ -444,8 +444,7 @@ class __extend__(parse.Cast):
             field = self.field
         else:
             field = 'a'
-        # XXX cleaner typeerror
-        return "%s.%s if isinstance(%s, %s) else supportcode.raise_type_error()" % (expr, field, expr, codegen.getname(self.variant))
+        return "(%s.%s if isinstance(%s, %s) else supportcode.raise_type_error())" % (expr, field, expr, codegen.getname(self.variant))
 
     def gettyp(self, codegen):
         # XXX clean up

@@ -40,7 +40,7 @@ addtok('PERCENTVEC', r'%vec')
 
 addtok('BINBITVECTOR', r'0b[01]+')
 addtok('HEXBITVECTOR', r'0x[0-9a-fA-F]+')
-addtok('NUMBER', r'\d+')
+addtok('NUMBER', r'-?\d+')
 addtok('NAME', r'[a-zA-Z_%@$][a-zA-Z_0-9]*')
 addtok('STRING', r'"[^"]*"')
 addtok('ARROW', r'->')
@@ -465,43 +465,44 @@ def opargs(p):
 
 @pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | NAME DOT NAME | LPAREN RPAREN | NAME AS NAME | NAME AS NAME DOT NAME | AMPERSAND NAME')
 def expr(p):
-    if len(p) == 1 and p[0].gettokentype() == "NAME":
-        return Var(p[0].value)
-    if len(p) == 1 and p[0].gettokentype() == "STRING":
-        return String(p[0].value)
-    if len(p) == 3 and p[0].gettokentype() == "UNDEFINED":
-        return Undefined(p[2])
-    elif p[0].gettokentype() == "BINBITVECTOR":
-        return BitVectorConstant(p[0].value)
-    elif p[0].gettokentype() == "HEXBITVECTOR":
-        return BitVectorConstant(p[0].value)
-    elif p[0].gettokentype() == "NUMBER":
-        return Number(int(p[0].value))
-    elif p[0].gettokentype() == "LPAREN":
-        return Unit()
-    elif len(p) == 3 and p[1].gettokentype() == "DOT":
-        return TupleElement(Var(p[0].value), p[2].value)
-    elif len(p) == 3 and p[1].gettokentype() == "AS":
-        return Cast(Var(p[0].value), p[2].value)
+    if len(p) == 1:
+        if p[0].gettokentype() == "NAME":
+            return Var(p[0].value)
+        if p[0].gettokentype() == "STRING":
+            return String(p[0].value)
+        elif p[0].gettokentype() == "BINBITVECTOR":
+            return BitVectorConstant(p[0].value)
+        elif p[0].gettokentype() == "HEXBITVECTOR":
+            return BitVectorConstant(p[0].value)
+        elif p[0].gettokentype() == "NUMBER":
+            return Number(int(p[0].value))
+    elif len(p) == 2:
+        if p[0].gettokentype() == "LPAREN":
+            return Unit()
+        elif p[0].gettokentype() == "AMPERSAND":
+            return RefOf(p[0].value)
+    elif len(p) == 3:
+        if p[1].gettokentype() == "COLON":
+            return Undefined(p[2])
+        elif p[1].gettokentype() == "DOT":
+            return TupleElement(Var(p[0].value), p[2].value)
+        elif p[1].gettokentype() == "AS":
+            return Cast(Var(p[0].value), p[2].value)
     elif len(p) == 5 and p[1].gettokentype() == "AS":
         return Cast(Var(p[0].value), p[2].value, p[4].value)
-    elif len(p) == 2 and p[0].gettokentype() == "AMPERSAND":
-        return RefOf(p[0].value)
     assert 0
 
 @pg.production('conditionaljump : JUMP condition GOTO NUMBER BACKTICK STRING')
 def conditionaljump(p):
     return ConditionalJump(p[1], int(p[3].value), p[5].value)
 
-@pg.production('condition : NAME | NAME LPAREN opargs RPAREN | NAME IS NAME | NAME AS NAME IS NAME')
+@pg.production('condition : NAME | NAME LPAREN opargs RPAREN | expr IS NAME ')
 def condition(p):
     if len(p) == 1:
         return VarCondition(p[0].value)
     if len(p) == 4:
         return Comparison(p[0].value, p[2].args)
-    if len(p) == 3:
-        return UnionVariantCheck(Var(p[0].value), p[2].value)
-    return UnionVariantCheck(Cast(Var(p[0].value), p[2].value), p[4].value)
+    return UnionVariantCheck(p[0], p[2].value)
 
 @pg.production('goto : GOTO NUMBER')
 def op(p):

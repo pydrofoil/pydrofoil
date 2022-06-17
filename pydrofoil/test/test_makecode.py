@@ -56,25 +56,33 @@ class Union_zinstr_zCINST(Union_zinstr):
         self.a = a # TupleType(elements=[NamedType('%bv1'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), NamedType('%bool')])
 """ in res
 
-def test_full():
+def test_full_nand():
     import py
     from pydrofoil.test import supportcode
+    from rpython.translator.interactive import Translation
     with open(cir, "rb") as f:
         s = f.read()
     res = parse_and_make_code(s)
     with open(outpy, "w") as f:
         f.write(res)
-    d = {}
-    res = py.code.Source(res)
-    exec res.compile() in d
+
+    # bit of a hack
+    from pydrofoil.test import out
     supportcode.load_rom(addrom)
-    d['func_zmymain'](10, True)
-    assert d['r'].zD == 5
-    assert d['r'].zA == 0
-    assert d['r'].zPC == 11
+    zmymain = out.func_zmymain
+    zmymain(10, True)
+    assert out.r.zD == 5
+    assert out.r.zA == 0
+    assert out.r.zPC == 11
     supportcode.load_rom(sumrom)
-    d['func_zmymain'](2000, True)
+    zmymain(2000, True)
     assert supportcode.my_read_mem(17) == 5050
+
+    def main():
+        supportcode.load_rom(addrom)
+        zmymain(10, False)
+    t = Translation(main, [])
+    t.backendopt() # check that it's rpython
 
 @pytest.mark.xfail
 def test_full_mips():

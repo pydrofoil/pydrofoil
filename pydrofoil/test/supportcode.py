@@ -67,5 +67,5 @@ def eq_int(a, b):
 
 def safe_rshift(n, shift):
     if shift >= 64:
-        return r_uint(0)
+        return rarithmetic.r_uint(0)
     return n >> shift

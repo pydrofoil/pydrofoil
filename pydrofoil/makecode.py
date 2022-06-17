@@ -31,12 +31,18 @@ class Codegen(object):
         self.add_global("bitone", "rarithmetic.r_uint(1)", types.Bit())
         self.add_global("$zinternal_vector_init", "supportcode.vector_init")
         self.add_global("$zinternal_vector_update", "supportcode.vector_update")
-        self.add_global("have_exception", "xxx")
+        self.add_global("$zupdate_fbits", "supportcode.update_fbits")
+        self.add_global("have_exception", "xxx", types.Bool())
+        self.add_global("throw_location", "xxx", types.String())
+        self.add_global("zsail_assert", "supportcode.sail_assert")
         self.declared_types = set()
 
     def add_global(self, name, pyname, typ=None, ast=None):
         assert isinstance(typ, types.Type) or typ is None
-        assert name not in self.globalnames
+        if name in self.globalnames:
+            assert isinstance(ast, parse.GlobalVal)
+            assert ast == self.globalnames[name].ast
+            return
         self.globalnames[name] = NameInfo(pyname, typ, ast)
 
     def add_named_type(self, name, pyname, typ, ast):
@@ -154,6 +160,7 @@ class __extend__(parse.File):
     def make_code(self, codegen):
         for decl in self.declarations:
             decl.make_code(codegen)
+            codegen.emit()
 
 class __extend__(parse.Declaration):
     def make_code(self, codegen):
@@ -169,7 +176,6 @@ class __extend__(parse.Enum):
                 codegen.emit("%s = %s" % (name, index))
             codegen.last_enum += len(self.names) + 1 # gap of 1
             codegen.add_named_type(self.name, self.pyname, types.Enum(self), self)
-        codegen.emit()
 
 class __extend__(parse.Union):
     def make_code(self, codegen):
@@ -178,7 +184,8 @@ class __extend__(parse.Union):
         with codegen.emit_indent("class %s(object):" % name):
             codegen.emit("pass")
         self.pynames = []
-        codegen.add_named_type(self.name, self.pyname, types.Union(self), self)
+        uniontyp = types.Union(self)
+        codegen.add_named_type(self.name, self.pyname, uniontyp, self)
         for name, typ in zip(self.names, self.types):
             pyname = self.pyname + "_" + name
             codegen.add_global(name, pyname, types.Union(self), self)
@@ -194,7 +201,8 @@ class __extend__(parse.Union):
                 with codegen.emit_indent("def __init__(self, %s):" % fnarg):
                     for arg, init, typ in zip(args, inits, argtypes):
                         codegen.emit("self.%s = %s # %s" % (arg, init, typ))
-        codegen.emit()
+        if self.name == "zexception":
+            codegen.add_global("current_exception", "xxx", uniontyp, self)
 
 class __extend__(parse.Struct):
     def make_code(self, codegen):

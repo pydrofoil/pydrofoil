@@ -2,14 +2,22 @@ from rpython.tool.pairtype import extendabletype, pair, pairtype
 
 from pydrofoil import types, parse
 
+class __extend__(types.Type):
+    def make_op_code_special_neq(self, ast, sargs, argtyps):
+        return "not (%s)" % (self.make_op_code_special_eq(ast, sargs, argtyps), )
+
+
 class __extend__(types.FixedBitVector):
-    def make_op_code_special_eq(self, ast, (sarg1, sarg2), (argtyp1, argtyp2)):
-        arg1, arg2 = ast.args
+    def checkwidths(self, argtyps):
+        for typ in argtyps:
+            assert typ.width == self.width
+
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        self.checkwidths(argtyps)
         return "%s == %s" % (sarg1, sarg2)
 
     def bvop(self, template, sargs, argtyps):
-        for typ in argtyps:
-            assert typ.width == self.width
+        self.checkwidths(argtyps)
         mask = "rarithmetic.r_uint(0x%x)" % ((1 << self.width) - 1)
         return "((%s) & %s)" % (template % tuple(sargs), mask)
 
@@ -27,6 +35,16 @@ class __extend__(types.FixedBitVector):
 
     def make_op_code_special_bvor(self, ast, sargs, argtyps):
         return self.bvop("%s | %s", sargs, argtyps)
+
+    def make_op_code_special_bvxor(self, ast, sargs, argtyps):
+        return self.bvop("%s ^ %s", sargs, argtyps)
+
+    def make_op_code_special_bvaccess(self, ast, (sarg1, sarg2), argtyps):
+        return "rarithmetic.r_uint(1) & (%s >> rarithmetic.r_uint(%s))" % (sarg1, sarg2)
+
+    def make_op_code_special_concat(self, ast, (sarg1, sarg2), (argtyp1, argtyp2)):
+        return "(%s << %s) | %s" % (sarg1, argtyp2.width, sarg2)
+
 
 class __extend__(types.MachineInt):
     def machineintop(self, template, sargs, argtyps):
@@ -51,3 +69,6 @@ class __extend__(types.MachineInt):
 
     def make_op_code_special_lteq(self, ast, sargs, argtyps):
         return self.machineintop("%s <= %s", sargs, argtyps)
+
+    def make_op_code_special_iadd(self, ast, sargs, argtyps):
+        return self.machineintop("%s + %s", sargs, argtyps)

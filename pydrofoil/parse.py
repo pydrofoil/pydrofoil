@@ -37,6 +37,7 @@ addtok('PERCENTENUM', r'%enum')
 addtok('PERCENTUNION', r'%union')
 addtok('PERCENTSTRUCT', r'%struct')
 addtok('PERCENTVEC', r'%vec')
+addtok('PERCENTLIST', r'%list')
 
 addtok('BINBITVECTOR', r'0b[01]+')
 addtok('HEXBITVECTOR', r'0x[0-9a-fA-F]+')
@@ -224,6 +225,10 @@ class UnionType(Type):
 class StructType(Type):
     def __init__(self, name):
         self.name = name
+
+class ListType(Type):
+    def __init__(self, typ):
+        self.typ = typ
 
 class FunctionType(Type):
     def __init__(self, argtype, restype):
@@ -462,7 +467,7 @@ def opargs(p):
     else:
         return Operation(None, None, [p[0]] + p[2].args)
 
-@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | expr DOT NAME | LPAREN RPAREN | NAME AS NAME | AMPERSAND NAME')
+@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | expr DOT NAME | LPAREN RPAREN | expr AS NAME | AMPERSAND NAME')
 def expr(p):
     if len(p) == 1:
         if p[0].gettokentype() == "NAME":
@@ -486,7 +491,7 @@ def expr(p):
         elif p[1].gettokentype() == "DOT":
             return TupleElement(p[0], p[2].value)
         elif p[1].gettokentype() == "AS":
-            return Cast(Var(p[0].value), p[2].value)
+            return Cast(p[0], p[2].value)
     assert 0
 
 @pg.production('conditionaljump : JUMP condition GOTO NUMBER BACKTICK STRING')
@@ -538,7 +543,7 @@ def arbitrary(p):
 def typ(p):
     return p[0]
 
-@pg.production('simpletype : namedtype | tupletype | enumtype | uniontype | structtype | reftype | vectype')
+@pg.production('simpletype : namedtype | tupletype | enumtype | uniontype | structtype | reftype | vectype | listtype')
 def simpletype(p):
     return p[0]
 
@@ -568,6 +573,10 @@ def uniontype(p):
 @pg.production('structtype : PERCENTSTRUCT NAME')
 def structtype(p):
     return StructType(p[1].value)
+
+@pg.production('listtype : PERCENTLIST type')
+def listtype(p):
+    return ListType(p[1])
 
 @pg.production('functiontype : simpletype ARROW simpletype')
 def functiontype(p):

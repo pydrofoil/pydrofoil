@@ -4,6 +4,7 @@ import os
 
 cir = os.path.join(os.path.dirname(__file__), "c.ir")
 mipsir = os.path.join(os.path.dirname(__file__), "mips.ir")
+riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
 
 def test_lex_full():
     with open(cir, "rb") as f:
@@ -266,6 +267,17 @@ fn zassign_dest(zgsz371, zvalue) {
     """))
     assert res.declarations[1].body[1] == Assignment(result='za_lz30', value=TupleElement(element='ztup0', tup=Var(name='zgsz371')))
 
+
+def test_dot_vs_is():
+    res = parser.parse(lexer.lex("""
+fn zexception_handler(zcur_priv, zctl, zpc) {
+  ze_lz374 : %struct zsync_exception;
+  ze_lz374 = zgsz34019_lz30.ztup1 as zCTL_TRAP;
+  end;
+}
+"""))
+    assert res.declarations[0].body[1].value == Cast(expr=TupleElement(element='ztup1', tup=Var(name='zgsz34019_lz30')), variant='zCTL_TRAP')
+
 def test_parse_full():
     with open(cir, "rb") as f:
         s = f.read()
@@ -284,3 +296,13 @@ def test_parse_full_mips():
         print e.getsourcepos()
         print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
         assert 0
+
+def test_parse_full_riscv():
+    with open(riscvir, "rb") as f:
+        s = f.read()
+    try:
+        res = parser.parse(lexer.lex(s))
+    except (LexingError, ParsingError) as e:
+        print e.getsourcepos()
+        print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
+        raise

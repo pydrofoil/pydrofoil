@@ -147,7 +147,7 @@ fn zsail_mask(zlen, zv) {
             LocalVarDeclaration('zgaz31_lz31', NamedType('%i')),
             Operation('zgaz31_lz31', 'zbitvector_length', [Var('zv')]),
             Operation('zgaz32_lz30', 'zlteq_int', [Var('zlen'), Var('zgaz31_lz31')]),
-            ConditionalJump(VarCondition('zgaz32_lz30'), 7, '"/home/cfbolz/.opam/default/share/sail/lib/vector_dec.sail 81:29 - 81:100"'),
+            ConditionalJump(ExprCondition(Var('zgaz32_lz30')), 7, '"/home/cfbolz/.opam/default/share/sail/lib/vector_dec.sail 81:29 - 81:100"'),
             Operation('return', 'zsail_zzero_extend', [Var('zv'), Var('zlen')]),
             Goto(8),
             Operation('return', 'ztruncate', [Var('zv'), Var('zlen')]),
@@ -275,7 +275,7 @@ def test_parse_full():
         print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
         assert 0
 
-def test_parse_full():
+def test_parse_full_mips():
     with open(mipsir, "rb") as f:
         s = f.read()
     try:

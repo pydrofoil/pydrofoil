@@ -465,9 +465,9 @@ class __extend__(parse.Condition):
     def to_code(self, codegen):
         raise NotImplementedError
 
-class __extend__(parse.VarCondition):
+class __extend__(parse.ExprCondition):
     def to_code(self, codegen):
-        return self.name
+        return self.expr.to_code(codegen)
 
 class __extend__(parse.Comparison):
     def to_code(self, codegen):

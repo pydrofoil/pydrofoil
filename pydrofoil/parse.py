@@ -273,9 +273,9 @@ class ConditionalJump(Statement):
 class Condition(BaseAst):
     pass
 
-class VarCondition(Condition):
-    def __init__(self, name):
-        self.name = name
+class ExprCondition(Condition):
+    def __init__(self, expr):
+        self.expr = expr
 
 class Comparison(Condition):
     def __init__(self, operation, args):
@@ -496,10 +496,10 @@ def expr(p):
 def conditionaljump(p):
     return ConditionalJump(p[1], int(p[3].value), p[5].value)
 
-@pg.production('condition : NAME | NAME LPAREN opargs RPAREN | expr IS NAME ')
+@pg.production('condition : expr | NAME LPAREN opargs RPAREN | expr IS NAME ')
 def condition(p):
     if len(p) == 1:
-        return VarCondition(p[0].value)
+        return ExprCondition(p[0])
     if len(p) == 4:
         return Comparison(p[0].value, p[2].args)
     return UnionVariantCheck(p[0], p[2].value)

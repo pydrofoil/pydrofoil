@@ -11,6 +11,7 @@ JIB types:
 - i64 (signed, machine int)
 - bv (arbitrary size, not signed)
 - bv<num> (bit vector fixed size, not signed), eg bv16
+- sbv<num> (bit vector with an unknown size that's not larger than num), eg sbv16
 - function
 - tuple (are initialized with mutation at the JIB level)
 - bool

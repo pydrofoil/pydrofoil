@@ -1,6 +1,6 @@
 from rpython.tool.pairtype import pair
 
-from pydrofoil import parse, types, binaryop
+from pydrofoil import parse, types, binaryop, operations
 from contextlib import contextmanager
 
 class NameInfo(object):
@@ -304,67 +304,9 @@ class __extend__(parse.Operation):
         sargs = [arg.to_code(codegen) for arg in self.args]
         argtyps = [arg.gettyp(codegen) for arg in self.args]
         if name.startswith("@"):
-            # XXX mess
-            if name == "@eq":
-                arg1, arg2 = self.args
-                sarg1, sarg2 = sargs
-                typ1, typ2 = argtyps
-                if isinstance(arg2, parse.Number):
-                    if isinstance(typ1, types.MachineInt):
-                        sarg2 = str(arg2.number)
-                    else:
-                        assert 0
-                assert not isinstance(typ1, (types.Int, types.GenericBitVector))
-                codegen.emit("%s = %s == %s" % (result, sarg1, sarg2))
-                return
-            if name in ("@lt", "@gt", "@gteq", "@lteq"):
-                arg1, arg2 = self.args
-                sarg1, sarg2 = sargs
-                typ1, typ2 = argtyps
-                if typ1 is typ2 is types.Int():
-                    # codegen.emit("%s = %s.lt(%s)" % (result, sarg1, sarg2))
-                    assert 0
-                elif typ1 is types.MachineInt():
-                    op = {"@lt": "<", "@gt" : ">", "@gteq" : ">=", "@lteq" : "<="}[name]
-                    if isinstance(arg2, parse.Number):
-                        sarg2 = str(arg2.number)
-                    codegen.emit("%s = %s %s %s" % (result, sarg1, op, sarg2))
-                else:
-                    assert 0
-                return
-            if name == "@bvaccess":
-                arg1, arg2 = self.args
-                sarg1, sarg2 = sargs
-                typ1, typ2 = argtyps
-                sarg2 = pair(typ2, types.MachineInt()).convert(arg2, codegen)
-                codegen.emit("%s = rarithmetic.r_uint(1) & (%s >> rarithmetic.r_uint(%s))" % (result, sarg1, sarg2))
-                return
-            if name.startswith("@bv"):
-                bitvectorop = name[len("@bv"):]
-                width = None
-                for i, (typ, arg) in enumerate(zip(argtyps, self.args)):
-                    assert isinstance(typ, types.FixedBitVector)
-                    if width is None:
-                        width = typ.width
-                    else:
-                        assert width == typ.width
-                mask = "rarithmetic.r_uint(0x%x)" % ((1 << width) - 1)
-                if bitvectorop == "not":
-                    res = "~%s"
-                elif bitvectorop == "add":
-                    res = "%s + %s"
-                elif bitvectorop == "sub":
-                    res = "%s - %s"
-                elif bitvectorop == "and":
-                    res = "%s & %s"
-                elif bitvectorop == "or":
-                    res = "%s | %s"
-                else:
-                    assert 0
-                codegen.emit("%s = (%s) & %s" % (result, res % tuple(sargs), mask))
-                return
-            else:
-                op = "XXX_" + name[1:]
+            codegen.emit("%s = %s" % (result,
+                getattr(argtyps[0], "make_op_code_special_" + name[1:])(self, sargs, argtyps)))
+            return
         else:
             op = codegen.getname(name)
         if not sargs:
@@ -478,10 +420,10 @@ class __extend__(parse.Var):
 
 class __extend__(parse.Number):
     def to_code(self, codegen):
-        return "rbigint.fromint(%s)" % (self.number, )
+        return str(self.number)
 
     def gettyp(self, codegen):
-        return types.Int()
+        return types.MachineInt()
 
 class __extend__(parse.BitVectorConstant):
     def to_code(self, codegen):

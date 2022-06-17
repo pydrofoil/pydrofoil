@@ -339,10 +339,9 @@ class TupleElement(Expression):
         self.element = element
 
 class Cast(Expression):
-    def __init__(self, expr, variant, field=None):
+    def __init__(self, expr, variant):
         self.expr = expr
         self.variant = variant
-        self.field = field
 
 class RefOf(Expression):
     def __init__(self, expr):
@@ -463,7 +462,7 @@ def opargs(p):
     else:
         return Operation(None, None, [p[0]] + p[2].args)
 
-@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | NAME DOT NAME | LPAREN RPAREN | NAME AS NAME | NAME AS NAME DOT NAME | AMPERSAND NAME')
+@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | expr DOT NAME | LPAREN RPAREN | NAME AS NAME | AMPERSAND NAME')
 def expr(p):
     if len(p) == 1:
         if p[0].gettokentype() == "NAME":
@@ -485,11 +484,9 @@ def expr(p):
         if p[1].gettokentype() == "COLON":
             return Undefined(p[2])
         elif p[1].gettokentype() == "DOT":
-            return TupleElement(Var(p[0].value), p[2].value)
+            return TupleElement(p[0], p[2].value)
         elif p[1].gettokentype() == "AS":
             return Cast(Var(p[0].value), p[2].value)
-    elif len(p) == 5 and p[1].gettokentype() == "AS":
-        return Cast(Var(p[0].value), p[2].value, p[4].value)
     assert 0
 
 @pg.production('conditionaljump : JUMP condition GOTO NUMBER BACKTICK STRING')

@@ -154,15 +154,10 @@ class __extend__(parse.Union):
                 if isinstance(typ, parse.NamedType) and typ.name == "%unit":
                     codegen.emit("def __init__(self, unit): pass")
                     continue
-                if isinstance(typ, parse.TupleType):
-                    argtypes = typ.elements
-                    fnarg = 't'
-                    args = ["ztup%s" % i for i in range(len(argtypes))]
-                    inits = ["t.ztup%s" % i for i in range(len(argtypes))]
-                else:
-                    argtypes = [typ]
-                    args = inits = ["a"]
-                    fnarg = 'a'
+                # XXX could special-case tuples here
+                argtypes = [typ]
+                args = inits = ["a"]
+                fnarg = 'a'
                 with codegen.emit_indent("def __init__(self, %s):" % fnarg):
                     for arg, init, typ in zip(args, inits, argtypes):
                         codegen.emit("self.%s = %s # %s" % (arg, init, typ))
@@ -440,23 +435,14 @@ class __extend__(parse.TupleElement):
 class __extend__(parse.Cast):
     def to_code(self, codegen):
         expr = self.expr.to_code(codegen)
-        if self.field:
-            field = self.field
-        else:
-            field = 'a'
-        return "(%s.%s if isinstance(%s, %s) else supportcode.raise_type_error())" % (expr, field, expr, codegen.getname(self.variant))
+        return "(%s.a if isinstance(%s, %s) else supportcode.raise_type_error())" % (expr, expr, codegen.getname(self.variant))
 
     def gettyp(self, codegen):
         # XXX clean up
         unionast = self.expr.gettyp(codegen).ast
         index = unionast.names.index(self.variant)
         typ = unionast.types[index].resolve_type(codegen)
-        if self.field is not None:
-            assert isinstance(typ, types.Tuple)
-            assert self.field.startswith('ztup')
-            return typ.elements[int(self.field[len('ztup'):])]
-        else:
-            return typ
+        return typ
 
 # ____________________________________________________________
 # conditions

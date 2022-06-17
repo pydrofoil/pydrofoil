@@ -16,18 +16,26 @@ class NameInfo(object):
 class Codegen(object):
     def __init__(self):
         self.declarations = []
+        self.runtimeinit = []
         self.code = []
         self.level = 0
         self.last_enum = 0
         self.globalnames = {}
         self.namedtypes = {}
+        self.declarationcache = {}
+        self.gensym = {} # prefix -> number
         self.localnames = None
-        self.add_global("false", "False", types.Bool(), None)
-        self.add_global("true", "True", types.Bool(), None)
+        self.add_global("false", "False", types.Bool())
+        self.add_global("true", "True", types.Bool())
+        self.add_global("bitzero", "rarithmetic.r_uint(0)", types.Bit())
+        self.add_global("bitone", "rarithmetic.r_uint(1)", types.Bit())
+        self.add_global("$zinternal_vector_init", "supportcode.vector_init")
+        self.add_global("$zinternal_vector_update", "supportcode.vector_update")
+        self.add_global("have_exception", "xxx")
         self.declared_types = set()
 
-    def add_global(self, name, pyname, typ, ast):
-        assert isinstance(typ, types.Type)
+    def add_global(self, name, pyname, typ=None, ast=None):
+        assert isinstance(typ, types.Type) or typ is None
         assert name not in self.globalnames
         self.globalnames[name] = NameInfo(pyname, typ, ast)
 
@@ -78,6 +86,17 @@ class Codegen(object):
         yield
         self.level -= 1
 
+    @contextmanager
+    def emit_code_type(self, attr):
+        oldlevel = self.level
+        self.level = 0
+        oldcode = self.code
+        self.code = getattr(self, attr)
+        yield
+        assert self.level == 0
+        self.code = oldcode
+        self.level = oldlevel
+
     def emit(self, line=''):
         if not line.strip():
             self.code.append('')
@@ -87,25 +106,39 @@ class Codegen(object):
     def emit_declaration(self, line):
         self.declarations.append(line)
 
-    def declare_tuple(self, typ):
-        if typ in self.declared_types:
-            return
-        self.declared_types.add(typ)
-        self.emit_declaration("class Tuple%s(object): pass" % (id(typ), ))
+    @contextmanager
+    def cached_declaration(self, key, nameprefix):
+        tup = key, nameprefix
+        if tup in self.declarationcache:
+            self.dummy = []
+            with self.emit_code_type("dummy"):
+                yield self.declarationcache[tup]
+        else:
+            num = self.gensym.get(nameprefix, 0) + 1
+            self.gensym[nameprefix] = num
+            name = self.declarationcache[tup] = "%s_%s" % (nameprefix, num)
+            with self.emit_code_type("declarations"):
+                yield name
 
     def getcode(self):
-        return "\n".join(self.declarations + self.code)
+        res = ["\n".join(self.declarations)]
+        res.append("def model_init():\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
+        res.append("\n".join(self.code))
+        return "\n\n\n".join(res)
 
 
 def parse_and_make_code(s):
     ast = parse.parser.parse(parse.lexer.lex(s))
     c = Codegen()
-    c.emit("from rpython.rlib.rbigint import rbigint")
-    c.emit("from rpython.rlib import rarithmetic")
-    c.emit("import operator")
-    c.emit("from pydrofoil.test import supportcode")
-    c.emit("class Registers(object): pass")
-    c.emit("r = Registers()")
+    with c.emit_code_type("declarations"):
+        c.emit("from rpython.rlib.rbigint import rbigint")
+        c.emit("from rpython.rlib import rarithmetic")
+        c.emit("import operator")
+        c.emit("from pydrofoil.test import supportcode")
+        c.emit("class Registers(object): pass")
+        c.emit("r = Registers()")
+        c.emit("class Lets(object): pass")
+        c.emit("l = Lets()")
     try:
         ast.make_code(c)
     except Exception:
@@ -163,6 +196,19 @@ class __extend__(parse.Union):
                         codegen.emit("self.%s = %s # %s" % (arg, init, typ))
         codegen.emit()
 
+class __extend__(parse.Struct):
+    def make_code(self, codegen):
+        name = "Struct_" + self.name
+        self.pyname = name
+        structtyp = types.Struct(self)
+        structtyp.fieldtyps = {}
+        codegen.add_named_type(self.name, self.pyname, structtyp, self)
+        with codegen.emit_indent("class %s(object):" % name):
+            with codegen.emit_indent("def __init__(self, %s):" % ", ".join(self.names)):
+                for arg, typ in zip(self.names, self.types):
+                    codegen.emit("self.%s = %s # %s" % (arg, arg, typ))
+                    structtyp.fieldtyps[arg] = typ.resolve_type(codegen)
+
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
         if self.definition is not None:
@@ -215,6 +261,15 @@ class __extend__(parse.Function):
                     codegen.level -= 2
         codegen.emit()
 
+class __extend__(parse.Let):
+    def make_code(self, codegen):
+        codegen.emit("# %s" % (self, ))
+        codegen.add_global(self.name, "l.%s" % self.name, self.typ.resolve_type(codegen), self)
+        with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
+            for i, op in enumerate(self.body):
+                codegen.emit("# %s" % (op, ))
+                op.make_op_code(codegen)
+
 # ____________________________________________________________
 # operations
 
@@ -235,8 +290,7 @@ class __extend__(parse.LocalVarDeclaration):
             assert self.value is None
             # need to make a tuple instance
             result = codegen.gettarget(self.name)
-            codegen.declare_tuple(typ)
-            codegen.emit("%s = Tuple%s()" % (result, id(typ)))
+            codegen.emit("%s = %s()" % (result, typ.pyname))
         elif self.value is not None:
             result = codegen.gettarget(self.name)
             othertyp = self.value.gettyp(codegen)
@@ -278,11 +332,18 @@ class __extend__(parse.Operation):
                 else:
                     assert 0
                 return
+            if name == "@bvaccess":
+                arg1, arg2 = self.args
+                sarg1, sarg2 = sargs
+                typ1, typ2 = argtyps
+                sarg2 = pair(typ2, types.MachineInt()).convert(arg2, codegen)
+                codegen.emit("%s = rarithmetic.r_uint(1) & (%s >> rarithmetic.r_uint(%s))" % (result, sarg1, sarg2))
+                return
             if name.startswith("@bv"):
                 bitvectorop = name[len("@bv"):]
                 width = None
                 for i, (typ, arg) in enumerate(zip(argtyps, self.args)):
-                    assert isinstance(typ, types.BitVector)
+                    assert isinstance(typ, types.FixedBitVector)
                     if width is None:
                         width = typ.width
                     else:
@@ -340,6 +401,15 @@ class __extend__(parse.TupleElementAssignment):
     def make_op_code(self, codegen):
         codegen.emit("%s.ztup%s = %s" % (self.tup, self.index, self.value.to_code(codegen)))
 
+class __extend__(parse.StructElementAssignment):
+    def make_op_code(self, codegen):
+        codegen.emit("%s.%s = %s" % (self.obj, self.field, self.value.to_code(codegen)))
+
+class __extend__(parse.RefAssignment):
+    def make_op_code(self, codegen):
+        # XXX think long and hard about refs!
+        codegen.emit("%s = %s # XXX ref assignment!" % (self.ref, self.value.to_code(codegen)))
+
 class __extend__(parse.End):
     def make_op_code(self, codegen):
         codegen.emit("return return_")
@@ -354,24 +424,31 @@ class __extend__(parse.Failure):
     def make_op_jump(self, codegen, i):
         pass
 
+class __extend__(parse.Arbitrary):
+    def make_op_code(self, codegen):
+        codegen.emit("raise ValueError")
+
+    def make_op_jump(self, codegen, i):
+        pass
+
 class __extend__(parse.TemplatedOperation):
     def make_op_code(self, codegen):
         if self.name == "@slice":
             arg, num = self.args
             typ = arg.gettyp(codegen)
-            assert isinstance(typ, types.BitVector)
+            assert isinstance(typ, types.FixedBitVector)
             assert isinstance(num, parse.Number)
             assert isinstance(self.templateparam, parse.Number)
             width = self.templateparam.number
             restyp = codegen.gettyp(self.result)
-            assert isinstance(restyp, types.BitVector)
+            assert isinstance(restyp, types.FixedBitVector)
             result = codegen.gettarget(self.result)
             assert restyp.width == width
             codegen.emit("%s = (%s >> %s) & rarithmetic.r_uint(0x%x)" % (result, arg.to_code(codegen), num.number, (1 << width) - 1))
         elif self.name == "@signed":
             arg, = self.args
             typ = arg.gettyp(codegen)
-            assert isinstance(typ, types.BitVector)
+            assert isinstance(typ, types.FixedBitVector)
             assert isinstance(self.templateparam, parse.Number)
             width = self.templateparam.number
             restyp = codegen.gettyp(self.result)
@@ -412,9 +489,9 @@ class __extend__(parse.BitVectorConstant):
 
     def gettyp(self, codegen):
         if self.constant.startswith("0b"):
-            return types.BitVector(len(self.constant) - 2)
+            return types.FixedBitVector(len(self.constant) - 2)
         assert self.constant.startswith("0x")
-        return types.BitVector((len(self.constant) - 2) * 4)
+        return types.FixedBitVector((len(self.constant) - 2) * 4)
 
 class __extend__(parse.Unit):
     def to_code(self, codegen):
@@ -423,14 +500,23 @@ class __extend__(parse.Unit):
     def gettyp(self, codegen):
         return types.Unit()
 
-class __extend__(parse.TupleElement):
+class __extend__(parse.Undefined):
     def to_code(self, codegen):
-        return "%s.%s" % (self.tup.to_code(codegen), self.element)
+        return 'xxx'
 
     def gettyp(self, codegen):
-        tuptyp = self.tup.gettyp(codegen)
-        assert self.element.startswith("ztup")
-        return tuptyp.elements[int(self.element[len('ztup'):])]
+        return self.typ.resolve_type(codegen)
+
+class __extend__(parse.FieldAccess):
+    def to_code(self, codegen):
+        return "%s.%s" % (self.obj.to_code(codegen), self.element)
+
+    def gettyp(self, codegen):
+        objtyp = self.obj.gettyp(codegen)
+        if isinstance(objtyp, types.Tuple):
+            assert self.element.startswith("ztup")
+            return objtyp.elements[int(self.element[len('ztup'):])]
+        return objtyp.fieldtyps[self.element]
 
 class __extend__(parse.Cast):
     def to_code(self, codegen):
@@ -443,6 +529,22 @@ class __extend__(parse.Cast):
         index = unionast.names.index(self.variant)
         typ = unionast.types[index].resolve_type(codegen)
         return typ
+
+class __extend__(parse.RefOf):
+    def to_code(self, codegen):
+        expr = self.expr.to_code(codegen)
+        assert isinstance(self.expr.gettyp(codegen), types.Struct)
+        return expr
+
+    def gettyp(self, codegen):
+        return types.Ref(self.expr.gettyp(codegen))
+
+class __extend__(parse.String):
+    def to_code(self, codegen):
+        return self.string
+
+    def gettyp(self, codegen):
+        return types.String()
 
 # ____________________________________________________________
 # conditions
@@ -492,11 +594,17 @@ class __extend__(parse.NamedType):
         if name == "%bv":
             return types.GenericBitVector()
         if name.startswith("%bv"):
-            return types.BitVector(int(name[3:]))
+            return types.FixedBitVector(int(name[3:]))
         if name == "%unit":
             return types.Unit()
         if name == "%i64":
             return types.MachineInt()
+        if name == "%bit":
+            return types.Bit()
+        if name == "%string":
+            return types.String()
+        if name.startswith("%sbv"):
+            return types.SmallBitVector(int(name[len("%sbv"):]))
         xxx
 
 class __extend__(parse.EnumType):
@@ -507,10 +615,26 @@ class __extend__(parse.UnionType):
     def resolve_type(self, codegen):
         return codegen.get_named_type(self.name)
 
+class __extend__(parse.StructType):
+    def resolve_type(self, codegen):
+        return codegen.get_named_type(self.name)
+
 class __extend__(parse.FunctionType):
     def resolve_type(self, codegen):
         return types.Function(self.argtype.resolve_type(codegen), self.restype.resolve_type(codegen))
 
+class __extend__(parse.RefType):
+    def resolve_type(self, codegen):
+        return types.Ref(self.refto.resolve_type(codegen))
+
+class __extend__(parse.VecType):
+    def resolve_type(self, codegen):
+        return types.Vec(self.of.resolve_type(codegen))
+
 class __extend__(parse.TupleType):
     def resolve_type(self, codegen):
-        return types.Tuple(tuple([e.resolve_type(codegen) for e in self.elements]))
+        typ = types.Tuple(tuple([e.resolve_type(codegen) for e in self.elements]))
+        with codegen.cached_declaration(typ, "Tuple") as pyname:
+            codegen.emit("class %s(object): pass # %s" % (pyname, self))
+            typ.pyname = pyname
+        return typ

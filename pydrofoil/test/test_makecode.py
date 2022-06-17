@@ -1,9 +1,13 @@
+import pytest
 from pydrofoil.makecode import *
 
 import os
 
 cir = os.path.join(os.path.dirname(__file__), "c.ir")
+mipsir = os.path.join(os.path.dirname(__file__), "mips.ir")
+riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
 outpy = os.path.join(os.path.dirname(__file__), "out.py")
+outmipspy = os.path.join(os.path.dirname(__file__), "outmips.py")
 addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "Add.hack.bin")
 sumrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "sum.hack.bin")
 
@@ -21,8 +25,6 @@ enum zjump {
 }
 """)
     assert """\
-class Registers(object): pass
-r = Registers()
 class Enum_zjump(object):
     zJDONT = 0
     zJGT = 1
@@ -59,6 +61,27 @@ def test_full():
         s = f.read()
     res = parse_and_make_code(s)
     with open(outpy, "w") as f:
+        f.write(res)
+    d = {}
+    res = py.code.Source(res)
+    exec res.compile() in d
+    supportcode.load_rom(addrom)
+    d['func_zmymain'](10, True)
+    assert d['r'].zD == 5
+    assert d['r'].zA == 0
+    assert d['r'].zPC == 11
+    supportcode.load_rom(sumrom)
+    d['func_zmymain'](2000, True)
+    assert supportcode.my_read_mem(17) == 5050
+
+@pytest.mark.xfail
+def test_full_mips():
+    import py
+    from pydrofoil.test import supportcode
+    with open(mipsir, "rb") as f:
+        s = f.read()
+    res = parse_and_make_code(s)
+    with open(outmipspy, "w") as f:
         f.write(res)
     d = {}
     res = py.code.Source(res)

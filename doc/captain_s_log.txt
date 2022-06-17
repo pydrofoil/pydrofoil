@@ -21,6 +21,8 @@
 - added enough to the parser to parse MIPS
 
 17.06.2022 -
+- parse RISC-V model
+- progress on generating code for MIPS
 
 TODO:
 - C Warnings fix in sail code

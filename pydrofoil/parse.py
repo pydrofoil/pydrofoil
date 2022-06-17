@@ -338,9 +338,9 @@ class BitVectorConstant(Expression):
     def __init__(self, constant):
         self.constant = constant
 
-class TupleElement(Expression):
-    def __init__(self, tup, element):
-        self.tup = tup
+class FieldAccess(Expression):
+    def __init__(self, obj, element):
+        self.obj = obj
         self.element = element
 
 class Cast(Expression):
@@ -467,7 +467,7 @@ def opargs(p):
     else:
         return Operation(None, None, [p[0]] + p[2].args)
 
-@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | expr DOT NAME | LPAREN RPAREN | expr AS NAME | AMPERSAND NAME')
+@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | expr DOT NAME | LPAREN RPAREN | expr AS NAME | AMPERSAND expr')
 def expr(p):
     if len(p) == 1:
         if p[0].gettokentype() == "NAME":
@@ -484,12 +484,12 @@ def expr(p):
         if p[0].gettokentype() == "LPAREN":
             return Unit()
         elif p[0].gettokentype() == "AMPERSAND":
-            return RefOf(p[0].value)
+            return RefOf(p[1])
     elif len(p) == 3:
         if p[1].gettokentype() == "COLON":
             return Undefined(p[2])
         elif p[1].gettokentype() == "DOT":
-            return TupleElement(p[0], p[2].value)
+            return FieldAccess(p[0], p[2].value)
         elif p[1].gettokentype() == "AS":
             return Cast(p[0], p[2].value)
     assert 0

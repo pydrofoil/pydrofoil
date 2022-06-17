@@ -265,7 +265,7 @@ fn zassign_dest(zgsz371, zvalue) {
   end;
 }
     """))
-    assert res.declarations[1].body[1] == Assignment(result='za_lz30', value=TupleElement(element='ztup0', tup=Var(name='zgsz371')))
+    assert res.declarations[1].body[1] == Assignment(result='za_lz30', value=FieldAccess(Var(name='zgsz371'), 'ztup0'))
 
 
 def test_dot_vs_is():
@@ -276,7 +276,7 @@ fn zexception_handler(zcur_priv, zctl, zpc) {
   end;
 }
 """))
-    assert res.declarations[0].body[1].value == Cast(expr=TupleElement(element='ztup1', tup=Var(name='zgsz34019_lz30')), variant='zCTL_TRAP')
+    assert res.declarations[0].body[1].value == Cast(expr=FieldAccess(Var(name='zgsz34019_lz30'), 'ztup1'), variant='zCTL_TRAP')
 
 def test_parse_full():
     with open(cir, "rb") as f:

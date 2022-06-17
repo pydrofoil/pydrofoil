@@ -25,6 +25,23 @@ class Enum(Type):
         self.ast = ast
 
 @unique
+class Struct(Type):
+    def __init__(self, ast):
+        self.ast = ast
+
+@unique
+class Ref(Type):
+    def __init__(self, typ):
+        assert isinstance(typ, Type)
+        self.typ = typ
+
+@unique
+class Vec(Type):
+    def __init__(self, typ):
+        assert isinstance(typ, Type)
+        self.typ = typ
+
+@unique
 class Function(Type):
     def __init__(self, argtype, restype):
         assert isinstance(argtype, Type)
@@ -38,12 +55,22 @@ class Tuple(Type):
         self.elements = elements
 
 @unique
-class BitVector(Type):
+class FixedBitVector(Type):
+    def __init__(self, width):
+        # size known at compile time
+        self.width = width
+
+    def __repr__(self):
+        return "FixedBitVector(%s)" % (self.width, )
+
+@unique
+class SmallBitVector(Type):
+    # small bitvector: length of at most width
     def __init__(self, width):
         self.width = width
 
     def __repr__(self):
-        return "BitVector(%s)" % (self.width, )
+        return "SmallBitVector(%s)" % (self.width, )
 
 @unique
 class GenericBitVector(Type):
@@ -63,4 +90,12 @@ class Bool(Type):
 
 @unique
 class Unit(Type):
+    pass
+
+@unique
+class Bit(Type):
+    pass
+
+@unique
+class String(Type):
     pass

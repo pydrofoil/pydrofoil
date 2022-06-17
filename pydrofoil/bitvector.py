@@ -10,3 +10,6 @@ class GenericBitVector(object):
     def __init__(self, size, rval):
         self.size = size
         self.rval = rval # rbigint
+
+    def add_int(self, i):
+        return GenericBitVector(self.size, self.rval.add(i).and_(rbigint.fromint(1).lshift(self.size).int_sub(1)))

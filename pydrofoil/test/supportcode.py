@@ -1,5 +1,6 @@
 from rpython.rlib import rarithmetic
 from rpython.rlib.rbigint import rbigint
+from pydrofoil import bitvector
 
 class Memory(object):
     pass
@@ -46,7 +47,7 @@ def zero_extend(a, b):
     return a
 
 def add_bits_int(a, b):
-    return a.add(b)
+    return a.add_int(b)
 
 def fast_signed(op, n):
     if n == 64:

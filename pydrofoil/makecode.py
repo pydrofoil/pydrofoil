@@ -35,6 +35,7 @@ class Codegen(object):
         self.add_global("have_exception", "xxx", types.Bool())
         self.add_global("throw_location", "xxx", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
+        self.add_global("NULL", "None")
         self.declared_types = set()
 
     def add_global(self, name, pyname, typ=None, ast=None):
@@ -141,6 +142,7 @@ def parse_and_make_code(s):
         c.emit("from rpython.rlib import rarithmetic")
         c.emit("import operator")
         c.emit("from pydrofoil.test import supportcode")
+        c.emit("from pydrofoil import bitvector")
         c.emit("class Registers(object): pass")
         c.emit("r = Registers()")
         c.emit("class Lets(object): pass")
@@ -274,9 +276,11 @@ class __extend__(parse.Let):
         codegen.emit("# %s" % (self, ))
         codegen.add_global(self.name, "l.%s" % self.name, self.typ.resolve_type(codegen), self)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
+            codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
             for i, op in enumerate(self.body):
                 codegen.emit("# %s" % (op, ))
                 op.make_op_code(codegen)
+            codegen.emit()
 
 # ____________________________________________________________
 # operations
@@ -315,8 +319,10 @@ class __extend__(parse.Operation):
             codegen.emit("%s = %s" % (result,
                 getattr(argtyps[0], "make_op_code_special_" + name[1:])(self, sargs, argtyps)))
             return
-        else:
-            op = codegen.getname(name)
+        elif name.startswith("$zcons"): # magic const stuff
+            codegen.emit("%s = (%s, %s)" % ((result, ) + tuple(sargs)))
+            return
+        op = codegen.getname(name)
         if not sargs:
             args = '()'
         else:
@@ -383,28 +389,13 @@ class __extend__(parse.Arbitrary):
 
 class __extend__(parse.TemplatedOperation):
     def make_op_code(self, codegen):
-        if self.name == "@slice":
-            arg, num = self.args
-            typ = arg.gettyp(codegen)
-            assert isinstance(typ, types.FixedBitVector)
-            assert isinstance(num, parse.Number)
-            assert isinstance(self.templateparam, parse.Number)
-            width = self.templateparam.number
-            restyp = codegen.gettyp(self.result)
-            assert isinstance(restyp, types.FixedBitVector)
+        typ = self.args[0].gettyp(codegen)
+        name = self.name
+        if name.startswith("@"):
+            op = getattr(typ, "make_op_code_templated_" + name[1:])(self, codegen)
             result = codegen.gettarget(self.result)
-            assert restyp.width == width
-            codegen.emit("%s = (%s >> %s) & rarithmetic.r_uint(0x%x)" % (result, arg.to_code(codegen), num.number, (1 << width) - 1))
-        elif self.name == "@signed":
-            arg, = self.args
-            typ = arg.gettyp(codegen)
-            assert isinstance(typ, types.FixedBitVector)
-            assert isinstance(self.templateparam, parse.Number)
-            width = self.templateparam.number
-            restyp = codegen.gettyp(self.result)
-            assert isinstance(restyp, types.MachineInt) and width == 64
-            result = codegen.gettarget(self.result)
-            codegen.emit("%s = supportcode.fast_signed(%s, %s)" % (result, arg.to_code(codegen), typ.width))
+            codegen.emit("%s = %s" % (result, op))
+            return
         else:
             codegen.emit("XXX")
 
@@ -568,6 +559,10 @@ class __extend__(parse.UnionType):
 class __extend__(parse.StructType):
     def resolve_type(self, codegen):
         return codegen.get_named_type(self.name)
+
+class __extend__(parse.ListType):
+    def resolve_type(self, codegen):
+        return types.List(self.typ.resolve_type(codegen))
 
 class __extend__(parse.FunctionType):
     def resolve_type(self, codegen):

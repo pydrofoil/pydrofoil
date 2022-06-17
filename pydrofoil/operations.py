@@ -40,11 +40,50 @@ class __extend__(types.FixedBitVector):
         return self.bvop("%s ^ %s", sargs, argtyps)
 
     def make_op_code_special_bvaccess(self, ast, (sarg1, sarg2), argtyps):
-        return "rarithmetic.r_uint(1) & (%s >> rarithmetic.r_uint(%s))" % (sarg1, sarg2)
+        return "rarithmetic.r_uint(1) & supportcode.safe_rshift(%s, rarithmetic.r_uint(%s))" % (sarg1, sarg2)
 
     def make_op_code_special_concat(self, ast, (sarg1, sarg2), (argtyp1, argtyp2)):
         return "(%s << %s) | %s" % (sarg1, argtyp2.width, sarg2)
 
+    # templated
+
+    def make_op_code_templated_slice(self, ast, codegen):
+        arg, num = ast.args
+        assert isinstance(num, parse.Number)
+        assert isinstance(ast.templateparam, parse.Number)
+        width = ast.templateparam.number
+        return "supportcode.safe_rshift(%s, %s) & rarithmetic.r_uint(0x%x)" % (arg.to_code(codegen), num.number, (1 << width) - 1)
+
+    def make_op_code_templated_signed(self, ast, codegen):
+        arg, = ast.args
+        self = arg.gettyp(codegen)
+        assert isinstance(ast.templateparam, parse.Number)
+        width = ast.templateparam.number
+        restyp = codegen.gettyp(ast.result)
+        assert isinstance(restyp, types.MachineInt) and width == 64
+        return "supportcode.fast_signed(%s, %s)" % (arg.to_code(codegen), self.width)
+
+    def make_op_code_templated_unsigned(self, ast, codegen):
+        arg, = ast.args
+        self = arg.gettyp(codegen)
+        assert isinstance(ast.templateparam, parse.Number)
+        width = ast.templateparam.number
+        restyp = codegen.gettyp(ast.result)
+        assert isinstance(restyp, types.MachineInt) and width == 64
+        result = codegen.gettarget(ast.result)
+        return "rarithmetic.intmask(%s)" % (arg.to_code(codegen), )
+
+
+class __extend__(types.SmallBitVector):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "%s.val == %s.val" % (sarg1, sarg2)
+
+    def make_op_code_templated_slice(self, ast, codegen):
+        arg, num = ast.args
+        assert isinstance(num, parse.Number)
+        assert isinstance(ast.templateparam, parse.Number)
+        width = ast.templateparam.number
+        return "supportcode.safe_rshift(%s.val, %s) & rarithmetic.r_uint(0x%x)" % (arg.to_code(codegen), num.number, (1 << width) - 1)
 
 class __extend__(types.MachineInt):
     def machineintop(self, template, sargs, argtyps):
@@ -72,3 +111,14 @@ class __extend__(types.MachineInt):
 
     def make_op_code_special_iadd(self, ast, sargs, argtyps):
         return self.machineintop("%s + %s", sargs, argtyps)
+
+    def make_op_code_special_isub(self, ast, sargs, argtyps):
+        return self.machineintop("%s - %s", sargs, argtyps)
+
+
+class __extend__(types.List):
+    def make_op_code_special_hd(self, ast, sargs, argtyps):
+        return "%s[0]" % (sargs[0], )
+
+    def make_op_code_special_tl(self, ast, sargs, argtyps):
+        return "%s[1]" % (sargs[0], )

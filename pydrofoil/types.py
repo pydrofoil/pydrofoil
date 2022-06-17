@@ -55,6 +55,13 @@ class Tuple(Type):
         self.elements = elements
 
 @unique
+class List(Type):
+    # a linked list
+    def __init__(self, typ):
+        assert isinstance(typ, Type)
+        self.typ = typ
+
+@unique
 class FixedBitVector(Type):
     def __init__(self, width):
         # size known at compile time

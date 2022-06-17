@@ -8,6 +8,8 @@ mipsir = os.path.join(os.path.dirname(__file__), "mips.ir")
 riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
 outpy = os.path.join(os.path.dirname(__file__), "out.py")
 outmipspy = os.path.join(os.path.dirname(__file__), "outmips.py")
+outriscvpy = os.path.join(os.path.dirname(__file__), "outriscv.py")
+
 addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "Add.hack.bin")
 sumrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "sum.hack.bin")
 
@@ -86,11 +88,15 @@ def test_full_mips():
     d = {}
     res = py.code.Source(res)
     exec res.compile() in d
-    supportcode.load_rom(addrom)
-    d['func_zmymain'](10, True)
-    assert d['r'].zD == 5
-    assert d['r'].zA == 0
-    assert d['r'].zPC == 11
-    supportcode.load_rom(sumrom)
-    d['func_zmymain'](2000, True)
-    assert supportcode.my_read_mem(17) == 5050
+
+def test_full_riscv():
+    import py
+    from pydrofoil.test import supportcode
+    with open(riscvir, "rb") as f:
+        s = f.read()
+    res = parse_and_make_code(s)
+    with open(outriscvpy, "w") as f:
+        f.write(res)
+    d = {}
+    res = py.code.Source(res)
+    exec res.compile() in d

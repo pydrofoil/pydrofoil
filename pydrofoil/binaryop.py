@@ -6,23 +6,42 @@ class __extend__(pairtype(types.Type, types.Type)):
     def convert((from_, to), ast, codegen):
         if from_ is to: # no conversion needed
             return ast.to_code(codegen)
-        return '" convert from %s to %s " + 1: %s' % (from_, to, ast)
         raise TypeError("can't convert from %s to %s: %s" % (from_, to, ast))
 
 class __extend__(pairtype(types.FixedBitVector, types.GenericBitVector)):
     def convert((from_, to), ast, codegen):
         assert from_.width <= 64
-        return "rbigint.fromrarith_int(%s)" % ast.to_code(codegen)
+        return "bitvector.GenericBitVector(%s, rbigint.fromrarith_int(%s))" % (from_.width, ast.to_code(codegen))
+
+class __extend__(pairtype(types.SmallBitVector, types.GenericBitVector)):
+    def convert((from_, to), ast, codegen):
+        arg = ast.to_code(codegen)
+        return "bitvector.GenericBitVector(%s.size, rbigint.fromrarith_int(%s.val))" % (arg, arg)
+
+class __extend__(pairtype(types.SmallBitVector, types.FixedBitVector)):
+    def convert((from_, to), ast, codegen):
+        return "%s.val" % ast.to_code(codegen)
+
+class __extend__(pairtype(types.FixedBitVector, types.SmallBitVector)):
+    def convert((from_, to), ast, codegen):
+        return "bitvector.SmallBitVector(%s, %s)" % (ast.to_code(codegen), from_.width)
 
 class __extend__(pairtype(types.GenericBitVector, types.FixedBitVector)):
     def convert((from_, to), ast, codegen):
-        assert to.width <= 64
-        return "%s.touint()" % ast.to_code(codegen)
+        return "%s.rval.touint()" % ast.to_code(codegen)
+
+class __extend__(pairtype(types.GenericBitVector, types.SmallBitVector)):
+    def convert((from_, to), ast, codegen):
+        return "bigvector.SmallBitVector(%s.touint())" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.Int, types.FixedBitVector)):
     def convert((from_, to), ast, codegen):
         assert to.width <= 64
         return "%s.touint()" % ast.to_code(codegen)
+
+class __extend__(pairtype(types.String, types.Int)):
+    def convert((from_, to), ast, codegen):
+        return "rbigint.fromstr(%s)" % (ast.to_code(codegen), )
 
 class __extend__(pairtype(types.MachineInt, types.Int)):
     def convert((from_, to), ast, codegen):
@@ -37,7 +56,7 @@ class __extend__(pairtype(types.Tuple, types.Tuple)):
         if from_ is to:
             return ast.to_code(codegen)
         with codegen.cached_declaration((from_, to), "convert_%s_%s" % (from_.pyname, to.pyname)) as pyname:
-            with codegen.emit_indent("def %s(t1)" % pyname), codegen.enter_scope(parse.Function(None, None, None)):
+            with codegen.emit_indent("def %s(t1):" % pyname), codegen.enter_scope(parse.Function(None, None, None)):
                 codegen.add_local("t1", "t1", from_, None)
                 codegen.emit("res = %s()" % (to.pyname, ))
                 for i, (typfrom, typto) in enumerate(zip(from_.elements, to.elements)):

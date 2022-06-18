@@ -105,6 +105,8 @@ def test_full_riscv():
     res = parse_and_make_code(s)
     with open(outriscvpy, "w") as f:
         f.write(res)
-    d = {}
-    res = py.code.Source(res)
-    exec res.compile() in d
+    from pydrofoil.test import outriscv
+    print "init model"
+    outriscv.model_init()
+    print "calling main"
+    outriscv.func_zmain(())

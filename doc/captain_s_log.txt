@@ -23,6 +23,7 @@
 17.06.2022 -
 - parse RISC-V model
 - progress on generating code for MIPS
+- generate (not yet working) code for RISC-V
 
 TODO:
 - C Warnings fix in sail code

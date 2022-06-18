@@ -69,3 +69,25 @@ def safe_rshift(n, shift):
     if shift >= 64:
         return rarithmetic.r_uint(0)
     return n >> shift
+
+def print_bits(s, b):
+    print s,
+    b.print_bits()
+
+def reg_deref(s):
+    return s
+
+# vector stuff
+
+def vector_update(res, l, index, element):
+    # super weird, the C backend does the same
+    if res is not l:
+        l = l[:]
+    l[index] = element
+    return l
+
+def vector_update_subrange(l, n, m, s):
+    width = s.size
+    assert width == n.toint() - m.toint() + 1
+    mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m.toint()).invert()
+    return bitvector.GenericBitVector(l.size, l.rval.and_(mask).or_(s.rval.lshift(m.toint())))

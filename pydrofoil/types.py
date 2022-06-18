@@ -13,6 +13,7 @@ def unique(cls):
 
 class Type(object):
     __metaclass__ = extendabletype
+    uninitialized_value = '"uninitialized_value"' # often fine for rpython!
 
 @unique
 class Union(Type):
@@ -57,12 +58,16 @@ class Tuple(Type):
 @unique
 class List(Type):
     # a linked list
+    uninitialized_value = "None" # XXX not rpython!
+
     def __init__(self, typ):
         assert isinstance(typ, Type)
         self.typ = typ
 
 @unique
 class FixedBitVector(Type):
+    uninitialized_value = "rarithmetic.r_uint(0)"
+
     def __init__(self, width):
         # size known at compile time
         self.width = width
@@ -105,4 +110,4 @@ class Bit(Type):
 
 @unique
 class String(Type):
-    pass
+    uninitialized_value = "None"

@@ -13,3 +13,6 @@ class GenericBitVector(object):
 
     def add_int(self, i):
         return GenericBitVector(self.size, self.rval.add(i).and_(rbigint.fromint(1).lshift(self.size).int_sub(1)))
+
+    def print_bits(self):
+        print "GenericBitVector<%s, %s>" % (self.size, self.rval.hex())

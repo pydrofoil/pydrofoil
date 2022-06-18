@@ -61,5 +61,6 @@ class __extend__(pairtype(types.Tuple, types.Tuple)):
                 codegen.emit("res = %s()" % (to.pyname, ))
                 for i, (typfrom, typto) in enumerate(zip(from_.elements, to.elements)):
                     codegen.emit("res.ztup%s = %s" % (i, pair(typfrom, typto).convert(parse.Var("t1"), codegen)))
+                codegen.emit("return res")
         return "%s(%s)" % (pyname, ast.to_code(codegen))
 

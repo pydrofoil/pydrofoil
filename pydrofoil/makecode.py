@@ -29,8 +29,6 @@ class Codegen(object):
         self.add_global("true", "True", types.Bool())
         self.add_global("bitzero", "rarithmetic.r_uint(0)", types.Bit())
         self.add_global("bitone", "rarithmetic.r_uint(1)", types.Bit())
-        self.add_global("$zinternal_vector_init", "supportcode.vector_init")
-        self.add_global("$zinternal_vector_update", "supportcode.vector_update")
         self.add_global("$zupdate_fbits", "supportcode.update_fbits")
         self.add_global("have_exception", "xxx", types.Bool())
         self.add_global("throw_location", "xxx", types.String())
@@ -212,12 +210,20 @@ class __extend__(parse.Struct):
         self.pyname = name
         structtyp = types.Struct(self)
         structtyp.fieldtyps = {}
+        uninit_arg = []
         codegen.add_named_type(self.name, self.pyname, structtyp, self)
-        with codegen.emit_indent("class %s(object):" % name):
+        with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(object):" % name):
             with codegen.emit_indent("def __init__(self, %s):" % ", ".join(self.names)):
                 for arg, typ in zip(self.names, self.types):
                     codegen.emit("self.%s = %s # %s" % (arg, arg, typ))
-                    structtyp.fieldtyps[arg] = typ.resolve_type(codegen)
+                    fieldtyp = structtyp.fieldtyps[arg] = typ.resolve_type(codegen)
+                    uninit_arg.append(fieldtyp.uninitialized_value)
+            with codegen.emit_indent("def copy_into(self, res=None):"):
+                codegen.emit("if res is None: res = type(self)()")
+                for arg, typ in zip(self.names, self.types):
+                    codegen.emit("res.%s = self.%s # %s" % (arg, arg, typ))
+                codegen.emit("return res")
+        structtyp.uninitialized_value = "%s(%s)" % (self.pyname, ", ".join(uninit_arg))
 
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
@@ -230,8 +236,12 @@ class __extend__(parse.GlobalVal):
 
 class __extend__(parse.Register):
     def make_code(self, codegen):
-        codegen.emit("# %s" % (self, ))
-        codegen.add_global(self.name, "r.%s" % self.name, self.typ.resolve_type(codegen), self)
+        typ = self.typ.resolve_type(codegen)
+        pyname = "r.%s" % self.name
+        codegen.add_global(self.name, pyname, typ, self)
+        with codegen.emit_code_type("declarations"):
+            codegen.emit("# %s" % (self, ))
+            codegen.emit("%s = %s" % (pyname, typ.uninitialized_value))
 
 
 class __extend__(parse.Function):
@@ -298,16 +308,16 @@ class __extend__(parse.LocalVarDeclaration):
         codegen.emit("# %s: %s" % (self.name, self.typ))
         typ = self.typ.resolve_type(codegen)
         codegen.add_local(self.name, self.name, typ, self)
-        if isinstance(typ, types.Tuple):
-            assert self.value is None
-            # need to make a tuple instance
-            result = codegen.gettarget(self.name)
-            codegen.emit("%s = %s()" % (result, typ.pyname))
-        elif self.value is not None:
+        if self.value is not None:
             result = codegen.gettarget(self.name)
             othertyp = self.value.gettyp(codegen)
             rhs = pair(othertyp, typ).convert(self.value, codegen)
             codegen.emit("%s = %s" % (result, rhs))
+        else:
+            assert self.value is None
+            # need to make a tuple instance
+            result = codegen.gettarget(self.name)
+            codegen.emit("%s = %s" % (result, typ.uninitialized_value))
 
 class __extend__(parse.Operation):
     def make_op_code(self, codegen):
@@ -319,9 +329,17 @@ class __extend__(parse.Operation):
             codegen.emit("%s = %s" % (result,
                 getattr(argtyps[0], "make_op_code_special_" + name[1:])(self, sargs, argtyps)))
             return
-        elif name.startswith("$zcons"): # magic const stuff
+        elif name.startswith("$zcons"): # magic list cons stuff
             codegen.emit("%s = (%s, %s)" % ((result, ) + tuple(sargs)))
             return
+        elif name.startswith("$zinternal_vector_init"): # magic vector stuff
+            oftyp = codegen.localnames[self.result].typ.typ
+            codegen.emit("%s = [%s] * %s" % (result, oftyp.uninitialized_value, sargs[0]))
+            return
+        elif name.startswith("$zinternal_vector_update"):
+            codegen.emit("%s = supportcode.vector_update(%s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
+            return
+
         op = codegen.getname(name)
         if not sargs:
             args = '()'
@@ -359,12 +377,15 @@ class __extend__(parse.TupleElementAssignment):
 
 class __extend__(parse.StructElementAssignment):
     def make_op_code(self, codegen):
-        codegen.emit("%s.%s = %s" % (self.obj, self.field, self.value.to_code(codegen)))
+        typ = codegen.gettyp(self.obj).fieldtyps[self.field]
+        othertyp = self.value.gettyp(codegen)
+        rhs = pair(othertyp, typ).convert(self.value, codegen)
+        codegen.emit("%s.%s = %s" % (self.obj, self.field, rhs))
 
 class __extend__(parse.RefAssignment):
     def make_op_code(self, codegen):
         # XXX think long and hard about refs!
-        codegen.emit("%s = %s # XXX ref assignment!" % (self.ref, self.value.to_code(codegen)))
+        codegen.emit("%s.copy_into(%s)" % (self.value.to_code(codegen), self.ref))
 
 class __extend__(parse.End):
     def make_op_code(self, codegen):
@@ -582,4 +603,5 @@ class __extend__(parse.TupleType):
         with codegen.cached_declaration(typ, "Tuple") as pyname:
             codegen.emit("class %s(object): pass # %s" % (pyname, self))
             typ.pyname = pyname
+        typ.uninitialized_value = "%s()" % (pyname, )
         return typ

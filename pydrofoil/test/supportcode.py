@@ -3,6 +3,8 @@ from rpython.rlib.rbigint import rbigint
 from pydrofoil import bitvector
 from pydrofoil.supportcode import *
 
+# for nand2tetris CPU
+
 class Memory(object):
     pass
 

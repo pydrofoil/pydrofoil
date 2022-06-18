@@ -132,14 +132,14 @@ class Codegen(object):
         return "\n\n\n".join(res)
 
 
-def parse_and_make_code(s):
+def parse_and_make_code(s, supportcodename="supportcode"):
     ast = parse.parser.parse(parse.lexer.lex(s))
     c = Codegen()
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib.rbigint import rbigint")
         c.emit("from rpython.rlib import rarithmetic")
         c.emit("import operator")
-        c.emit("from pydrofoil.test import supportcode")
+        c.emit("from pydrofoil.test import %s" % supportcodename)
         c.emit("from pydrofoil import bitvector")
         c.emit("class Registers(object): pass")
         c.emit("r = Registers()")

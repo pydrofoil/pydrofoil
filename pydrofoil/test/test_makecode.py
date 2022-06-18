@@ -62,7 +62,7 @@ def test_full_nand():
     from rpython.translator.interactive import Translation
     with open(cir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s)
+    res = parse_and_make_code(s, "supportcode")
     with open(outpy, "w") as f:
         f.write(res)
 
@@ -87,10 +87,9 @@ def test_full_nand():
 @pytest.mark.xfail
 def test_full_mips():
     import py
-    from pydrofoil.test import supportcode
     with open(mipsir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s)
+    res = parse_and_make_code(s, "supportcode")
     with open(outmipspy, "w") as f:
         f.write(res)
     d = {}
@@ -99,10 +98,9 @@ def test_full_mips():
 
 def test_full_riscv():
     import py
-    from pydrofoil.test import supportcode
     with open(riscvir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s)
+    res = parse_and_make_code(s, "supportcoderiscv")
     with open(outriscvpy, "w") as f:
         f.write(res)
     from pydrofoil.test import outriscv

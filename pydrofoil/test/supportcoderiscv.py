@@ -50,7 +50,6 @@ def platform_read_mem(read_kind, addr_size, addr, n):
     assert n <= 8
     assert addr_size == 64
     res = g.mem.read(addr.val, n)
-    print "read mem", hex(addr.val), n, "=>", hex(res)
     return bitvector.GenericBitVector(n*8, rbigint.fromint(res))
 
 def platform_write_mem(write_kind, addr_size, addr, n, data):
@@ -58,7 +57,6 @@ def platform_write_mem(write_kind, addr_size, addr, n, data):
     assert n <= 8
     assert addr_size == 64
     assert data.size == n * 8
-    print "write mem", hex(addr.val), n, "<=", hex(data.rval.toint())
     g.mem.write(addr.val, n, data.rval.toint())
 
 class Globals(object):
@@ -202,7 +200,7 @@ def init_sail(elf_entry):
     init_sail_reset_vector(elf_entry)
     if not g.rv_enable_rvc:
         # this is probably unnecessary now; remove
-        outriscv.z_set_Misa_C(outriscv.r.zmisa, 0)
+        outriscv.func_z_set_Misa_C(outriscv.r.zmisa, 0)
 
 def is_32bit_model():
     return False # for now
@@ -268,6 +266,7 @@ def main(argv):
     run_sail()
     #flush_logs()
     #close_logs()
+    return 0
 
 def run_sail():
     from pydrofoil.test import outriscv

@@ -77,6 +77,8 @@ class FixedBitVector(Type):
 
 @unique
 class SmallBitVector(Type):
+    uninitialized_value = "None"
+
     # small bitvector: length of at most width
     def __init__(self, width):
         self.width = width
@@ -86,27 +88,27 @@ class SmallBitVector(Type):
 
 @unique
 class GenericBitVector(Type):
-    pass
+    uninitialized_value = "None"
 
 @unique
 class MachineInt(Type):
-    pass
+    uninitialized_value = "-0xfefe"
 
 @unique
 class Int(Type):
-    pass
+    uninitialized_value = "rbigint.fromint(-0xefef)"
 
 @unique
 class Bool(Type):
-    pass
+    uninitialized_value = "False"
 
 @unique
 class Unit(Type):
-    pass
+    uninitialized_value = "()"
 
 @unique
 class Bit(Type):
-    pass
+    uninitialized_value = "rarithmetic.r_uint(0)"
 
 @unique
 class String(Type):

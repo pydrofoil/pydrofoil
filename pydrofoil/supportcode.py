@@ -1,107 +1,113 @@
-from rpython.rlib import rarithmetic
+from rpython.rlib import rarithmetic, objectmodel
 from rpython.rlib.rbigint import rbigint
 from pydrofoil import bitvector
 
+@objectmodel.specialize.call_location()
+def dummy(*args):
+    if objectmodel.we_are_translated():
+        raise ValueError
+    import pdb; pdb.set_trace()
+    return 123
 
 # unimplemented
 
-def and_bits(*args): import pdb;pdb.set_trace(); return 123
-def cancel_reservation(*args): import pdb;pdb.set_trace(); return 123
-def emod_int(*args): import pdb;pdb.set_trace(); return 123
-def eq_string(*args): import pdb;pdb.set_trace(); return 123
-def length(*args): import pdb;pdb.set_trace(); return 123
-def load_reservation(*args): import pdb;pdb.set_trace(); return 123
-def match_reservation(*args): import pdb;pdb.set_trace(); return 123
-def max_int(*args): import pdb;pdb.set_trace(); return 123
-def min_int(*args): import pdb;pdb.set_trace(); return 123
-def not_bits(*args): import pdb;pdb.set_trace(); return 123
-def or_bits(*args): import pdb;pdb.set_trace(); return 123
-def plat_enable_dirty_update(*args): import pdb;pdb.set_trace(); return 123
-def plat_enable_misaligned_access(*args): import pdb;pdb.set_trace(); return 123
-def plat_enable_pmp(*args): import pdb;pdb.set_trace(); return 123
-def platform_barrier(*args): import pdb;pdb.set_trace(); return 123
-def platform_write_mem_ea(*args): import pdb;pdb.set_trace(); return 123
-def plat_mtval_has_illegal_inst_bits(*args): import pdb;pdb.set_trace(); return 123
-def print_endline(*args): import pdb;pdb.set_trace(); return 123
-def print_instr(*args): import pdb;pdb.set_trace(); return 123
-def print_int(*args): import pdb;pdb.set_trace(); return 123
-def print_mem_access(*args): import pdb;pdb.set_trace(); return 123
-def print_platform(*args): import pdb;pdb.set_trace(); return 123
-def print_reg(*args): import pdb;pdb.set_trace(); return 123
-def print_string(*args): import pdb;pdb.set_trace(); return 123
-def shift_bits_left(*args): import pdb;pdb.set_trace(); return 123
-def shift_bits_right(*args): import pdb;pdb.set_trace(); return 123
-def shiftr(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16add(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16div(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16eq(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16le(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16lt(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16mul(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16muladd(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16sqrt(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16sub(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16tof32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16tof64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16toi32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16toi64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16toui32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f16toui64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32add(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32div(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32eq(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32le(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32lt(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32mul(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32muladd(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32sqrt(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32sub(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32tof16(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32tof64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32toi32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32toi64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32toui32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f32toui64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64add(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64div(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64eq(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64le(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64lt(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64mul(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64muladd(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64sqrt(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64sub(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64tof16(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64tof32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64toi32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64toi64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64toui32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_f64toui64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_i32tof16(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_i32tof32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_i32tof64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_i64tof16(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_i64tof32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_i64tof64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_ui32tof16(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_ui32tof32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_ui32tof64(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_ui64tof16(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_ui64tof32(*args): import pdb;pdb.set_trace(); return 123
-def softfloat_ui64tof64(*args): import pdb;pdb.set_trace(); return 123
-def string_drop(*args): import pdb;pdb.set_trace(); return 123
-def string_take(*args): import pdb;pdb.set_trace(); return 123
-def sub_bits(*args): import pdb;pdb.set_trace(); return 123
-def sub_bits_int(*args): import pdb;pdb.set_trace(); return 123
-def sub_int(*args): import pdb;pdb.set_trace(); return 123
-def sub_nat(*args): import pdb;pdb.set_trace(); return 123
-def tdiv_int(*args): import pdb;pdb.set_trace(); return 123
-def tmod_int(*args): import pdb;pdb.set_trace(); return 123
-def update_fbits(*args): import pdb;pdb.set_trace(); return 123
-def vector_access(*args): import pdb;pdb.set_trace(); return 123
-def vector_subrange(*args): import pdb;pdb.set_trace(); return 123
-def xor_bits(*args): import pdb;pdb.set_trace(); return 123
-def zeros(*args): import pdb;pdb.set_trace(); return 123
+def and_bits(*args): return dummy(*args)
+def cancel_reservation(*args): return dummy(*args)
+def emod_int(*args): return dummy(*args)
+def eq_string(*args): return dummy(*args)
+def length(*args): return dummy(*args)
+def load_reservation(*args): return dummy(*args)
+def match_reservation(*args): return dummy(*args)
+def max_int(*args): return dummy(*args)
+def min_int(*args): return dummy(*args)
+def not_bits(*args): return dummy(*args)
+def or_bits(*args): return dummy(*args)
+def plat_enable_dirty_update(*args): return dummy(*args)
+def plat_enable_misaligned_access(*args): return dummy(*args)
+def plat_enable_pmp(*args): return dummy(*args)
+def platform_barrier(*args): return dummy(*args)
+def platform_write_mem_ea(*args): return dummy(*args)
+def plat_mtval_has_illegal_inst_bits(*args): return dummy(*args)
+def print_endline(*args): return dummy(*args)
+def print_instr(*args): return dummy(*args)
+def print_int(*args): return dummy(*args)
+def print_mem_access(*args): return dummy(*args)
+def print_platform(*args): return dummy(*args)
+def print_reg(*args): return dummy(*args)
+def print_string(*args): return dummy(*args)
+def shift_bits_left(*args): return dummy(*args)
+def shift_bits_right(*args): return dummy(*args)
+def shiftr(*args): return dummy(*args)
+def softfloat_f16add(*args): return dummy(*args)
+def softfloat_f16div(*args): return dummy(*args)
+def softfloat_f16eq(*args): return dummy(*args)
+def softfloat_f16le(*args): return dummy(*args)
+def softfloat_f16lt(*args): return dummy(*args)
+def softfloat_f16mul(*args): return dummy(*args)
+def softfloat_f16muladd(*args): return dummy(*args)
+def softfloat_f16sqrt(*args): return dummy(*args)
+def softfloat_f16sub(*args): return dummy(*args)
+def softfloat_f16tof32(*args): return dummy(*args)
+def softfloat_f16tof64(*args): return dummy(*args)
+def softfloat_f16toi32(*args): return dummy(*args)
+def softfloat_f16toi64(*args): return dummy(*args)
+def softfloat_f16toui32(*args): return dummy(*args)
+def softfloat_f16toui64(*args): return dummy(*args)
+def softfloat_f32add(*args): return dummy(*args)
+def softfloat_f32div(*args): return dummy(*args)
+def softfloat_f32eq(*args): return dummy(*args)
+def softfloat_f32le(*args): return dummy(*args)
+def softfloat_f32lt(*args): return dummy(*args)
+def softfloat_f32mul(*args): return dummy(*args)
+def softfloat_f32muladd(*args): return dummy(*args)
+def softfloat_f32sqrt(*args): return dummy(*args)
+def softfloat_f32sub(*args): return dummy(*args)
+def softfloat_f32tof16(*args): return dummy(*args)
+def softfloat_f32tof64(*args): return dummy(*args)
+def softfloat_f32toi32(*args): return dummy(*args)
+def softfloat_f32toi64(*args): return dummy(*args)
+def softfloat_f32toui32(*args): return dummy(*args)
+def softfloat_f32toui64(*args): return dummy(*args)
+def softfloat_f64add(*args): return dummy(*args)
+def softfloat_f64div(*args): return dummy(*args)
+def softfloat_f64eq(*args): return dummy(*args)
+def softfloat_f64le(*args): return dummy(*args)
+def softfloat_f64lt(*args): return dummy(*args)
+def softfloat_f64mul(*args): return dummy(*args)
+def softfloat_f64muladd(*args): return dummy(*args)
+def softfloat_f64sqrt(*args): return dummy(*args)
+def softfloat_f64sub(*args): return dummy(*args)
+def softfloat_f64tof16(*args): return dummy(*args)
+def softfloat_f64tof32(*args): return dummy(*args)
+def softfloat_f64toi32(*args): return dummy(*args)
+def softfloat_f64toi64(*args): return dummy(*args)
+def softfloat_f64toui32(*args): return dummy(*args)
+def softfloat_f64toui64(*args): return dummy(*args)
+def softfloat_i32tof16(*args): return dummy(*args)
+def softfloat_i32tof32(*args): return dummy(*args)
+def softfloat_i32tof64(*args): return dummy(*args)
+def softfloat_i64tof16(*args): return dummy(*args)
+def softfloat_i64tof32(*args): return dummy(*args)
+def softfloat_i64tof64(*args): return dummy(*args)
+def softfloat_ui32tof16(*args): return dummy(*args)
+def softfloat_ui32tof32(*args): return dummy(*args)
+def softfloat_ui32tof64(*args): return dummy(*args)
+def softfloat_ui64tof16(*args): return dummy(*args)
+def softfloat_ui64tof32(*args): return dummy(*args)
+def softfloat_ui64tof64(*args): return dummy(*args)
+def string_drop(*args): return dummy(*args)
+def string_take(*args): return dummy(*args)
+def sub_bits(*args): return dummy(*args)
+def sub_bits_int(*args): return dummy(*args)
+def sub_int(*args): return dummy(*args)
+def sub_nat(*args): return dummy(*args)
+def tdiv_int(*args): return dummy(*args)
+def tmod_int(*args): return dummy(*args)
+def update_fbits(*args): return dummy(*args)
+def vector_access(*args): return dummy(*args)
+def vector_subrange(*args): return dummy(*args)
+def xor_bits(*args): return dummy(*args)
+def zeros(*args): return dummy(*args)
 
 # generic helpers
 
@@ -167,6 +173,7 @@ def print_bits(s, b):
     print s,
     b.print_bits()
 
+@objectmodel.specialize.argtype(0)
 def reg_deref(s):
     return s
 
@@ -176,6 +183,7 @@ def not_(b):
 def sail_assert(*args):
     pass
 
+@objectmodel.specialize.argtype(0, 1)
 def eq_anything(a, b):
     return a == b
 
@@ -236,7 +244,7 @@ def platform_write_mem_ea(write_kind, addr_size, addr, n):
 def concat_str(a, b):
     return a + b
 
-def string_length(s): import pdb;pdb.set_trace(); return 123
+def string_length(s): return dummy(*args)
 def string_of_bits(gbv):
     res = gbv.rval.format("0123456789ABCDEF")
     return "0x%s%s" % ("0" * max(0, 8 - len(res)), res)
@@ -246,4 +254,4 @@ def decimal_string_of_bits(sbits):
     
 def string_of_int(r):
     return r.str()
-def string_startswith(*args): import pdb;pdb.set_trace(); return 123
+def string_startswith(*args): return dummy(*args)

@@ -178,20 +178,24 @@ class __extend__(parse.Enum):
                 codegen.add_global(name, "%s.%s" % (self.pyname, name), types.Enum(self), self)
                 codegen.emit("%s = %s" % (name, index))
             codegen.last_enum += len(self.names) + 1 # gap of 1
-            codegen.add_named_type(self.name, self.pyname, types.Enum(self), self)
+            typ = types.Enum(self)
+            codegen.add_named_type(self.name, self.pyname, typ, self)
+            typ.uninitialized_value = "-1"
 
 class __extend__(parse.Union):
     def make_code(self, codegen):
         name = "Union_" + self.name
         self.pyname = name
-        with codegen.emit_indent("class %s(object):" % name):
+        with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(object):" % name):
             codegen.emit("pass")
         self.pynames = []
         uniontyp = types.Union(self)
         codegen.add_named_type(self.name, self.pyname, uniontyp, self)
         for name, typ in zip(self.names, self.types):
             pyname = self.pyname + "_" + name
-            codegen.add_global(name, pyname, types.Union(self), self)
+            typ = types.Union(self)
+            typ.uninitialized_value = "%s()" % (self.pyname, )
+            codegen.add_global(name, pyname, typ, self)
             self.pynames.append(pyname)
             with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                 # XXX could special-case tuples here, and unit
@@ -201,6 +205,12 @@ class __extend__(parse.Union):
                 with codegen.emit_indent("def __init__(self, %s):" % fnarg):
                     for arg, init, typ in zip(args, inits, argtypes):
                         codegen.emit("self.%s = %s # %s" % (arg, init, typ))
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert(inst):"):
+                    with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
+                        codegen.emit("return inst")
+                    with codegen.emit_indent("else:"):
+                        codegen.emit("raise TypeError")
         if self.name == "zexception":
             codegen.add_global("current_exception", "l.current_exception", uniontyp, self)
 
@@ -486,7 +496,7 @@ class __extend__(parse.FieldAccess):
 class __extend__(parse.Cast):
     def to_code(self, codegen):
         expr = self.expr.to_code(codegen)
-        return "(%s.a if isinstance(%s, %s) else supportcode.raise_type_error())" % (expr, expr, codegen.getname(self.variant))
+        return "(%s.convert(%s).a)" % (codegen.getname(self.variant), expr)
 
     def gettyp(self, codegen):
         # XXX clean up

@@ -285,8 +285,7 @@ class __extend__(parse.Function):
                         codegen.level += 1
                     codegen.emit("# %s" % (op, ))
                     op.make_op_code(codegen)
-                    if i + 1 in jumptargets:
-                        # XXX remove two pc assignments
+                    if i + 1 in jumptargets and type(op) is not parse.Goto:
                         codegen.emit("pc = %s" % (i + 1, ))
                     op.make_op_jump(codegen, i)
                 if len(jumptargets) > 1:

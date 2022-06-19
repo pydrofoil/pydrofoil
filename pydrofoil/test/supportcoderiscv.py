@@ -279,10 +279,10 @@ def run_sail():
 
     interval_start = time.time()
 
-    while (insn_limit == 0 or total_insns < insn_limit): # xxx removed zhtif_done
+    while not outriscv.r.zhtif_done and (insn_limit == 0 or total_insns < insn_limit):
         # run a Sail step
         print step_no, hex(outriscv.r.zPC)
-        stepped = outriscv.func_zstep(step_no)
+        stepped = outriscv.func_zstep(rbigint.fromint(step_no))
         if stepped:
             step_no += 1
             insn_cnt += 1
@@ -297,6 +297,15 @@ def run_sail():
             insn_cnt = 0
             outriscv.func_ztick_clock(())
             outriscv.func_ztick_platform(())
+    interval_end = time.time()
+    if outriscv.r.zhtif_exit_code == 0:
+        print "SUCCESS"
+    else:
+        print "FAILURE", outriscv.r.zhtif_exit_code
+    if do_show_times:
+        print "Instructions: %s" % (total_insns, )
+        print "Perf: %s Kips" % (total_insns / 1000. / (interval_end - interval_start), )
+
 
 def load_sail(fn):
     from pydrofoil.test import outriscv
@@ -319,3 +328,31 @@ def load_sail(fn):
     print "tohost located at 0x%x" % (entrypoint, )
     assert entrypoint == 0x80000000 # XXX for now
     return entrypoint
+
+# printing
+
+g.config_print_instr = True
+g.config_print_reg = True
+g.config_print_mem_access = True
+g.config_print_platform = True
+g.config_print_rvfi = False
+
+def print_string(prefix, msg):
+    print prefix, msg
+    return ()
+
+def print_instr(s):
+    print s
+
+print_reg = print_instr
+print_mem_access = print_reg
+print_platform = print_reg
+
+def get_config_print_instr(_):
+    return g.config_print_instr
+def get_config_print_reg(_):
+    return g.config_print_reg
+def get_config_print_mem(_):
+    return g.config_print_mem_access
+def get_config_print_platform(_):
+    return g.config_print_platform

@@ -25,6 +25,9 @@ class GenericBitVector(object):
     def shiftl(self, i):
         return GenericBitVector(self.size, self._size_mask(self.rval.lshift(i)))
 
+    def shiftr(self, i):
+        return GenericBitVector(self.size, self._size_mask(self.rval.rshift(i)))
+
     def sign_extend(self, i):
         if i == self.size:
             return self

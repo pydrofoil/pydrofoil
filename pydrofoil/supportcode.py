@@ -7,10 +7,7 @@ from pydrofoil import bitvector
 
 def and_bits(*args): import pdb;pdb.set_trace(); return 123
 def cancel_reservation(*args): import pdb;pdb.set_trace(); return 123
-def concat_str(*args): import pdb;pdb.set_trace(); return 123
-def decimal_string_of_bits(*args): import pdb;pdb.set_trace(); return 123
 def emod_int(*args): import pdb;pdb.set_trace(); return 123
-def eq_bits(*args): import pdb;pdb.set_trace(); return 123
 def eq_string(*args): import pdb;pdb.set_trace(); return 123
 def length(*args): import pdb;pdb.set_trace(); return 123
 def load_reservation(*args): import pdb;pdb.set_trace(); return 123
@@ -93,10 +90,6 @@ def softfloat_ui64tof16(*args): import pdb;pdb.set_trace(); return 123
 def softfloat_ui64tof32(*args): import pdb;pdb.set_trace(); return 123
 def softfloat_ui64tof64(*args): import pdb;pdb.set_trace(); return 123
 def string_drop(*args): import pdb;pdb.set_trace(); return 123
-def string_length(*args): import pdb;pdb.set_trace(); return 123
-def string_of_bits(*args): import pdb;pdb.set_trace(); return 123
-def string_of_int(*args): import pdb;pdb.set_trace(); return 123
-def string_startswith(*args): import pdb;pdb.set_trace(); return 123
 def string_take(*args): import pdb;pdb.set_trace(); return 123
 def sub_bits(*args): import pdb;pdb.set_trace(); return 123
 def sub_bits_int(*args): import pdb;pdb.set_trace(); return 123
@@ -140,6 +133,9 @@ def eq_int(a, b):
 
 def eq_bit(a, b):
     return a == b
+
+def eq_bits(gvba, gvbb):
+    return gvba.rval.eq(gvbb.rval)
 
 def safe_rshift(n, shift):
     if shift >= 64:
@@ -189,6 +185,9 @@ def eq_bool(a, b):
 def shiftl(gbv, i):
     return gbv.shiftl(i.toint())
 
+def shiftr(gbv, i):
+    return gbv.shiftr(i.toint())
+
 def shift_bits_left(gbv, gbva):
     return gbv.shiftl(gbva.rval.toint())
 
@@ -230,3 +229,21 @@ def platform_barrier(_):
 
 def platform_write_mem_ea(write_kind, addr_size, addr, n):
     return ()
+
+
+# strings
+
+def concat_str(a, b):
+    return a + b
+
+def string_length(s): import pdb;pdb.set_trace(); return 123
+def string_of_bits(gbv):
+    res = gbv.rval.format("0123456789ABCDEF")
+    return "0x%s%s" % ("0" * max(0, 8 - len(res)), res)
+
+def decimal_string_of_bits(sbits):
+    return str(sbits)
+    
+def string_of_int(r):
+    return r.str()
+def string_startswith(*args): import pdb;pdb.set_trace(); return 123

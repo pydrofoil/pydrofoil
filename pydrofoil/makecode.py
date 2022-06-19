@@ -247,6 +247,9 @@ class __extend__(parse.Register):
 class __extend__(parse.Function):
     def make_code(self, codegen):
         pyname = "func_" + self.name
+        if codegen.globalnames[self.name].pyname is not None:
+            print "duplicate!", self.name, codegen.globalnames[self.name].pyname
+            return
         codegen.update_global_pyname(self.name, pyname)
         typ = codegen.globalnames[self.name].typ
         self.pyname = pyname

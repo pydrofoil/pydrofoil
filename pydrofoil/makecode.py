@@ -194,10 +194,7 @@ class __extend__(parse.Union):
             codegen.add_global(name, pyname, types.Union(self), self)
             self.pynames.append(pyname)
             with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
-                if isinstance(typ, parse.NamedType) and typ.name == "%unit":
-                    codegen.emit("def __init__(self, unit): pass")
-                    continue
-                # XXX could special-case tuples here
+                # XXX could special-case tuples here, and unit
                 argtypes = [typ]
                 args = inits = ["a"]
                 fnarg = 'a'
@@ -340,7 +337,7 @@ class __extend__(parse.Operation):
             codegen.emit("%s = [%s] * %s" % (result, oftyp.uninitialized_value, sargs[0]))
             return
         elif name.startswith("$zinternal_vector_update"):
-            codegen.emit("%s = supportcode.vector_update(%s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
+            codegen.emit("%s = supportcode.vector_update_inplace(%s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
             return
 
         op = codegen.getname(name)

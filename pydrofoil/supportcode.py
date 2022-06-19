@@ -32,7 +32,6 @@ def print_mem_access(*args): import pdb;pdb.set_trace(); return 123
 def print_platform(*args): import pdb;pdb.set_trace(); return 123
 def print_reg(*args): import pdb;pdb.set_trace(); return 123
 def print_string(*args): import pdb;pdb.set_trace(); return 123
-def sail_signed(*args): import pdb;pdb.set_trace(); return 123
 def shift_bits_left(*args): import pdb;pdb.set_trace(); return 123
 def shift_bits_right(*args): import pdb;pdb.set_trace(); return 123
 def shiftr(*args): import pdb;pdb.set_trace(); return 123
@@ -188,19 +187,29 @@ def eq_bool(a, b):
     return a == b
 
 def shiftl(gbv, i):
-    return gbv.shiftl(i)
+    return gbv.shiftl(i.toint())
+
+def shift_bits_left(gbv, gbva):
+    return gbv.shiftl(gbva.rval.toint())
 
 def sail_unsigned(gbv):
     return gbv.rval
 
+def sail_signed(gbv):
+    return gbv.signed()
+
 # vector stuff
 
-def vector_update(res, l, index, element):
+def vector_update_inplace(res, l, index, element):
     # super weird, the C backend does the same
     if res is not l:
         l = l[:]
     l[index] = element
     return l
+
+def vector_update(l, index, element):
+    # bitvector
+    return l.update_bit(index.toint(), element)
 
 def vector_update_subrange(l, n, m, s):
     width = s.size
@@ -215,3 +224,9 @@ def elf_tohost(_):
 def get_slice_int(len, n, start):
     n = n.rshift(start.toint())
     return bitvector.GenericBitVector(len.toint(), n.and_(rbigint.fromint(1).lshift(len.toint()).int_sub(1)))
+
+def platform_barrier(_):
+    return ()
+
+def platform_write_mem_ea(write_kind, addr_size, addr, n):
+    return ()

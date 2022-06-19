@@ -50,10 +50,16 @@ def platform_read_mem(read_kind, addr_size, addr, n):
     assert n <= 8
     assert addr_size == 64
     res = g.mem.read(addr.val, n)
-    print "read mem", addr.val, n, "=>", hex(res)
+    print "read mem", hex(addr.val), n, "=>", hex(res)
     return bitvector.GenericBitVector(n*8, rbigint.fromint(res))
 
-def platform_write_mem(*args): import pdb;pdb.set_trace(); return 123
+def platform_write_mem(write_kind, addr_size, addr, n, data):
+    n = n.toint()
+    assert n <= 8
+    assert addr_size == 64
+    assert data.size == n * 8
+    print "write mem", hex(addr.val), n, "<=", hex(data.rval.toint())
+    g.mem.write(addr.val, n, data.rval.toint())
 
 class Globals(object):
     pass
@@ -145,39 +151,29 @@ def plat_clint_base(_):
 def plat_clint_size(_):
     return g.rv_clint_size
 
-#unit load_reservation(addr)
-#{
-#  reservation = addr;
-#  reservation_valid = true;
-#  /* fprintf(stderr, "reservation <- %0" PRIx64 "\n", reservation); */
-#  return UNIT;
-#}
+g.reservation = r_uint(0)
+g.reservation_valid = False
+
+def load_reservation(addr):
+    g.reservation = addr
+    g.reservation_valid = True
+    print "reservation <- 0x%x" % (addr, )
+    return ()
 
 def speculate_conditional(_):
     return True
 
-#static mach_bits check_mask(void)
-#{
-#  return (zxlen_val == 32) ? 0x00000000FFFFFFFF : -1;
-#}
-#
-#bool match_reservation(mach_bits addr)
-#{
-#  mach_bits mask = check_mask();
-#  bool ret = reservation_valid && (reservation & mask) == (addr & mask);
-#  /*
-#  fprintf(stderr, "reservation(%c): %0" PRIx64 ", key=%0" PRIx64 ": %s\n",
-#	  reservation_valid ? 'v' : 'i', reservation, addr, ret ? "ok" : "fail");
-#  */
-#
-#  return ret;
-#}
-#
-#unit cancel_reservation()
-#{ /* fprintf(stderr, "reservation <- none\n"); */
-#  reservation_valid = false;
-#  return UNIT;
-#}
+def check_mask():
+    return r_uint(0x00000000FFFFFFFF if outriscv.l.zxlen_val == 32 else 0xffffffffffffffff)
+
+def match_reservation(addr):
+    mask = check_mask()
+    ret = g.reservation_valid and ((g.reservation & mask) == (addr & mask))
+    return ret
+
+def cancel_reservation(_):
+    g.reservation_valid = False
+    return ()
 #
 #unit plat_term_write(mach_bits s)
 #{ char c = s & 0xff;
@@ -285,7 +281,7 @@ def run_sail():
 
     while (insn_limit == 0 or total_insns < insn_limit): # xxx removed zhtif_done
         # run a Sail step
-        print step_no, outriscv.r.zPC
+        print step_no, hex(outriscv.r.zPC)
         stepped = outriscv.func_zstep(step_no)
         if stepped:
             step_no += 1
@@ -299,8 +295,8 @@ def run_sail():
 
         if insn_cnt == g.rv_insns_per_tick:
             insn_cnt = 0
-            outriscv.ztick_clock(())
-            outriscv.ztick_platform(())
+            outriscv.func_ztick_clock(())
+            outriscv.func_ztick_platform(())
 
 def load_sail(fn):
     from pydrofoil.test import outriscv

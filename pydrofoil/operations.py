@@ -122,3 +122,14 @@ class __extend__(types.List):
 
     def make_op_code_special_tl(self, ast, sargs, argtyps):
         return "%s[1]" % (sargs[0], )
+
+class __extend__(types.Bool):
+    def make_op_code_special_not(self, ast, sargs, argtyps):
+        return "not %s" % (sargs[0], )
+
+    def make_op_code_special_eq(self, ast, sargs, argtyps):
+        return "%s == %s" % (sargs[0], sargs[1])
+
+class __extend__(types.Enum):
+    def make_op_code_special_eq(self, ast, sargs, argtyps):
+        return "%s == %s" % (sargs[0], sargs[1])

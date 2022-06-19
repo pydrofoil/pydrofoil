@@ -207,6 +207,7 @@ def sail_signed(gbv):
 
 # vector stuff
 
+@objectmodel.specialize.argtype(0, 1, 3)
 def vector_update_inplace(res, l, index, element):
     # super weird, the C backend does the same
     if res is not l:

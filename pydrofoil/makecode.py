@@ -190,12 +190,11 @@ class __extend__(parse.Union):
             codegen.emit("pass")
         self.pynames = []
         uniontyp = types.Union(self)
+        uniontyp.uninitialized_value = "%s()" % (self.pyname, )
         codegen.add_named_type(self.name, self.pyname, uniontyp, self)
         for name, typ in zip(self.names, self.types):
             pyname = self.pyname + "_" + name
-            typ = types.Union(self)
-            typ.uninitialized_value = "%s()" % (self.pyname, )
-            codegen.add_global(name, pyname, typ, self)
+            codegen.add_global(name, pyname, uniontyp, self)
             self.pynames.append(pyname)
             with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                 # XXX could special-case tuples here, and unit
@@ -536,14 +535,11 @@ class __extend__(parse.Comparison):
     def to_code(self, codegen):
         op = self.operation
         if op.startswith("@"):
-            if op == "@not":
-                arg, = self.args
-                return "not %s" % (arg.to_code(codegen), )
-            if op == "@neq":
-                arg1, arg2 = self.args
-                typ1 = arg1.gettyp(codegen)
-                assert isinstance(typ1, types.Enum)
-                return "%s != %s" % (arg1.to_code(codegen), arg2.to_code(codegen))
+            sargs = [arg.to_code(codegen) for arg in self.args]
+            argtyps = [arg.gettyp(codegen) for arg in self.args]
+            if hasattr(argtyps[0], "make_op_code_special_" + op[1:]):
+                return getattr(argtyps[0], "make_op_code_special_" + op[1:])(self, sargs, argtyps)
+            print "didn't find", op, argtyps, sargs
             op = "XXX_cmp_" + op[1:]
         return "%s(%s)" % (op, ", ".join([arg.to_code(codegen) for arg in self.args]))
 

@@ -37,10 +37,6 @@ def my_read_mem(addr):
     return MEM.mem[addr]
 def my_write_mem(addr, val):
     MEM.mem[addr] = val
-def not_(b):
-    return not b
-def and_bool(a, b):
-    return not b
 def my_print_debug(cycle_count, pc, a, d):
     print "PC: %s, A: %s, D: %s, cycle count: %s" % (pc, a, d, cycle_count)
 

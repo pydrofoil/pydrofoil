@@ -5,6 +5,7 @@ class SmallBitVector(object):
     def __init__(self, size, val):
         self.size = size # number of bits
         self.val = val # r_uint
+        assert isinstance(val, r_uint)
 
 class GenericBitVector(object):
     def __init__(self, size, rval):
@@ -16,3 +17,18 @@ class GenericBitVector(object):
 
     def print_bits(self):
         print "GenericBitVector<%s, %s>" % (self.size, self.rval.hex())
+
+    def shiftl(self, i):
+        return GenericBitVector(self.size, self.rval.lshift(i.toint()))
+
+    def sign_extend(self, i):
+        if i == self.size:
+            return self
+        assert i > self.size
+        highest_bit = self.rval.rshift(self.size - 1).int_and_(1).toint()
+        if not highest_bit:
+            return GenericBitVector(i, self.rval)
+        else:
+            extra_bits = i - self.size
+            bits = rbigint.fromint(1).lshift(extra_bits).int_sub(1).lshift(self.size)
+            return GenericBitVector(i, bits.or_(self.rval))

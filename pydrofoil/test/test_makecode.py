@@ -9,6 +9,8 @@ riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
 outpy = os.path.join(os.path.dirname(__file__), "out.py")
 outmipspy = os.path.join(os.path.dirname(__file__), "outmips.py")
 outriscvpy = os.path.join(os.path.dirname(__file__), "outriscv.py")
+elffile = os.path.join(os.path.dirname(__file__), "rv64ui-p-addi.elf")
+
 
 addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "Add.hack.bin")
 sumrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "sum.hack.bin")
@@ -103,8 +105,6 @@ def test_full_riscv():
     res = parse_and_make_code(s, "supportcoderiscv")
     with open(outriscvpy, "w") as f:
         f.write(res)
-    from pydrofoil.test import outriscv
-    print "init model"
-    outriscv.model_init()
+    from pydrofoil.test import outriscv, supportcoderiscv
     print "calling main"
-    outriscv.func_zmain(())
+    supportcoderiscv.main(['executable', elffile])

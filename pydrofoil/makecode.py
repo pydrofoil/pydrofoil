@@ -30,8 +30,8 @@ class Codegen(object):
         self.add_global("bitzero", "rarithmetic.r_uint(0)", types.Bit())
         self.add_global("bitone", "rarithmetic.r_uint(1)", types.Bit())
         self.add_global("$zupdate_fbits", "supportcode.update_fbits")
-        self.add_global("have_exception", "xxx", types.Bool())
-        self.add_global("throw_location", "xxx", types.String())
+        self.add_global("have_exception", "l.have_exception", types.Bool())
+        self.add_global("throw_location", "l.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("NULL", "None")
         self.declared_types = set()
@@ -139,12 +139,15 @@ def parse_and_make_code(s, supportcodename="supportcode"):
         c.emit("from rpython.rlib.rbigint import rbigint")
         c.emit("from rpython.rlib import rarithmetic")
         c.emit("import operator")
-        c.emit("from pydrofoil.test import %s" % supportcodename)
+        c.emit("from pydrofoil.test import %s as supportcode" % supportcodename)
         c.emit("from pydrofoil import bitvector")
         c.emit("class Registers(object): pass")
         c.emit("r = Registers()")
         c.emit("class Lets(object): pass")
         c.emit("l = Lets()")
+        c.emit("l.have_exception = False")
+        c.emit("l.throw_location = None")
+        c.emit("l.current_exception = None")
     try:
         ast.make_code(c)
     except Exception:
@@ -202,7 +205,7 @@ class __extend__(parse.Union):
                     for arg, init, typ in zip(args, inits, argtypes):
                         codegen.emit("self.%s = %s # %s" % (arg, init, typ))
         if self.name == "zexception":
-            codegen.add_global("current_exception", "xxx", uniontyp, self)
+            codegen.add_global("current_exception", "l.current_exception", uniontyp, self)
 
 class __extend__(parse.Struct):
     def make_code(self, codegen):

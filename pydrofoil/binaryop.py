@@ -24,7 +24,7 @@ class __extend__(pairtype(types.SmallBitVector, types.FixedBitVector)):
 
 class __extend__(pairtype(types.FixedBitVector, types.SmallBitVector)):
     def convert((from_, to), ast, codegen):
-        return "bitvector.SmallBitVector(%s, %s)" % (ast.to_code(codegen), from_.width)
+        return "bitvector.SmallBitVector(%s, %s)" % (from_.width, ast.to_code(codegen))
 
 class __extend__(pairtype(types.GenericBitVector, types.FixedBitVector)):
     def convert((from_, to), ast, codegen):
@@ -32,7 +32,7 @@ class __extend__(pairtype(types.GenericBitVector, types.FixedBitVector)):
 
 class __extend__(pairtype(types.GenericBitVector, types.SmallBitVector)):
     def convert((from_, to), ast, codegen):
-        return "bigvector.SmallBitVector(%s.touint())" % ast.to_code(codegen)
+        return "bigvector.SmallBitVector(%s.size, %s.touint())" % ((ast.to_code(codegen), ) * 2)
 
 class __extend__(pairtype(types.Int, types.FixedBitVector)):
     def convert((from_, to), ast, codegen):
@@ -60,7 +60,7 @@ class __extend__(pairtype(types.Tuple, types.Tuple)):
                 codegen.add_local("t1", "t1", from_, None)
                 codegen.emit("res = %s()" % (to.pyname, ))
                 for i, (typfrom, typto) in enumerate(zip(from_.elements, to.elements)):
-                    codegen.emit("res.ztup%s = %s" % (i, pair(typfrom, typto).convert(parse.Var("t1"), codegen)))
+                    codegen.emit("res.ztup%s = %s" % (i, pair(typfrom, typto).convert(parse.FieldAccess(parse.Var("t1"), "ztup%s" % i), codegen)))
                 codegen.emit("return res")
         return "%s(%s)" % (pyname, ast.to_code(codegen))
 

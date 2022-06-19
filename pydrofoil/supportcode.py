@@ -246,6 +246,7 @@ def concat_str(a, b):
     return a + b
 
 def string_length(s): return dummy(*args)
+
 def string_of_bits(gbv):
     res = gbv.rval.format("0123456789ABCDEF")
     return "0x%s%s" % ("0" * max(0, 8 - len(res)), res)
@@ -255,4 +256,5 @@ def decimal_string_of_bits(sbits):
     
 def string_of_int(r):
     return r.str()
+
 def string_startswith(*args): return dummy(*args)

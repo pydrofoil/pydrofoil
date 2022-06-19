@@ -58,7 +58,7 @@ class Tuple(Type):
 @unique
 class List(Type):
     # a linked list
-    uninitialized_value = "None" # XXX not rpython!
+    uninitialized_value = "None"
 
     def __init__(self, typ):
         assert isinstance(typ, Type)

@@ -283,8 +283,13 @@ class __extend__(parse.Function):
                         codegen.level -= 1
                         codegen.emit("if pc == %s:" % i)
                         codegen.level += 1
-                    codegen.emit("# %s" % (op, ))
-                    op.make_op_code(codegen)
+                    if (isinstance(op, parse.LocalVarDeclaration) and
+                            isinstance(self.body[i + 1], parse.Assignment) and
+                            op.name == self.body[i + 1].result):
+                        op.make_op_code(codegen, False)
+                    else:
+                        codegen.emit("# %s" % (op, ))
+                        op.make_op_code(codegen)
                     if i + 1 in jumptargets and type(op) is not parse.Goto:
                         codegen.emit("pc = %s" % (i + 1, ))
                     op.make_op_jump(codegen, i)
@@ -315,7 +320,7 @@ class __extend__(parse.Statement):
 
 
 class __extend__(parse.LocalVarDeclaration):
-    def make_op_code(self, codegen):
+    def make_op_code(self, codegen, need_default_init=True):
         codegen.emit("# %s: %s" % (self.name, self.typ))
         typ = self.typ.resolve_type(codegen)
         codegen.add_local(self.name, self.name, typ, self)
@@ -324,7 +329,7 @@ class __extend__(parse.LocalVarDeclaration):
             othertyp = self.value.gettyp(codegen)
             rhs = pair(othertyp, typ).convert(self.value, codegen)
             codegen.emit("%s = %s" % (result, rhs))
-        else:
+        elif need_default_init:
             assert self.value is None
             # need to make a tuple instance
             result = codegen.gettarget(self.name)
@@ -341,7 +346,8 @@ class __extend__(parse.Operation):
                 getattr(argtyps[0], "make_op_code_special_" + name[1:])(self, sargs, argtyps)))
             return
         elif name.startswith("$zcons"): # magic list cons stuff
-            codegen.emit("%s = (%s, %s)" % ((result, ) + tuple(sargs)))
+            restyp = codegen.gettyp(self.result)
+            codegen.emit("%s = %s(%s, %s)" % (result, restyp.pyname, sargs[0], sargs[1]))
             return
         elif name.startswith("$zinternal_vector_init"): # magic vector stuff
             oftyp = codegen.localnames[self.result].typ.typ
@@ -373,6 +379,8 @@ class __extend__(parse.Goto):
 
     def make_op_jump(self, codegen, i):
         codegen.emit("pc = %s" % (self.target, ))
+        if self.target < i:
+            codegen.emit("continue")
 
 class __extend__(parse.Assignment):
     def make_op_code(self, codegen):
@@ -458,7 +466,7 @@ class __extend__(parse.Number):
 
 class __extend__(parse.BitVectorConstant):
     def to_code(self, codegen):
-        return self.constant
+        return "rarithmetic.r_uint(%s)" % (self.constant, )
 
     def gettyp(self, codegen):
         if self.constant.startswith("0b"):
@@ -591,7 +599,13 @@ class __extend__(parse.StructType):
 
 class __extend__(parse.ListType):
     def resolve_type(self, codegen):
-        return types.List(self.typ.resolve_type(codegen))
+        typ = types.List(self.typ.resolve_type(codegen))
+        with codegen.cached_declaration(typ, "List") as pyname:
+            with codegen.emit_indent("class %s(object): # %s" % (pyname, self)):
+                codegen.emit("_immutable_fields_ = ['head', 'tail']")
+                codegen.emit("def __init__(self, head, tail): self.head, self.tail = head, tail")
+            typ.pyname = pyname
+        return typ
 
 class __extend__(parse.FunctionType):
     def resolve_type(self, codegen):

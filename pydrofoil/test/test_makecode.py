@@ -49,10 +49,12 @@ union zinstr {
 """)
     assert """\
 class Union_zinstr(object):
-    pass
+    pass""" in res
+    assert """\
 class Union_zinstr_zAINST(Union_zinstr):
     def __init__(self, a):
-        self.a = a # NamedType('%bv16')
+        self.a = a # NamedType('%bv16')""" in res
+    assert """\
 class Union_zinstr_zCINST(Union_zinstr):
     def __init__(self, a):
         self.a = a # TupleType(elements=[NamedType('%bv1'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), NamedType('%bool')])
@@ -107,4 +109,9 @@ def test_full_riscv():
         f.write(res)
     from pydrofoil.test import outriscv, supportcoderiscv
     print "calling main"
+
+    supportcoderiscv.g.config_print_instr = False
+    supportcoderiscv.g.config_print_reg = False
+    supportcoderiscv.g.config_print_mem_access = False
+    supportcoderiscv.g.config_print_platform = False
     supportcoderiscv.main(['executable', elffile])

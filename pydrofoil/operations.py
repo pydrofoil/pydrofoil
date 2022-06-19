@@ -118,10 +118,10 @@ class __extend__(types.MachineInt):
 
 class __extend__(types.List):
     def make_op_code_special_hd(self, ast, sargs, argtyps):
-        return "%s[0]" % (sargs[0], )
+        return "%s.head" % (sargs[0], )
 
     def make_op_code_special_tl(self, ast, sargs, argtyps):
-        return "%s[1]" % (sargs[0], )
+        return "%s.tail" % (sargs[0], )
 
     def make_op_code_special_eq(self, ast, sargs, argtyps):
         assert sargs[1] == "None"

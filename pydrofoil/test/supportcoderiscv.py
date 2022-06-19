@@ -162,7 +162,8 @@ def speculate_conditional(_):
     return True
 
 def check_mask():
-    return r_uint(0x00000000FFFFFFFF if outriscv.l.zxlen_val == 32 else 0xffffffffffffffff)
+    from pydrofoil.test import outriscv
+    return r_uint(0x00000000FFFFFFFF) if outriscv.l.zxlen_val == 32 else r_uint(0xffffffffffffffff)
 
 def match_reservation(addr):
     mask = check_mask()
@@ -342,6 +343,7 @@ def print_string(prefix, msg):
 
 def print_instr(s):
     print s
+    return ()
 
 print_reg = print_instr
 print_mem_access = print_reg

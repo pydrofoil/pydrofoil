@@ -29,7 +29,6 @@ def platform_barrier(*args): return dummy(*args)
 def platform_write_mem_ea(*args): return dummy(*args)
 def plat_mtval_has_illegal_inst_bits(*args): return dummy(*args)
 def print_endline(*args): return dummy(*args)
-def print_instr(*args): return dummy(*args)
 def print_int(*args): return dummy(*args)
 def print_mem_access(*args): return dummy(*args)
 def print_platform(*args): return dummy(*args)
@@ -172,6 +171,7 @@ def mult_int(ia, ib):
 def print_bits(s, b):
     print s,
     b.print_bits()
+    return ()
 
 @objectmodel.specialize.argtype(0)
 def reg_deref(s):

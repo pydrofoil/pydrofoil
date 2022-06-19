@@ -268,34 +268,56 @@ class __extend__(parse.Function):
                 codegen.add_local('return', 'return_', typ.restype, self)
                 for i, arg in enumerate(args):
                     codegen.add_local(arg, arg, typ.argtype.elements[i], self)
-                jumptargets = {0}
+                entrycounts = {0: 1} # pc, count
                 for i, op in enumerate(self.body):
                     if isinstance(op, (parse.Goto, parse.ConditionalJump)):
-                        jumptargets.add(op.target)
-                if len(jumptargets) > 1:
-                    codegen.emit("pc = 0")
-                    codegen.emit("while 1:")
-                    codegen.level += 2
+                        entrycounts[op.target] = entrycounts.get(op.target, 0) + 1
+                if entrycounts == {0: 1}:
+                    self.emit_block_ops(self.body, codegen)
                 else:
-                    jumptargets = set()
-                for i, op in enumerate(self.body):
-                    if i in jumptargets:
-                        codegen.level -= 1
-                        codegen.emit("if pc == %s:" % i)
-                        codegen.level += 1
-                    if (isinstance(op, parse.LocalVarDeclaration) and
-                            isinstance(self.body[i + 1], parse.Assignment) and
-                            op.name == self.body[i + 1].result):
-                        op.make_op_code(codegen, False)
-                    else:
-                        codegen.emit("# %s" % (op, ))
-                        op.make_op_code(codegen)
-                    if i + 1 in jumptargets and type(op) is not parse.Goto:
-                        codegen.emit("pc = %s" % (i + 1, ))
-                    op.make_op_jump(codegen, i)
-                if len(jumptargets) > 1:
-                    codegen.level -= 2
+                    blocks = {}
+                    for i, op in enumerate(self.body):
+                        if i in entrycounts:
+                            blocks[i] = block = []
+                        block.append(op)
+                    codegen.emit("pc = 0")
+                    with codegen.emit_indent("while 1:"):
+                        for blockpc, block in sorted(blocks.items()):
+                            if block == [None]:
+                                # inlined
+                                continue
+                            with codegen.emit_indent("if pc == %s:" % blockpc):
+                                self.emit_block_ops(block, codegen, entrycounts, blockpc, blocks)
         codegen.emit()
+
+    def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
+        for i, op in enumerate(block):
+            if (isinstance(op, parse.LocalVarDeclaration) and
+                    i + 1 < len(block) and
+                    isinstance(block[i + 1], parse.Assignment) and
+                    op.name == block[i + 1].result):
+                op.make_op_code(codegen, False)
+            elif isinstance(op, parse.ConditionalJump):
+                with codegen.emit_indent("if %s:" % (op.condition.to_code(codegen))):
+                    if entrycounts[op.target] == 1:
+                        # can inline!
+                        codegen.emit("# inline pc=%s" % op.target)
+                        self.emit_block_ops(blocks[op.target], codegen, entrycounts, op.target, blocks)
+                        blocks[op.target][:] = [None]
+                    else:
+                        codegen.emit("pc = %s" % (op.target, ))
+                    codegen.emit("continue")
+                continue
+            elif isinstance(op, parse.Goto):
+                codegen.emit("pc = %s" % (op.target, ))
+                if op.target < i:
+                    codegen.emit("continue")
+                continue
+            else:
+                codegen.emit("# %s" % (op, ))
+                op.make_op_code(codegen)
+            if i + 1 + offset in entrycounts and type(op) is not parse.Goto:
+                codegen.emit("pc = %s" % (i + 1 + offset, ))
 
 class __extend__(parse.Let):
     def make_code(self, codegen):

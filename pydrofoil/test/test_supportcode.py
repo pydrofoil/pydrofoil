@@ -53,3 +53,9 @@ def test_vector_update():
     res = x.update_bit(1, 0)
     assert res.size == 6
     assert res.rval.toint() == 0b101
+
+def test_vector_subrange():
+    x = bitvector.GenericBitVector(6, rbigint.fromint(0b111))
+    r = x.subrange(3, 2)
+    assert r.size == 2
+    assert r.rval.toint() == 1

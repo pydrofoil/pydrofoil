@@ -25,4 +25,8 @@ def main(argv):
 
 if __name__ == '__main__':
     import sys
-    main(sys.argv)
+    try:
+        main(sys.argv)
+    except:
+        import pdb;pdb.xpm()
+        raise

@@ -61,7 +61,7 @@ def platform_write_mem(write_kind, addr_size, addr, n, data):
     assert n <= 8
     assert addr_size == 64
     assert data.size == n * 8
-    g.mem.write(addr.val, n, data.rval.toint())
+    g.mem.write(addr.val, n, data.rval.touint())
     return True
 
 class Globals(object):

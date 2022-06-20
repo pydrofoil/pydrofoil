@@ -3,110 +3,111 @@ from rpython.rlib.rbigint import rbigint
 from pydrofoil import bitvector
 
 @objectmodel.specialize.call_location()
-def dummy(*args):
-    if objectmodel.we_are_translated():
-        raise ValueError
-    import pdb; pdb.set_trace()
-    return 123
+def make_dummy(name):
+    def dummy(*args):
+        if objectmodel.we_are_translated():
+            print "not implemented!", name
+            raise ValueError
+        import pdb; pdb.set_trace()
+        return 123
+    dummy.func_name += name
+    globals()[name] = dummy
 
 # unimplemented
 
-def and_bits(*args): return dummy(*args)
-def cancel_reservation(*args): return dummy(*args)
-def emod_int(*args): return dummy(*args)
-def eq_string(*args): return dummy(*args)
-def length(*args): return dummy(*args)
-def load_reservation(*args): return dummy(*args)
-def match_reservation(*args): return dummy(*args)
-def max_int(*args): return dummy(*args)
-def min_int(*args): return dummy(*args)
-def not_bits(*args): return dummy(*args)
-def or_bits(*args): return dummy(*args)
-def plat_enable_dirty_update(*args): return dummy(*args)
-def plat_enable_misaligned_access(*args): return dummy(*args)
-def plat_enable_pmp(*args): return dummy(*args)
-def platform_barrier(*args): return dummy(*args)
-def platform_write_mem_ea(*args): return dummy(*args)
-def plat_mtval_has_illegal_inst_bits(*args): return dummy(*args)
-def print_endline(*args): return dummy(*args)
-def print_int(*args): return dummy(*args)
-def print_mem_access(*args): return dummy(*args)
-def print_platform(*args): return dummy(*args)
-def print_reg(*args): return dummy(*args)
-def print_string(*args): return dummy(*args)
-def shift_bits_left(*args): return dummy(*args)
-def shift_bits_right(*args): return dummy(*args)
-def shiftr(*args): return dummy(*args)
-def softfloat_f16add(*args): return dummy(*args)
-def softfloat_f16div(*args): return dummy(*args)
-def softfloat_f16eq(*args): return dummy(*args)
-def softfloat_f16le(*args): return dummy(*args)
-def softfloat_f16lt(*args): return dummy(*args)
-def softfloat_f16mul(*args): return dummy(*args)
-def softfloat_f16muladd(*args): return dummy(*args)
-def softfloat_f16sqrt(*args): return dummy(*args)
-def softfloat_f16sub(*args): return dummy(*args)
-def softfloat_f16tof32(*args): return dummy(*args)
-def softfloat_f16tof64(*args): return dummy(*args)
-def softfloat_f16toi32(*args): return dummy(*args)
-def softfloat_f16toi64(*args): return dummy(*args)
-def softfloat_f16toui32(*args): return dummy(*args)
-def softfloat_f16toui64(*args): return dummy(*args)
-def softfloat_f32add(*args): return dummy(*args)
-def softfloat_f32div(*args): return dummy(*args)
-def softfloat_f32eq(*args): return dummy(*args)
-def softfloat_f32le(*args): return dummy(*args)
-def softfloat_f32lt(*args): return dummy(*args)
-def softfloat_f32mul(*args): return dummy(*args)
-def softfloat_f32muladd(*args): return dummy(*args)
-def softfloat_f32sqrt(*args): return dummy(*args)
-def softfloat_f32sub(*args): return dummy(*args)
-def softfloat_f32tof16(*args): return dummy(*args)
-def softfloat_f32tof64(*args): return dummy(*args)
-def softfloat_f32toi32(*args): return dummy(*args)
-def softfloat_f32toi64(*args): return dummy(*args)
-def softfloat_f32toui32(*args): return dummy(*args)
-def softfloat_f32toui64(*args): return dummy(*args)
-def softfloat_f64add(*args): return dummy(*args)
-def softfloat_f64div(*args): return dummy(*args)
-def softfloat_f64eq(*args): return dummy(*args)
-def softfloat_f64le(*args): return dummy(*args)
-def softfloat_f64lt(*args): return dummy(*args)
-def softfloat_f64mul(*args): return dummy(*args)
-def softfloat_f64muladd(*args): return dummy(*args)
-def softfloat_f64sqrt(*args): return dummy(*args)
-def softfloat_f64sub(*args): return dummy(*args)
-def softfloat_f64tof16(*args): return dummy(*args)
-def softfloat_f64tof32(*args): return dummy(*args)
-def softfloat_f64toi32(*args): return dummy(*args)
-def softfloat_f64toi64(*args): return dummy(*args)
-def softfloat_f64toui32(*args): return dummy(*args)
-def softfloat_f64toui64(*args): return dummy(*args)
-def softfloat_i32tof16(*args): return dummy(*args)
-def softfloat_i32tof32(*args): return dummy(*args)
-def softfloat_i32tof64(*args): return dummy(*args)
-def softfloat_i64tof16(*args): return dummy(*args)
-def softfloat_i64tof32(*args): return dummy(*args)
-def softfloat_i64tof64(*args): return dummy(*args)
-def softfloat_ui32tof16(*args): return dummy(*args)
-def softfloat_ui32tof32(*args): return dummy(*args)
-def softfloat_ui32tof64(*args): return dummy(*args)
-def softfloat_ui64tof16(*args): return dummy(*args)
-def softfloat_ui64tof32(*args): return dummy(*args)
-def softfloat_ui64tof64(*args): return dummy(*args)
-def string_drop(*args): return dummy(*args)
-def string_take(*args): return dummy(*args)
-def sub_bits(*args): return dummy(*args)
-def sub_bits_int(*args): return dummy(*args)
-def sub_int(*args): return dummy(*args)
-def sub_nat(*args): return dummy(*args)
-def tdiv_int(*args): return dummy(*args)
-def tmod_int(*args): return dummy(*args)
-def update_fbits(*args): return dummy(*args)
-def vector_access(*args): return dummy(*args)
-def vector_subrange(*args): return dummy(*args)
-def xor_bits(*args): return dummy(*args)
-def zeros(*args): return dummy(*args)
+make_dummy('and_bits')
+make_dummy('emod_int')
+make_dummy('eq_string')
+make_dummy('max_int')
+make_dummy('min_int')
+make_dummy('not_bits')
+make_dummy('or_bits')
+make_dummy('plat_enable_dirty_update')
+make_dummy('plat_enable_misaligned_access')
+make_dummy('plat_enable_pmp')
+make_dummy('platform_barrier')
+make_dummy('platform_write_mem_ea')
+make_dummy('plat_mtval_has_illegal_inst_bits')
+make_dummy('print_endline')
+make_dummy('print_int')
+make_dummy('print_mem_access')
+make_dummy('print_platform')
+make_dummy('print_reg')
+make_dummy('print_string')
+make_dummy('shift_bits_right')
+make_dummy('shiftr')
+make_dummy('softfloat_f16add')
+make_dummy('softfloat_f16div')
+make_dummy('softfloat_f16eq')
+make_dummy('softfloat_f16le')
+make_dummy('softfloat_f16lt')
+make_dummy('softfloat_f16mul')
+make_dummy('softfloat_f16muladd')
+make_dummy('softfloat_f16sqrt')
+make_dummy('softfloat_f16sub')
+make_dummy('softfloat_f16tof32')
+make_dummy('softfloat_f16tof64')
+make_dummy('softfloat_f16toi32')
+make_dummy('softfloat_f16toi64')
+make_dummy('softfloat_f16toui32')
+make_dummy('softfloat_f16toui64')
+make_dummy('softfloat_f32add')
+make_dummy('softfloat_f32div')
+make_dummy('softfloat_f32eq')
+make_dummy('softfloat_f32le')
+make_dummy('softfloat_f32lt')
+make_dummy('softfloat_f32mul')
+make_dummy('softfloat_f32muladd')
+make_dummy('softfloat_f32sqrt')
+make_dummy('softfloat_f32sub')
+make_dummy('softfloat_f32tof16')
+make_dummy('softfloat_f32tof64')
+make_dummy('softfloat_f32toi32')
+make_dummy('softfloat_f32toi64')
+make_dummy('softfloat_f32toui32')
+make_dummy('softfloat_f32toui64')
+make_dummy('softfloat_f64add')
+make_dummy('softfloat_f64div')
+make_dummy('softfloat_f64eq')
+make_dummy('softfloat_f64le')
+make_dummy('softfloat_f64lt')
+make_dummy('softfloat_f64mul')
+make_dummy('softfloat_f64muladd')
+make_dummy('softfloat_f64sqrt')
+make_dummy('softfloat_f64sub')
+make_dummy('softfloat_f64tof16')
+make_dummy('softfloat_f64tof32')
+make_dummy('softfloat_f64toi32')
+make_dummy('softfloat_f64toi64')
+make_dummy('softfloat_f64toui32')
+make_dummy('softfloat_f64toui64')
+make_dummy('softfloat_i32tof16')
+make_dummy('softfloat_i32tof32')
+make_dummy('softfloat_i32tof64')
+make_dummy('softfloat_i64tof16')
+make_dummy('softfloat_i64tof32')
+make_dummy('softfloat_i64tof64')
+make_dummy('softfloat_ui32tof16')
+make_dummy('softfloat_ui32tof32')
+make_dummy('softfloat_ui32tof64')
+make_dummy('softfloat_ui64tof16')
+make_dummy('softfloat_ui64tof32')
+make_dummy('softfloat_ui64tof64')
+make_dummy('string_drop')
+make_dummy('string_take')
+make_dummy('string_startswith')
+make_dummy('string_length(s)')
+make_dummy('sub_bits')
+make_dummy('sub_bits_int')
+make_dummy('sub_int')
+make_dummy('sub_nat')
+make_dummy('tdiv_int')
+make_dummy('tmod_int')
+make_dummy('update_fbits')
+make_dummy('vector_access')
+make_dummy('vector_subrange')
+make_dummy('xor_bits')
+make_dummy('zeros')
 
 # generic helpers
 
@@ -115,6 +116,12 @@ def zero_extend(a, b):
 
 def add_bits_int(a, b):
     return a.add_int(b)
+
+def sub_bits_int(a, b):
+    return a.sub_int(b)
+
+def length(gbv):
+    return rbigint.fromint(gbv.size)
 
 def fast_signed(op, n):
     if n == 64:
@@ -141,6 +148,18 @@ def eq_bit(a, b):
 
 def eq_bits(gvba, gvbb):
     return gvba.rval.eq(gvbb.rval)
+
+def xor_bits(gvba, gvbb):
+    return gvba.xor(gvbb)
+
+def and_bits(gvba, gvbb):
+    return gvba.and_(gvbb)
+
+def or_bits(gvba, gvbb):
+    return gvba.or_(gvbb)
+
+def not_bits(gvba):
+    return gvba.invert()
 
 def safe_rshift(n, shift):
     if shift >= 64:
@@ -199,6 +218,9 @@ def shiftr(gbv, i):
 def shift_bits_left(gbv, gbva):
     return gbv.shiftl(gbva.rval.toint())
 
+def shift_bits_right(gbv, gbva):
+    return gbv.shiftr(gbva.rval.toint())
+
 def sail_unsigned(gbv):
     return gbv.rval
 
@@ -225,6 +247,9 @@ def vector_update_subrange(l, n, m, s):
     mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m.toint()).invert()
     return bitvector.GenericBitVector(l.size, l.rval.and_(mask).or_(s.rval.lshift(m.toint())))
 
+def vector_subrange(l, n, m):
+    return l.subrange(n.toint(), m.toint())
+
 
 def elf_tohost(_):
     return rbigint.fromint(0)
@@ -245,7 +270,6 @@ def platform_write_mem_ea(write_kind, addr_size, addr, n):
 def concat_str(a, b):
     return a + b
 
-def string_length(s): return dummy(*args)
 
 def string_of_bits(gbv):
     res = gbv.rval.format("0123456789ABCDEF")
@@ -257,4 +281,3 @@ def decimal_string_of_bits(sbits):
 def string_of_int(r):
     return r.str()
 
-def string_startswith(*args): return dummy(*args)

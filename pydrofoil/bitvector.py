@@ -19,6 +19,9 @@ class GenericBitVector(object):
     def add_int(self, i):
         return GenericBitVector(self.size, self._size_mask(self.rval.add(i)))
 
+    def sub_int(self, i):
+        return GenericBitVector(self.size, self._size_mask(self.rval.sub(i)))
+
     def print_bits(self):
         print "GenericBitVector<%s, %s>" % (self.size, self.rval.hex())
 
@@ -27,6 +30,22 @@ class GenericBitVector(object):
 
     def shiftr(self, i):
         return GenericBitVector(self.size, self._size_mask(self.rval.rshift(i)))
+
+    def xor(self, other):
+        return GenericBitVector(self.size, self._size_mask(self.rval.xor(other.rval)))
+
+    def or_(self, other):
+        return GenericBitVector(self.size, self._size_mask(self.rval.or_(other.rval)))
+
+    def and_(self, other):
+        return GenericBitVector(self.size, self._size_mask(self.rval.and_(other.rval)))
+
+    def invert(self):
+        return GenericBitVector(self.size, self._size_mask(self.rval.invert()))
+
+    def subrange(self, n, m):
+        width = n - m + 1
+        return GenericBitVector(width, self.rval.rshift(m))
 
     def sign_extend(self, i):
         if i == self.size:

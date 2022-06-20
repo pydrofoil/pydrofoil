@@ -81,7 +81,8 @@ class Codegen(object):
         old_localnames = self.localnames
         self.localnames = {}
         yield
-        ast.localnames = self.localnames
+        if ast:
+            ast.localnames = self.localnames
         self.localnames = old_localnames
 
     @contextmanager
@@ -186,28 +187,31 @@ class __extend__(parse.Union):
     def make_code(self, codegen):
         name = "Union_" + self.name
         self.pyname = name
-        with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(object):" % name):
-            codegen.emit("pass")
-        self.pynames = []
-        uniontyp = types.Union(self)
-        uniontyp.uninitialized_value = "%s()" % (self.pyname, )
-        codegen.add_named_type(self.name, self.pyname, uniontyp, self)
-        for name, typ in zip(self.names, self.types):
-            pyname = self.pyname + "_" + name
-            codegen.add_global(name, pyname, uniontyp, self)
-            self.pynames.append(pyname)
-            with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
-                rtyp = typ.resolve_type(codegen)
-                codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
-                # XXX could special-case tuples here, and unit
-                with codegen.emit_indent("def __init__(self, a):"):
-                    codegen.emit("self.a = a # %s" % (typ, ))
-                codegen.emit("@staticmethod")
-                with codegen.emit_indent("def convert(inst):"):
-                    with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
-                        codegen.emit("return inst")
-                    with codegen.emit_indent("else:"):
-                        codegen.emit("raise TypeError")
+        for typ in self.types:
+            typ.resolve_type(codegen) # pre-declare the types
+        with codegen.emit_code_type("declarations"):
+            with codegen.emit_indent("class %s(object):" % name):
+                codegen.emit("pass")
+            self.pynames = []
+            uniontyp = types.Union(self)
+            uniontyp.uninitialized_value = "%s()" % (self.pyname, )
+            codegen.add_named_type(self.name, self.pyname, uniontyp, self)
+            for name, typ in zip(self.names, self.types):
+                pyname = self.pyname + "_" + name
+                codegen.add_global(name, pyname, uniontyp, self)
+                self.pynames.append(pyname)
+                with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
+                    rtyp = typ.resolve_type(codegen)
+                    codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
+                    # XXX could special-case tuples here, and unit
+                    with codegen.emit_indent("def __init__(self, a):"):
+                        codegen.emit("self.a = a # %s" % (typ, ))
+                    codegen.emit("@staticmethod")
+                    with codegen.emit_indent("def convert(inst):"):
+                        with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
+                            codegen.emit("return inst")
+                        with codegen.emit_indent("else:"):
+                            codegen.emit("raise TypeError")
         if self.name == "zexception":
             codegen.add_global("current_exception", "l.current_exception", uniontyp, self)
 
@@ -285,6 +289,13 @@ class __extend__(parse.Function):
                             continue
                         # insert goto at the end to make have no "fall throughs"
                         block.append(parse.Goto(blockpc + len(block)))
+                    if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
+                        print "making method!", self.name
+                        codegen.emit("return %s.meth_%s(%s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
+                        codegen.level -= 1
+                        self._emit_methods(blocks, entrycounts, codegen)
+                        codegen.level += 1
+                        return
                     codegen.emit("pc = 0")
                     with codegen.emit_indent("while 1:"):
                         for blockpc, block in sorted(blocks.items()):
@@ -294,6 +305,97 @@ class __extend__(parse.Function):
                             with codegen.emit_indent("if pc == %s:" % blockpc):
                                 self.emit_block_ops(block, codegen, entrycounts, blockpc, blocks)
         codegen.emit()
+
+    def _find_first_non_decl(self, block):
+        # return first operation that's not a declaration
+        for op in block:
+            if isinstance(op, parse.LocalVarDeclaration):
+                continue
+            return op
+
+    def detect_union_switch(self, block):
+        # heuristic: if the function starts with a switch on the first
+        # argument, turn it into a method
+        op = self._find_first_non_decl(block)
+        if (isinstance(op, parse.ConditionalJump) and 
+                isinstance(op.condition, parse.UnionVariantCheck) and
+                isinstance(op.condition.var, parse.Var) and
+                op.condition.var.name == self.args[0]):
+            return op
+        else:
+            return None
+
+    def _emit_methods(self, blocks, entrycounts, codegen):
+        uniontyp = codegen.gettyp(self.args[0])
+        switches = []
+        curr_block = blocks[0]
+        curr_offset = 0
+        while 1:
+            op = self.detect_union_switch(curr_block)
+            if op is None or entrycounts[op.target] != 1:
+                switches.append((curr_block, None))
+                break
+            switches.append((curr_block, op))
+            curr_block = blocks[op.target]
+        for i, (block, cond) in enumerate(switches):
+            copyblock = []
+            # add all var declarations of all the previous blocks
+            for prevblock, prevcond in switches[:i]:
+                copyblock.extend(prevblock[:prevblock.index(prevcond)])
+            # now add all operations except the condition
+            b = block[:]
+            if cond:
+                del b[block.index(cond)]
+            copyblock.extend(b)
+            graph = self._find_reachable(copyblock, blocks)
+            local_blocks = {k: v for k, v in graph}
+            # recompute entrycounts
+            local_entrycounts = {0: 1}
+            for pc, block in graph:
+                for op in block:
+                    if isinstance(op, (parse.Goto, parse.ConditionalJump)):
+                        local_entrycounts[op.target] = local_entrycounts.get(op.target, 0) + 1
+            # emit
+            pyname = self.name + "_" + (cond.condition.variant if cond else "default")
+            with codegen.enter_scope(None), codegen.emit_indent("def %s(%s):" % (pyname, ", ".join(self.args))):
+                typ = codegen.globalnames[self.name].typ
+                codegen.add_local('return', 'return_', typ.restype, self)
+                for i, arg in enumerate(self.args):
+                    codegen.add_local(arg, arg, typ.argtype.elements[i], self)
+                codegen.emit("pc = 0")
+                with codegen.emit_indent("while 1:"):
+                    for blockpc, block in graph:
+                        if block == [None]:
+                            # inlined
+                            continue
+                        with codegen.emit_indent("if pc == %s:" % blockpc):
+                            self.emit_block_ops(block, codegen, local_entrycounts, blockpc, local_blocks)
+            if cond is not None:
+                clsname = codegen.getname(cond.condition.variant)
+            else:
+                clsname = uniontyp.ast.pyname
+            codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
+        with codegen.emit_indent("def %s(%s):" % (self.pyname, ", ".join(self.args))):
+            codegen.emit("return %s.meth_%s(%s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
+
+    def _find_reachable(self, block, blocks):
+        def process(index, current):
+            res.append((index, current[:]))
+            for op in current:
+                if isinstance(op, (parse.Goto, parse.ConditionalJump)):
+                    if op.target not in added:
+                        added.add(op.target)
+                        todo.append(op.target)
+        added = set()
+        res = []
+        todo = []
+        process(0, block)
+        while todo:
+            index = todo.pop()
+            current = blocks[index]
+            process(index, current)
+        return res
+
 
     def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
         for i, op in enumerate(block):

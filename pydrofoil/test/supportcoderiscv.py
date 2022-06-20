@@ -17,6 +17,7 @@ class BlockMemory(object):
         self.blocks = {}
 
     @unroll_safe
+    @objectmodel.specialize.argtype(1)
     def read(self, start_addr, num_bytes):
         block = self.get_block(start_addr >> self.ADDRESS_BITS_BLOCK)
         start_addr = start_addr & self.BLOCK_MASK
@@ -27,6 +28,7 @@ class BlockMemory(object):
             value = value | ord(block[start_addr + i])
         return r_uint(value)
 
+    @objectmodel.specialize.argtype(1)
     def get_block(self, block_addr):
         if block_addr in self.blocks:
             return self.blocks[block_addr]
@@ -34,6 +36,7 @@ class BlockMemory(object):
         return res
 
     @unroll_safe
+    @objectmodel.specialize.argtype(1, 3)
     def write(self, start_addr, num_bytes, value):
         block = self.get_block(start_addr >> self.ADDRESS_BITS_BLOCK)
         start_addr = start_addr & self.BLOCK_MASK
@@ -44,13 +47,14 @@ class BlockMemory(object):
 
 def write_mem(addr, content): # write a single byte
     g.mem.write(addr, 1, content)
+    return True
 
 def platform_read_mem(read_kind, addr_size, addr, n):
     n = n.toint()
     assert n <= 8
     assert addr_size == 64
     res = g.mem.read(addr.val, n)
-    return bitvector.GenericBitVector(n*8, rbigint.fromint(res))
+    return bitvector.GenericBitVector(n*8, rbigint.fromrarith_int(res))
 
 def platform_write_mem(write_kind, addr_size, addr, n, data):
     n = n.toint()
@@ -58,6 +62,7 @@ def platform_write_mem(write_kind, addr_size, addr, n, data):
     assert addr_size == 64
     assert data.size == n * 8
     g.mem.write(addr.val, n, data.rval.toint())
+    return True
 
 class Globals(object):
     pass
@@ -173,12 +178,11 @@ def match_reservation(addr):
 def cancel_reservation(_):
     g.reservation_valid = False
     return ()
-#
-#unit plat_term_write(mach_bits s)
-#{ char c = s & 0xff;
-#  plat_term_write_impl(c);
-#  return UNIT;
-#}
+
+def plat_term_write(s):
+    import os
+    os.write(g.term_fd, chr(s & 0xff))
+    return ()
 
 def plat_insns_per_tick(_):
     pass

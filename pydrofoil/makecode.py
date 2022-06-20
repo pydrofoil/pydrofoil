@@ -197,13 +197,11 @@ class __extend__(parse.Union):
             codegen.add_global(name, pyname, uniontyp, self)
             self.pynames.append(pyname)
             with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
+                rtyp = typ.resolve_type(codegen)
+                codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                 # XXX could special-case tuples here, and unit
-                argtypes = [typ]
-                args = inits = ["a"]
-                fnarg = 'a'
-                with codegen.emit_indent("def __init__(self, %s):" % fnarg):
-                    for arg, init, typ in zip(args, inits, argtypes):
-                        codegen.emit("self.%s = %s # %s" % (arg, init, typ))
+                with codegen.emit_indent("def __init__(self, a):"):
+                    codegen.emit("self.a = a # %s" % (typ, ))
                 codegen.emit("@staticmethod")
                 with codegen.emit_indent("def convert(inst):"):
                     with codegen.emit_indent("if isinstance(inst, %s):" % pyname):

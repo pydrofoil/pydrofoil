@@ -36,7 +36,7 @@ Mapping to RPython:
 - string: rpython str
 - bit: `r_uint(0 or 1)`
 - ref: unclear! to structs: just use the struct. but to primitives I don't know yet
-- list: two-tuples (head, tail)
+- list: one custom List type per kind of list
 - unit: rpython empty tuple
 
 

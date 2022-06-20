@@ -25,6 +25,12 @@
 - progress on generating code for MIPS
 - generate (not yet working) code for RISC-V
 
+19.06.2022:
+- risc-v works untranslated
+
+20.06.2022:
+- risc-v works translated, but some primitives are missing
+
 TODO:
 - C Warnings fix in sail code
 - Test SetUp. C vs Python (John: run generated C emulator on examples, check output from a test_cemulator.py file, hardcoded)

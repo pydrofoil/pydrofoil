@@ -271,6 +271,7 @@ class __extend__(parse.Function):
                     if isinstance(op, (parse.Goto, parse.ConditionalJump)):
                         entrycounts[op.target] = entrycounts.get(op.target, 0) + 1
                 if entrycounts == {0: 1}:
+                    assert self.body[-1].end_of_block
                     self.emit_block_ops(self.body, codegen)
                 else:
                     blocks = {}
@@ -278,6 +279,12 @@ class __extend__(parse.Function):
                         if i in entrycounts:
                             blocks[i] = block = []
                         block.append(op)
+                    for blockpc, block in sorted(blocks.items()):
+                        lastop = block[-1]
+                        if lastop.end_of_block:
+                            continue
+                        # insert goto at the end to make have no "fall throughs"
+                        block.append(parse.Goto(blockpc + len(block)))
                     codegen.emit("pc = 0")
                     with codegen.emit_indent("while 1:"):
                         for blockpc, block in sorted(blocks.items()):
@@ -310,12 +317,12 @@ class __extend__(parse.Function):
                 codegen.emit("pc = %s" % (op.target, ))
                 if op.target < i:
                     codegen.emit("continue")
-                continue
+                return
             else:
                 codegen.emit("# %s" % (op, ))
                 op.make_op_code(codegen)
-            if i + 1 + offset in entrycounts and type(op) is not parse.Goto:
-                codegen.emit("pc = %s" % (i + 1 + offset, ))
+            if op.end_of_block:
+                return
 
 class __extend__(parse.Let):
     def make_code(self, codegen):

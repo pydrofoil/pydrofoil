@@ -244,7 +244,7 @@ class VecType(Type):
         self.of = of
 
 class Statement(BaseAst):
-    pass
+    end_of_block = False
 
 class LocalVarDeclaration(Statement):
     def __init__(self, name, typ, value=None):
@@ -266,6 +266,7 @@ class TemplatedOperation(Statement):
         self.args = args
 
 class Goto(Statement):
+    end_of_block = True
     def __init__(self, target):
         self.target = target
 
@@ -315,13 +316,13 @@ class RefAssignment(Statement):
         self.value = value
 
 class End(Statement):
-    pass
+    end_of_block = True
 
 class Failure(Statement):
-    pass
+    end_of_block = True
 
 class Arbitrary(Statement):
-    pass
+    end_of_block = True
 
 class Expression(BaseAst):
     pass

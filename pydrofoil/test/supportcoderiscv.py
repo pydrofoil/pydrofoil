@@ -2,7 +2,7 @@ from pydrofoil.supportcode import *
 from pydrofoil import elf
 
 from rpython.rlib.objectmodel import we_are_translated
-from rpython.rlib.jit import elidable, unroll_safe, hint
+from rpython.rlib.jit import elidable, unroll_safe, hint, JitDriver
 from rpython.rlib.rarithmetic import r_uint, intmask
 from rpython.rlib.rrandom import Random
 
@@ -253,25 +253,37 @@ def init_sail_reset_vector(entry):
     # boot at reset vector
     outriscv.r.zPC = r_uint(rv_rom_base)
 
-def process_args(argv):
-    return argv[1]
-
 def main(argv):
     from pydrofoil.test import outriscv
     # Initialize model so that we can check or report its architecture.
     outriscv.model_init()
-    file = process_args(argv)
+    if len(argv) == 1:
+        print("usage: %s <elf file>" % (argv[0], ))
+        return 1
+    file = argv[1]
+    if len(argv) == 3:
+        iterations = int(argv[2])
+    else:
+        iterations = 1
     #init_logs()
 
-    t1 = time.time()
     entry = load_sail(file)
-    init_sail(entry)
-    t2 = time.time()
-
-    run_sail()
+    for i in range(iterations):
+        init_sail(entry)
+        run_sail()
+        if i:
+            outriscv.model_init()
     #flush_logs()
     #close_logs()
     return 0
+
+def get_printable_location(pc):
+    return str(pc)
+
+driver = JitDriver(
+    get_printable_location=get_printable_location,
+    greens=['pc'], reds='auto')
+
 
 def run_sail():
     from pydrofoil.test import outriscv
@@ -284,6 +296,7 @@ def run_sail():
     interval_start = time.time()
 
     while not outriscv.r.zhtif_done and (insn_limit == 0 or total_insns < insn_limit):
+        driver.jit_merge_point(pc=outriscv.r.zPC)
         # run a Sail step
         print step_no, hex(outriscv.r.zPC)
         stepped = outriscv.func_zstep(rbigint.fromint(step_no))

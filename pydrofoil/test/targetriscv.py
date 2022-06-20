@@ -1,3 +1,6 @@
+import sys
+sys.setrecursionlimit(2**31-1)
+
 from pydrofoil.makecode import *
 
 import os
@@ -16,6 +19,14 @@ def target(*args):
     with open(outriscvpy, "w") as f:
         f.write(res)
     print "translating to C!"
+    from pydrofoil.test.supportcoderiscv import get_main, g
+    from pydrofoil.test import outriscv
+    g.config_print_instr = False
+    g.config_print_reg = False
+    g.config_print_mem_access = False
+    g.config_print_platform = False
+    main = get_main()
+
     return main
 
 def main(argv):

@@ -374,3 +374,14 @@ def get_config_print_mem(_):
     return g.config_print_mem_access
 def get_config_print_platform(_):
     return g.config_print_platform
+
+def get_main():
+    from pydrofoil.test import outriscv
+    from rpython.rlib import jit
+    orig = outriscv.func_zdecode
+    def func_zdecode(x):
+        jit.promote(x)
+        return orig(x)
+    outriscv.func_zdecode = func_zdecode
+    jit.unroll_safe(outriscv.func_zexecute)
+    return main

@@ -14,6 +14,8 @@ def from_bigint(size, rval):
     return GenericBitVector(size, rval, True)
 
 class BitVector(object):
+    _attrs_ = ['size']
+
     def __init__(self, size):
         self.size = size
 
@@ -40,14 +42,14 @@ class SmallBitVector(BitVector):
     def add_int(self, i):
         if isinstance(i, SmallInteger):
             if i.val > 0:
-                return from_ruint(self.size, self.val + r_uint(i.val))
+                return SmallBitVector(self.size, self.val + r_uint(i.val), True)
         # XXX can be better
         return from_bigint(self.size, self.rbigint_mask(self.size, self.tobigint().add(i.tobigint())))
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
             if i.val > 0:
-                return from_ruint(self.size, self.val - r_uint(i.val))
+                return SmallBitVector(self.size, self.val - r_uint(i.val), True)
         # XXX can be better
         return from_bigint(self.size, self.rbigint_mask(self.size, self.tobigint().sub(i.tobigint())))
 
@@ -55,39 +57,40 @@ class SmallBitVector(BitVector):
         print self.__repr__()
 
     def lshift(self, i):
-        return from_ruint(self.size, self.val << i)
+        return SmallBitVector(self.size, self.val << i, True)
 
     def rshift(self, i):
-        return from_ruint(self.size, self.val >> i)
+        return SmallBitVector(self.size, self.val >> i)
 
     def lshift_bits(self, other):
-        return from_ruint(self.size, self.val << other.touint())
+        return SmallBitVector(self.size, self.val << other.touint(), True)
 
     def rshift_bits(self, other):
-        return from_ruint(self.size, self.val >> other.touint())
+        return SmallBitVector(self.size, self.val >> other.touint())
 
     def xor(self, other):
         assert isinstance(other, SmallBitVector)
-        return from_ruint(self.size, self.val ^ other.val)
+        return SmallBitVector(self.size, self.val ^ other.val, True)
 
     def and_(self, other):
         assert isinstance(other, SmallBitVector)
-        return from_ruint(self.size, self.val & other.val)
+        return SmallBitVector(self.size, self.val & other.val, True)
 
     def or_(self, other):
         assert isinstance(other, SmallBitVector)
-        return from_ruint(self.size, self.val | other.val)
+        return SmallBitVector(self.size, self.val | other.val, True)
 
     def invert(self):
-        return from_ruint(self.size, ~self.val)
+        return SmallBitVector(self.size, ~self.val, True)
 
     def subrange(self, n, m):
         width = n - m + 1
-        return from_ruint(width, self.val >> m)
+        return SmallBitVector(width, self.val >> m, True)
 
     def sign_extend(self, i):
         if i == self.size:
             return self
+        assert i <= 64
         assert i > self.size
         highest_bit = (self.val >> (self.size - 1)) & 1
         if not highest_bit:
@@ -101,15 +104,15 @@ class SmallBitVector(BitVector):
     def update_bit(self, pos, bit):
         mask = r_uint(1) << pos
         if bit:
-            return from_ruint(self.size, self.val | mask)
+            return SmallBitVector(self.size, self.val | mask)
         else:
-            return from_ruint(self.size, self.val & ~mask)
+            return SmallBitVector(self.size, self.val & ~mask, True)
 
     def update_subrange(self, n, m, s):
         width = s.size
         assert width == n - m + 1
         mask = ~(((r_uint(1) << width) - 1) << m)
-        return from_ruint(self.size, (self.val & mask) | (s.touint() << m))
+        return SmallBitVector(self.size, (self.val & mask) | (s.touint() << m), True)
 
     def signed(self):
         n = self.size
@@ -187,7 +190,7 @@ class GenericBitVector(BitVector):
 
     def subrange(self, n, m):
         width = n - m + 1
-        return GenericBitVector(width, self.rval.rshift(m))
+        return from_bigint(width, self.rval.rshift(m))
 
     def sign_extend(self, i):
         if i == self.size:
@@ -240,6 +243,8 @@ class GenericBitVector(BitVector):
 
 
 class Integer(object):
+    _attrs_ = []
+
     @staticmethod
     def fromint(val):
         return SmallInteger(val)

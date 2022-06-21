@@ -19,7 +19,7 @@ class SmallBitVector(BitVector):
     def __init__(self, size, val, normalize=False):
         self.size = size # number of bits
         assert isinstance(val, r_uint)
-        if normalize:
+        if normalize and size != 64:
             val = val & ((r_uint(1) << size) - 1)
         self.val = val # r_uint
 

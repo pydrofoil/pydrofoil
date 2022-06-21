@@ -53,9 +53,11 @@ Diagrams
 
 ## C emulator generation
 
-![Alt text](https://g.gravizo.com/source/custom_mark10?https%3A%2F%2Fraw.githubusercontent.com%2Fcfbolz%2Fpydrofoil%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
+![Alt text](https://g.gravizo.com/source/svg/custom_mark10?https%3A%2F%2Fraw.githubusercontent.com%2Fcfbolz%2Fpydrofoil%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
 <details>
 <summary></summary>
+
+```
 custom_mark10
 digraph hierarchy {
 
@@ -75,11 +77,16 @@ digraph hierarchy {
     emulator [label="emulator binary", fontcolor=blue]
 }
 custom_mark10
+```
+
 </details>
 
 ## C emulator execution
 
-```graphviz
+![Alt text](https://g.gravizo.com/source/svg/custom_mark11?https%3A%2F%2Fraw.githubusercontent.com%2Fcfbolz%2Fpydrofoil%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
+<details>
+<summary></summary>
+custom_mark11
 digraph hierarchy {
 
     node [fontname=Courier,shape=box]
@@ -92,11 +99,18 @@ digraph hierarchy {
     emulator->behaviour
     behaviour [shape=none, fontcolor=red]
 }
+custom_mark11
 ```
+
+</details>
 
 ## Pydrofoil: C emulator generation with JIT
 
+![Alt text](https://g.gravizo.com/source/svg/custom_mark12?https%3A%2F%2Fraw.githubusercontent.com%2Fcfbolz%2Fpydrofoil%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
+<details>
+<summary></summary>
 ```graphviz
+custom_mark12
 digraph hierarchy {
 
     node [fontname=Courier,shape=box] 
@@ -112,12 +126,19 @@ digraph hierarchy {
     rpython->emulator [label="RPython generates"]
     emulator [label="emulator binary with jit", fontcolor=blue] 
 }
+custom_mark12
 ```
+
+</details>
 
 ## C emulator execution with JIT
 
 
+![Alt text](https://g.gravizo.com/source/svg/custom_mark13?https%3A%2F%2Fraw.githubusercontent.com%2Fcfbolz%2Fpydrofoil%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
+<details>
+<summary></summary>
 ```graphviz
+custom_mark13
 digraph hierarchy {
 
     node [fontname=Courier,shape=box] 
@@ -132,4 +153,8 @@ digraph hierarchy {
     jit [label="machine code [host]", fontcolor=blue]
     behaviour [shape=none, fontcolor=red]
 }
+custom_mark13
 ```
+
+</details>
+

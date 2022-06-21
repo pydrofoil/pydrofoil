@@ -1,4 +1,5 @@
 from pydrofoil.supportcode import *
+from pydrofoil.bitvector import Integer
 from pydrofoil import elf
 
 from rpython.rlib.objectmodel import we_are_translated
@@ -302,7 +303,7 @@ def run_sail():
         driver.jit_merge_point(pc=outriscv.r.zPC)
         # run a Sail step
         print step_no, hex(outriscv.r.zPC)
-        stepped = outriscv.func_zstep(rbigint.fromint(step_no))
+        stepped = outriscv.func_zstep(Integer.fromint(step_no))
         if stepped:
             step_no += 1
             insn_cnt += 1

@@ -96,7 +96,7 @@ class MachineInt(Type):
 
 @unique
 class Int(Type):
-    uninitialized_value = "rbigint.fromint(-0xefef)"
+    uninitialized_value = "Integer.fromint(-0xefef)"
 
 @unique
 class Bool(Type):

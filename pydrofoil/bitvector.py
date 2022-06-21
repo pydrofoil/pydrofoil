@@ -1,5 +1,7 @@
 from rpython.rlib.rbigint import rbigint
-from rpython.rlib.rarithmetic import r_uint, intmask
+from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck
+from rpython.rlib.rstring import (
+    ParseStringError, ParseStringOverflowError)
 
 def from_ruint(size, val):
     if size <= 64:
@@ -32,10 +34,10 @@ class SmallBitVector(BitVector):
         return other
 
     def add_int(self, i):
-        return from_bigint(self.size, self.tobigint().add(i))
+        return from_bigint(self.size, self.tobigint().add(i.tobigint()))
 
     def sub_int(self, i):
-        return from_bigint(self.size, self.tobigint().sub(i))
+        return from_bigint(self.size, self.tobigint().sub(i.tobigint()))
 
     def print_bits(self):
         print self.__repr__()
@@ -100,15 +102,15 @@ class SmallBitVector(BitVector):
     def signed(self):
         n = self.size
         if n == 64:
-            return rbigint.fromint(intmask(self.val))
+            return Integer.fromint(intmask(self.val))
         assert n > 0
         u1 = r_uint(1)
         m = u1 << (n - 1)
         op = self.val & ((u1 << n) - 1) # mask off higher bits to be sure
-        return rbigint.fromint(intmask((op ^ m) - m))
+        return Integer.fromint(intmask((op ^ m) - m))
 
     def unsigned(self):
-        return rbigint.fromrarith_int(self.val)
+        return Integer.from_ruint(self.val)
 
     def eq(self, other):
         other = self._check_size(other)
@@ -139,10 +141,10 @@ class GenericBitVector(BitVector):
         return val.and_(rbigint.fromint(1).lshift(self.size).int_sub(1))
 
     def add_int(self, i):
-        return GenericBitVector(self.size, self._size_mask(self.rval.add(i)))
+        return GenericBitVector(self.size, self._size_mask(self.rval.add(i.tobigint())))
 
     def sub_int(self, i):
-        return GenericBitVector(self.size, self._size_mask(self.rval.sub(i)))
+        return GenericBitVector(self.size, self._size_mask(self.rval.sub(i.tobigint())))
 
     def print_bits(self):
         print "GenericBitVector<%s, %s>" % (self.size, self.rval.hex())
@@ -207,10 +209,10 @@ class GenericBitVector(BitVector):
         m = u1.lshift(n - 1)
         op = self.rval
         op = op.and_((u1.lshift(n)).int_sub(1)) # mask off higher bits to be sure
-        return op.xor(m).sub(m)
+        return Integer.frombigint(op.xor(m).sub(m))
 
     def unsigned(self):
-        return self.rval
+        return Integer.frombigint(self.rval)
 
     def eq(self, other):
         return self.rval.eq(other.rval)
@@ -223,3 +225,175 @@ class GenericBitVector(BitVector):
 
     def tobigint(self):
         return self.rval
+
+
+class Integer(object):
+    @staticmethod
+    def fromint(val):
+        return SmallInteger(val)
+
+    @staticmethod
+    def frombigint(rval):
+        return BigInteger(rval)
+
+    @staticmethod
+    def fromstr(val):
+        value = 0
+        try:
+            return SmallInteger(string_to_int(val, 10))
+        except ParseStringOverflowError as e:
+            return BigInteger(rbigint._from_numberstring_parser(e.parser))
+
+    @staticmethod
+    def from_ruint(val):
+        if val & (r_uint(1)<<63):
+            # bigger than biggest signed int
+            return BigInteger(rbigint.fromrarith_int(val))
+        return SmallInteger(intmask(val))
+
+    def tolong(self): # only for tests:
+        return self.tobigint().tolong()
+
+
+class SmallInteger(Integer):
+    def __init__(self, val):
+        self.val = val
+
+    def __repr__(self):
+        return "<SmallInteger %s>" % (self.val, )
+
+    def toint(self):
+        return self.val
+
+    def touint(self):
+        return r_uint(self.val)
+
+    def tobigint(self):
+        return rbigint.fromint(self.val)
+
+    def slice(self, len, start):
+        n = self.val >> start.toint()
+        len = len.toint()
+        return from_ruint(len, r_uint(n) & ((1 << len) - 1))
+
+    def eq(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val == other.val
+        return other.eq(self)
+
+    def lt(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val < other.val
+        return self.tobigint().lt(other.tobigint())
+
+    def le(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val <= other.val
+        return self.tobigint().le(other.tobigint())
+
+    def gt(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val > other.val
+        return self.tobigint().gt(other.tobigint())
+
+    def ge(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val >= other.val
+        return self.tobigint().ge(other.tobigint())
+
+    def add(self, other):
+        if isinstance(other, SmallInteger):
+            try:
+                return SmallInteger(ovfcheck(self.val + other.val))
+            except OverflowError:
+                return BigInteger(self.tobigint().int_add(other.val))
+        else:
+            assert isinstance(other, BigInteger)
+            return BigInteger(other.rval.int_add(self.val))
+
+    def sub(self, other):
+        if isinstance(other, SmallInteger):
+            try:
+                return SmallInteger(ovfcheck(self.val - other.val))
+            except OverflowError:
+                pass
+        return BigInteger(self.tobigint().sub(other.tobigint())) # XXX can do better
+
+    def mul(self, other):
+        if isinstance(other, SmallInteger):
+            try:
+                return SmallInteger(ovfcheck(self.val * other.val))
+            except OverflowError:
+                return BigInteger(self.tobigint().int_mul(other.val))
+        else:
+            assert isinstance(other, BigInteger)
+            return BigInteger(other.rval.int_mul(self.val))
+
+
+class BigInteger(Integer):
+    def __init__(self, rval):
+        self.rval = rval
+
+    def __repr__(self):
+        return "<BigInteger %s>" % (self.rval.str(), )
+
+    def toint(self):
+        return self.rval.toint()
+
+    def touint(self):
+        return self.rval.touint()
+
+    def tobigint(self):
+        return self.rval
+
+    def slice(self, len, start):
+        n = self.rval.rshift(start.toint())
+        return from_bigint(len.toint(), n.and_(rbigint.fromint(1).lshift(len.toint()).int_sub(1)))
+
+    def eq(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_eq(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.eq(other.rval)
+
+    def lt(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_lt(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.lt(other.rval)
+
+    def le(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_le(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.le(other.rval)
+
+    def gt(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_gt(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.gt(other.rval)
+
+    def ge(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_ge(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.ge(other.rval)
+
+    def add(self, other):
+        if isinstance(other, SmallInteger):
+            return BigInteger(self.rval.int_add(other.val))
+        assert isinstance(other, BigInteger)
+        return BigInteger(self.rval.add(other.rval))
+
+    def mul(self, other):
+        if isinstance(other, SmallInteger):
+            return BigInteger(self.rval.int_mul(other.val))
+        assert isinstance(other, BigInteger)
+        return BigInteger(self.rval.mul(other.rval))
+
+    def sub(self, other):
+        if isinstance(other, SmallInteger):
+            return BigInteger(self.rval.int_sub(other.val))
+        assert isinstance(other, BigInteger)
+        return BigInteger(self.rval.sub(other.rval))

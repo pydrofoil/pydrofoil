@@ -41,11 +41,11 @@ class __extend__(pairtype(types.Int, types.FixedBitVector)):
 
 class __extend__(pairtype(types.String, types.Int)):
     def convert((from_, to), ast, codegen):
-        return "rbigint.fromstr(%s)" % (ast.to_code(codegen), )
+        return "Integer.fromstr(%s)" % (ast.to_code(codegen), )
 
 class __extend__(pairtype(types.MachineInt, types.Int)):
     def convert((from_, to), ast, codegen):
-        return "rbigint.fromint(%s)" % ast.to_code(codegen)
+        return "Integer.fromint(%s)" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.Int, types.MachineInt)):
     def convert((from_, to), ast, codegen):

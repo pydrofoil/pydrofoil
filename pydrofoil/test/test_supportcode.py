@@ -1,5 +1,6 @@
-from pydrofoil.test import supportcode
+from pydrofoil import supportcode
 from pydrofoil import bitvector
+from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
 
 from rpython.rlib.rarithmetic import r_uint, intmask
 from rpython.rlib.rbigint import rbigint
@@ -9,6 +10,12 @@ def gbv(size, val):
 
 def bv(size, val):
     return bitvector.from_ruint(size, r_uint(val))
+
+def si(val):
+    return bitvector.SmallInteger(val)
+
+def bi(val):
+    return bitvector.BigInteger(rbigint.fromlong(val))
 
 def test_fast_signed():
     assert supportcode.fast_signed(0b0, 1) == 0
@@ -31,21 +38,12 @@ def test_signed():
 
 def test_sign_extend():
     for c in gbv, bv:
-        assert supportcode.sign_extend(c(1, 0b0), rbigint.fromint(2)).toint() == 0
-        assert supportcode.sign_extend(c(1, 0b1), rbigint.fromint(2)).toint() == 0b11
-        assert supportcode.sign_extend(c(2, 0b00), rbigint.fromint(4)).toint() == 0
-        assert supportcode.sign_extend(c(2, 0b01), rbigint.fromint(4)).toint() == 1
-        assert supportcode.sign_extend(c(2, 0b10), rbigint.fromint(4)).toint() == 0b1110
-        assert supportcode.sign_extend(c(2, 0b11), rbigint.fromint(4)).toint() == 0b1111
-
-def test_unsigned():
-    for c in gbv, bv:
-        x = c(8, 0b10001101)
-        assert x.unsigned().tolong() == 0b10001101
-        x = c(64, 0b10001101)
-        assert x.unsigned().tolong() == 0b10001101
-        x = c(64, r_uint(-1))
-        assert x.unsigned().tolong() == (1<<64)-1
+        assert supportcode.sign_extend(c(1, 0b0), Integer.fromint(2)).toint() == 0
+        assert supportcode.sign_extend(c(1, 0b1), Integer.fromint(2)).toint() == 0b11
+        assert supportcode.sign_extend(c(2, 0b00), Integer.fromint(4)).toint() == 0
+        assert supportcode.sign_extend(c(2, 0b01), Integer.fromint(4)).toint() == 1
+        assert supportcode.sign_extend(c(2, 0b10), Integer.fromint(4)).toint() == 0b1110
+        assert supportcode.sign_extend(c(2, 0b11), Integer.fromint(4)).toint() == 0b1111
 
 def test_unsigned():
     for c in gbv, bv:
@@ -57,7 +55,8 @@ def test_unsigned():
         assert x.unsigned().tolong() == (1<<64)-1
 
 def test_get_slice_int():
-    assert supportcode.get_slice_int(rbigint.fromint(8), rbigint.fromint(0b011010010000), rbigint.fromint(4)).toint() == 0b01101001
+    for c in si, bi:
+        assert supportcode.get_slice_int(Integer.fromint(8), c(0b011010010000), Integer.fromint(4)).toint() == 0b01101001
 
 def test_vector_update():
     for c in gbv, bv:
@@ -82,7 +81,7 @@ def test_vector_update():
         assert res.toint() == 0b101
 
 def test_vector_subrange():
-    x = bitvector.GenericBitVector(6, rbigint.fromint(0b111))
+    x = gbv(6, 0b111)
     r = x.subrange(3, 2)
     assert r.size == 2
     assert r.toint() == 1
@@ -126,8 +125,9 @@ def test_bitvector_touint():
         assert bv(size, 0b11).touint() == r_uint(0b11)
 
 def test_add_int():
-    assert bv(6, 0b11).add_int(rbigint.fromint(0b111111111)).touint() == (0b11 + 0b111111111) & 0b111111
-    assert bv(6000, 0b11).add_int(rbigint.fromint(0b111111111)).touint() == 0b11 + 0b111111111
+    for c in bi, si:
+        assert bv(6, 0b11).add_int(c(0b111111111)).touint() == (0b11 + 0b111111111) & 0b111111
+        assert gbv(6000, 0b11).add_int(c(0b111111111)).touint() == 0b11 + 0b111111111
 
 def test_bv_bitwise():
     for c in gbv, bv:
@@ -141,3 +141,23 @@ def test_bv_bitwise():
         assert res.toint() == 0b11110000 ^ 0b11001100
         res = i1.invert()
         assert res.toint() == 0b00001111
+
+def test_eq_int():
+    for c1 in bi, si:
+        for c2 in bi, si:
+            assert c1(-12331).eq(c2(-12331))
+            assert not c1(-12331).eq(c2(12331))
+
+def test_op_int():
+    for c1 in bi, si:
+        for c2 in bi, si:
+            for v1 in [-10, 223, 12311, 0, 1, 2**63-1]:
+                for v2 in [-10, 223, 12311, 0, 1, 2**63-1, -2**45]:
+                    assert c1(v1).add(c2(v2)).tolong() == v1 + v2
+                    assert c1(v1).sub(c2(v2)).tolong() == v1 - v2
+                    assert c1(v1).mul(c2(v2)).tolong() == v1 * v2
+                    assert c1(v1).eq(c2(v2)) == (v1 == v2)
+                    assert c1(v1).lt(c2(v2)) == (v1 < v2)
+                    assert c1(v1).gt(c2(v2)) == (v1 > v2)
+                    assert c1(v1).le(c2(v2)) == (v1 <= v2)
+                    assert c1(v1).ge(c2(v2)) == (v1 >= v2)

@@ -142,6 +142,7 @@ def parse_and_make_code(s, supportcodename="supportcode"):
         c.emit("import operator")
         c.emit("from pydrofoil.test import %s as supportcode" % supportcodename)
         c.emit("from pydrofoil import bitvector")
+        c.emit("from pydrofoil.bitvector import Integer")
         c.emit("class Registers(object): pass")
         c.emit("r = Registers()")
         c.emit("class Lets(object): pass")

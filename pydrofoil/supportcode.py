@@ -1,7 +1,8 @@
 from rpython.rlib import objectmodel
 from rpython.rlib.rbigint import rbigint
-from pydrofoil import bitvector
 from rpython.rlib.rarithmetic import r_uint, intmask
+from pydrofoil import bitvector
+from pydrofoil.bitvector import Integer
 
 @objectmodel.specialize.call_location()
 def make_dummy(name):
@@ -122,7 +123,7 @@ def sub_bits_int(a, b):
     return a.sub_int(b)
 
 def length(gbv):
-    return rbigint.fromint(gbv.size)
+    return Integer.fromint(gbv.size)
 
 def fast_signed(op, n):
     if n == 64:
@@ -141,7 +142,7 @@ def raise_type_error():
     raise TypeError
 
 def eq_int(a, b):
-    assert isinstance(a, rbigint)
+    assert isinstance(a, Integer)
     return a.eq(b)
 
 def eq_bit(a, b):
@@ -249,11 +250,10 @@ def vector_subrange(bv, n, m):
 
 
 def elf_tohost(_):
-    return rbigint.fromint(0)
+    return Integer.fromint(0)
 
 def get_slice_int(len, n, start):
-    n = n.rshift(start.toint())
-    return bitvector.from_bigint(len.toint(), n.and_(rbigint.fromint(1).lshift(len.toint()).int_sub(1)))
+    return n.slice(len, start)
 
 def platform_barrier(_):
     return ()

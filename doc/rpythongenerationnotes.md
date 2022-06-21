@@ -86,6 +86,7 @@ custom_mark10
 ![Alt text](https://g.gravizo.com/source/svg/custom_mark11?https%3A%2F%2Fraw.githubusercontent.com%2Fcfbolz%2Fpydrofoil%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
 <details>
 <summary></summary>
+```graphviz
 custom_mark11
 digraph hierarchy {
 

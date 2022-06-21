@@ -57,7 +57,7 @@ Diagrams
 <details>
 <summary></summary>
 
-```
+```graphviz
 custom_mark10
 digraph hierarchy {
 
@@ -86,6 +86,7 @@ custom_mark10
 ![Alt text](https://g.gravizo.com/source/svg/custom_mark11?https%3A%2F%2Fraw.githubusercontent.com%2Fcfbolz%2Fpydrofoil%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
 <details>
 <summary></summary>
+
 ```graphviz
 custom_mark11
 digraph hierarchy {
@@ -110,6 +111,7 @@ custom_mark11
 ![Alt text](https://g.gravizo.com/source/svg/custom_mark12?https%3A%2F%2Fraw.githubusercontent.com%2Fcfbolz%2Fpydrofoil%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
 <details>
 <summary></summary>
+
 ```graphviz
 custom_mark12
 digraph hierarchy {
@@ -138,6 +140,7 @@ custom_mark12
 ![Alt text](https://g.gravizo.com/source/svg/custom_mark13?https%3A%2F%2Fraw.githubusercontent.com%2Fcfbolz%2Fpydrofoil%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
 <details>
 <summary></summary>
+
 ```graphviz
 custom_mark13
 digraph hierarchy {

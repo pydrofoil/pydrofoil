@@ -256,6 +256,19 @@ def init_sail_reset_vector(entry):
 
 def main(argv):
     from pydrofoil.test import outriscv
+    from rpython.rlib import jit
+
+    # crappy jit argument handling
+    for i in range(len(argv)):
+        if argv[i] == "--jit":
+            if len(argv) == i + 1:
+                print "missing argument after --jit"
+                return 2
+            jitarg = argv[i + 1]
+            del argv[i:i+2]
+            jit.set_user_param(None, jitarg)
+            break
+
     # Initialize model so that we can check or report its architecture.
     outriscv.model_init()
     if len(argv) == 1:

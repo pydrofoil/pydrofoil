@@ -27,8 +27,8 @@ class Codegen(object):
         self.localnames = None
         self.add_global("false", "False", types.Bool())
         self.add_global("true", "True", types.Bool())
-        self.add_global("bitzero", "rarithmetic.r_uint(0)", types.Bit())
-        self.add_global("bitone", "rarithmetic.r_uint(1)", types.Bit())
+        self.add_global("bitzero", "r_uint(0)", types.Bit())
+        self.add_global("bitone", "r_uint(1)", types.Bit())
         self.add_global("$zupdate_fbits", "supportcode.update_fbits")
         self.add_global("have_exception", "l.have_exception", types.Bool())
         self.add_global("throw_location", "l.throw_location", types.String())
@@ -138,7 +138,7 @@ def parse_and_make_code(s, supportcodename="supportcode"):
     c = Codegen()
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib.rbigint import rbigint")
-        c.emit("from rpython.rlib import rarithmetic")
+        c.emit("from rpython.rlib.rarithmetic import r_uint, intmask")
         c.emit("import operator")
         c.emit("from pydrofoil.test import %s as supportcode" % supportcodename)
         c.emit("from pydrofoil import bitvector")
@@ -595,7 +595,7 @@ class __extend__(parse.Number):
 
 class __extend__(parse.BitVectorConstant):
     def to_code(self, codegen):
-        return "rarithmetic.r_uint(%s)" % (self.constant, )
+        return "r_uint(%s)" % (self.constant, )
 
     def gettyp(self, codegen):
         if self.constant.startswith("0b"):

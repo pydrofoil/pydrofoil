@@ -1,6 +1,7 @@
-from rpython.rlib import rarithmetic, objectmodel
+from rpython.rlib import objectmodel
 from rpython.rlib.rbigint import rbigint
 from pydrofoil import bitvector
+from rpython.rlib.rarithmetic import r_uint, intmask
 
 @objectmodel.specialize.call_location()
 def make_dummy(name):
@@ -125,12 +126,12 @@ def length(gbv):
 
 def fast_signed(op, n):
     if n == 64:
-        return rarithmetic.intmask(op)
+        return intmask(op)
     assert n > 0
-    u1 = rarithmetic.r_uint(1)
+    u1 = r_uint(1)
     m = u1 << (n - 1)
     op = op & ((u1 << n) - 1) # mask off higher bits to be sure
-    return rarithmetic.intmask((op ^ m) - m)
+    return intmask((op ^ m) - m)
 
 def sign_extend(gbv, lint):
     size = lint.toint()
@@ -163,7 +164,7 @@ def not_bits(gvba):
 
 def safe_rshift(n, shift):
     if shift >= 64:
-        return rarithmetic.r_uint(0)
+        return r_uint(0)
     return n >> shift
 
 def lteq(ia, ib):
@@ -237,15 +238,14 @@ def vector_update_inplace(res, l, index, element):
     l[index] = element
     return l
 
-def vector_update(l, index, element):
-    # bitvector
-    return l.update_bit(index.toint(), element)
+def vector_update(bv, index, element):
+    return bv.update_bit(index.toint(), element)
 
-def vector_update_subrange(l, n, m, s):
-    return l.update_subrange(n, m, s)
+def vector_update_subrange(bv, n, m, s):
+    return bv.update_subrange(n.toint(), m.toint(), s)
 
-def vector_subrange(l, n, m):
-    return l.subrange(n.toint(), m.toint())
+def vector_subrange(bv, n, m):
+    return bv.subrange(n.toint(), m.toint())
 
 
 def elf_tohost(_):
@@ -253,7 +253,7 @@ def elf_tohost(_):
 
 def get_slice_int(len, n, start):
     n = n.rshift(start.toint())
-    return bitvector.GenericBitVector(len.toint(), n.and_(rbigint.fromint(1).lshift(len.toint()).int_sub(1)))
+    return bitvector.from_bigint(len.toint(), n.and_(rbigint.fromint(1).lshift(len.toint()).int_sub(1)))
 
 def platform_barrier(_):
     return ()

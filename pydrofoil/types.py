@@ -66,7 +66,7 @@ class List(Type):
 
 @unique
 class FixedBitVector(Type):
-    uninitialized_value = "rarithmetic.r_uint(0)"
+    uninitialized_value = "r_uint(0)"
 
     def __init__(self, width):
         # size known at compile time
@@ -108,7 +108,7 @@ class Unit(Type):
 
 @unique
 class Bit(Type):
-    uninitialized_value = "rarithmetic.r_uint(0)"
+    uninitialized_value = "r_uint(0)"
 
 @unique
 class String(Type):

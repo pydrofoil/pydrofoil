@@ -9,7 +9,8 @@ riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
 outpy = os.path.join(os.path.dirname(__file__), "out.py")
 outmipspy = os.path.join(os.path.dirname(__file__), "outmips.py")
 outriscvpy = os.path.join(os.path.dirname(__file__), "outriscv.py")
-elffile = os.path.join(os.path.dirname(__file__), "rv64ui-p-addi.elf")
+elffile1 = os.path.join(os.path.dirname(__file__), "rv64ui-p-addi.elf")
+elffile2 = os.path.join(os.path.dirname(__file__), "rv64um-v-mulhu.elf")
 
 
 addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "Add.hack.bin")
@@ -103,7 +104,6 @@ def test_full_mips():
     exec res.compile() in d
 
 def test_full_riscv():
-    import py
     with open(riscvir, "rb") as f:
         s = f.read()
     res = parse_and_make_code(s, "supportcoderiscv")
@@ -116,4 +116,5 @@ def test_full_riscv():
     supportcoderiscv.g.config_print_reg = False
     supportcoderiscv.g.config_print_mem_access = False
     supportcoderiscv.g.config_print_platform = False
-    supportcoderiscv.main(['executable', elffile])
+    supportcoderiscv.main(['executable', elffile1])
+    supportcoderiscv.main(['executable', elffile2])

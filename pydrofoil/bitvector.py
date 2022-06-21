@@ -1,17 +1,139 @@
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import r_uint, intmask
 
-class SmallBitVector(object):
-    def __init__(self, size, val):
-        self.size = size # number of bits
-        self.val = val # r_uint
-        assert isinstance(val, r_uint)
+def from_ruint(size, val):
+    if size <= 64:
+        return SmallBitVector(size, val, True)
+    return GenericBitVector(size, rbigint.fromrarith_int(val), True)
 
-class GenericBitVector(object):
-    def __init__(self, size, rval):
+def from_bigint(size, rval):
+    if size <= 64:
+        return SmallBitVector(size, rval.touint(), True)
+    return GenericBitVector(size, rval, True)
+
+class BitVector(object):
+    def __init__(self, size):
+        self.size = size
+
+class SmallBitVector(BitVector):
+    def __init__(self, size, val, normalize=False):
+        self.size = size # number of bits
+        assert isinstance(val, r_uint)
+        if normalize:
+            val = val & ((r_uint(1) << size) - 1)
+        self.val = val # r_uint
+
+    def __repr__(self):
+        return "<SmallBitVector %s 0x%x>" % (self.size, self.val)
+
+    def _check_size(self, other):
+        assert other.size == self.size
+        assert isinstance(other, SmallBitVector)
+        return other
+
+    def add_int(self, i):
+        return from_bigint(self.size, self.tobigint().add(i))
+
+    def sub_int(self, i):
+        return from_bigint(self.size, self.tobigint().sub(i))
+
+    def print_bits(self):
+        print self.__repr__()
+
+    def lshift(self, i):
+        return from_ruint(self.size, self.val << i)
+
+    def rshift(self, i):
+        return from_ruint(self.size, self.val >> i)
+
+    def lshift_bits(self, other):
+        return from_ruint(self.size, self.val << other.touint())
+
+    def rshift_bits(self, other):
+        return from_ruint(self.size, self.val >> other.touint())
+
+    def xor(self, other):
+        assert isinstance(other, SmallBitVector)
+        return from_ruint(self.size, self.val ^ other.val)
+
+    def and_(self, other):
+        assert isinstance(other, SmallBitVector)
+        return from_ruint(self.size, self.val & other.val)
+
+    def or_(self, other):
+        assert isinstance(other, SmallBitVector)
+        return from_ruint(self.size, self.val | other.val)
+
+    def invert(self):
+        return from_ruint(self.size, ~self.val)
+
+    def subrange(self, n, m):
+        width = n - m + 1
+        return from_ruint(width, self.val >> m)
+
+    def sign_extend(self, i):
+        if i == self.size:
+            return self
+        assert i > self.size
+        highest_bit = (self.val >> (self.size - 1)) & 1
+        if not highest_bit:
+            return from_ruint(i, self.val)
+        else:
+            assert i <= 64 # otherwise more complicated
+            extra_bits = i - self.size
+            bits = ((r_uint(1) << extra_bits) - 1) << self.size
+            return from_ruint(i, bits | self.val)
+
+    def update_bit(self, pos, bit):
+        mask = r_uint(1) << pos
+        if bit:
+            return from_ruint(self.size, self.val | mask)
+        else:
+            return from_ruint(self.size, self.val & ~mask)
+
+    def update_subrange(self, n, m, s):
+        width = s.size
+        assert width == n - m + 1
+        mask = ~(((r_uint(1) << width) - 1) << m)
+        return from_ruint(self.size, (self.val & mask) | (s.touint() << m))
+
+    def signed(self):
+        n = self.size
+        if n == 64:
+            return rbigint.fromint(intmask(self.val))
+        assert n > 0
+        u1 = r_uint(1)
+        m = u1 << (n - 1)
+        op = self.val & ((u1 << n) - 1) # mask off higher bits to be sure
+        return rbigint.fromint(intmask((op ^ m) - m))
+
+    def unsigned(self):
+        return rbigint.fromrarith_int(self.val)
+
+    def eq(self, other):
+        other = self._check_size(other)
+        return self.val == other.val
+
+    def toint(self):
+        return intmask(self.val)
+
+    def touint(self):
+        return self.val
+
+    def tobigint(self):
+        return rbigint.fromrarith_int(self.val)
+
+
+class GenericBitVector(BitVector):
+    def __init__(self, size, rval, normalize=False):
         assert size > 0
         self.size = size
+        if normalize:
+            rval = self._size_mask(rval)
         self.rval = rval # rbigint
+
+    def __repr__(self):
+        return "<GenericBitVector %s %r>" % (self.size, self.rval)
 
     def _size_mask(self, val):
         return val.and_(rbigint.fromint(1).lshift(self.size).int_sub(1))
@@ -74,9 +196,9 @@ class GenericBitVector(object):
 
     def update_subrange(self, n, m, s):
         width = s.size
-        assert width == n.toint() - m.toint() + 1
-        mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m.toint()).invert()
-        return GenericBitVector(self.size, self.rval.and_(mask).or_(s.rval.lshift(m.toint())))
+        assert width == n - m + 1
+        mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m).invert()
+        return GenericBitVector(self.size, self.rval.and_(mask).or_(s.tobigint().lshift(m)))
 
     def signed(self):
         n = self.size

@@ -26,9 +26,9 @@ Mapping to RPython:
 - enums: int constants, enum constants get globally unique numbers from 0
 - unions: base class with different subclasses for the union members
 - struct: a single class. are they immutable? does assignment copy them?
-- int: rpython.rlib.rbigint.rbigint
+- int: rpython.rlib.rbigint.rbigint (for now)
 - i64: Python int
-- bv: rpython.rlib.rbigint.rbigint (only for now)
+- bv and sbv<num>: bitvector.BitVector (two concrete subclasses, for big and small bitvectors)
 - bv<num>: `rpython.rlib.rarithmetic.r_uint`
 - function: rpython function
 - tuple: generate one rpython class per combination of types, fields `ztup0`, ..., `ztup<n>`

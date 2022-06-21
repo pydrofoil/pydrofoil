@@ -54,14 +54,14 @@ def platform_read_mem(read_kind, addr_size, addr, n):
     assert n <= 8
     assert addr_size == 64
     res = g.mem.read(addr.val, n)
-    return bitvector.GenericBitVector(n*8, rbigint.fromrarith_int(res))
+    return bitvector.from_ruint(n*8, res)
 
 def platform_write_mem(write_kind, addr_size, addr, n, data):
     n = n.toint()
     assert n <= 8
     assert addr_size == 64
     assert data.size == n * 8
-    g.mem.write(addr.val, n, data.rval.touint())
+    g.mem.write(addr.val, n, data.touint())
     return True
 
 class Globals(object):

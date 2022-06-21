@@ -53,7 +53,7 @@ class Union_zinstr(object):
     pass""" in res
     assert """\
 class Union_zinstr_zAINST(Union_zinstr):
-    a = rarithmetic.r_uint(0)
+    a = r_uint(0)
     def __init__(self, a):
         self.a = a # NamedType('%bv16')""" in res
     assert """\

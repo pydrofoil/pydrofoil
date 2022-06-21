@@ -10,7 +10,7 @@ def from_ruint(size, val):
 
 def from_bigint(size, rval):
     if size <= 64:
-        return SmallBitVector(size, rval.touint(), True)
+        return SmallBitVector(size, BitVector.rbigint_mask(size, rval).touint())
     return GenericBitVector(size, rval, True)
 
 class BitVector(object):

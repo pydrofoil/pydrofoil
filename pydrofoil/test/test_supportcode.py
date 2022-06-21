@@ -90,6 +90,11 @@ def test_vector_subrange():
     assert r.size == 2
     assert r.toint() == 1
 
+    # regression bug
+    b = gbv(128, 0x36000000000000001200L)
+    x = b.subrange(63, 0)
+    assert x.touint() == 0x1200
+
 def test_vector_update_subrange():
     for c in gbv, bv:
         x = c(8, 0b10001101)

@@ -47,4 +47,85 @@ Operations on values (of the types)
 - function calls to other jib functions: maps to function calls in rpython
 - "magic", built-in operations, prefixed with "@"
 
+Diagrams
+==
 
+
+## C emulator generation
+
+```graphviz
+digraph hierarchy {
+
+    node [fontname=Courier,shape=box] 
+    edge [fontname=Courier]
+
+    model [label="Sail CPU ISA Specification"]
+    model->coq [label="sail generates"]
+    coq [label="coq model", fontcolor=blue]
+    model->jib [label="sail generates"]
+    jib [label="JIB intermediate representation", fontcolor=blue]
+    jib->C [label="sail generates"]
+    C [label="C Code", fontcolor=blue]
+    support [label="Handwritten C Support Code"]
+    support->emulator
+    C->emulator [label="GCC generates"]
+    emulator [label="emulator binary", fontcolor=blue] 
+}
+```
+
+## C emulator execution
+
+```graphviz
+digraph hierarchy {
+
+    node [fontname=Courier,shape=box] 
+    edge [fontname=Courier]
+
+    program -> binary [label="compiler generates"]
+    emulator [label="emulator binary", fontcolor=blue]
+    binary [label="binary file", fontcolor=blue]
+    binary->emulator [label="input to"]
+    emulator->behaviour
+    behaviour [shape=none, fontcolor=red]
+}
+```
+
+## Pydrofoil: C emulator generation with JIT
+
+```graphviz
+digraph hierarchy {
+
+    node [fontname=Courier,shape=box] 
+    edge [fontname=Courier]
+
+    model [label="Sail CPU ISA Specification"]
+    model->jib [label="sail generates"]
+    jib [label="JIB intermediate representation", fontcolor=blue]
+    jib->rpython [label="pydrofoil generates"]
+    rpython [label="RPython Code", fontcolor=blue]
+    support [label="Handwritten RPython Support Code"]
+    support->emulator
+    rpython->emulator [label="RPython generates"]
+    emulator [label="emulator binary with jit", fontcolor=blue] 
+}
+```
+
+## C emulator execution with JIT
+
+
+```graphviz
+digraph hierarchy {
+
+    node [fontname=Courier,shape=box] 
+    edge [fontname=Courier]
+
+    program -> binary [label="compiler generates"]
+    emulator [label="emulator binary with jit", fontcolor=blue]
+    binary [label="binary file [guest]", fontcolor=blue]
+    binary->emulator [label="input to"]
+    jit->behaviour
+    emulator->jit [label="at runtime produces"]
+    jit [label="machine code [host]", fontcolor=blue]
+    behaviour [shape=none, fontcolor=red]
+}
+```

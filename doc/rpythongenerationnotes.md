@@ -53,10 +53,13 @@ Diagrams
 
 ## C emulator generation
 
-```graphviz
+![Alt text](https://g.gravizo.com/source/custom_mark10?https%3A%2F%2Fgithub.com%2Fcfbolz%2Fpydrofoil%2Fblob%2Fmain%2Fdoc%2Frpythongenerationnotes.md)
+<details>
+<summary></summary>
+custom_mark10
 digraph hierarchy {
 
-    node [fontname=Courier,shape=box] 
+    node [fontname=Courier,shape=box]
     edge [fontname=Courier]
 
     model [label="Sail CPU ISA Specification"]
@@ -69,16 +72,17 @@ digraph hierarchy {
     support [label="Handwritten C Support Code"]
     support->emulator
     C->emulator [label="GCC generates"]
-    emulator [label="emulator binary", fontcolor=blue] 
+    emulator [label="emulator binary", fontcolor=blue]
 }
-```
+custom_mark10
+</details>
 
 ## C emulator execution
 
 ```graphviz
 digraph hierarchy {
 
-    node [fontname=Courier,shape=box] 
+    node [fontname=Courier,shape=box]
     edge [fontname=Courier]
 
     program -> binary [label="compiler generates"]

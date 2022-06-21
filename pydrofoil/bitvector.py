@@ -17,6 +17,10 @@ class BitVector(object):
     def __init__(self, size):
         self.size = size
 
+    @staticmethod
+    def rbigint_mask(size, rval):
+        return rval.and_(rbigint.fromint(1).lshift(size).int_sub(1))
+
 class SmallBitVector(BitVector):
     def __init__(self, size, val, normalize=False):
         self.size = size # number of bits
@@ -34,10 +38,18 @@ class SmallBitVector(BitVector):
         return other
 
     def add_int(self, i):
-        return from_bigint(self.size, self.tobigint().add(i.tobigint()))
+        if isinstance(i, SmallInteger):
+            if i.val > 0:
+                return from_ruint(self.size, self.val + r_uint(i.val))
+        # XXX can be better
+        return from_bigint(self.size, self.rbigint_mask(self.size, self.tobigint().add(i.tobigint())))
 
     def sub_int(self, i):
-        return from_bigint(self.size, self.tobigint().sub(i.tobigint()))
+        if isinstance(i, SmallInteger):
+            if i.val > 0:
+                return from_ruint(self.size, self.val - r_uint(i.val))
+        # XXX can be better
+        return from_bigint(self.size, self.rbigint_mask(self.size, self.tobigint().sub(i.tobigint())))
 
     def print_bits(self):
         print self.__repr__()
@@ -138,7 +150,7 @@ class GenericBitVector(BitVector):
         return "<GenericBitVector %s %r>" % (self.size, self.rval)
 
     def _size_mask(self, val):
-        return val.and_(rbigint.fromint(1).lshift(self.size).int_sub(1))
+        return self.rbigint_mask(self.size, val)
 
     def add_int(self, i):
         return GenericBitVector(self.size, self._size_mask(self.rval.add(i.tobigint())))
@@ -317,7 +329,7 @@ class SmallInteger(Integer):
                 return SmallInteger(ovfcheck(self.val - other.val))
             except OverflowError:
                 pass
-        return BigInteger(self.tobigint().sub(other.tobigint())) # XXX can do better
+        return BigInteger((other.tobigint().int_sub(self.val)).neg()) # XXX can do better
 
     def mul(self, other):
         if isinstance(other, SmallInteger):

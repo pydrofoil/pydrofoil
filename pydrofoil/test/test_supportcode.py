@@ -161,3 +161,10 @@ def test_op_int():
                     assert c1(v1).gt(c2(v2)) == (v1 > v2)
                     assert c1(v1).le(c2(v2)) == (v1 <= v2)
                     assert c1(v1).ge(c2(v2)) == (v1 >= v2)
+
+def test_op_gv_int():
+    for c1 in gbv, bv:
+        for c2 in bi, si:
+            assert c1(16, 4).add_int(c2(9)).touint() == 13
+            assert c1(16, 4).sub_int(c2(9)).touint() == r_uint((-5) & 0xffff)
+

@@ -147,7 +147,7 @@ def eq_bit(a, b):
     return a == b
 
 def eq_bits(gvba, gvbb):
-    return gvba.rval.eq(gvbb.rval)
+    return gvba.eq(gvbb)
 
 def xor_bits(gvba, gvbb):
     return gvba.xor(gvbb)
@@ -210,19 +210,19 @@ def eq_bool(a, b):
     return a == b
 
 def shiftl(gbv, i):
-    return gbv.shiftl(i.toint())
+    return gbv.lshift(i.toint())
 
 def shiftr(gbv, i):
-    return gbv.shiftr(i.toint())
+    return gbv.rshift(i.toint())
 
 def shift_bits_left(gbv, gbva):
-    return gbv.shiftl(gbva.rval.toint())
+    return gbv.lshift_bits(gbva)
 
 def shift_bits_right(gbv, gbva):
-    return gbv.shiftr(gbva.rval.toint())
+    return gbv.rshift_bits(gbva)
 
 def sail_unsigned(gbv):
-    return gbv.rval
+    return gbv.unsigned()
 
 def sail_signed(gbv):
     return gbv.signed()
@@ -242,10 +242,7 @@ def vector_update(l, index, element):
     return l.update_bit(index.toint(), element)
 
 def vector_update_subrange(l, n, m, s):
-    width = s.size
-    assert width == n.toint() - m.toint() + 1
-    mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m.toint()).invert()
-    return bitvector.GenericBitVector(l.size, l.rval.and_(mask).or_(s.rval.lshift(m.toint())))
+    return l.update_subrange(n, m, s)
 
 def vector_subrange(l, n, m):
     return l.subrange(n.toint(), m.toint())
@@ -272,7 +269,7 @@ def concat_str(a, b):
 
 
 def string_of_bits(gbv):
-    res = gbv.rval.format("0123456789ABCDEF")
+    res = gbv.tobigint().format("0123456789ABCDEF")
     return "0x%s%s" % ("0" * max(0, 8 - len(res)), res)
 
 def decimal_string_of_bits(sbits):

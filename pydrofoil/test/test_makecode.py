@@ -52,10 +52,12 @@ class Union_zinstr(object):
     pass""" in res
     assert """\
 class Union_zinstr_zAINST(Union_zinstr):
+    a = rarithmetic.r_uint(0)
     def __init__(self, a):
         self.a = a # NamedType('%bv16')""" in res
     assert """\
 class Union_zinstr_zCINST(Union_zinstr):
+    a = Tuple_2()
     def __init__(self, a):
         self.a = a # TupleType(elements=[NamedType('%bv1'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), NamedType('%bool')])
 """ in res

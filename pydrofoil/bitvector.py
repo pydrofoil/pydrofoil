@@ -25,11 +25,17 @@ class GenericBitVector(object):
     def print_bits(self):
         print "GenericBitVector<%s, %s>" % (self.size, self.rval.hex())
 
-    def shiftl(self, i):
+    def lshift(self, i):
         return GenericBitVector(self.size, self._size_mask(self.rval.lshift(i)))
 
-    def shiftr(self, i):
+    def rshift(self, i):
         return GenericBitVector(self.size, self._size_mask(self.rval.rshift(i)))
+
+    def lshift_bits(self, other):
+        return GenericBitVector(self.size, self._size_mask(self.rval.lshift(other.toint())))
+
+    def rshift_bits(self, other):
+        return GenericBitVector(self.size, self._size_mask(self.rval.rshift(other.toint())))
 
     def xor(self, other):
         return GenericBitVector(self.size, self._size_mask(self.rval.xor(other.rval)))
@@ -66,6 +72,12 @@ class GenericBitVector(object):
         else:
             return GenericBitVector(self.size, self._size_mask(self.rval.and_(mask.invert())))
 
+    def update_subrange(self, n, m, s):
+        width = s.size
+        assert width == n.toint() - m.toint() + 1
+        mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m.toint()).invert()
+        return GenericBitVector(self.size, self.rval.and_(mask).or_(s.rval.lshift(m.toint())))
+
     def signed(self):
         n = self.size
         assert n > 0
@@ -74,3 +86,18 @@ class GenericBitVector(object):
         op = self.rval
         op = op.and_((u1.lshift(n)).int_sub(1)) # mask off higher bits to be sure
         return op.xor(m).sub(m)
+
+    def unsigned(self):
+        return self.rval
+
+    def eq(self, other):
+        return self.rval.eq(other.rval)
+
+    def toint(self):
+        return self.rval.toint()
+
+    def touint(self):
+        return self.rval.touint()
+
+    def tobigint(self):
+        return self.rval

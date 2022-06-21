@@ -278,7 +278,10 @@ def main(argv):
     return 0
 
 def get_printable_location(pc):
-    return str(pc)
+    from pydrofoil.test import outriscv
+    ast = outriscv.func_zdecode(g.last_instr)
+    dis = outriscv.func_zprint_insn(ast)
+    return hex(pc) + ": " + dis
 
 driver = JitDriver(
     get_printable_location=get_printable_location,
@@ -381,7 +384,7 @@ def get_main():
     orig = outriscv.func_zdecode
     def func_zdecode(x):
         jit.promote(x)
+        g.last_instr = x
         return orig(x)
     outriscv.func_zdecode = func_zdecode
-    jit.unroll_safe(outriscv.func_zexecute)
     return main

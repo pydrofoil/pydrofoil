@@ -89,7 +89,7 @@ def test_full_nand():
         supportcode.load_rom(addrom)
         zmymain(10, False)
     t = Translation(main, [])
-    t.backendopt() # check that it's rpython
+    t.rtype() # check that it's rpython
 
 @pytest.mark.xfail
 def test_full_mips():

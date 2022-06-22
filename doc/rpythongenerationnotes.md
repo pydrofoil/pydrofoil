@@ -40,6 +40,10 @@ Mapping to RPython:
 - unit: rpython empty tuple
 
 
+Goto in RPython
+==
+- use an endless loop `while 1:` and a pc variable.
+- see: https://en.wikipedia.org/wiki/LOOP_(programming_language)
 
 Operations on values (of the types)
 ==

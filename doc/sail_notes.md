@@ -1,10 +1,11 @@
 Notes about what we have learned about SAIL
 =
 SAIL is a language to define hardware e.g. RISC V.
-Out goal is to write/generate a fast and easy extensible simulator in RPYTHON.
+The goal of the pydrofoil project is to write/generate a fast 
+and easy extensible simulator in RPythion.
 Examples in this file can be found in nand2tetris.sail.
 
-More about sail install: https://github.com/rems-project/sail/blob/0.14/INSTALL.md
+More about SAIL: https://github.com/rems-project/sail
 
 Semicolon:
 ==
@@ -49,7 +50,7 @@ Normal Functions:
 ==
 Argument types after colon and return type after ->. 
 Body after =.
-Brackets used when body cotains more than one statment. 
+Brackets used when body contains more than one statment. 
 Last expression is the return value.
 
 Example:
@@ -75,7 +76,7 @@ function fetch_decode_execute () = {
 
 Pattern Match Functions:
 ==
-Uses the keyword clause. Only applyes when patter matches. 
+Uses the keyword clause. Only applies when pattern matches. 
 The "match all pattern" is undercore _.
 
 Example:
@@ -100,7 +101,7 @@ Example:
 
 Some:
 ==
-An optional type.
+An optional type. The type or None. Like Optional in Java.
 
 Example:
 ```
@@ -142,7 +143,7 @@ default Order dec.
 
 Operator Overloading:
 ==
-Use function for operators like minus. c: defines the function name on the
+Use function for (unimplemented) operators like minus. c: defines the function name on the
 c level. 'n is a type variable (e.g. 16 bit)
 
 Example:

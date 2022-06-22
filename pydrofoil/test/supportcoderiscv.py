@@ -18,7 +18,6 @@ class BlockMemory(object):
         self.blocks = {}
 
     @unroll_safe
-    @objectmodel.specialize.argtype(1)
     def read(self, start_addr, num_bytes):
         block = self.get_block(start_addr >> self.ADDRESS_BITS_BLOCK)
         start_addr = start_addr & self.BLOCK_MASK
@@ -29,7 +28,6 @@ class BlockMemory(object):
             value = value | ord(block[start_addr + i])
         return r_uint(value)
 
-    @objectmodel.specialize.argtype(1)
     def get_block(self, block_addr):
         if block_addr in self.blocks:
             return self.blocks[block_addr]
@@ -37,7 +35,6 @@ class BlockMemory(object):
         return res
 
     @unroll_safe
-    @objectmodel.specialize.argtype(1, 3)
     def write(self, start_addr, num_bytes, value):
         block = self.get_block(start_addr >> self.ADDRESS_BITS_BLOCK)
         start_addr = start_addr & self.BLOCK_MASK
@@ -54,7 +51,7 @@ def platform_read_mem(read_kind, addr_size, addr, n):
     n = n.toint()
     assert n <= 8
     assert addr_size == 64
-    res = g.mem.read(addr.val, n)
+    res = g.mem.read(addr.touint(), n)
     return bitvector.from_ruint(n*8, res)
 
 def platform_write_mem(write_kind, addr_size, addr, n, data):
@@ -62,7 +59,7 @@ def platform_write_mem(write_kind, addr_size, addr, n, data):
     assert n <= 8
     assert addr_size == 64
     assert data.size == n * 8
-    g.mem.write(addr.val, n, data.touint())
+    g.mem.write(addr.touint(), n, data.touint())
     return True
 
 class Globals(object):
@@ -352,7 +349,7 @@ def load_sail(fn):
     g.mem = mem
 
     for section in sections:
-        start_addr = section.addr
+        start_addr = r_uint(section.addr)
         for i, data in enumerate(section.data):
             mem.write(start_addr + i, 1, ord(data))
         if section.name == ".tohost":

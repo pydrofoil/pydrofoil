@@ -76,14 +76,14 @@ class __extend__(types.FixedBitVector):
 
 class __extend__(types.SmallBitVector):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
-        return "%s.val == %s.val" % (sarg1, sarg2)
+        return "%s.touint() == %s.touint()" % (sarg1, sarg2)
 
     def make_op_code_templated_slice(self, ast, codegen):
         arg, num = ast.args
         assert isinstance(num, parse.Number)
         assert isinstance(ast.templateparam, parse.Number)
         width = ast.templateparam.number
-        return "supportcode.safe_rshift(%s.val, %s) & r_uint(0x%x)" % (arg.to_code(codegen), num.number, (1 << width) - 1)
+        return "supportcode.safe_rshift(%s.touint(), %s) & r_uint(0x%x)" % (arg.to_code(codegen), num.number, (1 << width) - 1)
 
 class __extend__(types.MachineInt):
     def machineintop(self, template, sargs, argtyps):

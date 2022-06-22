@@ -177,13 +177,13 @@ class GenericBitVector(BitVector):
         return GenericBitVector(self.size, self._size_mask(self.rval.rshift(other.toint())))
 
     def xor(self, other):
-        return GenericBitVector(self.size, self._size_mask(self.rval.xor(other.rval)))
+        return GenericBitVector(self.size, self._size_mask(self.rval.xor(other.tobigint())))
 
     def or_(self, other):
-        return GenericBitVector(self.size, self._size_mask(self.rval.or_(other.rval)))
+        return GenericBitVector(self.size, self._size_mask(self.rval.or_(other.tobigint())))
 
     def and_(self, other):
-        return GenericBitVector(self.size, self._size_mask(self.rval.and_(other.rval)))
+        return GenericBitVector(self.size, self._size_mask(self.rval.and_(other.tobigint())))
 
     def invert(self):
         return GenericBitVector(self.size, self._size_mask(self.rval.invert()))
@@ -230,7 +230,8 @@ class GenericBitVector(BitVector):
         return Integer.frombigint(self.rval)
 
     def eq(self, other):
-        return self.rval.eq(other.rval)
+        assert self.size == other.size
+        return self.rval.eq(other.tobigint())
 
     def toint(self):
         return self.rval.toint()

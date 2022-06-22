@@ -16,10 +16,13 @@ class BlockMemory(object):
 
     def __init__(self):
         self.blocks = {}
+        self.last_block = None
+        self.last_block_addr = r_uint(0)
 
     @unroll_safe
     def read(self, start_addr, num_bytes):
-        block = self.get_block(start_addr >> self.ADDRESS_BITS_BLOCK)
+        block_addr = start_addr >> self.ADDRESS_BITS_BLOCK
+        block = self.get_block(block_addr)
         start_addr = start_addr & self.BLOCK_MASK
         assert 1 <= num_bytes <= 8
         value = 0
@@ -29,6 +32,17 @@ class BlockMemory(object):
         return r_uint(value)
 
     def get_block(self, block_addr):
+        last_block = self.last_block
+        if last_block is not None and block_addr == self.last_block_addr:
+            block = last_block
+        else:
+            block = self._get_block(block_addr)
+            self.last_block = block
+            self.last_block_addr = block_addr
+        return block
+
+    @elidable
+    def _get_block(self, block_addr):
         if block_addr in self.blocks:
             return self.blocks[block_addr]
         res = self.blocks[block_addr] = ["\x00"] * self.BLOCK_SIZE
@@ -36,7 +50,8 @@ class BlockMemory(object):
 
     @unroll_safe
     def write(self, start_addr, num_bytes, value):
-        block = self.get_block(start_addr >> self.ADDRESS_BITS_BLOCK)
+        block_addr = start_addr >> self.ADDRESS_BITS_BLOCK
+        block = self.get_block(block_addr)
         start_addr = start_addr & self.BLOCK_MASK
         assert 1 <= num_bytes <= 8
         for i in range(num_bytes):

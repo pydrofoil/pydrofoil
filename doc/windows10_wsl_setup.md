@@ -4,6 +4,8 @@ Notes about how to Setup Pydrofoil on Windows 10 using WSL
 
 Shell Commands
 ==
+
+```bash
 wsl
 sudo add-apt-repository ppa:avsm/ppa
 sudo apt-get update
@@ -19,3 +21,4 @@ opam install sail
 virtualenv -p python2 venv
 ./venv/bin/pip install rply
 ./venv/bin/python pypy/pytest.py pydrofoil/
+```

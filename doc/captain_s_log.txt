@@ -31,12 +31,21 @@
 20.06.2022:
 - risc-v works translated, but some primitives are missing
 
+21.06.2022:
+- optimization of bitvectors and integers by size specializing them into the
+  64bit fast case and the general big bit vector case using rbigint
+
+22.06.2022:
+- introdution to the whole stack of layers for Nico
+
+
 TODO:
 - C Warnings fix in sail code
 - Test SetUp. C vs Python (John: run generated C emulator on examples, check output from a test_cemulator.py file, hardcoded)
-- New slide format (CF)
 - add jib code as comment Docstrings in generated code (John?)
 - add assert that we are on a 64bit system (John)
-- new implementation for bv that stores number of bits
 - make clean target (John)
-- dump state into file at the end
+- nand: dump state into file at the end
+- commit sail notes (John)
+- meta: make github issues (john)
+

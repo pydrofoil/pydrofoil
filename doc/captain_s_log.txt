@@ -1,4 +1,47 @@
-15.06.2022 - by JW
+Developer Log
+=
+
+22.06.2022:
+==
+- participants: CF, JW, NR
+- introdution to the whole stack of layers for Nico
+
+21.06.2022:
+==
+- participants: CF
+- optimization of bitvectors and integers by size specializing them into the
+  64bit fast case and the general big bit vector case using rbigint
+  
+20.06.2022:
+==
+- participants: CF
+- risc-v works translated, but some primitives are missing
+
+19.06.2022
+==
+- participants: CF
+- risc-v works untranslated
+
+17.06.2022
+==
+- participants: CF
+- parse RISC-V model
+- progress on generating code for MIPS
+- generate (not yet working) code for RISC-V
+
+
+16.06.2022
+==
+- participants: CF, JW
+- start some docs
+- fixed warnings in nand2tetris
+- hacked a jit for nand together, 300x faster than the C emulator
+- added enough to the parser to parse MIPS
+
+
+15.06.2022
+==
+- participants: CF, JW
 - see console history log for setup
 - nand 2 tetris (https://www.nand2tetris.org/) cpu case study works
 - ocaml setup: ocamlInstallationGuide.pdf
@@ -13,39 +56,4 @@
 - Warning: wrong casting (uint8, int64 e.g) caused problem in input parsing
 - use printf of cpu state (PC, A, D, cycle) for now
 
-
-16.06.2022 -
-- start some docs
-- fixed warnings in nand2tetris
-- hacked a jit for nand together, 300x faster than the C emulator
-- added enough to the parser to parse MIPS
-
-17.06.2022 -
-- parse RISC-V model
-- progress on generating code for MIPS
-- generate (not yet working) code for RISC-V
-
-19.06.2022:
-- risc-v works untranslated
-
-20.06.2022:
-- risc-v works translated, but some primitives are missing
-
-21.06.2022:
-- optimization of bitvectors and integers by size specializing them into the
-  64bit fast case and the general big bit vector case using rbigint
-
-22.06.2022:
-- introdution to the whole stack of layers for Nico
-
-
-TODO:
-- C Warnings fix in sail code
-- Test SetUp. C vs Python (John: run generated C emulator on examples, check output from a test_cemulator.py file, hardcoded)
-- add jib code as comment Docstrings in generated code (John?)
-- add assert that we are on a 64bit system (John)
-- make clean target (John)
-- nand: dump state into file at the end
-- commit sail notes (John)
-- meta: make github issues (john)
 

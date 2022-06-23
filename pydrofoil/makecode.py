@@ -402,7 +402,7 @@ class __extend__(parse.Function):
         for i, op in enumerate(block):
             if (isinstance(op, parse.LocalVarDeclaration) and
                     i + 1 < len(block) and
-                    isinstance(block[i + 1], parse.Assignment) and
+                    isinstance(block[i + 1], (parse.Assignment, parse.Operation)) and
                     op.name == block[i + 1].result):
                 op.make_op_code(codegen, False)
             elif isinstance(op, parse.ConditionalJump):

@@ -3,6 +3,10 @@ from rpython.tool.pairtype import pair
 from pydrofoil import parse, types, binaryop, operations
 from contextlib import contextmanager
 
+import sys
+
+assert sys.maxint == 2 ** 63 - 1, "only 64 bit platforms are supported!"
+
 class NameInfo(object):
     def __init__(self, pyname, typ, ast):
         self.pyname = pyname

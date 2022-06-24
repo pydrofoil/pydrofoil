@@ -9,7 +9,6 @@ riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
 outriscvpy = os.path.join(os.path.dirname(__file__), "outriscv.py")
 
 
-
 def target(*args):
     import py
     print "making python code"

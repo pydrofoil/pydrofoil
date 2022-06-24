@@ -349,17 +349,17 @@ class __extend__(parse.Function):
         typ = codegen.globalnames[self.name].typ
         uniontyp = typ.argtype.elements[0]
         switches = []
-        curr_block = blocks[0]
         curr_offset = 0
         while 1:
+            curr_block = blocks[curr_offset]
             op = self.detect_union_switch(curr_block)
             if op is None:
-                switches.append((curr_block, None))
+                switches.append((curr_block, curr_offset, None))
                 break
-            switches.append((curr_block, op))
-            curr_block = blocks[op.target]
+            switches.append((curr_block, curr_offset, op))
+            curr_offset = op.target
         generated_for_class = set()
-        for i, (block, cond) in enumerate(switches):
+        for i, (block, oldpc, cond) in enumerate(switches):
             if cond is not None:
                 clsname = codegen.getname(cond.condition.variant)
                 known_cls = cond.condition.variant
@@ -371,22 +371,22 @@ class __extend__(parse.Function):
             generated_for_class.add(clsname)
             copyblock = []
             # add all var declarations of all the previous blocks
-            for prevblock, prevcond in switches[:i]:
+            for prevblock, _, prevcond in switches[:i]:
                 copyblock.extend(prevblock[:prevblock.index(prevcond)])
             # now add all operations except the condition
             b = block[:]
             if cond:
                 del b[block.index(cond)]
             copyblock.extend(b)
-            local_blocks = self._find_reachable(copyblock, blocks, known_cls)
+            local_blocks = self._find_reachable(copyblock, oldpc, blocks, known_cls)
             # recompute entrycounts
             local_entrycounts = self._compute_entrycounts(local_blocks)
             pyname = self.name + "_" + (cond.condition.variant if cond else "default")
             with self._scope(codegen, pyname):
-                self._emit_blocks(local_blocks, codegen, local_entrycounts)
+                self._emit_blocks(local_blocks, codegen, local_entrycounts, startpc=oldpc)
             codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
 
-    def _find_reachable(self, block, blocks, known_cls=None):
+    def _find_reachable(self, block, blockpc, blocks, known_cls=None):
         # return all the blocks reachable from "block", where self.args[0] is
         # know to be an instance of known_cls
         def process(index, current):
@@ -401,7 +401,6 @@ class __extend__(parse.Function):
                         # always false, replace with Goto
                         current[i] = parse.Goto(op.target)
                         del current[i+1:]
-                        break
                 if isinstance(op, (parse.Goto, parse.ConditionalJump)):
                     if op.target not in added:
                         added.add(op.target)
@@ -410,7 +409,7 @@ class __extend__(parse.Function):
         added = set()
         res = []
         todo = []
-        process(0, block)
+        process(blockpc, block)
         while todo:
             index = todo.pop()
             current = blocks[index]
@@ -418,8 +417,8 @@ class __extend__(parse.Function):
         return {k: v for k, v in res}
 
 
-    def _emit_blocks(self, blocks, codegen, entrycounts):
-        codegen.emit("pc = 0")
+    def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
+        codegen.emit("pc = %s" % startpc)
         with codegen.emit_indent("while 1:"):
             for blockpc, block in sorted(blocks.items()):
                 if block == [None]:

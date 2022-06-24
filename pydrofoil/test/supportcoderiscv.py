@@ -33,7 +33,7 @@ class BlockMemory(object):
     def _get_block(self, block_addr):
         if block_addr in self.blocks:
             return self.blocks[block_addr]
-        res = self.blocks[block_addr] = ["\x00"] * self.BLOCK_SIZE
+        res = self.blocks[block_addr] = [r_uint(0)] * (self.BLOCK_SIZE // 8)
         return res
 
     def _alignment_mask(self, num_bytes):
@@ -48,49 +48,62 @@ class BlockMemory(object):
         else:
             assert 0, "invalid num_bytes"
 
-    @unroll_safe
+    def _split_addr(self, start_addr, num_bytes):
+        block_addr = start_addr >> self.ADDRESS_BITS_BLOCK
+        block = self.get_block(block_addr)
+        start_addr = start_addr & self.BLOCK_MASK
+        block_offset = start_addr >> 3
+        inword_addr = start_addr & 0b111
+        # little endian
+        mask = (r_uint(1) << (num_bytes * 8)) - 1
+        return block, block_offset, inword_addr, mask
+
     def read(self, start_addr, num_bytes):
         alignment_mask = self._alignment_mask(num_bytes)
         if start_addr & alignment_mask:
             # not aligned! slow path
             return self._unaligned_read(start_addr, num_bytes)
-        block_addr = start_addr >> self.ADDRESS_BITS_BLOCK
-        block = self.get_block(block_addr)
-        start_addr = start_addr & self.BLOCK_MASK
-        assert 1 <= num_bytes <= 8
-        value = 0
-        for i in range(num_bytes - 1, -1, -1):
-            value = value << 8
-            value = value | ord(block[start_addr + i])
-        return r_uint(value)
+        return self._aligned_read(start_addr, num_bytes)
+
+    def _aligned_read(self, start_addr, num_bytes):
+        block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+        data = block[block_offset]
+        if num_bytes == 8:
+            assert inword_addr == 0
+            return data
+        return (data >> (inword_addr * 8)) & mask
 
     @unroll_safe
     def _unaligned_read(self, start_addr, num_bytes):
-        value = 0
+        value = r_uint(0)
         for i in range(num_bytes - 1, -1, -1):
             value = value << 8
             value = value | self.read(start_addr + i, 1)
-        return r_uint(value)
+        return value
 
-    @unroll_safe
     def write(self, start_addr, num_bytes, value):
         alignment_mask = self._alignment_mask(num_bytes)
         if start_addr & alignment_mask:
             # not aligned! slow path
             return self._unaligned_write(start_addr, num_bytes, value)
-        block_addr = start_addr >> self.ADDRESS_BITS_BLOCK
-        block = self.get_block(block_addr)
-        start_addr = start_addr & self.BLOCK_MASK
-        assert 1 <= num_bytes <= 8
-        for i in range(num_bytes):
-            block[start_addr + i] = chr(value & 0xFF)
-            value = value >> 8
-        assert not value
+        return self._aligned_write(start_addr, num_bytes, value)
+
+    def _aligned_write(self, start_addr, num_bytes, value):
+        block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+        if num_bytes == 8:
+            assert inword_addr == 0
+            block[block_offset] = value
+            return
+        assert value & ~mask == 0
+        olddata = block[block_offset]
+        mask <<= inword_addr * 8
+        value <<= inword_addr * 8
+        block[block_offset] = (olddata & ~mask) | value
 
     @unroll_safe
     def _unaligned_write(self, start_addr, num_bytes, value):
         for i in range(num_bytes):
-            self.write(start_addr + i, 1, value & 0xff)
+            self._aligned_write(start_addr + i, 1, value & 0xff)
             value = value >> 8
         assert not value
 
@@ -281,7 +294,7 @@ def init_sail_reset_vector(entry):
     addr = r_uint(rv_rom_base)
     for i, fourbytes in enumerate(reset_vec):
         for j in range(4):
-            write_mem(addr, fourbytes & 0xff) # XXX endianness?
+            write_mem(addr, fourbytes & 0xff) # little endian
             addr += 1
             fourbytes >>= 8
         assert fourbytes == 0
@@ -403,7 +416,7 @@ def load_sail(fn):
     for section in sections:
         start_addr = r_uint(section.addr)
         for i, data in enumerate(section.data):
-            mem.write(start_addr + i, 1, ord(data))
+            mem.write(start_addr + i, 1, r_uint(ord(data)))
         if section.name == ".tohost":
             entrypoint = intmask(section.addr)
 

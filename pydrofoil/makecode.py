@@ -203,14 +203,33 @@ class __extend__(parse.Union):
                 self.pynames.append(pyname)
                 with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                     rtyp = typ.resolve_type(codegen)
-                    codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
+                    if type(rtyp) is types.Tuple:
+                        for fieldnum, fieldtyp in enumerate(rtyp.elements):
+                            codegen.emit("utup%s = %s" % (fieldnum, fieldtyp.uninitialized_value))
+                    elif rtyp is not types.Unit():
+                        codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                     # XXX could special-case tuples here, and unit
                     with codegen.emit_indent("def __init__(self, a):"):
-                        codegen.emit("self.a = a # %s" % (typ, ))
+                        if rtyp is types.Unit():
+                            codegen.emit("pass")
+                        elif type(rtyp) is types.Tuple:
+                            codegen.emit("# %s" % typ)
+                            for fieldnum, fieldtyp in enumerate(rtyp.elements):
+                                codegen.emit("self.utup%s = a.ztup%s" % (fieldnum, fieldnum))
+                        else:
+                            codegen.emit("self.a = a # %s" % (typ, ))
                     codegen.emit("@staticmethod")
                     with codegen.emit_indent("def convert(inst):"):
                         with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
-                            codegen.emit("return inst")
+                            if rtyp is types.Unit():
+                                codegen.emit("return ()")
+                            elif type(rtyp) is types.Tuple:
+                                codegen.emit("res = %s" % rtyp.uninitialized_value)
+                                for fieldnum, fieldtyp in enumerate(rtyp.elements):
+                                    codegen.emit("res.ztup%s = inst.utup%s" % (fieldnum, fieldnum))
+                                codegen.emit("return res")
+                            else:
+                                codegen.emit("return inst.a")
                         with codegen.emit_indent("else:"):
                             codegen.emit("raise TypeError")
         if self.name == "zexception":
@@ -661,7 +680,7 @@ class __extend__(parse.FieldAccess):
 class __extend__(parse.Cast):
     def to_code(self, codegen):
         expr = self.expr.to_code(codegen)
-        return "(%s.convert(%s).a)" % (codegen.getname(self.variant), expr)
+        return "%s.convert(%s)" % (codegen.getname(self.variant), expr)
 
     def gettyp(self, codegen):
         # XXX clean up

@@ -138,6 +138,7 @@ def parse_and_make_code(s, supportcodename="supportcode"):
     c = Codegen()
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib.rbigint import rbigint")
+        c.emit("from rpython.rlib import objectmodel")
         c.emit("from rpython.rlib.rarithmetic import r_uint, intmask")
         c.emit("import operator")
         c.emit("from pydrofoil.test import %s as supportcode" % supportcodename)
@@ -219,6 +220,7 @@ class __extend__(parse.Union):
                         else:
                             codegen.emit("self.a = a # %s" % (typ, ))
                     codegen.emit("@staticmethod")
+                    codegen.emit("@objectmodel.always_inline")
                     with codegen.emit_indent("def convert(inst):"):
                         with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
                             if rtyp is types.Unit():

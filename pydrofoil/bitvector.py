@@ -1,13 +1,16 @@
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck
+from rpython.rlib.objectmodel import always_inline
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 
+@always_inline
 def from_ruint(size, val):
     if size <= 64:
         return SmallBitVector(size, val, True)
     return GenericBitVector(size, rbigint.fromrarith_int(val), True)
 
+@always_inline
 def from_bigint(size, rval):
     if size <= 64:
         return SmallBitVector(size, BitVector.rbigint_mask(size, rval).touint())
@@ -263,6 +266,7 @@ class Integer(object):
             return BigInteger(rbigint._from_numberstring_parser(e.parser))
 
     @staticmethod
+    @always_inline
     def from_ruint(val):
         if val & (r_uint(1)<<63):
             # bigger than biggest signed int

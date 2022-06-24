@@ -36,15 +36,15 @@ class BlockMemory(object):
         res = self.blocks[block_addr] = [r_uint(0)] * (self.BLOCK_SIZE // 8)
         return res
 
-    def _alignment_mask(self, num_bytes):
+    def is_aligned(self, addr, num_bytes):
         if num_bytes == 1:
-            return 0
+            return True
         elif num_bytes == 2:
-            return 0b1
+            return bool(addr & 0b1)
         elif num_bytes == 4:
-            return 0b11
+            return bool(addr & 0b11)
         elif num_bytes == 8:
-            return 0b111
+            return bool(addr & 0b111)
         else:
             assert 0, "invalid num_bytes"
 
@@ -59,8 +59,7 @@ class BlockMemory(object):
         return block, block_offset, inword_addr, mask
 
     def read(self, start_addr, num_bytes):
-        alignment_mask = self._alignment_mask(num_bytes)
-        if start_addr & alignment_mask:
+        if not self.is_aligned(start_addr, num_bytes):
             # not aligned! slow path
             return self._unaligned_read(start_addr, num_bytes)
         return self._aligned_read(start_addr, num_bytes)
@@ -78,12 +77,11 @@ class BlockMemory(object):
         value = r_uint(0)
         for i in range(num_bytes - 1, -1, -1):
             value = value << 8
-            value = value | self.read(start_addr + i, 1)
+            value = value | self._aligned_read(start_addr + i, 1)
         return value
 
     def write(self, start_addr, num_bytes, value):
-        alignment_mask = self._alignment_mask(num_bytes)
-        if start_addr & alignment_mask:
+        if not self.is_aligned(start_addr, num_bytes):
             # not aligned! slow path
             return self._unaligned_write(start_addr, num_bytes, value)
         return self._aligned_write(start_addr, num_bytes, value)

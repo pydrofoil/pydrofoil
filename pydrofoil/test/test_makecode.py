@@ -105,5 +105,6 @@ def test_full_riscv():
     supportcoderiscv.g.config_print_reg = False
     supportcoderiscv.g.config_print_mem_access = False
     supportcoderiscv.g.config_print_platform = False
-    supportcoderiscv.main(['executable', elffile1])
-    supportcoderiscv.main(['executable', elffile2])
+    main = supportcoderiscv.get_main()
+    main(['executable', elffile1])
+    main(['executable', elffile2])

@@ -40,14 +40,15 @@ class BlockMemory(object):
         if num_bytes == 1:
             return True
         elif num_bytes == 2:
-            return bool(addr & 0b1)
+            return addr & 0b1 == 0
         elif num_bytes == 4:
-            return bool(addr & 0b11)
+            return addr & 0b11 == 0
         elif num_bytes == 8:
-            return bool(addr & 0b111)
+            return addr & 0b111 == 0
         else:
             assert 0, "invalid num_bytes"
 
+    @always_inline
     def _split_addr(self, start_addr, num_bytes):
         block_addr = start_addr >> self.ADDRESS_BITS_BLOCK
         block = self.get_block(block_addr)

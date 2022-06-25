@@ -2,8 +2,8 @@ from pydrofoil.supportcode import *
 from pydrofoil.bitvector import Integer
 from pydrofoil import elf
 
-from rpython.rlib.objectmodel import we_are_translated
-from rpython.rlib.jit import elidable, unroll_safe, hint, JitDriver
+from rpython.rlib.objectmodel import we_are_translated, always_inline
+from rpython.rlib.jit import elidable, unroll_safe, hint, JitDriver, promote
 from rpython.rlib.rarithmetic import r_uint, intmask
 from rpython.rlib.rrandom import Random
 

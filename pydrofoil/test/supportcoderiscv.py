@@ -4,10 +4,76 @@ from pydrofoil import elf
 
 from rpython.rlib.objectmodel import we_are_translated, always_inline
 from rpython.rlib.jit import elidable, unroll_safe, hint, JitDriver, promote
+from rpython.rlib import jit
 from rpython.rlib.rarithmetic import r_uint, intmask
 from rpython.rlib.rrandom import Random
 
 import time
+
+MEM_STATUS_IMMUTABLE = 'i'
+MEM_STATUS_NORMAL = 'n'
+MEM_STATUS_MUTABLE = 'm'
+
+class Version(object):
+    pass
+
+class Block(object):
+    _immutable_fields_ = ['data', 'status', 'version?']
+    PAGE_BITS = 9
+    PAGE_SIZE = 1 << 9
+    PAGE_MASK = PAGE_SIZE - 1
+
+    def __init__(self, size):
+        self.version = Version()
+        self.data = [r_uint(0)] * size
+        self.status = [MEM_STATUS_NORMAL] * size
+
+    def write_word(self, block_offset, value):
+        if self.status[block_offset] == MEM_STATUS_IMMUTABLE:
+            oldval = self.data[block_offset]
+            if oldval != value:
+                self._invalidate(block_offset)
+        self.data[block_offset] = value
+
+    def _invalidate(self, block_offset):
+        print "invalidating", block_offset
+        pagestart = block_offset & ~self.PAGE_MASK
+        self.version = Version()
+        for bo in range(pagestart, pagestart + self.PAGE_MASK + 1):
+            self.status[bo] = MEM_STATUS_MUTABLE
+
+    def read_word(self, block_offset, is_constant_addr=False):
+        if is_constant_addr:
+            status = self._get_status_page(block_offset, self.version)
+            if status == MEM_STATUS_IMMUTABLE:
+                return self._immutable_read(block_offset, self.version)
+        return self.data[block_offset]
+
+    @jit.elidable_promote('1,2')
+    def _immutable_read(self, block_offset, version):
+        assert version is self.version
+        return self.data[block_offset]
+
+    @jit.elidable_promote('1,2')
+    def _get_status_page(self, block_offset, version):
+        assert version is self.version
+        return self.status[block_offset]
+
+    def mark_executable(self, block_offset):
+        status = self._get_status_page(block_offset, self.version)
+        # if it's immutable, or already discovered to me mutable, don't do
+        # anything
+        if status == MEM_STATUS_IMMUTABLE or status == MEM_STATUS_MUTABLE:
+            return
+        self._mark_page_immutable(block_offset)
+
+    def _mark_page_immutable(self, block_offset):
+        pagestart = block_offset & ~self.PAGE_MASK
+        self.version = Version()
+        for bo in range(pagestart, pagestart + self.PAGE_MASK + 1):
+            assert self.status[bo] != MEM_STATUS_MUTABLE
+            self.status[bo] = MEM_STATUS_IMMUTABLE
+
 
 class BlockMemory(object):
     ADDRESS_BITS_BLOCK = 20 # 1 MB
@@ -33,7 +99,7 @@ class BlockMemory(object):
     def _get_block(self, block_addr):
         if block_addr in self.blocks:
             return self.blocks[block_addr]
-        res = self.blocks[block_addr] = [r_uint(0)] * (self.BLOCK_SIZE // 8)
+        res = self.blocks[block_addr] = Block(self.BLOCK_SIZE // 8)
         return res
 
     def is_aligned(self, addr, num_bytes):
@@ -56,7 +122,10 @@ class BlockMemory(object):
         block_offset = start_addr >> 3
         inword_addr = start_addr & 0b111
         # little endian
-        mask = (r_uint(1) << (num_bytes * 8)) - 1
+        if num_bytes == 8:
+            mask = r_uint(0) - 1
+        else:
+            mask = (r_uint(1) << (num_bytes * 8)) - 1
         return block, block_offset, inword_addr, mask
 
     def read(self, start_addr, num_bytes):
@@ -67,7 +136,7 @@ class BlockMemory(object):
 
     def _aligned_read(self, start_addr, num_bytes):
         block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
-        data = block[block_offset]
+        data = block.read_word(block_offset, jit.isconstant(start_addr))
         if num_bytes == 8:
             assert inword_addr == 0
             return data
@@ -91,13 +160,13 @@ class BlockMemory(object):
         block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
         if num_bytes == 8:
             assert inword_addr == 0
-            block[block_offset] = value
+            block.write_word(block_offset, value)
             return
         assert value & ~mask == 0
-        olddata = block[block_offset]
+        olddata = block.read_word(block_offset)
         mask <<= inword_addr * 8
         value <<= inword_addr * 8
-        block[block_offset] = (olddata & ~mask) | value
+        block.write_word(block_offset, (olddata & ~mask) | value)
 
     @unroll_safe
     def _unaligned_write(self, start_addr, num_bytes, value):
@@ -105,6 +174,10 @@ class BlockMemory(object):
             self._aligned_write(start_addr + i, 1, value & 0xff)
             value = value >> 8
         assert not value
+
+    def mark_executable(self, addr):
+        block, block_offset, _, _ = self._split_addr(addr, 1)
+        block.mark_executable(block_offset)
 
 
 def write_mem(addr, content): # write a single byte
@@ -127,7 +200,7 @@ def platform_write_mem(write_kind, addr_size, addr, n, data):
     return True
 
 class Globals(object):
-    pass
+    _immutable_fields_ = ['mem?', 'rv_rom_size?']
 
 g = Globals()
 g.mem = None
@@ -375,6 +448,7 @@ def run_sail():
 
     while not outriscv.r.zhtif_done and (insn_limit == 0 or total_insns < insn_limit):
         driver.jit_merge_point(pc=outriscv.r.zPC)
+        jit.promote(outriscv.r.zPC)
         # run a Sail step
         #print step_no, hex(outriscv.r.zPC)
         stepped = outriscv.func_zstep(Integer.fromint(step_no))
@@ -397,6 +471,7 @@ def run_sail():
         print "SUCCESS"
     else:
         print "FAILURE", outriscv.r.zhtif_exit_code
+        raise ValueError
     if do_show_times:
         print "Instructions: %s" % (total_insns, )
         print "Perf: %s Kips" % (total_insns / 1000. / (interval_end - interval_start), )
@@ -455,11 +530,24 @@ def get_config_print_platform(_):
 
 def get_main():
     from pydrofoil.test import outriscv
-    from rpython.rlib import jit
     orig = outriscv.func_zdecode
     def func_zdecode(x):
-        jit.promote(x)
+        promote(x)
         g.last_instr = x
         return orig(x)
     outriscv.func_zdecode = func_zdecode
+    orig_phys_mem_read = outriscv.func_zphys_mem_read
+    def func_zphys_mem_read(t, paddr, *args):
+        execute = isinstance(t, outriscv.Union_zAccessType_zExecute)
+        if execute:
+            promote(paddr)
+            g.mem.mark_executable(paddr)
+        res = orig_phys_mem_read(t, paddr, *args)
+        if execute:
+            if isinstance(res, outriscv.Union_zMemoryOpResult_zMemValuez3z8z5bvzCz0z5unitz9):
+                val = res.utup0
+                if isinstance(val, bitvector.SmallBitVector):
+                    promote(val.val)
+        return res
+    outriscv.func_zphys_mem_read = func_zphys_mem_read
     return main

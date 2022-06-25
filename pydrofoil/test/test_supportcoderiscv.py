@@ -1,6 +1,7 @@
 import random
 from pydrofoil.test import supportcoderiscv
 from rpython.rlib.rarithmetic import r_uint, intmask
+from rpython.rlib import jit
 
 class TBM(supportcoderiscv.BlockMemory):
     ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints
@@ -32,4 +33,56 @@ def test_mem_write_read():
                 for offset in range(consec):
                     addr = r_uint(base_addr + offset * size)
                     assert mem.read(addr, size) == data[offset]
+
+def test_invalidation_logic():
+    mem = supportcoderiscv.BlockMemory()
+    mem.write(0, 8, 0x0a1b2c3d4e5f6789)
+    mem.write(8, 8, 0xdeaddeaddeaddead)
+    block = mem.blocks[0]
+    assert block.read_word(0, False) == 0x0a1b2c3d4e5f6789
+    assert set(block.status) == {supportcoderiscv.MEM_STATUS_NORMAL}
+    v1 = block.version
+
+    mem.mark_executable(0)
+    v2 = block.version
+    assert v1 is not v2
+    assert block.status[:512] == [supportcoderiscv.MEM_STATUS_IMMUTABLE] * 512
+    assert set(block.status[512:]) == {supportcoderiscv.MEM_STATUS_NORMAL}
+
+    mem.mark_executable(1)
+    v3 = block.version
+    assert v2 is v3
+    assert block.status[:512] == [supportcoderiscv.MEM_STATUS_IMMUTABLE] * 512
+    assert set(block.status[512:]) == {supportcoderiscv.MEM_STATUS_NORMAL}
+
+    mem.write(8, 8, 0xdeaddeaddeaddead) # same value!
+    assert block.status[:512] == [supportcoderiscv.MEM_STATUS_IMMUTABLE] * 512
+    assert set(block.status[512:]) == {supportcoderiscv.MEM_STATUS_NORMAL}
+
+    for val in [1, 2, 3, 4]:
+        mem.write(8, 8, val) # different value!
+        assert block.status[:512] == [supportcoderiscv.MEM_STATUS_MUTABLE] * 512
+        assert set(block.status[512:]) == {supportcoderiscv.MEM_STATUS_NORMAL}
+    v4 = block.version
+    assert v4 is not v3
+
+def test_immutable_reads():
+    mem = supportcoderiscv.BlockMemory()
+    mem.write(0, 8, 0x0a1b2c3d4e5f6789)
+    mem.write(8, 8, 0xdeaddeaddeaddead)
+    mem.mark_executable(0)
+
+    block = mem.blocks[0]
+    assert block.read_word(0, True) == 0x0a1b2c3d4e5f6789
+    assert block.read_word(1, True) == 0xdeaddeaddeaddead
+
+    read_offsets = []
+    def _immutable_read(offset, v):
+        read_offsets.append(offset)
+        return offset
+    block._immutable_read = _immutable_read
+
+    for i in range(512):
+        assert block.read_word(i, True) == i
+    assert read_offsets == range(512)
 

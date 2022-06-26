@@ -44,17 +44,18 @@ class Block(object):
 
     def read_word(self, block_offset, is_constant_addr=False):
         if is_constant_addr:
+            self = promote(self)
             status = self._get_status_page(block_offset, self.version)
             if status == MEM_STATUS_IMMUTABLE:
                 return self._immutable_read(block_offset, self.version)
         return self.data[block_offset]
 
-    @jit.elidable_promote('1,2')
+    @jit.elidable_promote('0,1')
     def _immutable_read(self, block_offset, version):
         assert version is self.version
         return self.data[block_offset]
 
-    @jit.elidable_promote('1,2')
+    @jit.elidable_promote('0,1')
     def _get_status_page(self, block_offset, version):
         assert version is self.version
         return self.status[block_offset]

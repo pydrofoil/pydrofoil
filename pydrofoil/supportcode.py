@@ -180,6 +180,9 @@ def mult_int(ia, ib):
 def tdiv_int(ia, ib):
     return ia.tdiv(ib)
 
+def tmod_int(ia, ib):
+    return ia.tmod(ib)
+
 def print_bits(s, b):
     print s,
     b.print_bits()

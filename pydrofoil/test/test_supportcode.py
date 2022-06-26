@@ -159,24 +159,45 @@ def test_op_int():
     for c1 in bi, si:
         for c2 in bi, si:
             for v1 in [-10, 223, 12311, 0, 1, 2**63-1]:
+                a = c1(v1)
                 for v2 in [-10, 223, 12311, 0, 1, 2**63-1, -2**45]:
-                    assert c1(v1).add(c2(v2)).tolong() == v1 + v2
-                    assert c1(v1).sub(c2(v2)).tolong() == v1 - v2
-                    assert c1(v1).mul(c2(v2)).tolong() == v1 * v2
+                    b = c2(v2)
+                    assert a.add(b).tolong() == v1 + v2
+                    assert a.sub(b).tolong() == v1 - v2
+                    assert a.mul(b).tolong() == v1 * v2
                     if v2:
                         assert c1(abs(v1)).tdiv(c2(abs(v2))).tolong() == abs(v1) // abs(v2)
-                    assert c1(v1).eq(c2(v2)) == (v1 == v2)
-                    assert c1(v1).lt(c2(v2)) == (v1 < v2)
-                    assert c1(v1).gt(c2(v2)) == (v1 > v2)
-                    assert c1(v1).le(c2(v2)) == (v1 <= v2)
-                    assert c1(v1).ge(c2(v2)) == (v1 >= v2)
+                        assert c1(abs(v1)).tmod(c2(abs(v2))).tolong() == abs(v1) % abs(v2)
+                        # (a/b) * b + a%b == a
+                        assert a.tdiv(b).mul(b).add(a.tmod(b)).eq(a)
+
+                    assert a.eq(b) == (v1 == v2)
+                    assert a.lt(b) == (v1 < v2)
+                    assert a.gt(b) == (v1 > v2)
+                    assert a.le(b) == (v1 <= v2)
+                    assert a.ge(b) == (v1 >= v2)
                 with pytest.raises(ZeroDivisionError):
                     c1(v1).tdiv(c2(0))
+                    c1(v1).tmod(c2(0))
 
-def test_op_int_div():
+def test_op_int_div_mod():
     for c1 in bi, si:
         for c2 in bi, si:
+            # round towards zero
+            assert c1(1).tdiv(c2(2)).tolong() == 0
+            assert c1(-1).tdiv(c2(2)).tolong() == 0
+            assert c1(1).tdiv(c2(-2)).tolong() == 0
+            assert c1(-1).tdiv(c2(-2)).tolong() == 0
+
+            # mod signs
+            assert c1(5).tmod(c2(3)).tolong() == 2
+            assert c1(5).tmod(c2(-3)).tolong() == 2
+            assert c1(-5).tmod(c2(3)).tolong() == -2
+            assert c1(-5).tmod(c2(-3)).tolong() == -2
+
+            # ovf correctly
             assert c1(-2**63).tdiv(c2(-1)).tolong() == 2 ** 63
+            assert c1(-2**63).tmod(c2(-1)).tolong() == 0
 
 
 def test_op_gv_int():

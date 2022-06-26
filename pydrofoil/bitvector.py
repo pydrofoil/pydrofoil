@@ -1,6 +1,7 @@
 import sys
 from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
-from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, int_c_div
+from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
+        int_c_div, int_c_mod
 from rpython.rlib.objectmodel import always_inline
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
@@ -361,6 +362,15 @@ class SmallInteger(Integer):
                 return SmallInteger(int_c_div(self.val, other.val))
         return BigInteger(self.tobigint()).tdiv(other)
 
+    def tmod(self, other):
+        # C behaviour
+        if isinstance(other, SmallInteger):
+            if other.val == 0:
+                raise ZeroDivisionError
+            if not (self.val == -2**63 and other.val == -1):
+                return SmallInteger(int_c_mod(self.val, other.val))
+        return BigInteger(self.tobigint()).tmod(other)
+
 
 class BigInteger(Integer):
     def __init__(self, rval):
@@ -437,3 +447,10 @@ class BigInteger(Integer):
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
         return BigInteger(div)
+
+    def tmod(self, other):
+        other = other.tobigint()
+        if other.sign == 0:
+            raise ZeroDivisionError
+        div, rem = bigint_divrem(self.tobigint(), other)
+        return BigInteger(rem)

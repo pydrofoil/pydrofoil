@@ -10,8 +10,13 @@ outpy = os.path.join(os.path.dirname(__file__), "out.py")
 outmipspy = os.path.join(os.path.dirname(__file__), "outmips.py")
 outriscvpy = os.path.join(os.path.dirname(__file__), "outriscv.py")
 
+elfs = """
+rv64ui-p-addi.elf rv64um-v-mul.elf rv64um-v-mulhu.elf rv64um-p-div.elf
+rv64um-p-rem.elf
+"""
+
 elfs = [os.path.join(os.path.dirname(__file__), fn) for fn in
-        "rv64ui-p-addi.elf rv64um-v-mul.elf rv64um-v-mulhu.elf rv64um-p-div.elf".split()]
+        elfs.split()]
 
 
 addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "Add.hack.bin")

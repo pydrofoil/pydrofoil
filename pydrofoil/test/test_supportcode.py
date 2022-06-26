@@ -1,3 +1,5 @@
+import pytest
+
 from pydrofoil import supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
@@ -161,11 +163,21 @@ def test_op_int():
                     assert c1(v1).add(c2(v2)).tolong() == v1 + v2
                     assert c1(v1).sub(c2(v2)).tolong() == v1 - v2
                     assert c1(v1).mul(c2(v2)).tolong() == v1 * v2
+                    if v2:
+                        assert c1(abs(v1)).tdiv(c2(abs(v2))).tolong() == abs(v1) // abs(v2)
                     assert c1(v1).eq(c2(v2)) == (v1 == v2)
                     assert c1(v1).lt(c2(v2)) == (v1 < v2)
                     assert c1(v1).gt(c2(v2)) == (v1 > v2)
                     assert c1(v1).le(c2(v2)) == (v1 <= v2)
                     assert c1(v1).ge(c2(v2)) == (v1 >= v2)
+                with pytest.raises(ZeroDivisionError):
+                    c1(v1).tdiv(c2(0))
+
+def test_op_int_div():
+    for c1 in bi, si:
+        for c2 in bi, si:
+            assert c1(-2**63).tdiv(c2(-1)).tolong() == 2 ** 63
+
 
 def test_op_gv_int():
     for c1 in gbv, bv:

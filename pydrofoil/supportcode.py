@@ -94,7 +94,6 @@ make_dummy('string_startswith')
 make_dummy('string_length')
 make_dummy('sub_bits')
 make_dummy('sub_nat')
-make_dummy('tdiv_int')
 make_dummy('tmod_int')
 make_dummy('update_fbits')
 make_dummy('vector_access')
@@ -177,6 +176,9 @@ def sub_int(ia, ib):
 
 def mult_int(ia, ib):
     return ia.mul(ib)
+
+def tdiv_int(ia, ib):
+    return ia.tdiv(ib)
 
 def print_bits(s, b):
     print s,

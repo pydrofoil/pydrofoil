@@ -1,5 +1,6 @@
-from rpython.rlib.rbigint import rbigint
-from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck
+import sys
+from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
+from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, int_c_div
 from rpython.rlib.objectmodel import always_inline
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
@@ -351,6 +352,15 @@ class SmallInteger(Integer):
             assert isinstance(other, BigInteger)
             return BigInteger(other.rval.int_mul(self.val))
 
+    def tdiv(self, other):
+        # rounds towards zero, like in C, not like in python
+        if isinstance(other, SmallInteger):
+            if other.val == 0:
+                raise ZeroDivisionError
+            if not (self.val == -2**63 and other.val == -1):
+                return SmallInteger(int_c_div(self.val, other.val))
+        return BigInteger(self.tobigint()).tdiv(other)
+
 
 class BigInteger(Integer):
     def __init__(self, rval):
@@ -408,14 +418,22 @@ class BigInteger(Integer):
         assert isinstance(other, BigInteger)
         return BigInteger(self.rval.add(other.rval))
 
+    def sub(self, other):
+        if isinstance(other, SmallInteger):
+            return BigInteger(self.rval.int_sub(other.val))
+        assert isinstance(other, BigInteger)
+        return BigInteger(self.rval.sub(other.rval))
+
     def mul(self, other):
         if isinstance(other, SmallInteger):
             return BigInteger(self.rval.int_mul(other.val))
         assert isinstance(other, BigInteger)
         return BigInteger(self.rval.mul(other.rval))
 
-    def sub(self, other):
-        if isinstance(other, SmallInteger):
-            return BigInteger(self.rval.int_sub(other.val))
-        assert isinstance(other, BigInteger)
-        return BigInteger(self.rval.sub(other.rval))
+    def tdiv(self, other):
+        # rounds towards zero, like in C, not like in python
+        other = other.tobigint()
+        if other.sign == 0:
+            raise ZeroDivisionError
+        div, rem = bigint_divrem(self.tobigint(), other)
+        return BigInteger(div)

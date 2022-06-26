@@ -17,7 +17,6 @@ def make_dummy(name):
 
 # unimplemented
 
-make_dummy('emod_int')
 make_dummy('eq_string')
 make_dummy('max_int')
 make_dummy('min_int')

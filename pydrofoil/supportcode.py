@@ -18,8 +18,6 @@ def make_dummy(name):
 # unimplemented
 
 make_dummy('eq_string')
-make_dummy('max_int')
-make_dummy('min_int')
 make_dummy('plat_enable_dirty_update')
 make_dummy('plat_enable_misaligned_access')
 make_dummy('plat_enable_pmp')
@@ -189,6 +187,16 @@ def emod_int(ia, ib):
         print "emod_int with negative args not implemented yet", a, b
         raise ValueError # risc-v only needs the positive small case
     return Integer.fromint(a % b)
+
+def max_int(ia, ib):
+    if ia.gt(ib):
+        return ia
+    return ib
+
+def min_int(ia, ib):
+    if ia.lt(ib):
+        return ia
+    return ib
 
 def print_bits(s, b):
     print s,

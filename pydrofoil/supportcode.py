@@ -183,6 +183,14 @@ def tdiv_int(ia, ib):
 def tmod_int(ia, ib):
     return ia.tmod(ib)
 
+def emod_int(ia, ib):
+    a = ia.toint()
+    b = ib.toint()
+    if a < 0 or b < 0:
+        print "emod_int with negative args not implemented yet", a, b
+        raise ValueError # risc-v only needs the positive small case
+    return Integer.fromint(a % b)
+
 def print_bits(s, b):
     print s,
     b.print_bits()

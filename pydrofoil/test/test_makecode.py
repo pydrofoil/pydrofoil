@@ -12,7 +12,7 @@ outriscvpy = os.path.join(os.path.dirname(__file__), "outriscv.py")
 
 elfs = """
 rv64ui-p-addi.elf rv64um-v-mul.elf rv64um-v-mulhu.elf rv64um-p-div.elf
-rv64um-p-rem.elf
+rv64um-p-rem.elf rv64ua-v-amoadd_w.elf
 """
 
 elfs = [os.path.join(os.path.dirname(__file__), fn) for fn in

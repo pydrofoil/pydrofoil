@@ -9,8 +9,9 @@ riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
 outpy = os.path.join(os.path.dirname(__file__), "out.py")
 outmipspy = os.path.join(os.path.dirname(__file__), "outmips.py")
 outriscvpy = os.path.join(os.path.dirname(__file__), "outriscv.py")
-elffile1 = os.path.join(os.path.dirname(__file__), "rv64ui-p-addi.elf")
-elffile2 = os.path.join(os.path.dirname(__file__), "rv64um-v-mulhu.elf")
+
+elfs = [os.path.join(os.path.dirname(__file__), fn) for fn in
+        "rv64ui-p-addi.elf rv64um-v-mul.elf rv64um-v-mulhu.elf rv64um-p-div.elf".split()]
 
 
 addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "Add.hack.bin")
@@ -92,19 +93,20 @@ def test_full_mips():
     res = py.code.Source(res)
     exec res.compile() in d
 
-def test_full_riscv():
+@pytest.fixture(scope='session')
+def riscvmain():
     with open(riscvir, "rb") as f:
         s = f.read()
     res = parse_and_make_code(s, "supportcoderiscv")
     with open(outriscvpy, "w") as f:
         f.write(res)
     from pydrofoil.test import outriscv, supportcoderiscv
-    print "calling main"
-
     supportcoderiscv.g.config_print_instr = False
     supportcoderiscv.g.config_print_reg = False
     supportcoderiscv.g.config_print_mem_access = False
     supportcoderiscv.g.config_print_platform = False
-    main = supportcoderiscv.get_main()
-    main(['executable', elffile1])
-    main(['executable', elffile2])
+    return supportcoderiscv.get_main()
+
+@pytest.mark.parametrize("elf", elfs)
+def test_full_riscv(riscvmain, elf):
+    riscvmain(['executable', elf])

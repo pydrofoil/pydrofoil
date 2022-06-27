@@ -397,6 +397,8 @@ def run_sail():
         print "SUCCESS"
     else:
         print "FAILURE", outriscv.r.zhtif_exit_code
+        if not we_are_translated():
+            raise ValueError
     if do_show_times:
         print "Instructions: %s" % (total_insns, )
         print "Perf: %s Kips" % (total_insns / 1000. / (interval_end - interval_start), )

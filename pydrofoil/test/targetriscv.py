@@ -20,12 +20,7 @@ def target(*args):
     print "translating to C!"
     from pydrofoil.test.supportcoderiscv import get_main, g
     from pydrofoil.test import outriscv
-    g.config_print_instr = False
-    g.config_print_reg = False
-    g.config_print_mem_access = False
-    g.config_print_platform = False
     main = get_main()
-
     return main
 
 def main(argv):
@@ -36,7 +31,7 @@ def main(argv):
 if __name__ == '__main__':
     import sys
     try:
-        main(sys.argv)
+        target()(sys.argv)
     except:
         import pdb;pdb.xpm()
         raise

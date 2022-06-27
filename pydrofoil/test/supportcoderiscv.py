@@ -127,7 +127,10 @@ def platform_write_mem(write_kind, addr_size, addr, n, data):
     return True
 
 class Globals(object):
-    pass
+    _immutable_fields_ = [
+        'config_print_platform?', 'config_print_mem_access?',
+        'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?'
+    ]
 
 g = Globals()
 g.mem = None
@@ -319,7 +322,7 @@ def main(argv):
     from pydrofoil.test import outriscv
     from rpython.rlib import jit
 
-    # crappy jit argument handling
+    # crappy argument handling
     for i in range(len(argv)):
         if argv[i] == "--jit":
             if len(argv) == i + 1:
@@ -329,6 +332,38 @@ def main(argv):
             del argv[i:i+2]
             jit.set_user_param(None, jitarg)
             break
+    for i in range(len(argv)):
+
+        if argv[i] == '-b' or argv[i] == '--device-tree-blob':
+            if len(argv) == i + 1:
+                print "missing argument after", argv[i]
+                return 2
+            with open(argv[i + 1], "rb") as f:
+                g.dtb = f.read()
+            del argv[i:i+2]
+            break
+
+    limit = 0
+    for i in range(len(argv)):
+        if argv[i] == '-l' or argv[i] == '--inst-limit':
+            if len(argv) == i + 1:
+                print "missing argument after", argv[i]
+                return 2
+            limit = int(argv[i + 1])
+            print "instruction limit", limit
+            del argv[i:i+2]
+            break
+
+    for i in range(len(argv)):
+        if argv[i] == '--verbose':
+            print "verbose"
+            del argv[i]
+            break
+    else:
+        g.config_print_instr = False
+        g.config_print_reg = False
+        g.config_print_mem_access = False
+        g.config_print_platform = False
 
     # Initialize model so that we can check or report its architecture.
     outriscv.model_init()
@@ -345,45 +380,45 @@ def main(argv):
     entry = load_sail(file)
     for i in range(iterations):
         init_sail(entry)
-        run_sail()
+        run_sail(limit)
         if i:
             outriscv.model_init()
     #flush_logs()
     #close_logs()
     return 0
 
-def get_printable_location(pc):
+def get_printable_location(pc, last_instr, insn_limit):
     from pydrofoil.test import outriscv
-    ast = outriscv.func_zdecode(g.last_instr)
-    dis = outriscv.func_zprint_insn(ast)
+    dis = ''
+    if last_instr:
+        ast = outriscv.func_zdecode(last_instr)
+        dis = outriscv.func_zprint_insn(ast)
     return hex(pc) + ": " + dis
 
 driver = JitDriver(
     get_printable_location=get_printable_location,
-    greens=['pc'], reds='auto')
+    greens=['pc', 'last_instr', 'insn_limit'], reds='auto')
 
 
-def run_sail():
+def run_sail(insn_limit):
     from pydrofoil.test import outriscv
     step_no = 0
     insn_cnt = 0
-    total_insns = 0
-    insn_limit = 100000
     do_show_times = True
+    g.last_instr = r_uint(0)
 
     interval_start = time.time()
 
-    while not outriscv.r.zhtif_done and (insn_limit == 0 or total_insns < insn_limit):
-        driver.jit_merge_point(pc=outriscv.r.zPC)
+    while not outriscv.r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
+        driver.jit_merge_point(pc=outriscv.r.zPC, last_instr=g.last_instr, insn_limit=insn_limit)
         # run a Sail step
         #print step_no, hex(outriscv.r.zPC)
         stepped = outriscv.func_zstep(Integer.fromint(step_no))
         if stepped:
             step_no += 1
             insn_cnt += 1
-            total_insns += 1
 
-        if do_show_times and (total_insns & 0xfffff) == 0:
+        if do_show_times and (step_no & 0xfffff) == 0:
             curr = time.time()
             print "kips:", 0x100000 / (interval_start - curr)
             interval_start = curr
@@ -400,8 +435,8 @@ def run_sail():
         if not we_are_translated():
             raise ValueError
     if do_show_times:
-        print "Instructions: %s" % (total_insns, )
-        print "Perf: %s Kips" % (total_insns / 1000. / (interval_end - interval_start), )
+        print "Instructions: %s" % (step_no, )
+        print "Perf: %s Kips" % (step_no / 1000. / (interval_end - interval_start), )
 
 
 def load_sail(fn):

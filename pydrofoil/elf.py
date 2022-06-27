@@ -202,10 +202,6 @@ class ElfHeader(object):
     #  if data != None:
     def __init__(self, data="", is_64bit=False):
         self.is_64bit = is_64bit
-        if is_64bit:
-            self.format = ElfHeader.FORMAT64
-        else:
-            self.format = ElfHeader.FORMAT
 
         if data != "":
             self.from_bytes(data)
@@ -215,7 +211,14 @@ class ElfHeader(object):
     # -----------------------------------------------------------------------
 
     def from_bytes(self, data):
-        ehdr_list = unpack(self.format, data)
+        if self.is_64bit:
+            format = ElfHeader.FORMAT64
+            ehdr_list = unpack(format, data)
+        else:
+            format = ElfHeader.FORMAT
+            ehdr_list = unpack(format, data)
+            if objectmodel.we_are_translated():
+                assert 0, "a bit broken for now"
         self.ident = ehdr_list[0]
         self.type = ehdr_list[1]
         self.machine = ehdr_list[2]
@@ -297,6 +300,89 @@ class ElfHeader(object):
 # =========================================================================
 #
 # typedef struct
+# {
+#     Elf32_Word  p_type;             /* Segment type */
+#     Elf32_Off   p_offset;           /* Segment offset in file */
+#     Elf32_Addr  p_vaddr;            /* Segment load virtual address */
+#     Elf32_Addr  p_paddr;            /* Segment load physical address */
+#     Elf32_Word  p_filesz;           /* Segment size in file */
+#     Elf32_Word  p_memsz;            /* Segment size in memory. Must be >= p_filesz. If > p_filesz, zero pad */
+#     Elf32_Word  p_flags;            /* Segment flags */
+#     Elf32_Word  p_align;            /* Segment alignment */
+# } Elf32_Phdr;
+#
+# typedef struct
+# {
+#     Elf64_Word  p_type;             /* Segment type */
+#     Elf64_Word  p_flags;            /* Segment flags */
+#     Elf64_Off   p_offset;           /* Segment offset in file */
+#     Elf64_Addr  p_vaddr;            /* Segment load virtual address */
+#     Elf64_Addr  p_paddr;            /* Segment load physical address */
+#     Elf64_Xword p_filesz;           /* Segment size in file */
+#     Elf64_Xword p_memsz;            /* Segment size in memory. Must be >= p_filesz.
+#                                        If > p_filesz, zero pad memory */
+#     Elf64_Xword p_align;            /* Segment alignment */
+# } Elf64_Phdr;
+
+class ElfProgramHeader(object):
+
+    FORMAT = "????"  #untested
+    FORMAT64 = "<IIQQQQQQ"
+    NBYTES = -19 #struct.calcsize(FORMAT)
+    NBYTES64 = struct.calcsize(FORMAT64)
+
+    PT_LOAD = 1 # loadable segment
+
+    # -----------------------------------------------------------------------
+    # Constructor
+    # -----------------------------------------------------------------------
+
+    def __init__(self, data="", is_64bit=False):
+        self.is_64bit = is_64bit
+        if is_64bit:
+            self.format = self.FORMAT64
+        else:
+            self.format = self.FORMAT
+        if data != "":
+            self.from_bytes(data)
+
+    # -----------------------------------------------------------------------
+    # from_bytes
+    # -----------------------------------------------------------------------
+
+    def from_bytes(self, data):
+        assert self.is_64bit
+        phdr_list = unpack(self.FORMAT64, data)
+        self.type = phdr_list[0]
+        self.flags = phdr_list[1]
+        self.offset = phdr_list[2]
+        self.vaddr = phdr_list[3]
+        self.paddr = phdr_list[4]
+        self.filesz = phdr_list[5]
+        self.memsz = phdr_list[6]
+        self.align = phdr_list[7]
+
+    # -----------------------------------------------------------------------
+    # __str__
+    # -----------------------------------------------------------------------
+
+    def __str__(self):
+        return """
+ ElfProgramHeader:
+   type      = {},
+   flags     = {},
+   offset    = {},
+   vaddr     = {},
+   paddr     = {},
+   filesz    = {},
+   memsz     = {},
+   align     = {},
+""".format(
+        self.type, self.flags, self.offset, self.vaddr, self.paddr,
+        self.filesz, self.memsz, self.align
+        )
+
+
 
 # =========================================================================
 # ElfSectionHeader
@@ -372,10 +458,6 @@ class ElfSectionHeader(object):
 
     def __init__(self, data="", is_64bit=False):
         self.is_64bit = is_64bit
-        if is_64bit:
-            self.format = ElfSectionHeader.FORMAT64
-        else:
-            self.format = ElfSectionHeader.FORMAT
         if data != "":
             self.from_bytes(data)
 
@@ -384,7 +466,14 @@ class ElfSectionHeader(object):
     # -----------------------------------------------------------------------
 
     def from_bytes(self, data):
-        shdr_list = unpack(self.format, data)
+        if self.is_64bit:
+            format = ElfSectionHeader.FORMAT64
+            shdr_list = unpack(format, data)
+        else:
+            if objectmodel.we_are_translated():
+                assert 0, "a bit broken for now"
+            format = ElfSectionHeader.FORMAT
+            shdr_list = unpack(format, data)
         self.name = shdr_list[0]
         self.type = shdr_list[1]
         self.flags = shdr_list[2]
@@ -496,9 +585,8 @@ class ElfSymTabEntry(object):
 
 
     def from_bytes(self, data, is_64bit=False):
-        fmt = ElfSymTabEntry.FORMAT64 if is_64bit else ElfSymTabEntry.FORMAT
-        sym_list = unpack(fmt, data)
         if is_64bit:
+            sym_list = unpack(self.FORMAT64, data)
             self.name = sym_list[0]
             self.info = sym_list[1]
             self.other = sym_list[2]
@@ -506,6 +594,9 @@ class ElfSymTabEntry(object):
             self.value = sym_list[4]
             self.size = sym_list[5]
         else:
+            if objectmodel.we_are_translated():
+                assert 0, "a bit broken for now"
+            sym_list = unpack(self.FORMAT, data)
             self.name = sym_list[0]
             self.value = sym_list[1]
             self.size = sym_list[2]
@@ -535,13 +626,11 @@ class ElfSymTabEntry(object):
 # -------------------------------------------------------------------------
 # elf_reader
 # -------------------------------------------------------------------------
-# Opens and parses an ELF file into a sparse memory image object.
 
-
-def elf_reader(file_obj):
+def read_header(file_obj):
     # Read the data for the ELF header
-    first_bytes = file_obj.read(5)
     file_obj.seek(0)
+    first_bytes = file_obj.read(5)
     # Verify if its a known format and really an ELF file
     if not first_bytes.startswith("\x7fELF"):
         raise ValueError("Not a valid ELF file")
@@ -552,8 +641,14 @@ def elf_reader(file_obj):
     else:
         raise ValueError("unknown kind of elf file")
 
+    file_obj.seek(0)
     ehdr_data = file_obj.read(ElfHeader.NBYTES64 if is_64bit else ElfHeader.NBYTES)
     ehdr = ElfHeader(ehdr_data, is_64bit=is_64bit)
+    return ehdr, is_64bit
+
+def elf_reader(file_obj):
+    # Opens and parses an ELF file into a sparse memory image object.
+    ehdr, is_64bit = read_header(file_obj)
 
     # We need to find the section string table so we can figure out the
     # name of each section. We know that the section header for the section
@@ -675,3 +770,23 @@ def elf_reader(file_obj):
 
     return mem_image
 
+def elf_read_process_image(mem, file_obj):
+    from rpython.rlib.rarithmetic import r_uint, intmask
+    ehdr, is_64bit = read_header(file_obj)
+
+    for program_index in range(ehdr.phnum):
+        file_obj.seek(intmask(ehdr.phoff) + program_index * ehdr.phentsize)
+        phdr_data = file_obj.read(ehdr.phentsize)
+        # load block
+        phdr = ElfProgramHeader(phdr_data, is_64bit)
+        if phdr.type != ElfProgramHeader.PT_LOAD:
+            continue
+        file_obj.seek(intmask(phdr.offset))
+        content = file_obj.read(intmask(phdr.filesz))
+        start_addr = r_uint(phdr.paddr)
+        for i in range(phdr.filesz):
+            mem.write(start_addr + i, 1, r_uint(0xff & ord(content[i])))
+        # fill rest with 0
+        for i in range(phdr.filesz, phdr.memsz):
+            mem.write(start_addr + i, 1, r_uint(0))
+    return ehdr.entry

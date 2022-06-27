@@ -1,6 +1,9 @@
+import os
 import random
 from pydrofoil.test import supportcoderiscv
 from rpython.rlib.rarithmetic import r_uint, intmask
+
+elffile = os.path.join(os.path.dirname(__file__), "rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
 
 class TBM(supportcoderiscv.BlockMemory):
     ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints
@@ -32,4 +35,14 @@ def test_mem_write_read():
                 for offset in range(consec):
                     addr = r_uint(base_addr + offset * size)
                     assert mem.read(addr, size) == data[offset]
+
+def test_elf_reader():
+    from pydrofoil import elf
+    mem = supportcoderiscv.BlockMemory()
+    with open(elffile, "rb") as f:
+        entrypoint = elf.elf_read_process_image(mem, f)
+    assert entrypoint == 0x80000000
+    # used to be wrong in the segment reader
+    assert mem.read(0x0000000080000D42, 2) == 0x4e4c
+
 

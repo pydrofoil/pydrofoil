@@ -300,11 +300,10 @@ def init_sail_reset_vector(entry):
             addr += 1
             fourbytes >>= 8
         assert fourbytes == 0
-    assert not g.dtb
-    #if (dtb && dtb_len) {
-    #  for (size_t i = 0; i < dtb_len; i++)
-    #    write_mem(addr++, dtb[i]);
-    #}
+    if g.dtb:
+        for i, char in enumerate(g.dtb):
+            write_mem(addr, r_uint(ord(char)))
+            addr += 1
 
     align = 0x1000
     # zero-fill to page boundary
@@ -441,22 +440,17 @@ def run_sail(insn_limit):
 
 def load_sail(fn):
     from pydrofoil.test import outriscv
-    with open(fn, "rb") as f:
-        img = elf.elf_reader(f, is_64bit=outriscv.l.zxlen_val == 64)
-
-    sections = img.get_sections()
-    entrypoint = -1
     mem = BlockMemory()
     g.mem = mem
+    with open(fn, "rb") as f:
+        entrypoint = elf.elf_read_process_image(mem, f) # load process image
+    with open(fn, "rb") as f:
+        img = elf.elf_reader(f) # for the symbols
 
-    for section in sections:
-        start_addr = r_uint(section.addr)
-        for i, data in enumerate(section.data):
-            mem.write(start_addr + i, 1, r_uint(ord(data)))
     g.rv_htif_tohost = r_uint(img.get_symbol('tohost'))
     print "tohost located at 0x%x" % g.rv_htif_tohost
 
-    entrypoint = 0x80000000 # XXX hardcoded for now
+    print "entrypoint 0x%x" % entrypoint
     assert entrypoint == 0x80000000 # XXX for now
     return entrypoint
 

@@ -47,6 +47,12 @@ def test_sign_extend():
         assert supportcode.sign_extend(c(2, 0b10), Integer.fromint(4)).toint() == 0b1110
         assert supportcode.sign_extend(c(2, 0b11), Integer.fromint(4)).toint() == 0b1111
 
+        assert supportcode.sign_extend(c(2, 0b00), Integer.fromint(100)).tobigint().tolong() == 0
+        assert supportcode.sign_extend(c(2, 0b01), Integer.fromint(100)).tobigint().tolong() == 1
+        assert supportcode.sign_extend(c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111110
+        assert supportcode.sign_extend(c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+
+
 def test_unsigned():
     for c in gbv, bv:
         x = c(8, 0b10001101)

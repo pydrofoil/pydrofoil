@@ -103,7 +103,8 @@ class SmallBitVector(BitVector):
     def sign_extend(self, i):
         if i == self.size:
             return self
-        assert i <= 64
+        if i > 64:
+            return GenericBitVector._sign_extend(rbigint.fromrarith_int(self.val), self.size, i)
         assert i > self.size
         highest_bit = (self.val >> (self.size - 1)) & 1
         if not highest_bit:
@@ -213,13 +214,17 @@ class GenericBitVector(BitVector):
         if i == self.size:
             return self
         assert i > self.size
-        highest_bit = self.rval.rshift(self.size - 1).int_and_(1).toint()
+        return self._sign_extend(self.rval, self.size, i)
+
+    @staticmethod
+    def _sign_extend(rval, size, target_size):
+        highest_bit = rval.rshift(size - 1).int_and_(1).toint()
         if not highest_bit:
-            return GenericBitVector(i, self.rval)
+            return GenericBitVector(target_size, rval)
         else:
-            extra_bits = i - self.size
-            bits = rbigint.fromint(1).lshift(extra_bits).int_sub(1).lshift(self.size)
-            return GenericBitVector(i, bits.or_(self.rval))
+            extra_bits = target_size - size
+            bits = rbigint.fromint(1).lshift(extra_bits).int_sub(1).lshift(size)
+            return GenericBitVector(target_size, bits.or_(rval))
 
     def read_bit(self, pos):
         mask = rbigint.fromint(1).lshift(pos)

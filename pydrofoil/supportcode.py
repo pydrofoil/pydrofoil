@@ -92,7 +92,6 @@ make_dummy('string_length')
 make_dummy('sub_bits')
 make_dummy('sub_nat')
 make_dummy('tmod_int')
-make_dummy('update_fbits')
 make_dummy('vector_access')
 make_dummy('zeros')
 
@@ -250,6 +249,12 @@ def vector_update_inplace(res, l, index, element):
 
 def vector_update(bv, index, element):
     return bv.update_bit(index.toint(), element)
+
+def update_fbits(fb, index, element):
+    if element:
+        return fb | (r_uint(1) << index)
+    else:
+        return fb & ~(r_uint(1) << index)
 
 def vector_update_subrange(bv, n, m, s):
     return bv.update_subrange(n.toint(), m.toint(), s)

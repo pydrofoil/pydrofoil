@@ -60,6 +60,12 @@ def test_get_slice_int():
     for c in si, bi:
         assert supportcode.get_slice_int(Integer.fromint(8), c(0b011010010000), Integer.fromint(4)).toint() == 0b01101001
 
+def test_vector_access():
+    for c in gbv, bv:
+        x = c(6, 0b101100)
+        for i in range(6):
+            assert x.read_bit(i) == [0, 0, 1, 1, 0, 1][i]
+
 def test_vector_update():
     for c in gbv, bv:
         x = c(6, 1)

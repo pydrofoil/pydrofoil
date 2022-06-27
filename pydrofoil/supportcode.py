@@ -250,6 +250,9 @@ def vector_update_inplace(res, l, index, element):
 def vector_update(bv, index, element):
     return bv.update_bit(index.toint(), element)
 
+def vector_access(bv, index):
+    return bv.read_bit(index.toint())
+
 def update_fbits(fb, index, element):
     if element:
         return fb | (r_uint(1) << index)

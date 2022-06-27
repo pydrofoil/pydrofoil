@@ -114,6 +114,10 @@ class SmallBitVector(BitVector):
             bits = ((r_uint(1) << extra_bits) - 1) << self.size
             return from_ruint(i, bits | self.val)
 
+    def read_bit(self, pos):
+        mask = r_uint(1) << pos
+        return r_uint(bool(self.val & mask))
+
     def update_bit(self, pos, bit):
         mask = r_uint(1) << pos
         if bit:
@@ -216,6 +220,10 @@ class GenericBitVector(BitVector):
             extra_bits = i - self.size
             bits = rbigint.fromint(1).lshift(extra_bits).int_sub(1).lshift(self.size)
             return GenericBitVector(i, bits.or_(self.rval))
+
+    def read_bit(self, pos):
+        mask = rbigint.fromint(1).lshift(pos)
+        return r_uint(self.rval.and_(mask).tobool())
 
     def update_bit(self, pos, bit):
         mask = rbigint.fromint(1).lshift(pos)

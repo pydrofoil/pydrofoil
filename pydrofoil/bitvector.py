@@ -24,6 +24,14 @@ class BitVector(object):
     def __init__(self, size):
         self.size = size
 
+    def string_of_bits(self):
+        if self.size % 4 == 0:
+            res = self.tobigint().format("0123456789ABCDEF")
+            return "0x%s%s" % ("0" * max(0, self.size // 4 - len(res)), res)
+        else:
+            res = self.tobigint().format("01")
+            return "0b%s%s" % ("0" * max(0, self.size - len(res)), res)
+
     @staticmethod
     def rbigint_mask(size, rval):
         return rval.and_(rbigint.fromint(1).lshift(size).int_sub(1))

@@ -278,8 +278,7 @@ def concat_str(a, b):
 
 
 def string_of_bits(gbv):
-    res = gbv.tobigint().format("0123456789ABCDEF")
-    return "0x%s%s" % ("0" * max(0, 8 - len(res)), res)
+    return gbv.string_of_bits()
 
 def decimal_string_of_bits(sbits):
     return str(sbits)

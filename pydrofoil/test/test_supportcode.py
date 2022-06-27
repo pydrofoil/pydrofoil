@@ -206,3 +206,10 @@ def test_op_gv_int():
             assert c1(16, 4).add_int(c2(9)).touint() == 13
             assert c1(16, 4).sub_int(c2(9)).touint() == r_uint((-5) & 0xffff)
 
+
+def  test_string_of_bits():
+    for c in gbv, bv:
+        assert c(32, 0x1245ab).string_of_bits() == "0x001245AB"
+        assert c(64, 0x1245ab).string_of_bits() == "0x00000000001245AB"
+        assert c(3, 0b1).string_of_bits() == "0b001"
+        assert c(9, 0b1101).string_of_bits() == "0b000001101"

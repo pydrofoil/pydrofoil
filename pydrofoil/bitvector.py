@@ -286,6 +286,9 @@ class SmallInteger(Integer):
     def __repr__(self):
         return "<SmallInteger %s>" % (self.val, )
 
+    def str(self):
+        return str(self.val)
+
     def toint(self):
         return self.val
 
@@ -378,6 +381,9 @@ class BigInteger(Integer):
 
     def __repr__(self):
         return "<BigInteger %s>" % (self.rval.str(), )
+
+    def str(self):
+        return self.rval.str()
 
     def toint(self):
         return self.rval.toint()

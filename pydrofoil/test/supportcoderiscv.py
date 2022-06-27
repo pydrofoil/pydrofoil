@@ -416,6 +416,10 @@ def run_sail(insn_limit):
         if stepped:
             step_no += 1
             insn_cnt += 1
+        if g.config_print_instr:
+            # there's an extra newline in the C emulator that I don't know
+            # where from, add it here to ease diffing
+            print
 
         if do_show_times and (step_no & 0xfffff) == 0:
             curr = time.time()

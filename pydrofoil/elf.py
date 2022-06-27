@@ -27,11 +27,17 @@
 
 import struct
 
-from rpython.rlib.rstruct.runpack import runpack as unpack
+from rpython.rlib.rstruct.runpack import runpack
 from rpython.rlib.rarithmetic import intmask
+from rpython.rlib import objectmodel
 
 import binascii
 
+@objectmodel.specialize.arg(0)
+def unpack(fmt, data):
+    if objectmodel.we_are_translated():
+        return runpack(fmt, data)
+    return struct.unpack(fmt, data)
 
 class SparseMemoryImage(object):
     class Section(object):
@@ -447,12 +453,24 @@ class ElfSectionHeader(object):
 #   elf_half st_shndx;
 # } elf_sym;
 #
+# typedef struct
+# {
+#     Elf64_Word    st_name;          /* Symbol name (string tbl index) */
+#     uint8_t       st_info;          /* Symbol type and binding */
+#     uint8_t       st_other;         /* Symbol visibility */
+#     Elf64_Section st_shndx;         /* Section index */
+#     Elf64_Addr    st_value;         /* Symbol value */
+#     Elf64_Xword   st_size;          /* Symbol size */
+# } Elf64_Sym;
+
 
 
 class ElfSymTabEntry(object):
 
     FORMAT = "<IIIBBH"
+    FORMAT64 = "<IBBHQQ"
     NBYTES = struct.calcsize(FORMAT)
+    NBYTES64 = struct.calcsize(FORMAT64)
 
     # Symbol types. Note we only load some of these types.
 
@@ -464,19 +482,28 @@ class ElfSymTabEntry(object):
     TYPE_LOPROC = 13
     TYPE_HIPROC = 15
 
-    def __init__(self, data=""):
+    def __init__(self, data="", is_64bit=False):
         if data != "":
-            self.from_bytes(data)
+            self.from_bytes(data, is_64bit)
 
 
-    def from_bytes(self, data):
-        sym_list = unpack(ElfSymTabEntry.FORMAT, data)
-        self.name = sym_list[0]
-        self.value = sym_list[1]
-        self.size = sym_list[2]
-        self.info = sym_list[3]
-        self.other = sym_list[4]
-        self.shndx = sym_list[5]
+    def from_bytes(self, data, is_64bit=False):
+        fmt = ElfSymTabEntry.FORMAT64 if is_64bit else ElfSymTabEntry.FORMAT
+        sym_list = unpack(fmt, data)
+        if is_64bit:
+            self.name = sym_list[0]
+            self.info = sym_list[1]
+            self.other = sym_list[2]
+            self.shndx = sym_list[3]
+            self.value = sym_list[4]
+            self.size = sym_list[5]
+        else:
+            self.name = sym_list[0]
+            self.value = sym_list[1]
+            self.size = sym_list[2]
+            self.info = sym_list[3]
+            self.other = sym_list[4]
+            self.shndx = sym_list[5]
 
     def __str__(self):
         return """
@@ -557,92 +584,78 @@ def elf_reader(file_obj, is_64bit=False):
 
         # Find the section name
 
-        # start = shstrtab_data[shdr.name:]
         idx = shdr.name
         assert idx >= 0
-        start = shstrtab_data[idx:]
-
-        # section_name = start.partition('\0')[0]
-        section_name = start.split("\0", 1)[0]
-
-        # only sections marked as lloc should be written to memory
-
-        if not (shdr.flags & ElfSectionHeader.FLAGS_ALLOC):
-            continue
+        end = shstrtab_data.find('\0', idx)
+        assert end >= 0
+        section_name = shstrtab_data[idx:end]
 
         # Read the section data if it exists
 
         if section_name not in [".sbss", ".bss"]:
             file_obj.seek(intmask(shdr.offset))
             data = file_obj.read(intmask(shdr.size))
-
-        # NOTE: the .bss and .sbss sections don't actually contain any
-        # data in the ELF.  These sections should be initialized to zero.
-        # For more information see:
-        #
-        # - http://stackoverflow.com/questions/610682/bss-section-in-elf-file
-
         else:
+            # NOTE: the .bss and .sbss sections don't actually contain any
+            # data in the ELF.  These sections should be initialized to zero.
+            # For more information see:
+            #
+            # - http://stackoverflow.com/questions/610682/bss-section-in-elf-file
             data = "\0" * shdr.size
 
-        # Save the data holding the symbol string table
-
         if shdr.type == ElfSectionHeader.TYPE_STRTAB:
-            strtab_data = data
-
-        # Save the data holding the symbol table
-
+            # Save the data holding the symbol string table
+            if section_idx != ehdr.shstrndx:
+                strtab_data = data
         elif shdr.type == ElfSectionHeader.TYPE_SYMTAB:
+            # Save the data holding the symbol table
             symtab_data = data
-
-        # Otherwise create section and append it to our list of sections
-
-        else:
+        elif shdr.flags & ElfSectionHeader.FLAGS_ALLOC:
+            # Otherwise create section and append it to our list of sections
+            # only sections marked as alloc should be written to memory
             section = SparseMemoryImage.Section(section_name, shdr.addr, data)
             mem_image.add_section(section)
 
-    # Load symbols. We skip the first symbol since it both "designates the
-    # first entry in the table and serves as the undefined symbol index".
-    # For now, I have commented this out, since we are not really using it.
+    # Load symbols
+    assert strtab_data is not None
+    assert symtab_data is not None
 
-    # num_symbols = len(symtab_data) / ElfSymTabEntry.NBYTES
-    # for sym_idx in xrange(1,num_symbols):
-    #
-    #   # Read the data for a symbol table entry
-    #
-    #   start = sym_idx * ElfSymTabEntry.NBYTES
-    #   sym_data = symtab_data[start:start+ElfSymTabEntry.NBYTES]
-    #
-    #   # Construct a symbol table entry
-    #
-    #   sym = ElfSymTabEntry( sym_data )
-    #
-    #   # Get the symbol type
-    #
-    #   sym_type  = sym.info & 0xf
-    #
-    #   # Check to see if symbol is one of the three types we want to load
-    #
-    #   valid_sym_types = \
-    #   [
-    #     ElfSymTabEntry.TYPE_NOTYPE,
-    #     ElfSymTabEntry.TYPE_OBJECT,
-    #     ElfSymTabEntry.TYPE_FUNC,
-    #   ]
-    #
-    #   # Check to see if symbol is one of the three types we want to load
-    #
-    #   if sym_type not in valid_sym_types:
-    #     continue
-    #
-    #   # Get the symbol name from the string table
-    #
-    #   start = strtab_data[sym.name:]
-    #   name = start.partition('\0')[0]
-    #
-    #   # Add symbol to the sparse memory image
-    #
-    #   mem_image.add_symbol( name, sym.value )
+    symtabentry_nbytes = ElfSymTabEntry.NBYTES64 if is_64bit else ElfSymTabEntry.NBYTES
+    num_symbols = len(symtab_data) / symtabentry_nbytes
+    valid_sym_types = [
+        ElfSymTabEntry.TYPE_NOTYPE,
+        ElfSymTabEntry.TYPE_OBJECT,
+        ElfSymTabEntry.TYPE_FUNC,
+    ]
+    for sym_idx in xrange(num_symbols):
+        # Read the data for a symbol table entry
+        start = sym_idx * symtabentry_nbytes
+        sym_data = symtab_data[start: start + symtabentry_nbytes]
+        if sym_idx == 0:
+            # We skip the first symbol since it both "designates the first
+            # entry in the table and serves as the undefined symbol index".
+            assert sym_data == b"\x00" * len(sym_data)
+            continue
+
+        # Construct a symbol table entry
+        sym = ElfSymTabEntry(sym_data, is_64bit)
+
+        # Get the symbol type
+        sym_type  = sym.info & 0xf
+
+        # Get the symbol name from the string table
+        start = sym.name
+        assert start >= 0
+        end = strtab_data.find('\0', start)
+        assert end >= 0
+        name = strtab_data[start: end]
+
+        # Check to see if symbol is one of the three types we want to load
+        if sym_type not in valid_sym_types:
+            continue
+
+        # Add symbol to the sparse memory image
+        mem_image.add_symbol(name, sym.value)
 
     return mem_image
 

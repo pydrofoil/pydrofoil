@@ -453,11 +453,10 @@ def load_sail(fn):
         start_addr = r_uint(section.addr)
         for i, data in enumerate(section.data):
             mem.write(start_addr + i, 1, r_uint(ord(data)))
-        if section.name == ".tohost":
-            entrypoint = intmask(section.addr)
+    g.rv_htif_tohost = r_uint(img.get_symbol('tohost'))
+    print "tohost located at 0x%x" % g.rv_htif_tohost
 
     entrypoint = 0x80000000 # XXX hardcoded for now
-    print "tohost located at 0x%x" % (entrypoint, )
     assert entrypoint == 0x80000000 # XXX for now
     return entrypoint
 

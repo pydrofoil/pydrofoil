@@ -191,6 +191,9 @@ class ElfHeader(object):
     TYPE_LOPROC = 0xFF00  # Processor-specific
     TYPE_HIPROC = 0xFFFF  # Processor-specific
 
+    ELFCLASS32 = 1
+    ELFCLASS64 = 2
+
     # -----------------------------------------------------------------------
     # Constructor
     # -----------------------------------------------------------------------
@@ -289,6 +292,11 @@ class ElfHeader(object):
             self.shstrndx,
         )
 
+# =========================================================================
+# ElfProgramHeader
+# =========================================================================
+#
+# typedef struct
 
 # =========================================================================
 # ElfSectionHeader
@@ -530,14 +538,22 @@ class ElfSymTabEntry(object):
 # Opens and parses an ELF file into a sparse memory image object.
 
 
-def elf_reader(file_obj, is_64bit=False):
+def elf_reader(file_obj):
     # Read the data for the ELF header
+    first_bytes = file_obj.read(5)
+    file_obj.seek(0)
+    # Verify if its a known format and really an ELF file
+    if not first_bytes.startswith("\x7fELF"):
+        raise ValueError("Not a valid ELF file")
+    if ord(first_bytes[4]) == ElfHeader.ELFCLASS64:
+        is_64bit = True
+    elif ord(first_bytes[4]) == ElfHeader.ELFCLASS32:
+        is_64bit = False
+    else:
+        raise ValueError("unknown kind of elf file")
+
     ehdr_data = file_obj.read(ElfHeader.NBYTES64 if is_64bit else ElfHeader.NBYTES)
     ehdr = ElfHeader(ehdr_data, is_64bit=is_64bit)
-
-    # Verify if its a known format and really an ELF file
-    if ehdr.ident[0:4] != "\x7fELF":
-        raise ValueError("Not a valid ELF file")
 
     # We need to find the section string table so we can figure out the
     # name of each section. We know that the section header for the section

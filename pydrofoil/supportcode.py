@@ -22,7 +22,6 @@ make_dummy('plat_enable_dirty_update')
 make_dummy('plat_enable_misaligned_access')
 make_dummy('plat_enable_pmp')
 make_dummy('platform_barrier')
-make_dummy('print_endline')
 make_dummy('print_int')
 make_dummy('print_mem_access')
 make_dummy('print_platform')
@@ -198,9 +197,16 @@ def min_int(ia, ib):
         return ia
     return ib
 
+def print_endline(s):
+    print s
+    return ()
+
 def print_bits(s, b):
-    print s,
-    b.print_bits()
+    print s + b.string_of_bits()
+    return ()
+
+def print_int(s, i):
+    print s + i.str()
     return ()
 
 @objectmodel.specialize.argtype(0)
@@ -237,6 +243,9 @@ def sail_unsigned(gbv):
 
 def sail_signed(gbv):
     return gbv.signed()
+
+def append_64(bv, v):
+    return bv.append_64(v)
 
 # vector stuff
 

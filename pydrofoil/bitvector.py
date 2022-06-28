@@ -39,6 +39,8 @@ class BitVector(object):
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
 
+    def append_64(self, ui):
+        return from_bigint(self.size + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
 
 class SmallBitVector(BitVector):
     def __init__(self, size, val, normalize=False):

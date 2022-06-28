@@ -1,6 +1,13 @@
 Developer Log
 =
 
+27.06.2022
+==
+
+- participants: CF
+- managed to load linux and start the boot process, but there's a bug about a
+  million instructions in
+
 22.06.2022:
 ==
 - participants: CF, JW, NR

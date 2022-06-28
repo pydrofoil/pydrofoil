@@ -476,6 +476,7 @@ class __extend__(parse.Function):
                     codegen.emit("continue")
                 return
             elif isinstance(op, parse.Arbitrary):
+                codegen.emit("# arbitrary")
                 codegen.emit("return %s" % (codegen.gettyp(self.name).restype.uninitialized_value, ))
             else:
                 codegen.emit("# %s" % (op, ))

@@ -475,6 +475,8 @@ class __extend__(parse.Function):
                 if op.target < i:
                     codegen.emit("continue")
                 return
+            elif isinstance(op, parse.Arbitrary):
+                codegen.emit("return %s" % (codegen.gettyp(self.name).restype.uninitialized_value, ))
             else:
                 codegen.emit("# %s" % (op, ))
                 op.make_op_code(codegen)
@@ -605,9 +607,6 @@ class __extend__(parse.Failure):
         pass
 
 class __extend__(parse.Arbitrary):
-    def make_op_code(self, codegen):
-        codegen.emit("raise ValueError")
-
     def make_op_jump(self, codegen, i):
         pass
 

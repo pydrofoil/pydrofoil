@@ -447,7 +447,9 @@ def run_sail(insn_limit):
             raise ValueError
     if do_show_times:
         print "Instructions: %s" % (step_no, )
+        print "Total time (s): %s" % (interval_end - g.total_start)
         print "Perf: %s Kips" % (step_no / 1000. / (interval_end - g.total_start), )
+
 
 
 def load_sail(fn):

@@ -148,6 +148,7 @@ def not_bits(gvba):
     return gvba.invert()
 
 def safe_rshift(n, shift):
+    assert shift >= 0
     if shift >= 64:
         return r_uint(0)
     return n >> shift
@@ -254,6 +255,7 @@ def vector_access(bv, index):
     return bv.read_bit(index.toint())
 
 def update_fbits(fb, index, element):
+    assert 0 <= index < 64
     if element:
         return fb | (r_uint(1) << index)
     else:

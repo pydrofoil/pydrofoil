@@ -409,7 +409,7 @@ def run_sail(insn_limit):
     do_show_times = True
     g.last_instr = r_uint(0)
 
-    interval_start = time.time()
+    g.interval_start = g.total_start = time.time()
 
     while not outriscv.r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
         driver.jit_merge_point(pc=outriscv.r.zPC, last_instr=g.last_instr, insn_limit=insn_limit)
@@ -426,8 +426,8 @@ def run_sail(insn_limit):
 
         if do_show_times and (step_no & 0xfffff) == 0:
             curr = time.time()
-            print "kips:", 0x100000 / (interval_start - curr)
-            interval_start = curr
+            print "kips:", 0x100000 / 1000. / (curr - g.interval_start)
+            g.interval_start = curr
 
         if insn_cnt == g.rv_insns_per_tick:
             insn_cnt = 0
@@ -442,7 +442,7 @@ def run_sail(insn_limit):
             raise ValueError
     if do_show_times:
         print "Instructions: %s" % (step_no, )
-        print "Perf: %s Kips" % (step_no / 1000. / (interval_end - interval_start), )
+        print "Perf: %s Kips" % (step_no / 1000. / (interval_end - g.total_start), )
 
 
 def load_sail(fn):

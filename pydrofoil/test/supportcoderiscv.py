@@ -56,7 +56,10 @@ class BlockMemory(object):
         block_offset = start_addr >> 3
         inword_addr = start_addr & 0b111
         # little endian
-        mask = (r_uint(1) << (num_bytes * 8)) - 1
+        if num_bytes == 8:
+            mask = r_uint(-1)
+        else:
+            mask = (r_uint(1) << (num_bytes * 8)) - 1
         return block, block_offset, inword_addr, mask
 
     def read(self, start_addr, num_bytes):

@@ -270,7 +270,7 @@ def elf_tohost(_):
     return Integer.fromint(0)
 
 def get_slice_int(len, n, start):
-    return n.slice(len, start)
+    return n.slice(len.toint(), start.toint())
 
 def platform_barrier(_):
     return ()

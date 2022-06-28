@@ -36,6 +36,10 @@ class BitVector(object):
     def rbigint_mask(size, rval):
         return rval.and_(rbigint.fromint(1).lshift(size).int_sub(1))
 
+    def tolong(self): # only for tests:
+        return self.tobigint().tolong()
+
+
 class SmallBitVector(BitVector):
     def __init__(self, size, val, normalize=False):
         self.size = size # number of bits
@@ -70,16 +74,22 @@ class SmallBitVector(BitVector):
         print self.__repr__()
 
     def lshift(self, i):
+        assert i >= 0
+        if i >= 64:
+            return SmallBitVector(self.size, r_uint(0))
         return SmallBitVector(self.size, self.val << i, True)
 
     def rshift(self, i):
+        assert i >= 0
+        if i >= self.size:
+            return SmallBitVector(self.size, r_uint(0))
         return SmallBitVector(self.size, self.val >> i)
 
     def lshift_bits(self, other):
-        return SmallBitVector(self.size, self.val << other.touint(), True)
+        return self.lshift(other.toint())
 
     def rshift_bits(self, other):
-        return SmallBitVector(self.size, self.val >> other.touint())
+        return self.rshift(other.toint())
 
     def xor(self, other):
         assert isinstance(other, SmallBitVector)
@@ -110,16 +120,17 @@ class SmallBitVector(BitVector):
         if not highest_bit:
             return from_ruint(i, self.val)
         else:
-            assert i <= 64 # otherwise more complicated
             extra_bits = i - self.size
             bits = ((r_uint(1) << extra_bits) - 1) << self.size
             return from_ruint(i, bits | self.val)
 
     def read_bit(self, pos):
+        assert pos < self.size
         mask = r_uint(1) << pos
         return r_uint(bool(self.val & mask))
 
     def update_bit(self, pos, bit):
+        assert pos < self.size
         mask = r_uint(1) << pos
         if bit:
             return SmallBitVector(self.size, self.val | mask)
@@ -128,7 +139,11 @@ class SmallBitVector(BitVector):
 
     def update_subrange(self, n, m, s):
         width = s.size
+        assert width <= self.size
+        if width == self.size:
+            return s
         assert width == n - m + 1
+        # width cannot be 64 in the next line because of the if above
         mask = ~(((r_uint(1) << width) - 1) << m)
         return SmallBitVector(self.size, (self.val & mask) | (s.touint() << m), True)
 
@@ -320,8 +335,11 @@ class SmallInteger(Integer):
         return rbigint.fromint(self.val)
 
     def slice(self, len, start):
-        n = self.val >> start.toint()
-        len = len.toint()
+        if len > 64 or start >= 64: # XXX can be more efficient
+            return BigInteger._slice(self.tobigint(), len, start)
+        n = self.val >> start
+        if len == 64:
+            return from_ruint(64, r_uint(n))
         return from_ruint(len, r_uint(n) & ((1 << len) - 1))
 
     def eq(self, other):
@@ -416,8 +434,12 @@ class BigInteger(Integer):
         return self.rval
 
     def slice(self, len, start):
-        n = self.rval.rshift(start.toint())
-        return from_bigint(len.toint(), n.and_(rbigint.fromint(1).lshift(len.toint()).int_sub(1)))
+        return self._slice(self.rval, len, start)
+
+    @staticmethod
+    def _slice(rval, len, start):
+        n = rval.rshift(start)
+        return from_bigint(len, n.and_(rbigint.fromint(1).lshift(len).int_sub(1)))
 
     def eq(self, other):
         if isinstance(other, SmallInteger):

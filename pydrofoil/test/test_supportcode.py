@@ -64,7 +64,14 @@ def test_unsigned():
 
 def test_get_slice_int():
     for c in si, bi:
-        assert supportcode.get_slice_int(Integer.fromint(8), c(0b011010010000), Integer.fromint(4)).toint() == 0b01101001
+        assert supportcode.get_slice_int(Integer.fromint(8), c(0b011010010000), Integer.fromint(4)).tolong() == 0b01101001
+        assert supportcode.get_slice_int(Integer.fromint(8), c(-1), Integer.fromint(4)).tolong() == 0b11111111
+        assert supportcode.get_slice_int(Integer.fromint(64), c(-1), Integer.fromint(5)).tolong() == 0xffffffffffffffff
+        assert supportcode.get_slice_int(Integer.fromint(100), c(-1), Integer.fromint(11)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+        assert supportcode.get_slice_int(Integer.fromint(8), c(-1), Integer.fromint(1000)).tolong() == 0b11111111
+        assert supportcode.get_slice_int(Integer.fromint(64), c(-1), Integer.fromint(1000)).tolong() == 0xffffffffffffffff
+        assert supportcode.get_slice_int(Integer.fromint(100), c(-1), Integer.fromint(1000)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+
 
 def test_vector_access():
     for c in gbv, bv:
@@ -110,10 +117,15 @@ def test_vector_subrange():
     assert x.touint() == 0x1200
 
 def test_vector_update_subrange():
-    for c in gbv, bv:
-        x = c(8, 0b10001101)
-        x = x.update_subrange(5, 2, bv(4, 0b1010))
-        assert x.toint() == 0b10101001
+    for c1 in gbv, bv:
+        for c2 in gbv, bv:
+            x = c1(8, 0b10001101)
+            x = x.update_subrange(5, 2, c2(4, 0b1010))
+            assert x.toint() == 0b10101001
+            x = c1(64, 0b10001101)
+            y = c2(64, 0b1101001010010)
+            x = x.update_subrange(63, 0, y)
+            assert x.eq(y)
 
 def test_vector_shift():
     for c in gbv, bv:
@@ -127,6 +139,16 @@ def test_vector_shift():
         assert res.size == 8
         assert res.toint() == 0b00000100
 
+        x = c(8, 0b10001101)
+        res = x.lshift(65)
+        assert res.size == 8
+        assert res.toint() == 0
+
+        x = c(8, 0b10001101)
+        res = x.rshift(65)
+        assert res.size == 8
+        assert res.toint() == 0
+
 def test_vector_shift_bits():
     for c in gbv, bv:
         x = c(8, 0b10001101)
@@ -138,6 +160,16 @@ def test_vector_shift_bits():
         res = x.rshift_bits(c(16, 5))
         assert res.size == 8
         assert res.toint() == 0b00000100
+
+        x = c(8, 0b10001101)
+        res = x.lshift_bits(c(8, 65))
+        assert res.size == 8
+        assert res.toint() == 0
+
+        x = c(8, 0b10001101)
+        res = x.rshift_bits(c(16, 65))
+        assert res.size == 8
+        assert res.toint() == 0
 
 def test_bitvector_touint():
     for size in [6, 6000]:

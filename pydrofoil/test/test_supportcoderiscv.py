@@ -9,7 +9,7 @@ class TBM(supportcoderiscv.BlockMemory):
     ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints
     BLOCK_SIZE = 2 ** ADDRESS_BITS_BLOCK
     BLOCK_MASK = BLOCK_SIZE - 1
-    
+
 
 def test_mem_write_read():
     mem = TBM()

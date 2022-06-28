@@ -416,6 +416,11 @@ def run_sail(insn_limit):
         # run a Sail step
         #print step_no, hex(outriscv.r.zPC)
         stepped = outriscv.func_zstep(Integer.fromint(step_no))
+        if outriscv.l.have_exception:
+            print "ended with exception!"
+            print outriscv.l.current_exception
+            print "from", outriscv.l.throw_location
+            raise ValueError
         if stepped:
             step_no += 1
             insn_cnt += 1

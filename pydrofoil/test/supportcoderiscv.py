@@ -228,7 +228,7 @@ g.reservation_valid = False
 def load_reservation(addr):
     g.reservation = addr
     g.reservation_valid = True
-    print "reservation <- 0x%x" % (addr, )
+    #print "reservation <- 0x%x" % (addr, )
     return ()
 
 def speculate_conditional(_):

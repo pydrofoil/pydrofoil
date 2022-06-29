@@ -219,10 +219,6 @@ def not_(b):
 def sail_assert(*args):
     pass
 
-@objectmodel.specialize.argtype(0, 1)
-def eq_anything(a, b):
-    return a == b
-
 def eq_bool(a, b):
     return a == b
 

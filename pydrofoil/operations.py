@@ -6,6 +6,9 @@ class __extend__(types.Type):
     def make_op_code_special_neq(self, ast, sargs, argtyps):
         return "not (%s)" % (self.make_op_code_special_eq(ast, sargs, argtyps), )
 
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "supportcode.raise_type_error()"
+
 
 class __extend__(types.FixedBitVector):
     def checkwidths(self, argtyps):
@@ -85,6 +88,10 @@ class __extend__(types.SmallBitVector):
         width = ast.templateparam.number
         return "supportcode.safe_rshift(%s.touint(), %s) & r_uint(0x%x)" % (arg.to_code(codegen), num.number, (1 << width) - 1)
 
+class __extend__(types.GenericBitVector):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "%s.eq(%s)" % (sarg1, sarg2)
+
 class __extend__(types.MachineInt):
     def machineintop(self, template, sargs, argtyps):
         for typ in argtyps:
@@ -115,6 +122,9 @@ class __extend__(types.MachineInt):
     def make_op_code_special_isub(self, ast, sargs, argtyps):
         return self.machineintop("%s - %s", sargs, argtyps)
 
+class __extend__(types.Int):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "%s.eq(%s)" % (sarg1, sarg2)
 
 class __extend__(types.List):
     def make_op_code_special_hd(self, ast, sargs, argtyps):
@@ -124,7 +134,9 @@ class __extend__(types.List):
         return "%s.tail" % (sargs[0], )
 
     def make_op_code_special_eq(self, ast, sargs, argtyps):
-        assert sargs[1] == "None"
+        if sargs[1] != "None":
+            # no clue
+            return "supportcode.raise_type_error()"
         return "%s is None" % (sargs[0], )
 
 class __extend__(types.Bool):
@@ -137,3 +149,32 @@ class __extend__(types.Bool):
 class __extend__(types.Enum):
     def make_op_code_special_eq(self, ast, sargs, argtyps):
         return "%s == %s" % (sargs[0], sargs[1])
+
+class __extend__(types.Bit):
+    def make_op_code_special_eq(self, ast, sargs, argtyps):
+        return "%s == %s" % (sargs[0], sargs[1])
+
+class __extend__(types.String):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "%s == %s" % (sarg1, sarg2)
+
+class __extend__(types.Union):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "%s.eq(%s)" % (sarg1, sarg2)
+
+class __extend__(types.Struct):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "%s.eq(%s)" % (sarg1, sarg2)
+
+class __extend__(types.Tuple):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "%s.eq(%s)" % (sarg1, sarg2)
+
+
+class __extend__(types.Unit):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "True"
+
+class __extend__(types.Ref):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
+        return "supportcode.raise_type_error()"

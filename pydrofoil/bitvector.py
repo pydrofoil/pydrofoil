@@ -352,22 +352,26 @@ class SmallInteger(Integer):
     def lt(self, other):
         if isinstance(other, SmallInteger):
             return self.val < other.val
-        return self.tobigint().lt(other.tobigint())
+        assert isinstance(other, BigInteger)
+        return other.rval.int_gt(self.val)
 
     def le(self, other):
         if isinstance(other, SmallInteger):
             return self.val <= other.val
-        return self.tobigint().le(other.tobigint())
+        assert isinstance(other, BigInteger)
+        return other.rval.int_ge(self.val)
 
     def gt(self, other):
         if isinstance(other, SmallInteger):
             return self.val > other.val
-        return self.tobigint().gt(other.tobigint())
+        assert isinstance(other, BigInteger)
+        return other.rval.int_lt(self.val)
 
     def ge(self, other):
         if isinstance(other, SmallInteger):
             return self.val >= other.val
-        return self.tobigint().ge(other.tobigint())
+        assert isinstance(other, BigInteger)
+        return other.rval.int_le(self.val)
 
     def add(self, other):
         if isinstance(other, SmallInteger):

@@ -132,7 +132,9 @@ def platform_write_mem(write_kind, addr_size, addr, n, data):
 class Globals(object):
     _immutable_fields_ = [
         'config_print_platform?', 'config_print_mem_access?',
-        'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?'
+        'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?',
+        'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
+        'rv_rom_size?', 'mem?',
     ]
 
 g = Globals()

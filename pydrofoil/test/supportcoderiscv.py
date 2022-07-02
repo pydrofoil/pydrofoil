@@ -393,19 +393,21 @@ def main(argv):
 
 def get_printable_location(pc, last_instr, insn_limit):
     from pydrofoil.test import outriscv
-    dis = ''
-    if last_instr:
-        ast = outriscv.func_zdecode(last_instr)
-        dis = outriscv.func_zprint_insn(ast)
-    return hex(pc) + ": " + dis
+    return hex(pc) + ": " + hex(last_instr)
 
 driver = JitDriver(
     get_printable_location=get_printable_location,
-    greens=['pc', 'last_instr', 'insn_limit'], reds='auto')
+    greens=['pc', 'last_instr', 'insn_limit'],
+    reds=['step_no', 'insn_cnt', 'r'],
+    virtualizables=['r'])
 
 
 def run_sail(insn_limit):
     from pydrofoil.test import outriscv
+    if NonConstant(False):
+        r = outriscv.Registers()
+    else:
+        r = outriscv.r
     step_no = 0
     insn_cnt = 0
     do_show_times = True
@@ -414,7 +416,8 @@ def run_sail(insn_limit):
     g.interval_start = g.total_start = time.time()
 
     while not outriscv.r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
-        driver.jit_merge_point(pc=outriscv.r.zPC, last_instr=g.last_instr, insn_limit=insn_limit)
+        driver.jit_merge_point(pc=outriscv.r.zPC, last_instr=g.last_instr,
+                insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r)
         # run a Sail step
         stepped = outriscv.func_zstep(Integer.fromint(step_no))
         if outriscv.r.have_exception:
@@ -507,4 +510,5 @@ def get_main():
         g.last_instr = x
         return orig(x)
     outriscv.func_zdecode = func_zdecode
+    outriscv.Registers._virtualizable_ = ['ztlb39', 'ztlb48', 'zminstret', 'zPC', 'znextPC', 'zmstatus', 'zmip', 'zmie', 'zsatp']
     return main

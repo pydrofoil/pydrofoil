@@ -14,7 +14,7 @@ def target(*args):
     print "making python code"
     with open(riscvir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s, "supportcoderiscv")
+    res = parse_and_make_code(s, "supportcoderiscv", {'zPC', 'znextPC'})
     with open(outriscvpy, "w") as f:
         f.write(res)
     print "translating to C!"

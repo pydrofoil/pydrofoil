@@ -18,7 +18,7 @@ class NameInfo(object):
 
 
 class Codegen(object):
-    def __init__(self):
+    def __init__(self, promoted_registers=frozenset()):
         self.declarations = []
         self.runtimeinit = []
         self.code = []
@@ -39,6 +39,7 @@ class Codegen(object):
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("NULL", "None")
         self.declared_types = set()
+        self.promoted_registers = promoted_registers
 
     def add_global(self, name, pyname, typ=None, ast=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -75,7 +76,11 @@ class Codegen(object):
             return self.globalnames[name]
 
     def gettarget(self, name):
-        return self.getinfo(name).pyname
+        res = self.getinfo(name).pyname
+        # XXX stupid hack
+        if res.startswith("jit.promote("):
+            return res[len('jit.promote('):-1]
+        return res
 
     def gettyp(self, name):
         return self.getinfo(name).typ
@@ -137,9 +142,9 @@ class Codegen(object):
         return "\n\n\n".join(res)
 
 
-def parse_and_make_code(s, supportcodename="supportcode"):
+def parse_and_make_code(s, supportcodename="supportcode", promoted_registers=set()):
     ast = parse.parser.parse(parse.lexer.lex(s))
-    c = Codegen()
+    c = Codegen(promoted_registers)
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib import jit")
         c.emit("from rpython.rlib import objectmodel")
@@ -310,11 +315,14 @@ class __extend__(parse.GlobalVal):
 class __extend__(parse.Register):
     def make_code(self, codegen):
         typ = self.typ.resolve_type(codegen)
-        pyname = "r.%s" % self.name
+        if self.name in codegen.promoted_registers:
+            pyname = "jit.promote(r.%s)" % self.name
+        else:
+            pyname = "r.%s" % self.name
         codegen.add_global(self.name, pyname, typ, self)
         with codegen.emit_code_type("declarations"):
             codegen.emit("# %s" % (self, ))
-            codegen.emit("%s = %s" % (pyname, typ.uninitialized_value))
+            codegen.emit("r.%s = %s" % (self.name, typ.uninitialized_value))
 
 
 class __extend__(parse.Function):

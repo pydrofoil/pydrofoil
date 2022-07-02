@@ -1,6 +1,7 @@
 import sys
 sys.setrecursionlimit(2**31-1)
 from rpython import conftest
+from rpython.rlib.nonconst import NonConstant
 
 class o:
     view = False
@@ -27,5 +28,8 @@ class TestNandJIT(LLJitMixin):
         entry = load_sail(elffile)
         init_sail(entry)
         def f():
-            run_sail()
+            limit = 0
+            if NonConstant(0):
+                limit = 124
+            run_sail(limit)
         self.meta_interp(f, [], listcomp=True, listops=True, backendopt=True)

@@ -34,8 +34,8 @@ class Codegen(object):
         self.add_global("bitzero", "r_uint(0)", types.Bit())
         self.add_global("bitone", "r_uint(1)", types.Bit())
         self.add_global("$zupdate_fbits", "supportcode.update_fbits")
-        self.add_global("have_exception", "l.have_exception", types.Bool())
-        self.add_global("throw_location", "l.throw_location", types.String())
+        self.add_global("have_exception", "r.have_exception", types.Bool())
+        self.add_global("throw_location", "r.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("NULL", "None")
         self.declared_types = set()
@@ -141,7 +141,7 @@ def parse_and_make_code(s, supportcodename="supportcode"):
     ast = parse.parser.parse(parse.lexer.lex(s))
     c = Codegen()
     with c.emit_code_type("declarations"):
-        c.emit("from rpython.rlib.rbigint import rbigint")
+        c.emit("from rpython.rlib import jit")
         c.emit("from rpython.rlib import objectmodel")
         c.emit("from rpython.rlib.rarithmetic import r_uint, intmask")
         c.emit("import operator")
@@ -150,11 +150,11 @@ def parse_and_make_code(s, supportcodename="supportcode"):
         c.emit("from pydrofoil.bitvector import Integer")
         c.emit("class Registers(object): pass")
         c.emit("r = Registers()")
+        c.emit("r.have_exception = False")
+        c.emit("r.throw_location = None")
+        c.emit("r.current_exception = None")
         c.emit("class Lets(object): pass")
         c.emit("l = Lets()")
-        c.emit("l.have_exception = False")
-        c.emit("l.throw_location = None")
-        c.emit("l.current_exception = None")
     try:
         ast.make_code(c)
     except Exception:
@@ -219,7 +219,7 @@ class __extend__(parse.Union):
                     self.make_eq(codegen, rtyp, typ, pyname)
                     self.make_convert(codegen, rtyp, typ, pyname)
         if self.name == "zexception":
-            codegen.add_global("current_exception", "l.current_exception", uniontyp, self)
+            codegen.add_global("current_exception", "r.current_exception", uniontyp, self)
 
     def make_init(self, codegen, rtyp, typ, pyname):
         with codegen.emit_indent("def __init__(self, a):"):

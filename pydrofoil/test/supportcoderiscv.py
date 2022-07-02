@@ -416,12 +416,11 @@ def run_sail(insn_limit):
     while not outriscv.r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
         driver.jit_merge_point(pc=outriscv.r.zPC, last_instr=g.last_instr, insn_limit=insn_limit)
         # run a Sail step
-        #print step_no, hex(outriscv.r.zPC)
         stepped = outriscv.func_zstep(Integer.fromint(step_no))
-        if outriscv.l.have_exception:
+        if outriscv.r.have_exception:
             print "ended with exception!"
-            print outriscv.l.current_exception
-            print "from", outriscv.l.throw_location
+            print outriscv.r.current_exception
+            print "from", outriscv.r.throw_location
             raise ValueError
         if stepped:
             step_no += 1

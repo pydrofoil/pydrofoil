@@ -2,11 +2,12 @@ import sys
 from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod
-from rpython.rlib.objectmodel import always_inline
+from rpython.rlib.objectmodel import always_inline, specialize
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 
 @always_inline
+@specialize.arg_or_var(0)
 def from_ruint(size, val):
     if size <= 64:
         return SmallBitVector(size, val, True)

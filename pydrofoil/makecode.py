@@ -237,15 +237,16 @@ class __extend__(parse.Union):
             codegen.emit("if type(self) is not type(other): return False")
             if rtyp is types.Unit():
                 codegen.emit("return True")
+                return
             elif type(rtyp) is types.Tuple:
                 codegen.emit("# %s" % typ)
                 for fieldnum, fieldtyp in enumerate(rtyp.elements):
                     codegen.emit("if %s: return False # %s" % (
                         fieldtyp.make_op_code_special_neq(None, ('self.utup%s' % fieldnum, 'other.utup%s' % fieldnum), (fieldtyp, fieldtyp)),
-                        fieldtyp))
+                        typ.elements[fieldnum]))
             else:
                 codegen.emit("if %s: return False # %s" % (
-                    rtyp.make_op_code_special_neq(None, ('self.a', 'other.a'), (rtyp, rtyp)), rtyp))
+                    rtyp.make_op_code_special_neq(None, ('self.a', 'other.a'), (rtyp, rtyp)), typ))
             codegen.emit("return True")
 
     def make_convert(self, codegen, rtyp, typ, pyname):

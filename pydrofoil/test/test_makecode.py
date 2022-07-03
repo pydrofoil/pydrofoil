@@ -245,7 +245,7 @@ x = 33
 in g()
 Fall through OK
 """
-    assert d['l'].have_exception
+    assert d['r'].have_exception
 
 def test_exceptions2(capsys):
     import py
@@ -282,7 +282,7 @@ ok
 ok
 R = 3
 """
-    assert not d['l'].have_exception
+    assert not d['r'].have_exception
 
 def test_full_nand():
     import py

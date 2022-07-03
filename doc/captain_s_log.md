@@ -1,6 +1,12 @@
 Developer Log
 =
 
+28.06.2022
+==
+
+- CF: fix equality implementation of basically everything, afterwards linux
+  boots to completion
+
 27.06.2022
 ==
 

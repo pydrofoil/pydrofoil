@@ -326,12 +326,8 @@ def test_full_mips():
 
 @pytest.fixture(scope='session')
 def riscvmain():
-    with open(riscvir, "rb") as f:
-        s = f.read()
-    res = parse_and_make_code(s, "supportcoderiscv")
-    with open(outriscvpy, "w") as f:
-        f.write(res)
-    from pydrofoil.test import outriscv, supportcoderiscv
+    from pydrofoil.test.targetriscv import make_code
+    outriscv, supportcoderiscv = make_code()
     supportcoderiscv.g.config_print_instr = False
     supportcoderiscv.g.config_print_reg = False
     supportcoderiscv.g.config_print_mem_access = False

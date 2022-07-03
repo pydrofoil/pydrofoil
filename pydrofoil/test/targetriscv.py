@@ -8,25 +8,23 @@ import os
 riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
 outriscvpy = os.path.join(os.path.dirname(__file__), "outriscv.py")
 
-
-def target(*args):
-    import py
+def make_code():
     print "making python code"
     with open(riscvir, "rb") as f:
         s = f.read()
     res = parse_and_make_code(s, "supportcoderiscv", {'zPC', 'znextPC'})
     with open(outriscvpy, "w") as f:
         f.write(res)
+    from pydrofoil.test import outriscv, supportcoderiscv
+    return outriscv, supportcoderiscv
+
+def target(*args):
+    import py
+    outriscv, supportcoderiscv = make_code()
     print "translating to C!"
     from pydrofoil.test.supportcoderiscv import get_main, g
-    from pydrofoil.test import outriscv
     main = get_main()
     return main
-
-def main(argv):
-    from pydrofoil.test.supportcoderiscv import main
-    return main(argv)
-
 
 if __name__ == '__main__':
     import sys

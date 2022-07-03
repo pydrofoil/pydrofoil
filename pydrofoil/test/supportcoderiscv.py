@@ -134,6 +134,8 @@ class Globals(object):
     _immutable_fields_ = [
         'config_print_platform?', 'config_print_mem_access?',
         'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?',
+        'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
+        'rv_rom_size?', 'mem?',
     ]
 
 g = Globals()
@@ -317,7 +319,10 @@ def init_sail_reset_vector(entry):
         addr += 1
 
     # set rom size
-    g.rv_rom_size = rom_end - rv_rom_base
+    rv_rom_size = rom_end - rv_rom_base
+    if g.rv_rom_size != rv_rom_size:
+        g.rv_rom_size = rv_rom_size
+
     # boot at reset vector
     outriscv.r.zPC = r_uint(rv_rom_base)
 

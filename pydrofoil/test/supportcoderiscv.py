@@ -1,6 +1,7 @@
 from pydrofoil.supportcode import *
 from pydrofoil.bitvector import Integer
 from pydrofoil import elf
+from pydrofoil.mem import MmapMemory
 
 from rpython.rlib.nonconst import NonConstant
 from rpython.rlib.objectmodel import we_are_translated, always_inline

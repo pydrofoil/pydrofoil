@@ -2,18 +2,18 @@ import pytest
 
 import os
 import random
-from pydrofoil.test import supportcoderiscv
+from pydrofoil import mem
 from rpython.rlib.rarithmetic import r_uint, intmask
 
 elffile = os.path.join(os.path.dirname(__file__), "rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
 
-class TBM(supportcoderiscv.BlockMemory):
+class TBM(mem.BlockMemory):
     ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints
     BLOCK_SIZE = 2 ** ADDRESS_BITS_BLOCK
     BLOCK_MASK = BLOCK_SIZE - 1
 
 
-@pytest.mark.parametrize("memcls", [TBM, supportcoderiscv.MmapMemory])
+@pytest.mark.parametrize("memcls", [TBM, mem.MmapMemory])
 def test_mem_write_read(memcls):
     mem = memcls()
     assert mem.read(r_uint(1), 1) == 0
@@ -42,11 +42,11 @@ def test_mem_write_read(memcls):
 
 def test_elf_reader():
     from pydrofoil import elf
-    mem = supportcoderiscv.BlockMemory()
+    m = mem.BlockMemory()
     with open(elffile, "rb") as f:
-        entrypoint = elf.elf_read_process_image(mem, f)
+        entrypoint = elf.elf_read_process_image(m, f)
     assert entrypoint == 0x80000000
     # used to be wrong in the segment reader
-    assert mem.read(0x0000000080000D42, 2) == 0x4e4c
+    assert m.read(0x0000000080000D42, 2) == 0x4e4c
 
 

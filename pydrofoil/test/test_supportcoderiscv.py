@@ -1,3 +1,5 @@
+import pytest
+
 import os
 import random
 from pydrofoil.test import supportcoderiscv
@@ -11,10 +13,11 @@ class TBM(supportcoderiscv.BlockMemory):
     BLOCK_MASK = BLOCK_SIZE - 1
 
 
-def test_mem_write_read():
-    mem = TBM()
+@pytest.mark.parametrize("memcls", [TBM, supportcoderiscv.MmapMemory])
+def test_mem_write_read(memcls):
+    mem = memcls()
     assert mem.read(r_uint(1), 1) == 0
-    addresses = range(100) + [mem.BLOCK_MASK + i for i in range(-100, 100)]
+    addresses = range(100) + [TBM.BLOCK_MASK + i for i in range(-100, 100)]
     # cleck little endianness
     mem.write(r_uint(8), 8, r_uint(0x0102030405060708))
     assert mem.read(r_uint(8), 1) == r_uint(0x08)
@@ -35,6 +38,7 @@ def test_mem_write_read():
                 for offset in range(consec):
                     addr = r_uint(base_addr + offset * size)
                     assert mem.read(addr, size) == data[offset]
+    mem.close()
 
 def test_elf_reader():
     from pydrofoil import elf

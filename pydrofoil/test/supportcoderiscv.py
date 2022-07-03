@@ -2,6 +2,7 @@ from pydrofoil.supportcode import *
 from pydrofoil.bitvector import Integer
 from pydrofoil import elf
 
+from rpython.rlib.nonconst import NonConstant
 from rpython.rlib.objectmodel import we_are_translated, always_inline
 from rpython.rlib.jit import elidable, unroll_safe, hint, JitDriver, promote
 from rpython.rlib.rarithmetic import r_uint, intmask
@@ -133,8 +134,6 @@ class Globals(object):
     _immutable_fields_ = [
         'config_print_platform?', 'config_print_mem_access?',
         'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?',
-        'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
-        'rv_rom_size?', 'mem?',
     ]
 
 g = Globals()

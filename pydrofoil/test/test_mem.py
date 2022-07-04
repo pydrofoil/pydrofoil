@@ -13,7 +13,7 @@ class TBM(mem.BlockMemory):
     BLOCK_MASK = BLOCK_SIZE - 1
 
 
-@pytest.mark.parametrize("memcls", [TBM, mem.MmapMemory])
+@pytest.mark.parametrize("memcls", [TBM, mem.FlatMemory])
 def test_mem_write_read(memcls):
     mem = memcls()
     assert mem.read(r_uint(1), 1) == 0

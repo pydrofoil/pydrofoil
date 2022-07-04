@@ -17,8 +17,7 @@ rv64ui-p-addi.elf rv64um-v-mul.elf rv64um-v-mulhu.elf rv64um-p-div.elf
 rv64um-p-rem.elf rv64ua-v-amoadd_w.elf rv64ua-v-amomax_d.elf
 """
 
-elfs = [os.path.join(os.path.dirname(__file__), fn) for fn in
-        elfs.split()]
+elfs = [os.path.join(thisdir, fn) for fn in elfs.split()]
 
 
 addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "Add.hack.bin")
@@ -332,8 +331,14 @@ def riscvmain():
     supportcoderiscv.g.config_print_reg = False
     supportcoderiscv.g.config_print_mem_access = False
     supportcoderiscv.g.config_print_platform = False
-    return supportcoderiscv.get_main()
+    res = supportcoderiscv.get_main()
+    res.supportcoderiscv = supportcoderiscv
+    return res
 
 @pytest.mark.parametrize("elf", elfs)
 def test_full_riscv(riscvmain, elf):
     riscvmain(['executable', elf])
+
+def test_load_dump(riscvmain):
+    d = riscvmain.supportcoderiscv.parse_dump_file(os.path.join(thisdir, 'dhrystone.riscv.dump'))
+    assert d[0x8000218a] == '.text: Proc_1 6100                	ld	s0,0(a0)'

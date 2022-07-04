@@ -228,6 +228,47 @@ def init_sail_reset_vector(entry):
     # boot at reset vector
     outriscv.r.zPC = r_uint(rv_rom_base)
 
+def parse_dump_file(fn):
+    with open(fn) as f:
+        content = f.read()
+    dump = {}
+    section = '?'
+    function = '?'
+    for line in content.splitlines(False):
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("Disassembly of section "):
+            section = line[len("Disassembly of section "):]
+        elif line.endswith(">:"):
+            pos = line.rfind("<")
+            if pos < 0:
+                continue
+            endpos = len(line) - 2
+            assert endpos >= 0
+            function = line[pos + 1: endpos]
+        else:
+            pos = line.find(":")
+            if pos < 0:
+                continue
+            address = line[:pos]
+            res = line[pos + 1:].strip()
+            intaddress = r_uint(0)
+            for c in address:
+                charval = -1
+                if '0' <= c <= '9':
+                    charval = ord(c) - ord('0')
+                elif 'a' <= c <= 'f':
+                    charval = ord(c) - ord('a') + 10
+                elif 'A' <= c <= 'F':
+                    charval = ord(c) - ord('A') + 10
+                else:
+                    break
+                intaddress = intaddress * r_uint(16) + r_uint(charval)
+            else:
+                dump[intaddress] = "%s %s %s" % (section, function, res)
+    return dump
+
 def main(argv):
     from pydrofoil.test import outriscv
     from rpython.rlib import jit
@@ -264,6 +305,19 @@ def main(argv):
             del argv[i:i+2]
             break
 
+    limit = 0
+    for i in range(len(argv)):
+        if argv[i] == '--dump':
+            # XXX could parse the elf file too!
+            if len(argv) == i + 1:
+                print "missing argument after", argv[i]
+                return 2
+            dump_file = argv[i + 1]
+            print "dump file", dump_file
+            g.dump_dict = parse_dump_file(dump_file)
+            del argv[i:i+2]
+            break
+
     for i in range(len(argv)):
         if argv[i] == '--verbose':
             print "verbose"
@@ -297,16 +351,19 @@ def main(argv):
     #close_logs()
     return 0
 
-def get_printable_location(pc, last_instr, insn_limit):
+def get_printable_location(pc, insn_limit):
     from pydrofoil.test import outriscv
-    return hex(pc) + ": " + hex(last_instr)
+    if g.dump_dict and pc in g.dump_dict:
+        return "0x%x: %s" % (pc, g.dump_dict[pc])
+    return hex(pc)
 
 driver = JitDriver(
     get_printable_location=get_printable_location,
-    greens=['pc', 'last_instr', 'insn_limit'],
+    greens=['pc', 'insn_limit'],
     reds=['step_no', 'insn_cnt', 'r'],
     virtualizables=['r'])
 
+g.dump_dict = None
 
 def run_sail(insn_limit):
     from pydrofoil.test import outriscv
@@ -317,12 +374,11 @@ def run_sail(insn_limit):
     step_no = 0
     insn_cnt = 0
     do_show_times = True
-    g.last_instr = r_uint(0)
 
     g.interval_start = g.total_start = time.time()
 
     while not outriscv.r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
-        driver.jit_merge_point(pc=outriscv.r.zPC, last_instr=g.last_instr,
+        driver.jit_merge_point(pc=outriscv.r.zPC,
                 insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r)
         # run a Sail step
         stepped = outriscv.func_zstep(Integer.fromint(step_no))

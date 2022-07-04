@@ -305,7 +305,6 @@ def main(argv):
             del argv[i:i+2]
             break
 
-    limit = 0
     for i in range(len(argv)):
         if argv[i] == '--dump':
             # XXX could parse the elf file too!

@@ -471,26 +471,6 @@ def get_config_print_platform(_):
 def get_main():
     from pydrofoil.test import outriscv
     from rpython.rlib import jit
-    orig = outriscv.func_zdecode
-    def func_zdecode(x):
-        jit.promote(x)
-        g.last_instr = x
-        return orig(x)
-    outriscv.func_zdecode = func_zdecode
-
-    orig_phys_mem_read = outriscv.func_zphys_mem_read
-    def func_zphys_mem_read(t, paddr, *args):
-        execute = isinstance(t, outriscv.Union_zAccessType_zExecute)
-        if execute:
-            promote(paddr)
-        res = orig_phys_mem_read(t, paddr, *args)
-        if execute:
-            if isinstance(res, outriscv.Union_zMemoryOpResult_zMemValuez3z8z5bvzCz0z5unitz9):
-                val = res.utup0
-                if isinstance(val, bitvector.SmallBitVector):
-                    promote(val.val)
-        return res
-    outriscv.func_zphys_mem_read = func_zphys_mem_read
 
     outriscv.Registers._virtualizable_ = ['ztlb39', 'ztlb48', 'zminstret', 'zPC', 'znextPC', 'zmstatus', 'zmip', 'zmie', 'zsatp']
     return main

@@ -721,7 +721,11 @@ class __extend__(parse.Undefined):
 
 class __extend__(parse.FieldAccess):
     def to_code(self, codegen):
-        return "%s.%s" % (self.obj.to_code(codegen), self.element)
+        objtyp = self.obj.gettyp(codegen)
+        res = "%s.%s" % (self.obj.to_code(codegen), self.element)
+        if isinstance(objtyp, types.Struct) and self.element in codegen.promoted_registers:
+            return "jit.promote(%s)" % res
+        return res
 
     def gettyp(self, codegen):
         objtyp = self.obj.gettyp(codegen)

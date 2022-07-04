@@ -12,7 +12,7 @@ def make_code():
     print "making python code"
     with open(riscvir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s, "supportcoderiscv", {'zPC', 'znextPC'})
+    res = parse_and_make_code(s, "supportcoderiscv", {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', })
     # XXX horrible hack, they should be fixed in the model!
     assert res.count("func_zread_ram(zrk") == 2
     res = res.replace("def func_zread_ram(zrk", "def func_zread_ram(executable_flag, zrk")

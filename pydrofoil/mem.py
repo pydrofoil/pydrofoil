@@ -54,10 +54,25 @@ class MemBase(object):
             value = value >> 8
         assert not value
 
-class FlatMemory(MemBase):
-    SIZE = 64 * 1024 * 1024 # 64 MB
+    def mark_page_executable(self, start_addr):
+        pass
 
-    _immutable_fields_ = ['mem?']
+MEM_STATUS_IMMUTABLE = 'i'
+MEM_STATUS_NORMAL = 'n'
+MEM_STATUS_MUTABLE = 'm'
+
+class Version(object):
+    pass
+
+
+class FlatMemory(MemBase):
+    SIZE = 64 * 1024 * 1024 // 8 # 64 MB
+
+    PAGE_BITS = 9
+    PAGE_SIZE = 1 << 9
+    PAGE_MASK = PAGE_SIZE - 1
+
+    _immutable_fields_ = ['mem?', 'version?', 'status']
 
     def __init__(self, mmap=False, size=SIZE):
         self.size = size
@@ -76,6 +91,9 @@ class FlatMemory(MemBase):
         else:
             mem = [r_uint(0)] * (size // 8)
         self.mem = mem
+        self.status = [MEM_STATUS_NORMAL] * size
+        self.version = Version()
+
         self.mmap = mmap
 
     def close(self):
@@ -103,25 +121,64 @@ class FlatMemory(MemBase):
         if executable_flag:
             jit.promote(start_addr)
         mem_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
-        data = self.mem[mem_offset]
-        if executable_flag:
-            jit.promote(data)
+
+        if (executable_flag and
+                self._get_status_page(mem_offset, self.version) == MEM_STATUS_IMMUTABLE):
+            data = self._immutable_read(mem_offset, self.version)
+        else:
+            data = self.mem[mem_offset]
+            if executable_flag:
+                jit.promote(data)
         if num_bytes == 8:
             assert inword_addr == 0
             return data
         return (data >> (inword_addr * 8)) & mask
 
+    @jit.elidable_promote('all')
+    def _immutable_read(self, mem_offset, version):
+        assert version is self.version
+        return self.mem[mem_offset]
+
+    @jit.elidable_promote('all')
+    def _get_status_page(self, mem_offset, version):
+        assert version is self.version
+        return self.status[mem_offset]
+
     def _aligned_write(self, start_addr, num_bytes, value):
         mem_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
         if num_bytes == 8:
             assert inword_addr == 0
-            self.mem[mem_offset] = value
+            self._write_word(mem_offset, value)
             return
         assert value & ~mask == 0
         olddata = self.mem[mem_offset]
         mask <<= inword_addr * 8
         value <<= inword_addr * 8
-        self.mem[mem_offset] = (olddata & ~mask) | value
+        self._write_word(mem_offset, (olddata & ~mask) | value)
+
+    def _write_word(self, mem_offset, value):
+        if self.status[mem_offset] == MEM_STATUS_IMMUTABLE:
+            oldval = self.mem[mem_offset]
+            if oldval != value:
+                self._invalidate(mem_offset)
+        self.mem[mem_offset] = value
+
+    def _invalidate(self, mem_offset):
+        print "invalidating", mem_offset
+        pagestart = mem_offset & ~self.PAGE_MASK
+        self.version = Version()
+        for bo in range(pagestart, pagestart + self.PAGE_MASK + 1):
+            self.status[bo] = MEM_STATUS_MUTABLE
+
+    def mark_page_executable(self, addr):
+        mem_offset, inword_addr, mask = self._split_addr(addr, 1)
+        pagestart = mem_offset & ~self.PAGE_MASK
+        if self.status[mem_offset] != MEM_STATUS_NORMAL:
+            return
+        self.version = Version()
+        for mem_offset in range(pagestart, pagestart + self.PAGE_MASK + 1):
+            assert self.status[mem_offset] != MEM_STATUS_MUTABLE
+            self.status[mem_offset] = MEM_STATUS_IMMUTABLE
 
 
 class BlockMemory(MemBase):
@@ -211,18 +268,36 @@ class SplitMemory(MemBase):
     def _aligned_read(self, start_addr, num_bytes, executable_flag):
         if executable_flag:
             jit.promote(start_addr)
-        if self.address_base1 <= start_addr < self.address_end1:
-            return self.mem1._aligned_read(start_addr - self.address_base1, num_bytes, executable_flag)
+        if self.address_base1:
+            if self.address_base1 <= start_addr < self.address_end1:
+                return self.mem1._aligned_read(start_addr - self.address_base1, num_bytes, executable_flag)
+        else:
+            if start_addr < self.address_end1:
+                return self.mem1._aligned_read(start_addr, num_bytes, executable_flag)
         if self.address_base2 <= start_addr < self.address_end2:
             return self.mem2._aligned_read(start_addr - self.address_base2, num_bytes, executable_flag)
         raise ValueError
 
     def _aligned_write(self, start_addr, num_bytes, value):
-        if self.address_base1 <= start_addr < self.address_end1:
-            return self.mem1._aligned_write(start_addr - self.address_base1, num_bytes, value)
+        if self.address_base1:
+            if self.address_base1 <= start_addr < self.address_end1:
+                return self.mem1._aligned_write(start_addr - self.address_base1, num_bytes, value)
+        else:
+            if start_addr < self.address_end1:
+                return self.mem1._aligned_write(start_addr, num_bytes, value)
         if self.address_base2 <= start_addr < self.address_end2:
             return self.mem2._aligned_write(start_addr - self.address_base2, num_bytes, value)
         raise ValueError
+
+    def mark_page_executable(self, start_addr):
+        if self.address_base1:
+            if self.address_base1 <= start_addr < self.address_end1:
+                return self.mem1.mark_page_executable(start_addr - self.address_base1)
+        else:
+            if start_addr < self.address_end1:
+                return self.mem1.mark_page_executable(start_addr)
+        if self.address_base2 <= start_addr < self.address_end2:
+            return self.mem2.mark_page_executable(start_addr - self.address_base2)
 
     def close(self):
         self.mem1.close()

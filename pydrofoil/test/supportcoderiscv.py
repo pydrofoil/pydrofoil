@@ -1,7 +1,7 @@
 from pydrofoil.supportcode import *
 from pydrofoil.bitvector import Integer
 from pydrofoil import elf
-from pydrofoil.mem import MmapMemory
+from pydrofoil import mem as mem_mod
 
 from rpython.rlib.nonconst import NonConstant
 from rpython.rlib.objectmodel import we_are_translated, always_inline
@@ -16,11 +16,12 @@ def write_mem(addr, content): # write a single byte
     g.mem.write(addr, 1, content)
     return True
 
-def platform_read_mem(read_kind, addr_size, addr, n):
+def platform_read_mem(executable_flag, read_kind, addr_size, addr, n):
     n = n.toint()
     assert n <= 8
     assert addr_size == 64
-    res = g.mem.read(addr.touint(), n)
+    addr = addr.touint()
+    res = g.mem.read(addr, n, executable_flag)
     return bitvector.from_ruint(n*8, res)
 
 def platform_write_mem(write_kind, addr_size, addr, n, data):
@@ -366,7 +367,9 @@ def load_sail(fn):
     oldmem = g.mem
     if oldmem:
         oldmem.close()
-    mem = MmapMemory()
+    mem1 = mem_mod.FlatMemory(False)
+    mem2 = mem_mod.FlatMemory(False, g.rv_ram_size)
+    mem = mem_mod.SplitMemory(mem1, 0, mem1.size, mem2, g.rv_ram_base, g.rv_ram_size)
     g.mem = mem
     with open(fn, "rb") as f:
         entrypoint = elf.elf_read_process_image(mem, f) # load process image
@@ -418,5 +421,20 @@ def get_main():
         g.last_instr = x
         return orig(x)
     outriscv.func_zdecode = func_zdecode
+
+    orig_phys_mem_read = outriscv.func_zphys_mem_read
+    def func_zphys_mem_read(t, paddr, *args):
+        execute = isinstance(t, outriscv.Union_zAccessType_zExecute)
+        if execute:
+            promote(paddr)
+        res = orig_phys_mem_read(t, paddr, *args)
+        if execute:
+            if isinstance(res, outriscv.Union_zMemoryOpResult_zMemValuez3z8z5bvzCz0z5unitz9):
+                val = res.utup0
+                if isinstance(val, bitvector.SmallBitVector):
+                    promote(val.val)
+        return res
+    outriscv.func_zphys_mem_read = func_zphys_mem_read
+
     outriscv.Registers._virtualizable_ = ['ztlb39', 'ztlb48', 'zminstret', 'zPC', 'znextPC', 'zmstatus', 'zmip', 'zmie', 'zsatp']
     return main

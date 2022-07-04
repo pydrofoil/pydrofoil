@@ -9,7 +9,7 @@ class MemBase(object):
     def close(self):
         pass
 
-    def is_aligned(self, addr, num_bytes):
+    def is_aligned(self, addr, num_bytes=8):
         if num_bytes == 1:
             return True
         elif num_bytes == 2:
@@ -21,21 +21,21 @@ class MemBase(object):
         else:
             assert 0, "invalid num_bytes"
 
-    def read(self, start_addr, num_bytes):
+    def read(self, start_addr, num_bytes, executable_flag=False):
         if not self.is_aligned(start_addr, num_bytes):
             # not aligned! slow path
-            return self._unaligned_read(start_addr, num_bytes)
-        return self._aligned_read(start_addr, num_bytes)
+            return self._unaligned_read(start_addr, num_bytes, executable_flag)
+        return self._aligned_read(start_addr, num_bytes, executable_flag)
 
-    def _aligned_read(self, start_addr, num_bytes):
+    def _aligned_read(self, start_addr, num_bytes, executable_flag):
         raise NotImplementedError
 
     @jit.unroll_safe
-    def _unaligned_read(self, start_addr, num_bytes):
+    def _unaligned_read(self, start_addr, num_bytes, executable_flag=False):
         value = r_uint(0)
         for i in range(num_bytes - 1, -1, -1):
             value = value << 8
-            value = value | self._aligned_read(start_addr + i, 1)
+            value = value | self._aligned_read(start_addr + i, 1, executable_flag)
         return value
 
     def write(self, start_addr, num_bytes, value):
@@ -54,24 +54,33 @@ class MemBase(object):
             value = value >> 8
         assert not value
 
-class MmapMemory(MemBase):
-    SIZE = 8 * 1024 * 1024 * 1024 # 8 GB should be fine
+class FlatMemory(MemBase):
+    SIZE = 64 * 1024 * 1024 # 64 MB
 
-    def __init__(self):
-        if we_are_translated():
-            nc = NonConstant
+    _immutable_fields_ = ['mem?']
+
+    def __init__(self, mmap=False, size=SIZE):
+        self.size = size
+        if mmap:
+            if we_are_translated():
+                nc = NonConstant
+            else:
+                nc = lambda x: x
+            mem = rmmap.c_mmap(
+                nc(rmmap.NULL),
+                nc(size),
+                nc(rmmap.PROT_READ | rmmap.PROT_WRITE),
+                nc(rmmap.MAP_PRIVATE | rmmap.MAP_ANONYMOUS),
+                nc(-1), nc(0))
+            mem = rffi.cast(rffi.UNSIGNEDP, mem)
         else:
-            nc = lambda x: x
-        mem = rmmap.c_mmap(
-            nc(rmmap.NULL),
-            nc(self.SIZE),
-            nc(rmmap.PROT_READ | rmmap.PROT_WRITE),
-            nc(rmmap.MAP_PRIVATE | rmmap.MAP_ANONYMOUS),
-            nc(-1), nc(0))
-        mem = rffi.cast(rffi.UNSIGNEDP, mem)
+            mem = [r_uint(0)] * (size // 8)
         self.mem = mem
+        self.mmap = mmap
 
     def close(self):
+        if not self.mmap:
+            return
         if we_are_translated():
             nc = NonConstant
         else:
@@ -90,9 +99,13 @@ class MmapMemory(MemBase):
             mask = (r_uint(1) << (num_bytes * 8)) - 1
         return mem_offset, inword_addr, mask
 
-    def _aligned_read(self, start_addr, num_bytes):
+    def _aligned_read(self, start_addr, num_bytes, executable_flag):
+        if executable_flag:
+            jit.promote(start_addr)
         mem_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
         data = self.mem[mem_offset]
+        if executable_flag:
+            jit.promote(data)
         if num_bytes == 8:
             assert inword_addr == 0
             return data
@@ -152,9 +165,13 @@ class BlockMemory(MemBase):
             mask = (r_uint(1) << (num_bytes * 8)) - 1
         return block, block_offset, inword_addr, mask
 
-    def _aligned_read(self, start_addr, num_bytes):
+    def _aligned_read(self, start_addr, num_bytes, executable_flag):
+        if executable_flag:
+            jit.promote(start_addr)
         block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
         data = block[block_offset]
+        if executable_flag:
+            jit.promote(data)
         if num_bytes == 8:
             assert inword_addr == 0
             return data
@@ -172,3 +189,41 @@ class BlockMemory(MemBase):
         value <<= inword_addr * 8
         block[block_offset] = (olddata & ~mask) | value
 
+
+class SplitMemory(MemBase):
+    # XXX should be generalized to N segments and auto-generated
+
+    _immutable_fields_ = ['mem1', 'address_base1', 'address_end1', 'mem2', 'address_base2', 'address_end2']
+
+    def __init__(self, mem1, address_base1, size1, mem2, address_base2, size2):
+        self.mem1 = mem1
+        self.address_base1 = address_base1
+        self.address_end1 = address_base1 + size1
+        assert self.is_aligned(self.address_base1)
+        assert self.is_aligned(self.address_end1)
+
+        self.mem2 = mem2
+        self.address_base2 = address_base2
+        self.address_end2 = address_base2 + size2
+        assert self.is_aligned(self.address_base2)
+        assert self.is_aligned(self.address_end2)
+
+    def _aligned_read(self, start_addr, num_bytes, executable_flag):
+        if executable_flag:
+            jit.promote(start_addr)
+        if self.address_base1 <= start_addr < self.address_end1:
+            return self.mem1._aligned_read(start_addr - self.address_base1, num_bytes, executable_flag)
+        if self.address_base2 <= start_addr < self.address_end2:
+            return self.mem2._aligned_read(start_addr - self.address_base2, num_bytes, executable_flag)
+        raise ValueError
+
+    def _aligned_write(self, start_addr, num_bytes, value):
+        if self.address_base1 <= start_addr < self.address_end1:
+            return self.mem1._aligned_write(start_addr - self.address_base1, num_bytes, value)
+        if self.address_base2 <= start_addr < self.address_end2:
+            return self.mem2._aligned_write(start_addr - self.address_base2, num_bytes, value)
+        raise ValueError
+
+    def close(self):
+        self.mem1.close()
+        self.mem2.close()

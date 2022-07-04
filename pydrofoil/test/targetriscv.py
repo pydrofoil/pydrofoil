@@ -13,6 +13,12 @@ def make_code():
     with open(riscvir, "rb") as f:
         s = f.read()
     res = parse_and_make_code(s, "supportcoderiscv", {'zPC', 'znextPC'})
+    # XXX horrible hack, they should be fixed in the model!
+    assert res.count("func_zread_ram(zrk") == 2
+    res = res.replace("def func_zread_ram(zrk", "def func_zread_ram(executable_flag, zrk")
+    res = res.replace("func_zread_ram(zrk", "func_zread_ram((type(zt) is Union_zAccessType_zExecute), zrk")
+    assert res.count("platform_read_mem") == 1
+    res = res.replace("platform_read_mem(", "platform_read_mem(executable_flag, ")
     with open(outriscvpy, "w") as f:
         f.write(res)
     from pydrofoil.test import outriscv, supportcoderiscv

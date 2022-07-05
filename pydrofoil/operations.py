@@ -9,6 +9,10 @@ class __extend__(types.Type):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
         return "supportcode.raise_type_error()"
 
+def ruint_mask(s, width):
+    if width == 64:
+        return s
+    return "(%s) & r_uint(0x%x)" % (s, (1 << width) - 1)
 
 class __extend__(types.FixedBitVector):
     def checkwidths(self, argtyps):
@@ -21,8 +25,7 @@ class __extend__(types.FixedBitVector):
 
     def bvop(self, template, sargs, argtyps):
         self.checkwidths(argtyps)
-        mask = "r_uint(0x%x)" % ((1 << self.width) - 1)
-        return "((%s) & %s)" % (template % tuple(sargs), mask)
+        return ruint_mask(template % tuple(sargs), self.width)
 
     def make_op_code_special_bvnot(self, ast, sargs, argtyps):
         return self.bvop("~%s", sargs, argtyps)
@@ -43,6 +46,8 @@ class __extend__(types.FixedBitVector):
         return self.bvop("%s ^ %s", sargs, argtyps)
 
     def make_op_code_special_bvaccess(self, ast, (sarg1, sarg2), argtyps):
+        if sarg2 == "0":
+            return "r_uint(1) & %s" % sarg1
         return "r_uint(1) & supportcode.safe_rshift(%s, r_uint(%s))" % (sarg1, sarg2)
 
     def make_op_code_special_concat(self, ast, (sarg1, sarg2), (argtyp1, argtyp2)):
@@ -55,7 +60,11 @@ class __extend__(types.FixedBitVector):
         assert isinstance(num, parse.Number)
         assert isinstance(ast.templateparam, parse.Number)
         width = ast.templateparam.number
-        return "supportcode.safe_rshift(%s, %s) & r_uint(0x%x)" % (arg.to_code(codegen), num.number, (1 << width) - 1)
+        if num.number == 0:
+            s = arg.to_code(codegen)
+        else:
+            s = "supportcode.safe_rshift(%s, %s)" % (arg.to_code(codegen), num.number)
+        return ruint_mask(s, width)
 
     def make_op_code_templated_signed(self, ast, codegen):
         arg, = ast.args
@@ -86,7 +95,12 @@ class __extend__(types.SmallBitVector):
         assert isinstance(num, parse.Number)
         assert isinstance(ast.templateparam, parse.Number)
         width = ast.templateparam.number
-        return "supportcode.safe_rshift(%s.touint(), %s) & r_uint(0x%x)" % (arg.to_code(codegen), num.number, (1 << width) - 1)
+        sarg = arg.to_code(codegen)
+        if num.number == 0:
+            s = "%s.touint()" % (sarg, )
+        else:
+            s = "supportcode.safe_rshift(%s.touint(), %s)" % (sarg, num.number)
+        return ruint_mask(s, width)
 
 class __extend__(types.GenericBitVector):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):

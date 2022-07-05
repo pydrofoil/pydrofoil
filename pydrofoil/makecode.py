@@ -160,6 +160,7 @@ def parse_and_make_code(s, supportcodename="supportcode", promoted_registers=set
         c.emit("r.current_exception = None")
         c.emit("class Lets(object): pass")
         c.emit("l = Lets()")
+        c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     try:
         ast.make_code(c)
     except Exception:

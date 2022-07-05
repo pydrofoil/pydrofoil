@@ -102,19 +102,22 @@ def test_vector_update():
         assert res.toint() == 0b101
 
 def test_vector_subrange():
-    x = gbv(6, 0b111)
-    r = x.subrange(3, 2)
-    assert r.size == 2
-    assert r.toint() == 1
-    x = bv(6, 0b111)
-    r = x.subrange(3, 2)
-    assert r.size == 2
-    assert r.toint() == 1
+    for c in gbv, bv:
+        x = c(6, 0b111)
+        r = x.subrange(3, 2)
+        assert r.size == 2
+        assert r.toint() == 1
+        assert isinstance(r, bitvector.SmallBitVector)
 
     # regression bug
     b = gbv(128, 0x36000000000000001200L)
     x = b.subrange(63, 0)
     assert x.touint() == 0x1200
+
+    b = gbv(128, 0x36000000000000001200L)
+    x = b.subrange(66, 0)
+    assert x.tolong() == 0x1200
+    assert isinstance(x, bitvector.GenericBitVector)
 
 def test_vector_update_subrange():
     for c1 in gbv, bv:

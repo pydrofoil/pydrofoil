@@ -1,7 +1,7 @@
 import sys
 from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
-        int_c_div, int_c_mod
+        int_c_div, int_c_mod, r_ulonglong
 from rpython.rlib.objectmodel import always_inline, specialize
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
@@ -233,6 +233,13 @@ class GenericBitVector(BitVector):
         width = n - m + 1
         if m == 0:
             return from_bigint(width, self.rval)
+        if width <= 64:
+            if width == 64:
+                mask = r_uint(-1)
+            else:
+                mask = (r_uint(1) << width) - 1
+            res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
+            return SmallBitVector(width, r_uint(res))
         return from_bigint(width, self.rval.rshift(m))
 
     def sign_extend(self, i):
@@ -252,9 +259,7 @@ class GenericBitVector(BitVector):
             return GenericBitVector(target_size, bits.or_(rval))
 
     def read_bit(self, pos):
-        import pdb; pdb.set_trace()
-        mask = rbigint.fromint(1).lshift(pos)
-        return r_uint(self.rval.and_(mask).tobool())
+        return bool(self.rval.abs_rshift_and_mask(r_ulonglong(pos), 1))
 
     def update_bit(self, pos, bit):
         mask = rbigint.fromint(1).lshift(pos)

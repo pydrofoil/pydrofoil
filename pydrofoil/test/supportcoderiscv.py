@@ -40,6 +40,7 @@ class Globals(object):
         'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?',
         'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
         'rv_rom_size?', 'mem?',
+        'rv_insns_per_tick?',
     ]
 
 g = Globals()
@@ -72,7 +73,7 @@ g.rv_clint_base = r_uint(0x2000000)
 g.rv_clint_size = r_uint(0xc0000)
 
 g.rv_htif_tohost = r_uint(0x80001000)
-g.rv_insns_per_tick = r_uint(100)
+g.rv_insns_per_tick = 100
 
 g.dtb = None
 
@@ -271,64 +272,57 @@ def parse_dump_file(fn):
                 dump[intaddress] = "%s %s %s" % (section, function, res)
     return dump
 
+def parse_args(argv, shortname, longname=None, want_arg=True):
+    # crappy argument handling
+    for i in range(len(argv)):
+        if argv[i] == shortname or argv[i] == longname:
+            if not want_arg:
+                res = argv[i]
+                del argv[i]
+                return res
+            if len(argv) == i + 1:
+                print "missing argument after " + argv[i]
+                raise ValueError
+            jitarg = argv[i + 1]
+            del argv[i:i+2]
+            return jitarg
+
 def main(argv):
     from pydrofoil.test import outriscv
     from rpython.rlib import jit
 
-    # crappy argument handling
-    for i in range(len(argv)):
-        if argv[i] == "--jit":
-            if len(argv) == i + 1:
-                print "missing argument after --jit"
-                return 2
-            jitarg = argv[i + 1]
-            del argv[i:i+2]
-            jit.set_user_param(None, jitarg)
-            break
-    for i in range(len(argv)):
+    jitarg = parse_args(argv, "--jit")
+    if jitarg:
+        jit.set_user_param(None, jitarg)
 
-        if argv[i] == '-b' or argv[i] == '--device-tree-blob':
-            if len(argv) == i + 1:
-                print "missing argument after", argv[i]
-                return 2
-            with open(argv[i + 1], "rb") as f:
-                g.dtb = f.read()
-            del argv[i:i+2]
-            break
+    blob = parse_args(argv, "-b", "--device-tree-blob")
+    if blob:
+        with open(blob, "rb") as f:
+            g.dtb = f.read()
 
     limit = 0
-    for i in range(len(argv)):
-        if argv[i] == '-l' or argv[i] == '--inst-limit':
-            if len(argv) == i + 1:
-                print "missing argument after", argv[i]
-                return 2
-            limit = int(argv[i + 1])
-            print "instruction limit", limit
-            del argv[i:i+2]
-            break
+    str_limit = parse_args(argv, "-l", "--inst-limit")
+    if str_limit:
+        limit = int(str_limit)
+        print "instruction limit", limit
 
-    for i in range(len(argv)):
-        if argv[i] == '--dump':
-            # XXX could parse the elf file too!
-            if len(argv) == i + 1:
-                print "missing argument after", argv[i]
-                return 2
-            dump_file = argv[i + 1]
-            print "dump file", dump_file
-            g.dump_dict = parse_dump_file(dump_file)
-            del argv[i:i+2]
-            break
+    dump_file = parse_args(argv, "--dump")
+    if dump_file:
+        print "dump file", dump_file
+        g.dump_dict = parse_dump_file(dump_file)
 
-    for i in range(len(argv)):
-        if argv[i] == '--verbose':
-            print "verbose"
-            del argv[i]
-            break
-    else:
+    per_tick = parse_args(argv, "--instructions-per-tick")
+    if per_tick:
+        ipt = int(per_tick)
+        g.rv_insns_per_tick = ipt
+
+    if not parse_args(argv, "--verbose"):
         g.config_print_instr = False
         g.config_print_reg = False
         g.config_print_mem_access = False
         g.config_print_platform = False
+
+    print_kips = bool(parse_args(argv, "--print-kips"))
 
     # Initialize model so that we can check or report its architecture.
     outriscv.model_init()
@@ -345,28 +339,30 @@ def main(argv):
     entry = load_sail(file)
     for i in range(iterations):
         init_sail(entry)
-        run_sail(limit)
+        run_sail(limit, print_kips)
         if i:
             outriscv.model_init()
     #flush_logs()
     #close_logs()
     return 0
 
-def get_printable_location(pc, insn_limit):
+def get_printable_location(pc, do_show_times, insn_limit, tick):
     from pydrofoil.test import outriscv
+    if tick:
+        return "TICK 0x%x" % (pc, )
     if g.dump_dict and pc in g.dump_dict:
         return "0x%x: %s" % (pc, g.dump_dict[pc])
     return hex(pc)
 
 driver = JitDriver(
     get_printable_location=get_printable_location,
-    greens=['pc', 'insn_limit'],
+    greens=['pc', 'do_show_times', 'insn_limit', 'tick'],
     reds=['step_no', 'insn_cnt', 'r'],
     virtualizables=['r'])
 
 g.dump_dict = None
 
-def run_sail(insn_limit):
+def run_sail(insn_limit, do_show_times):
     from pydrofoil.test import outriscv
     if NonConstant(False):
         r = outriscv.Registers()
@@ -374,13 +370,26 @@ def run_sail(insn_limit):
         r = outriscv.r
     step_no = 0
     insn_cnt = 0
-    do_show_times = True
+    tick = False
 
     g.interval_start = g.total_start = time.time()
 
     while not outriscv.r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
-        driver.jit_merge_point(pc=outriscv.r.zPC,
-                insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r)
+        driver.jit_merge_point(pc=outriscv.r.zPC, tick=tick,
+                insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r,
+                do_show_times=do_show_times)
+        if tick:
+            if insn_cnt == g.rv_insns_per_tick:
+                insn_cnt = 0
+                outriscv.func_ztick_clock(())
+                outriscv.func_ztick_platform(())
+            else:
+                assert do_show_times and (step_no & 0xfffff) == 0
+                curr = time.time()
+                print "kips:", 0x100000 / 1000. / (curr - g.interval_start)
+                g.interval_start = curr
+            tick = False
+            continue
         # run a Sail step
         stepped = outriscv.func_zstep(Integer.fromint(step_no))
         if outriscv.r.have_exception:
@@ -388,23 +397,20 @@ def run_sail(insn_limit):
             print outriscv.r.current_exception
             print "from", outriscv.r.throw_location
             raise ValueError
+        rv_insns_per_tick = g.rv_insns_per_tick
         if stepped:
             step_no += 1
-            insn_cnt += 1
+            if rv_insns_per_tick:
+                insn_cnt += 1
         if g.config_print_instr:
             # there's an extra newline in the C emulator that I don't know
             # where from, add it here to ease diffing
             print
 
-        if do_show_times and (step_no & 0xfffff) == 0:
-            curr = time.time()
-            print "kips:", 0x100000 / 1000. / (curr - g.interval_start)
-            g.interval_start = curr
-
-        if insn_cnt == g.rv_insns_per_tick:
-            insn_cnt = 0
-            outriscv.func_ztick_clock(())
-            outriscv.func_ztick_platform(())
+        tick_cond = (do_show_times and (step_no & 0xffffffff) == 0) | (
+                rv_insns_per_tick and insn_cnt == rv_insns_per_tick)
+        if tick_cond:
+            tick = True
     interval_end = time.time()
     if outriscv.r.zhtif_exit_code == 0:
         print "SUCCESS"
@@ -412,10 +418,9 @@ def run_sail(insn_limit):
         print "FAILURE", outriscv.r.zhtif_exit_code
         if not we_are_translated():
             raise ValueError
-    if do_show_times:
-        print "Instructions: %s" % (step_no, )
-        print "Total time (s): %s" % (interval_end - g.total_start)
-        print "Perf: %s Kips" % (step_no / 1000. / (interval_end - g.total_start), )
+    print "Instructions: %s" % (step_no, )
+    print "Total time (s): %s" % (interval_end - g.total_start)
+    print "Perf: %s Kips" % (step_no / 1000. / (interval_end - g.total_start), )
 
 
 

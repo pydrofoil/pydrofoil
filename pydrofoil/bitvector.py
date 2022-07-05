@@ -21,6 +21,7 @@ def from_bigint(size, rval):
 
 class BitVector(object):
     _attrs_ = ['size']
+    _immutable_fields_ = ['size']
 
     def __init__(self, size):
         self.size = size
@@ -44,6 +45,8 @@ class BitVector(object):
         return from_bigint(self.size + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
 
 class SmallBitVector(BitVector):
+    _immutable_fields_ = ['val']
+
     def __init__(self, size, val, normalize=False):
         self.size = size # number of bits
         assert isinstance(val, r_uint)
@@ -178,6 +181,8 @@ class SmallBitVector(BitVector):
 
 
 class GenericBitVector(BitVector):
+    _immutable_fields_ = ['rval']
+
     def __init__(self, size, rval, normalize=False):
         assert size > 0
         self.size = size
@@ -226,6 +231,8 @@ class GenericBitVector(BitVector):
 
     def subrange(self, n, m):
         width = n - m + 1
+        if m == 0:
+            return from_bigint(width, self.rval)
         return from_bigint(width, self.rval.rshift(m))
 
     def sign_extend(self, i):
@@ -245,6 +252,7 @@ class GenericBitVector(BitVector):
             return GenericBitVector(target_size, bits.or_(rval))
 
     def read_bit(self, pos):
+        import pdb; pdb.set_trace()
         mask = rbigint.fromint(1).lshift(pos)
         return r_uint(self.rval.and_(mask).tobool())
 
@@ -319,6 +327,8 @@ class Integer(object):
 
 
 class SmallInteger(Integer):
+    _immutable_fields_ = ['val']
+
     def __init__(self, val):
         self.val = val
 
@@ -422,6 +432,8 @@ class SmallInteger(Integer):
 
 
 class BigInteger(Integer):
+    _immutable_fields_ = ['rval']
+
     def __init__(self, rval):
         self.rval = rval
 
@@ -445,7 +457,10 @@ class BigInteger(Integer):
 
     @staticmethod
     def _slice(rval, len, start):
-        n = rval.rshift(start)
+        if start == 0:
+            n = rval
+        else:
+            n = rval.rshift(start)
         return from_bigint(len, n.and_(rbigint.fromint(1).lshift(len).int_sub(1)))
 
     def eq(self, other):

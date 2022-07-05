@@ -171,10 +171,15 @@ class FlatMemory(MemBase):
             self.status[bo] = MEM_STATUS_MUTABLE
 
     def mark_page_executable(self, addr):
+        jit.promote(addr)
         mem_offset, inword_addr, mask = self._split_addr(addr, 1)
-        pagestart = mem_offset & ~self.PAGE_MASK
-        if self.status[mem_offset] != MEM_STATUS_NORMAL:
+        status = self._get_status_page(mem_offset, self.version)
+        if status != MEM_STATUS_NORMAL:
             return
+        pagestart = mem_offset & ~self.PAGE_MASK
+        self._mark_page_executable(pagestart)
+
+    def _mark_page_executable(self, pagestart):
         self.version = Version()
         for mem_offset in range(pagestart, pagestart + self.PAGE_MASK + 1):
             assert self.status[mem_offset] != MEM_STATUS_MUTABLE

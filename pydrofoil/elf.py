@@ -786,9 +786,6 @@ def elf_read_process_image(mem, file_obj):
         start_addr = r_uint(phdr.paddr)
         for i in range(phdr.filesz):
             mem.write(start_addr + i, 1, r_uint(0xff & ord(content[i])))
-        if phdr.flags & ElfSectionHeader.FLAGS_EXECINSTR:
-            for i in range(phdr.filesz):
-                mem.mark_page_executable(start_addr + i)
         # fill rest with 0
         for i in range(phdr.filesz, phdr.memsz):
             mem.write(start_addr + i, 1, r_uint(0))

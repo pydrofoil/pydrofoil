@@ -15,10 +15,3 @@ def test_elf_riscv64():
     assert section1.addr == 0x80000000
     assert section2.addr == 0x80001000
 
-def test_elf_riscv64_linux():
-    with open(elffile2, "rb") as f:
-        img = elf.elf_reader(f)
-    secs = img.sections
-    assert [s.name for s in img.sections] == ['.text', '.rodata', '.htif', '.data', '.bss', '.payload']
-    assert img.get_symbol('tohost') == 0x80007008
-

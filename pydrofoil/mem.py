@@ -258,50 +258,66 @@ class SplitMemory(MemBase):
     _immutable_fields_ = ['mem1', 'address_base1', 'address_end1', 'mem2', 'address_base2', 'address_end2']
 
     def __init__(self, mem1, address_base1, size1, mem2, address_base2, size2):
+        assert self.is_aligned(address_base1)
+        assert self.is_aligned(size1)
+        # fits in 63 bit
+        assert not (address_base1 + size1) & (r_uint(1) << 63)
         self.mem1 = mem1
-        self.address_base1 = address_base1
-        self.address_end1 = address_base1 + size1
-        assert self.is_aligned(self.address_base1)
-        assert self.is_aligned(self.address_end1)
+        self.address_base1 = intmask(address_base1)
+        self.address_end1 = intmask(address_base1 + size1)
 
+        assert self.is_aligned(address_base2)
+        assert self.is_aligned(size2)
+        assert not (address_base2 + size2) & (r_uint(1) << 63)
         self.mem2 = mem2
-        self.address_base2 = address_base2
-        self.address_end2 = address_base2 + size2
-        assert self.is_aligned(self.address_base2)
-        assert self.is_aligned(self.address_end2)
+        self.address_base2 = intmask(address_base2)
+        self.address_end2 = intmask(address_base2 + size2)
+
+    def _not_huge(self, start_addr):
+        # highest bit as a unsigned int not set
+        return not (start_addr & (r_uint(1)<<63))
+
+    def check_mem1(self, start_addr):
+        return self._not_huge(start_addr) and (self.address_base1 <= intmask(start_addr) < self.address_end1)
+
+    def check_mem1_fast(self, start_addr):
+        return self._not_huge(start_addr) and (intmask(start_addr) < self.address_end1)
+
+    def check_mem2(self, start_addr):
+        return self._not_huge(start_addr) and (self.address_base2 <= intmask(start_addr) < self.address_end2)
 
     def _aligned_read(self, start_addr, num_bytes, executable_flag):
         if executable_flag:
             jit.promote(start_addr)
         if self.address_base1:
-            if self.address_base1 <= start_addr < self.address_end1:
+            if self.check_mem1(start_addr):
                 return self.mem1._aligned_read(start_addr - self.address_base1, num_bytes, executable_flag)
         else:
-            if start_addr < self.address_end1:
+            if self.check_mem1_fast(start_addr):
                 return self.mem1._aligned_read(start_addr, num_bytes, executable_flag)
-        if self.address_base2 <= start_addr < self.address_end2:
+        if self.check_mem2(start_addr):
             return self.mem2._aligned_read(start_addr - self.address_base2, num_bytes, executable_flag)
         raise ValueError
 
     def _aligned_write(self, start_addr, num_bytes, value):
         if self.address_base1:
-            if self.address_base1 <= start_addr < self.address_end1:
+            if self.check_mem1(start_addr):
                 return self.mem1._aligned_write(start_addr - self.address_base1, num_bytes, value)
         else:
-            if start_addr < self.address_end1:
+            if self.check_mem1_fast(start_addr):
                 return self.mem1._aligned_write(start_addr, num_bytes, value)
-        if self.address_base2 <= start_addr < self.address_end2:
+        if self.check_mem2(start_addr):
             return self.mem2._aligned_write(start_addr - self.address_base2, num_bytes, value)
         raise ValueError
 
     def mark_page_executable(self, start_addr):
         if self.address_base1:
-            if self.address_base1 <= start_addr < self.address_end1:
+            if self.check_mem1(start_addr):
                 return self.mem1.mark_page_executable(start_addr - self.address_base1)
         else:
-            if start_addr < self.address_end1:
+            if self.check_mem1_fast(start_addr):
                 return self.mem1.mark_page_executable(start_addr)
-        if self.address_base2 <= start_addr < self.address_end2:
+        if self.check_mem2(start_addr):
             return self.mem2.mark_page_executable(start_addr - self.address_base2)
 
     def close(self):

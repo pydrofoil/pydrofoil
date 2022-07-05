@@ -233,11 +233,8 @@ class GenericBitVector(BitVector):
         width = n - m + 1
         if m == 0:
             return from_bigint(width, self.rval)
-        if width <= 64:
-            if width == 64:
-                mask = r_uint(-1)
-            else:
-                mask = (r_uint(1) << width) - 1
+        if width < 64: # somewhat annoying that 64 doesn't work
+            mask = (r_uint(1) << width) - 1
             res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
             return SmallBitVector(width, r_uint(res))
         return from_bigint(width, self.rval.rshift(m))

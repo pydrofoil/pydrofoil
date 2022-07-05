@@ -113,6 +113,8 @@ class Codegen(object):
         self.level = oldlevel
 
     def emit(self, line=''):
+        if self.level == 0 and line.startswith(("def ", "class ")):
+            self.code.append('')
         if not line.strip():
             self.code.append('')
         else:

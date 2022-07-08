@@ -108,14 +108,3 @@ def test_immutable_reads():
     for i in range(512):
         assert m.read(i * 8, 8, True) == i
     assert read_offsets == range(512)
-
-def test_elf_reader_mark_immutable():
-    from pydrofoil import elf
-    mem1 = mem.FlatMemory(False)
-    mem2 = mem.FlatMemory(False)
-    m = mem.SplitMemory(mem1, 0, mem1.size, mem2, 0x80000000, mem2.size)
-    with open(dhryelffile, "rb") as f:
-        entrypoint = elf.elf_read_process_image(m, f)
-    assert mem2.status.count(mem.MEM_STATUS_IMMUTABLE) == 2048
-    assert mem2.status[0x2000>>3] == mem.MEM_STATUS_IMMUTABLE
-    assert mem2.status[0x28ae>>3] == mem.MEM_STATUS_IMMUTABLE

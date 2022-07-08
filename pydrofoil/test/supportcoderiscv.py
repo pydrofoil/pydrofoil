@@ -376,6 +376,7 @@ def run_sail(insn_limit, do_show_times):
     tick = False
 
     g.interval_start = g.total_start = time.time()
+    prev_pc = 0
 
     while not outriscv.r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
         driver.jit_merge_point(pc=outriscv.r.zPC, tick=tick,
@@ -394,6 +395,7 @@ def run_sail(insn_limit, do_show_times):
             tick = False
             continue
         # run a Sail step
+        prev_pc = r.zPC
         stepped = outriscv.func_zstep(Integer.fromint(step_no))
         if outriscv.r.have_exception:
             print "ended with exception!"
@@ -414,6 +416,12 @@ def run_sail(insn_limit, do_show_times):
                 rv_insns_per_tick and insn_cnt == rv_insns_per_tick)
         if tick_cond:
             tick = True
+        elif prev_pc >= r.zPC: # backward jump
+            driver.can_enter_jit(pc=outriscv.r.zPC, tick=tick,
+                    insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r,
+                    do_show_times=do_show_times)
+    # loop end
+
     interval_end = time.time()
     if outriscv.r.zhtif_exit_code == 0:
         print "SUCCESS"

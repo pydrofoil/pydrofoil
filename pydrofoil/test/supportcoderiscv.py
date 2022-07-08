@@ -287,6 +287,9 @@ def parse_args(argv, shortname, longname=None, want_arg=True):
             del argv[i:i+2]
             return jitarg
 
+def parse_flag(argv, flagname):
+    return bool(parse_args(argv, flagname, want_arg=False))
+
 def main(argv):
     from pydrofoil.test import outriscv
     from rpython.rlib import jit
@@ -316,13 +319,13 @@ def main(argv):
         ipt = int(per_tick)
         g.rv_insns_per_tick = ipt
 
-    if not parse_args(argv, "--verbose"):
+    if not parse_flag(argv, "--verbose"):
         g.config_print_instr = False
         g.config_print_reg = False
         g.config_print_mem_access = False
         g.config_print_platform = False
 
-    print_kips = bool(parse_args(argv, "--print-kips"))
+    print_kips = parse_flag(argv, "--print-kips")
 
     # Initialize model so that we can check or report its architecture.
     outriscv.model_init()

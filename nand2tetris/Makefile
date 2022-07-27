@@ -51,3 +51,9 @@ nand2tetris_c: nand2tetris.c nandsupport.c $(SAIL_LIB_DIR)/sail.h $(SAIL_LIB_DIR
 
 rpython_nandtest:
 	PYTHONPATH=$(PYPY_DIR)/:../ $(VENVBIN_DIR)/python ../pydrofoil/test/targetnand.py input/Add.hack.bin 100 1
+
+rpython_nandtest_to_c:
+	PYTHONPATH=$(PYPY_DIR)/:../ $(VENVBIN_DIR)/python $(PYPY_DIR)/rpython/translator/goal/translate.py ../pydrofoil/test/targetnand.py
+
+rpython_nandtest_c_call: targetnand-c
+	./targetnand-c input/Add.hack.bin 100 1

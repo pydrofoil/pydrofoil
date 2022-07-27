@@ -1,5 +1,5 @@
 # Find necessary library paths for include files
-LIB_ADDITIONAL_FLAGS:=$(shell pkg-config --cflags gmp z3)
+LIB_ADDITIONAL_FLAGS:=$(shell pkg-config --cflags-only-I gmp z3)
 #Attempt to work with either sail from opam or built from repo in SAIL_DIR
 ifneq ($(SAIL_DIR),)
 # Use sail repo in SAIL_DIR
@@ -19,6 +19,11 @@ nand2tetris.c: nand2tetris.sail Makefile
 
 nand2tetris.jib: nand2tetris.sail Makefile
 	$(SAIL) -O -memo_z3 -c_no_main -ir nand2tetris.sail 1> $@
+
+build: nand2tetris_c
+
+clean:
+	rm nand2tetris_c nand2tetris.c z3_problems
 
 C_WARNINGS=-Wall -Wno-unused-but-set-variable -Wno-unused-label -Wno-unused-function -Wno-maybe-uninitialized
 C_OPT=-O2

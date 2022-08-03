@@ -1,6 +1,12 @@
 Developer Log
 =
 
+03.08.22
+==
+- participants: JW, LL
+- refactor nand 2 tetris example: better names
+- how to jit nand: get zPC and call zfetch_decode_execute inside loop in supportnand. Check if newPC < oldPC. Add MergePoints. Skip time measurement and debug?
+
 27.07.22
 ==
 

@@ -49,11 +49,14 @@ GCOV_FLAGS=
 nand2tetris_c: nand2tetris.c nandsupport.c $(SAIL_LIB_DIR)/sail.h $(SAIL_LIB_DIR)/*.c Makefile
 	gcc $(C_OPT) $(C_WARNINGS) $(GCOV_FLAGS) -g -I $(SAIL_LIB_DIR) nandsupport.c $< $(SAIL_LIB_DIR)/*.c $(LIB_ADDITIONAL_FLAGS) -lgmp -lz -o $@
 
-rpython_nandtest:
-	PYTHONPATH=$(PYPY_DIR)/:../ $(VENVBIN_DIR)/python ../pydrofoil/test/targetnand.py input/Add.hack.bin 100 1
+# Run generated RPython code. No c code generation 
+rpython_nandtest: nand_jib.ir
+	PYTHONPATH=$(PYPY_DIR)/:../ $(VENVBIN_DIR)/python targetnand.py input/Add.hack.bin 100 1
 
+# Generate C code 
 rpython_nandtest_to_c:
-	PYTHONPATH=$(PYPY_DIR)/:../ $(VENVBIN_DIR)/python $(PYPY_DIR)/rpython/translator/goal/translate.py ../pydrofoil/test/targetnand.py
+	PYTHONPATH=$(PYPY_DIR)/:../ $(VENVBIN_DIR)/python $(PYPY_DIR)/rpython/translator/goal/translate.py targetnand.py
 
+# Run generated c code 
 rpython_nandtest_c_call: targetnand-c
 	./targetnand-c input/Add.hack.bin 100 1

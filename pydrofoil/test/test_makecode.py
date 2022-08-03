@@ -4,7 +4,7 @@ from pydrofoil.makecode import *
 import os
 
 thisdir = os.path.dirname(__file__)
-cir = os.path.join(thisdir, "c.ir")
+cir = os.path.join(thisdir, "../../nand2tetris/nand_jib.ir")
 excir = os.path.join(thisdir, "exc.ir")
 mipsir = os.path.join(thisdir, "mips.ir")
 riscvir = os.path.join(thisdir, "riscv_model_RV64.ir")
@@ -228,7 +228,7 @@ fn zmain(zgsz34) {
   arbitrary;
 }
 """
-    res = parse_and_make_code(s, "supportcode")
+    res = parse_and_make_code(s, "supportcodenand")
     d = {}
     res = py.code.Source(res)
     exec res.compile() in d
@@ -250,7 +250,7 @@ def test_exceptions2(capsys):
     import py
     with open(excir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s, "supportcode")
+    res = parse_and_make_code(s, "supportcodenand")
     res = py.code.Source(res)
     d = {}
     exec res.compile() in d
@@ -285,28 +285,28 @@ R = 3
 
 def test_full_nand():
     import py
-    from pydrofoil.test import supportcode
+    from pydrofoil.test import supportcodenand
     from rpython.translator.interactive import Translation
     with open(cir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s, "supportcode")
+    res = parse_and_make_code(s, "supportcodenand")
     with open(outpy, "w") as f:
         f.write(res)
 
     # bit of a hack
     from pydrofoil.test import out
-    supportcode.load_rom(addrom)
+    supportcodenand.load_rom(addrom)
     zmymain = out.func_zmymain
     zmymain(10, True)
     assert out.r.zD == 5
     assert out.r.zA == 0
     assert out.r.zPC == 11
-    supportcode.load_rom(sumrom)
+    supportcodenand.load_rom(sumrom)
     zmymain(2000, True)
-    assert supportcode.my_read_mem(17) == 5050
+    assert supportcodenand.my_read_mem(17) == 5050
 
     def main():
-        supportcode.load_rom(addrom)
+        supportcodenand.load_rom(addrom)
         zmymain(10, False)
     t = Translation(main, [])
     t.rtype() # check that it's rpython
@@ -316,7 +316,7 @@ def test_full_mips():
     import py
     with open(mipsir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s, "supportcode")
+    res = parse_and_make_code(s, "supportcodenand")
     with open(outmipspy, "w") as f:
         f.write(res)
     d = {}

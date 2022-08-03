@@ -1,6 +1,14 @@
 Developer Log
 =
 
+27.07.22
+==
+
+- participants: CF, JW, NR, LL
+- installed tool chain for Nico and Lukas
+- Modified nandtarget to generate code
+- Modified Nand Make file to generate code, translate it to c and execute the c file
+
 28.06.2022
 ==
 

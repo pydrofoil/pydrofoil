@@ -20,5 +20,12 @@ eval $(opam env --switch=default)
 opam install sail
 virtualenv -p python2 venv
 ./venv/bin/pip install rply
+./venv/bin/pip install pdbpp
+#download pypy and put it in the main pydrofoil folder
 ./venv/bin/python pypy/pytest.py pydrofoil/
+cd nand2tetris
+make nand2tetris_c
+make rpython_nandtest
+make rpython_nandtest_to_c
+make rpython_nandtest_c_call
 ```

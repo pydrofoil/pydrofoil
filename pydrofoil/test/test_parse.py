@@ -2,7 +2,7 @@ from pydrofoil.parse import *
 
 import os
 
-cir = os.path.join(os.path.dirname(__file__), "c.ir")
+cir = os.path.join(os.path.dirname(__file__), "../../nand2tetris/nand_jib.ir")
 mipsir = os.path.join(os.path.dirname(__file__), "mips.ir")
 riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
 

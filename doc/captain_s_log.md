@@ -1,6 +1,13 @@
 Developer Log
 =
 
+10.08.22
+==
+- participants: JW, LL, NR
+- split test folder into cpu dirs, input files, generated files
+- improve nand make dependencies
+
+
 03.08.22
 ==
 - participants: JW, LL

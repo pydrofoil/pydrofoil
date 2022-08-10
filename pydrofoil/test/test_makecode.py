@@ -4,26 +4,28 @@ from pydrofoil.makecode import *
 import os
 
 thisdir = os.path.dirname(__file__)
-cir = os.path.join(thisdir, "../../nand2tetris/nand_jib.ir")
-excir = os.path.join(thisdir, "exc.ir")
-mipsir = os.path.join(thisdir, "mips.ir")
-riscvir = os.path.join(thisdir, "riscv_model_RV64.ir")
-outpy = os.path.join(thisdir, "out.py")
-outmipspy = os.path.join(thisdir, "outmips.py")
-outriscvpy = os.path.join(thisdir, "outriscv.py")
+elfdir = os.path.join(thisdir, "riscv/input")
+cir = os.path.join(thisdir, "nand2tetris/generated/nand2tetris.jib")
+excir = os.path.join(thisdir, "exc/exc.ir")
+mipsir = os.path.join(thisdir, "mips/mips.ir")
+riscvir = os.path.join(thisdir, "riscv/riscv_model_RV64.ir")
+outpy = os.path.join(thisdir, "nand2tetris/generated/nand_rpython.py")
+outmipspy = os.path.join(thisdir, "mips/generated/outmips.py")
+outriscvpy = os.path.join(thisdir, "riscv/generated/outriscv.py")
 
 elfs = """
 rv64ui-p-addi.elf rv64um-v-mul.elf rv64um-v-mulhu.elf rv64um-p-div.elf
 rv64um-p-rem.elf rv64ua-v-amoadd_w.elf rv64ua-v-amomax_d.elf
 """
 
-elfs = [os.path.join(thisdir, fn) for fn in elfs.split()]
+elfs = [os.path.join(elfdir, fn) for fn in elfs.split()]
 
 
-addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "Add.hack.bin")
-sumrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "nand2tetris", "input", "sum.hack.bin")
+addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test", "nand2tetris", "input", "Add.hack.bin")
+sumrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test", "nand2tetris", "input", "sum.hack.bin")
 
 def test_enum():
+    support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
     res = parse_and_make_code("""
 enum zjump {
   zJDONT,
@@ -35,7 +37,7 @@ enum zjump {
   zJLE,
   zJMP
 }
-""")
+""", support_code)
     assert """\
 class Enum_zjump(object):
     zJDONT = 0
@@ -49,12 +51,13 @@ class Enum_zjump(object):
 """ in res
 
 def test_union():
+    support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
     res = parse_and_make_code("""
 union zinstr {
   zAINST: %bv16,
   zCINST: (%bv1, (%bool, %bool, %bool), %bool)
 }
-""")
+""", support_code)
     assert "class Union_zinstr(object):" in res
     assert "class Union_zinstr_zAINST(Union_zinstr):" in res
     assert "class Union_zinstr_zCINST(Union_zinstr):" in res
@@ -228,7 +231,8 @@ fn zmain(zgsz34) {
   arbitrary;
 }
 """
-    res = parse_and_make_code(s, "supportcodenand")
+    support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
+    res = parse_and_make_code(s, support_code)
     d = {}
     res = py.code.Source(res)
     exec res.compile() in d
@@ -250,7 +254,8 @@ def test_exceptions2(capsys):
     import py
     with open(excir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s, "supportcodenand")
+    support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
+    res = parse_and_make_code(s, support_code)
     res = py.code.Source(res)
     d = {}
     exec res.compile() in d
@@ -285,16 +290,17 @@ R = 3
 
 def test_full_nand():
     import py
-    from pydrofoil.test import supportcodenand
+    from pydrofoil.test.nand2tetris import supportcodenand
     from rpython.translator.interactive import Translation
     with open(cir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s, "supportcodenand")
+    support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
+    res = parse_and_make_code(s, support_code)
     with open(outpy, "w") as f:
         f.write(res)
 
     # bit of a hack
-    from pydrofoil.test import out
+    from pydrofoil.test.nand2tetris.generated import nand_rpython as out
     supportcodenand.load_rom(addrom)
     zmymain = out.func_zmymain
     zmymain(10, True)
@@ -316,7 +322,8 @@ def test_full_mips():
     import py
     with open(mipsir, "rb") as f:
         s = f.read()
-    res = parse_and_make_code(s, "supportcodenand")
+    support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
+    res = parse_and_make_code(s, support_code)
     with open(outmipspy, "w") as f:
         f.write(res)
     d = {}
@@ -325,7 +332,7 @@ def test_full_mips():
 
 @pytest.fixture(scope='session')
 def riscvmain():
-    from pydrofoil.test.targetriscv import make_code
+    from pydrofoil.test.riscv.targetriscv import make_code
     outriscv, supportcoderiscv = make_code()
     supportcoderiscv.g.config_print_instr = False
     supportcoderiscv.g.config_print_reg = False
@@ -340,5 +347,5 @@ def test_full_riscv(riscvmain, elf):
     riscvmain(['executable', elf])
 
 def test_load_dump(riscvmain):
-    d = riscvmain.supportcoderiscv.parse_dump_file(os.path.join(thisdir, 'dhrystone.riscv.dump'))
+    d = riscvmain.supportcoderiscv.parse_dump_file(os.path.join(thisdir, 'riscv/dhrystone.riscv.dump'))
     assert d[0x8000218a] == '.text: Proc_1 6100                	ld	s0,0(a0)'

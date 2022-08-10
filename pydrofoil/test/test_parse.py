@@ -2,9 +2,10 @@ from pydrofoil.parse import *
 
 import os
 
-cir = os.path.join(os.path.dirname(__file__), "../../nand2tetris/nand_jib.ir")
-mipsir = os.path.join(os.path.dirname(__file__), "mips.ir")
-riscvir = os.path.join(os.path.dirname(__file__), "riscv_model_RV64.ir")
+thisdir = os.path.dirname(__file__)
+cir = os.path.join(thisdir, "nand2tetris/generated/nand2tetris.jib")
+mipsir = os.path.join(thisdir, "mips/mips.ir")
+riscvir = os.path.join(thisdir, "riscv/riscv_model_RV64.ir")
 
 def test_lex_full():
     with open(cir, "rb") as f:

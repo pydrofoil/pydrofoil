@@ -5,8 +5,8 @@ import random
 from pydrofoil import mem
 from rpython.rlib.rarithmetic import r_uint, intmask
 
-elffile = os.path.join(os.path.dirname(__file__), "rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
-dhryelffile = os.path.join(os.path.dirname(__file__), "dhrystone.riscv")
+elffile = os.path.join(os.path.dirname(__file__), "riscv/input/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
+dhryelffile = os.path.join(os.path.dirname(__file__), "riscv/input/dhrystone.riscv")
 
 class TBM(mem.BlockMemory):
     ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints

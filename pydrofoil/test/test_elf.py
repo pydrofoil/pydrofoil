@@ -2,8 +2,8 @@ import os
 
 from pydrofoil import elf
 
-elffile = os.path.join(os.path.dirname(__file__), "rv64ui-p-addi.elf")
-elffile2 = os.path.join(os.path.dirname(__file__), "rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
+elffile = os.path.join(os.path.dirname(__file__), "riscv/input/rv64ui-p-addi.elf")
+#elffile2 = os.path.join(os.path.dirname(__file__), "riscv/input/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
 
 def test_elf_riscv64():
     with open(elffile, "rb") as f:

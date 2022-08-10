@@ -144,7 +144,7 @@ class Codegen(object):
         return "\n\n\n".join(res)
 
 
-def parse_and_make_code(s, supportcodename="supportcode", promoted_registers=set()):
+def parse_and_make_code(s, support_code, promoted_registers=set()):
     ast = parse.parser.parse(parse.lexer.lex(s))
     c = Codegen(promoted_registers)
     with c.emit_code_type("declarations"):
@@ -152,7 +152,7 @@ def parse_and_make_code(s, supportcodename="supportcode", promoted_registers=set
         c.emit("from rpython.rlib import objectmodel")
         c.emit("from rpython.rlib.rarithmetic import r_uint, intmask")
         c.emit("import operator")
-        c.emit("from pydrofoil.test import %s as supportcode" % supportcodename)
+        c.emit(support_code)
         c.emit("from pydrofoil import bitvector")
         c.emit("from pydrofoil.bitvector import Integer")
         c.emit("class Registers(object): pass")

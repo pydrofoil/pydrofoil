@@ -1,6 +1,17 @@
 Developer Log
 =
 
+24.08.22
+==
+- participants: JW, LL, NR, CF
+- prepared integration of JIT into nand2tetris example.
+- integrated JIT into nand2tetris example.
+- How to produce JIT-output:
+  PYPYLOG=jit-log-opt:((out_filename)) ((executable_call))
+- Next steps:
+  - Use read-only property of Nand ROM,
+  - x86 register mapping
+
 10.08.22
 ==
 - participants: JW, LL, NR

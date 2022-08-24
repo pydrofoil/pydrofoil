@@ -1,7 +1,8 @@
 import os
 from rpython.rlib import rarithmetic
+from rpython.rlib.rarithmetic import r_uint, intmask
 from pydrofoil.test.nand2tetris import supportcodenand
-from pydrofoil.test.nand2tetris.supportcodenand import load_rom 
+from pydrofoil.test.nand2tetris.supportcodenand import load_rom, my_print_debug
 from pydrofoil.makecode import *
 
 nandir = os.path.join(os.path.dirname(__file__), "generated/nand2tetris.jib")
@@ -28,8 +29,25 @@ def main(argv):
         print "usage: %s <binary> <maxcycle> <debug>" % (argv[0], )
         return -1
     load_rom(argv[1])
-    func_zmymain(rarithmetic.r_uint(int(argv[2])), int(argv[3]))
+    #func_zmymain(rarithmetic.r_uint(int(argv[2])), int(argv[3]))
+    jit_run(int(argv[2]), int(argv[3]))
     return 0
+
+def jit_run(limit, debug):
+    from pydrofoil.test.nand2tetris.generated import nand_rpython
+    r = nand_rpython.r
+    r.zPC = r_uint(0)
+    r.zA = r_uint(0)
+    r.zD = r_uint(0)
+    cycle_count = 0
+    cont = True
+    while cont:
+        cont = False
+        if debug:
+            my_print_debug(cycle_count, r.zPC, r.zA, r.zD)
+        if nand_rpython.func_zfetch_decode_execute(()):
+            cont = cycle_count < limit
+        cycle_count += 1
 
 
 if __name__ == '__main__':

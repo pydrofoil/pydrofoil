@@ -64,6 +64,18 @@ rpython_nandtest_to_c: targetnand.py generated/__init__.py generated/nand2tetris
 	PYTHONPATH=$(PYPY_DIR)/:../../../ $(VENVBIN_DIR)/python $(PYPY_DIR)/rpython/translator/goal/translate.py targetnand.py
 	mv targetnand-c generated/targetnand-c
 
+# Generate jitted C code
+rpython_nandtest_to_c_jit: targetnand.py generated/__init__.py generated/nand2tetris.jib Makefile
+	PYTHONPATH=$(PYPY_DIR)/:../../../ $(VENVBIN_DIR)/python $(PYPY_DIR)/rpython/translator/goal/translate.py -Ojit targetnand.py
+	mv targetnand-c generated/targetnand-c-jit
+
 # Run generated c code 
 rpython_nandtest_c_call: generated/targetnand-c generated/__init__.py Makefile
 	./generated/targetnand-c input/Add.hack.bin 100 1
+
+
+
+
+
+
+

@@ -4,9 +4,19 @@ from rpython.rlib.rarithmetic import r_uint, intmask
 from pydrofoil.test.nand2tetris import supportcodenand
 from pydrofoil.test.nand2tetris.supportcodenand import load_rom, my_print_debug
 from pydrofoil.makecode import *
+from rpython.rlib.jit import JitDriver
 
 nandir = os.path.join(os.path.dirname(__file__), "generated/nand2tetris.jib")
 outnandpy = os.path.join(os.path.dirname(__file__), "generated/nand_rpython.py")
+
+def get_printable_location(pc, debug):
+    return str(pc) + ' ' + str(debug)
+
+driver = JitDriver(
+    get_printable_location=get_printable_location,
+    greens=['pc', 'debug'],
+    reds='auto')
+
 
 def make_code():
     print "making rpython code"
@@ -42,6 +52,7 @@ def jit_run(limit, debug):
     cycle_count = 0
     cont = True
     while cont:
+        driver.jit_merge_point(pc=r.zPC, debug=debug)
         cont = False
         if debug:
             my_print_debug(cycle_count, r.zPC, r.zA, r.zD)

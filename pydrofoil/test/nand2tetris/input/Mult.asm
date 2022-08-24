@@ -10,6 +10,13 @@
 D=0
 M=D
 
+@16000
+D=A
+@R0
+M=D
+@R1
+M=D
+
 // R0 is added to R2 until R1 reaches -1. R1 is decremented in each step
 (BWHILE)
 	@R1		  // R1--

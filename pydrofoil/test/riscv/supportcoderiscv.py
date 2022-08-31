@@ -272,21 +272,6 @@ def parse_dump_file(fn):
                 dump[intaddress] = "%s %s %s" % (section, function, res)
     return dump
 
-def parse_args(argv, shortname, longname=None, want_arg=True):
-    # crappy argument handling
-    for i in range(len(argv)):
-        if argv[i] == shortname or argv[i] == longname:
-            if not want_arg:
-                res = argv[i]
-                del argv[i]
-                return res
-            if len(argv) == i + 1:
-                print "missing argument after " + argv[i]
-                raise ValueError
-            jitarg = argv[i + 1]
-            del argv[i:i+2]
-            return jitarg
-
 def parse_flag(argv, flagname):
     return bool(parse_args(argv, flagname, want_arg=False))
 

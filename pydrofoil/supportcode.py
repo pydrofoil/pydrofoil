@@ -301,3 +301,21 @@ def decimal_string_of_bits(sbits):
 def string_of_int(r):
     return r.str()
 
+
+# argument handling
+
+def parse_args(argv, shortname, longname="", want_arg=True):
+    # crappy argument handling
+    for i in range(len(argv)):
+        if argv[i] == shortname or argv[i] == longname:
+            if not want_arg:
+                res = argv[i]
+                del argv[i]
+                return res
+            if len(argv) == i + 1:
+                print "missing argument after " + argv[i]
+                raise ValueError
+            jitarg = argv[i + 1]
+            del argv[i:i+2]
+            return jitarg
+

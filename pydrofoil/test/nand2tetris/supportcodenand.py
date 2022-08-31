@@ -1,4 +1,4 @@
-from rpython.rlib import rarithmetic
+from rpython.rlib import rarithmetic, jit
 from rpython.rlib.rbigint import rbigint
 from pydrofoil import bitvector
 from pydrofoil.supportcode import *
@@ -6,7 +6,7 @@ from pydrofoil.supportcode import *
 # for nand2tetris CPU
 
 class Memory(object):
-    pass
+    _immutable_fields_ = ["rom?[*]"]
 
 MEM = Memory()
 MEM.rom = [rarithmetic.r_uint(0)]
@@ -27,6 +27,7 @@ def load_rom(fn):
     MEM.rom = l[:]
 
 def my_read_rom(addr):
+    jit.promote(addr)
     if addr < len(MEM.rom):
         return rarithmetic.r_uint(MEM.rom[addr])
     return rarithmetic.r_uint(0)

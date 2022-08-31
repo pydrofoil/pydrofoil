@@ -1,8 +1,8 @@
 import os
-from rpython.rlib import rarithmetic
+from rpython.rlib import rarithmetic, jit
 from rpython.rlib.rarithmetic import r_uint, intmask
 from pydrofoil.test.nand2tetris import supportcodenand
-from pydrofoil.test.nand2tetris.supportcodenand import load_rom, my_print_debug
+from pydrofoil.test.nand2tetris.supportcodenand import load_rom, my_print_debug, my_read_rom
 from pydrofoil.makecode import *
 from rpython.rlib.jit import JitDriver
 
@@ -10,7 +10,7 @@ nandir = os.path.join(os.path.dirname(__file__), "generated/nand2tetris.jib")
 outnandpy = os.path.join(os.path.dirname(__file__), "generated/nand_rpython.py")
 
 def get_printable_location(pc, debug):
-    return str(pc) + ' ' + str(debug)
+    return str(pc) + ' ' + str(debug) + ' ' + hex(my_read_rom(pc))
 
 driver = JitDriver(
     get_printable_location=get_printable_location,
@@ -35,6 +35,10 @@ def target(*args):
 
 def main(argv):
     from pydrofoil.test.nand2tetris.generated.nand_rpython import func_zmymain
+    from pydrofoil.supportcode import parse_args
+    jitarg = parse_args(argv, "--jit")
+    if jitarg:
+        jit.set_user_param(None, jitarg)
     if len(argv) != 4:
         print "usage: %s <binary> <maxcycle> <debug>" % (argv[0], )
         return -1

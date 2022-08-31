@@ -1,6 +1,12 @@
 Developer Log
 =
 
+31.08.22
+==
+- participants: NR, CF
+- nand2tetris: added hex-code of instruction to debug output
+- nan2tetris: added jit annotation to tell jit that rom is immutable
+
 24.08.22
 ==
 - participants: JW, LL, NR, CF

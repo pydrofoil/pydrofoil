@@ -6,8 +6,9 @@ from pydrofoil import mem as mem_mod
 from rpython.rlib.nonconst import NonConstant
 from rpython.rlib.objectmodel import we_are_translated, always_inline
 from rpython.rlib.jit import JitDriver, promote
-from rpython.rlib.rarithmetic import r_uint, intmask
+from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from rpython.rlib.rrandom import Random
+from rpython.rlib import jit
 
 import time
 
@@ -34,16 +35,77 @@ def platform_write_mem(write_kind, addr_size, addr, n, data):
     g.mem.write(addr.touint(), n, data.touint())
     return True
 
+# rough memory layout:
+# | rom | clint | .... | ram <htif inside> ram
+
+@jit.not_in_trace
+def _observe_addr_range(pc, addr, width, ranges):
+    index = _find_index(ranges, addr, width)
+    g._mem_addr_range_next = index
+
+@jit.elidable
+def _get_likely_addr_range(pc, ranges):
+    # not really at all elidable, but it does not matter. the result is only
+    # used to produce some guards
+    return g._mem_addr_range_next
+
+def _find_index(ranges, addr, width):
+    for index, (start, stop) in enumerate(ranges):
+        if start <= addr and addr + width < stop:
+            return index
+    return -1
+
+def promote_addr_region(addr, width, executable_flag):
+    from pydrofoil.test.riscv.generated import outriscv
+    width = intmask(outriscv.func_zword_width_bytes(width))
+    addr = intmask(addr)
+    jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
+    if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
+        return
+    if executable_flag:
+        return
+    pc = outriscv.r.zPC
+    _observe_addr_range(pc, addr, width, g._mem_ranges)
+    range_index = _get_likely_addr_range(pc, g._mem_ranges)
+    if range_index < 0 or width > 8:
+        return
+    # the next line produces two guards
+    if g._mem_ranges[range_index][0] <= addr and addr < g._mem_ranges[range_index][1] - width:
+        if width == 8 and addr & ((r_uint(1)<<63) | 0b111) == 0:
+            # it's aligned and the highest bit is not set. tell the jit that the
+            # last three bits and the highest bit are zero. can be removed with
+            # known bits analysis later
+            jit.record_exact_value(addr & 1, 0)
+            jit.record_exact_value(addr & 0b111, 0)
+            jit.record_exact_value((addr + width) & 0b111, 0)
+            jit.record_exact_value(r_uint(addr) & (r_uint(1)<<63), 0)
+            jit.record_exact_value((r_uint(addr) >> 1) & 1, 0)
+            jit.record_exact_value((r_uint(addr) >> 2) & 1, 0)
+    return
+
 class Globals(object):
     _immutable_fields_ = [
         'config_print_platform?', 'config_print_mem_access?',
         'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?',
         'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
-        'rv_rom_size?', 'mem?',
+        'rv_rom_base?', 'rv_rom_size?', 'mem?',
         'rv_insns_per_tick?',
+        '_mem_ranges?[*]',
     ]
 
+    def _init_ranges(self):
+        self._mem_ranges = [
+            (intmask(self.rv_rom_base), intmask(self.rv_rom_base + self.rv_rom_size)),
+            (intmask(self.rv_clint_base), intmask(self.rv_clint_base + self.rv_clint_size)),
+            (intmask(self.rv_ram_base), intmask(self.rv_htif_tohost)),
+            (intmask(self.rv_htif_tohost), intmask(self.rv_htif_tohost + 16)),
+            (intmask(self.rv_htif_tohost + 16), intmask(self.rv_ram_base + self.rv_ram_size)),
+        ]
+        for a, b in self._mem_ranges:
+            assert b >= 8
+
 g = Globals()
+g._mem_addr_range_next = -1
 g.mem = None
 g.rv_enable_pmp                  = False
 g.rv_enable_zfinx                = False
@@ -359,6 +421,8 @@ def run_sail(insn_limit, do_show_times):
     step_no = 0
     insn_cnt = 0
     tick = False
+
+    g._init_ranges()
 
     g.interval_start = g.total_start = time.time()
     prev_pc = 0

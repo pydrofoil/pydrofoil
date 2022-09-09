@@ -20,6 +20,10 @@ def make_code():
     res = res.replace("func_zread_ram(zrk", "func_zread_ram((type(zt) is Union_zAccessType_zExecute), zrk")
     assert res.count("platform_read_mem") == 1
     res = res.replace("platform_read_mem(", "platform_read_mem(executable_flag, ")
+
+    # another one of them:
+    assert res.count("return_ = Union_zExt_DataAddr_Check_zExt_DataAddr_OK(zaddr_lz30") == 1
+    res = res.replace("return_ = Union_zExt_DataAddr_Check_zExt_DataAddr_OK(zaddr_lz30", "supportcode.promote_addr_region(zaddr_lz30, zwidth, (type(zacc) is Union_zAccessType_zExecute)); return_ = Union_zExt_DataAddr_Check_zExt_DataAddr_OK(zaddr_lz30")
     with open(outriscvpy, "w") as f:
         f.write(res)
     from pydrofoil.test.riscv.generated import outriscv

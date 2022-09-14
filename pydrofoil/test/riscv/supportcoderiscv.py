@@ -22,8 +22,6 @@ def platform_read_mem(executable_flag, read_kind, addr_size, addr, n):
     assert n <= 8
     assert addr_size == 64
     addr = addr.touint()
-    if executable_flag:
-        g.mem.mark_page_executable(addr)
     res = g.mem.read(addr, n, executable_flag)
     return bitvector.from_ruint(n*8, res)
 

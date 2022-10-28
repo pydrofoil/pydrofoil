@@ -335,13 +335,24 @@ def parse_dump_file(fn):
 def parse_flag(argv, flagname):
     return bool(parse_args(argv, flagname, want_arg=False))
 
+def print_help(program):
+    print "Usage:", program, "[options] <elf_file>"
+    print "--help    print this information and exit"
+    print "-b/--device-tree-blob <file>    load dtb from file"
+    print "-l/--inst-limit <limit>    exit after limit instructions have been executed"
+    print "--dump <file>    load elf file disassembly from file"
+    print "--instructions-per-tick <num>    tick the emulated clock every num instructions"
+    print "--verbose    print a detailed trace of every instruction executed"
+    print "--print-kips    print kip/s every 2**20 instructions"
+
+
 def main(argv):
     from pydrofoil.test.riscv.generated import outriscv
     from rpython.rlib import jit
 
-    jitarg = parse_args(argv, "--jit")
-    if jitarg:
-        jit.set_user_param(None, jitarg)
+    if parse_flag(argv, "--help"):
+        print_help(argv[0])
+        return 0
 
     blob = parse_args(argv, "-b", "--device-tree-blob")
     if blob:
@@ -375,7 +386,7 @@ def main(argv):
     # Initialize model so that we can check or report its architecture.
     outriscv.model_init()
     if len(argv) == 1:
-        print("usage: %s <elf file>" % (argv[0], ))
+        print_help(argv[0])
         return 1
     file = argv[1]
     if len(argv) == 3:

@@ -53,7 +53,7 @@ def _find_index(ranges, addr, width):
             return index
     return -1
 
-def promote_addr_region(addr, width, executable_flag):
+def promote_addr_region(addr, width, offset, executable_flag):
     from pydrofoil.test.riscv.generated import outriscv
     width = intmask(outriscv.func_zword_width_bytes(width))
     addr = intmask(addr)

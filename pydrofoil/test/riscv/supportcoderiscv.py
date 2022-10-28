@@ -337,13 +337,28 @@ def parse_flag(argv, flagname):
 
 def print_help(program):
     print "Usage:", program, "[options] <elf_file>"
-    print "--help    print this information and exit"
     print "-b/--device-tree-blob <file>    load dtb from file"
-    print "-l/--inst-limit <limit>    exit after limit instructions have been executed"
-    print "--dump <file>    load elf file disassembly from file"
-    print "--instructions-per-tick <num>    tick the emulated clock every num instructions"
-    print "--verbose    print a detailed trace of every instruction executed"
-    print "--print-kips    print kip/s every 2**20 instructions"
+    print "-l/--inst-limit <limit>         exit after limit instructions have been executed"
+    print "--dump <file>                   load elf file disassembly from file"
+    print "--instructions-per-tick <num>   tick the emulated clock every num instructions"
+    print "--verbose                       print a detailed trace of every instruction executed"
+    print "--print-kips                    print kip/s every 2**20 instructions"
+    print "--jit <options>                 set JIT options"
+    print "--help                          print this information and exit"
+
+def print_help_jit():
+    print "Advanced JIT options:"
+    print
+    for key, value in jit.PARAMETERS.items():
+        print "", key + "=<value>"
+        print "   ", jit.PARAMETER_DOCS[key], "(default: %s)" % value
+        print
+
+    print " off"
+    print "    turn JIT off"
+    print
+    print " help"
+    print "    print this page"
 
 
 def main(argv):
@@ -374,6 +389,17 @@ def main(argv):
     if per_tick:
         ipt = int(per_tick)
         g.rv_insns_per_tick = ipt
+
+    jitopts = parse_args(argv, "--jit")
+    if jitopts:
+        if jitopts == "help":
+            print_help_jit()
+            return 0
+        try:
+            jit.set_user_param(jitopts)
+        except ValueError:
+            print "invalid jit option"
+            return 1
 
     if not parse_flag(argv, "--verbose"):
         g.config_print_instr = False

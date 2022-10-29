@@ -335,31 +335,31 @@ def parse_dump_file(fn):
 def parse_flag(argv, flagname):
     return bool(parse_args(argv, flagname, want_arg=False))
 
+helptext = """
+Usage: %s [options] <elf_file>
+-b/--device-tree-blob <file>    load dtb from file
+-l/--inst-limit <limit>         exit after limit instructions have been executed
+--dump <file>                   load elf file disassembly from file
+--instructions-per-tick <num>   tick the emulated clock every num instructions
+--verbose                       print a detailed trace of every instruction executed
+--print-kips                    print kip/s every 2**20 instructions
+--jit <options>                 set JIT options
+--help                          print this information and exit
+"""
+
 def print_help(program):
-    print "Usage:", program, "[options] <elf_file>"
-    print "-b/--device-tree-blob <file>    load dtb from file"
-    print "-l/--inst-limit <limit>         exit after limit instructions have been executed"
-    print "--dump <file>                   load elf file disassembly from file"
-    print "--instructions-per-tick <num>   tick the emulated clock every num instructions"
-    print "--verbose                       print a detailed trace of every instruction executed"
-    print "--print-kips                    print kip/s every 2**20 instructions"
-    print "--jit <options>                 set JIT options"
-    print "--help                          print this information and exit"
+    print helptext % program
+
+JIT_HELP = ["Advanced JIT options:", '', '']
+JIT_HELP.extend([" %s=<value>\n     %s (default: %s)\n" % (
+    key, jit.PARAMETER_DOCS[key], value)
+    for key, value in jit.PARAMETERS.items()]
+)
+JIT_HELP.extend([" off", "    turn JIT off", "", " help", "    print this page"])
+JIT_HELP = "\n".join(JIT_HELP)
 
 def print_help_jit():
-    print "Advanced JIT options:"
-    print
-    for key, value in jit.PARAMETERS.items():
-        print "", key + "=<value>"
-        print "   ", jit.PARAMETER_DOCS[key], "(default: %s)" % value
-        print
-
-    print " off"
-    print "    turn JIT off"
-    print
-    print " help"
-    print "    print this page"
-
+    print JIT_HELP
 
 def main(argv):
     from pydrofoil.test.riscv.generated import outriscv
@@ -396,7 +396,7 @@ def main(argv):
             print_help_jit()
             return 0
         try:
-            jit.set_user_param(jitopts)
+            jit.set_user_param(None, jitopts)
         except ValueError:
             print "invalid jit option"
             return 1

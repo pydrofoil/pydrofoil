@@ -139,7 +139,7 @@ class Codegen(object):
 
     def getcode(self):
         res = ["\n".join(self.declarations)]
-        res.append("def model_init(l):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
+        res.append("def model_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
         res.append("\n".join(self.code))
         return "\n\n\n".join(res)
 
@@ -158,7 +158,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit("class Registers(supportcode.RegistersBase): pass")
         c.emit("class Lets(object): pass")
         c.emit("class Machine(object):")
-        c.emit("    def __init__(self): self.l = Lets(); self.r = Registers(); model_init(self.l)")
+        c.emit("    def __init__(self): self.l = Lets(); self.r = Registers(); model_init(self)")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     try:
         ast.make_code(c)

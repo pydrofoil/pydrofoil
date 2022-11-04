@@ -6,14 +6,12 @@ from pydrofoil.test.nand2tetris import supportcodenand as supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer
 
-class Registers(object): pass
-r = Registers()
-r.have_exception = False
-r.throw_location = None
-r.current_exception = None
+class Registers(supportcode.RegistersBase): pass
 
 class Lets(object): pass
-l = Lets()
+
+class Machine(object):
+    def __init__(self): self.l = Lets(); self.r = Registers(); model_init(self)
 UninitInt = bitvector.Integer.fromint(-0xfefee)
 
 class Tuple_1(object): # TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
@@ -217,11 +215,11 @@ class Tuple_16(object): # TupleType(elements=[NamedType('%bv64'), NamedType('%bv
         if not (self.utup3 == other.utup3): return False # NamedType('%bv16')
         return True
 # Register(name='zPC', typ=NamedType('%bv16'))
-r.zPC = r_uint(0)
+Registers.zPC = r_uint(0)
 # Register(name='zA', typ=NamedType('%bv16'))
-r.zA = r_uint(0)
+Registers.zA = r_uint(0)
 # Register(name='zD', typ=NamedType('%bv16'))
-r.zD = r_uint(0)
+Registers.zD = r_uint(0)
 
 class Tuple_17(object): # TupleType(elements=[NamedType('%bv6')])
     def eq(self, other):
@@ -277,7 +275,7 @@ class Tuple_24(object): # TupleType(elements=[NamedType('%bv64'), NamedType('%bo
         return True
 
 
-def model_init():
+def model_init(machine):
     pass
 
 
@@ -1234,16 +1232,16 @@ def func_zcompute_value(machine, za, zop):
             if zgaz324_lz34:
                 # inline pc=6
                 # Assignment(result='zashadowz31_lz30', value=Var(name='zA'))
-                zashadowz31_lz30 = r.zA
+                zashadowz31_lz30 = machine.r.zA
                 pc = 7
                 continue
             # Operation(args=[Var(name='zA')], name='zread_mem', result='zashadowz31_lz30')
-            zashadowz31_lz30 = supportcode.my_read_mem(r.zA)
+            zashadowz31_lz30 = supportcode.my_read_mem(machine.r.zA)
             pc = 7
         if pc == 7:
             # zd_lz31: NamedType('%bv16')
             # Assignment(result='zd_lz31', value=Var(name='zD'))
-            zd_lz31 = r.zD
+            zd_lz31 = machine.r.zD
             # LocalVarDeclaration(name='zresult_lz32', typ=NamedType('%bv16'), value=None)
             # zresult_lz32: NamedType('%bv16')
             zresult_lz32 = r_uint(0)
@@ -1390,7 +1388,7 @@ def func_zassign_dest(machine, zgsz371, zvalue):
             if zm_lz32:
                 # inline pc=10
                 # Operation(args=[Var(name='zA'), Var(name='zvalue')], name='zwrite_mem', result='zgsz373_lz34')
-                zgsz373_lz34 = supportcode.my_write_mem(r.zA, zvalue)
+                zgsz373_lz34 = supportcode.my_write_mem(machine.r.zA, zvalue)
                 pc = 11
                 continue
             # Assignment(result='zgsz373_lz34', value=Unit())
@@ -1403,7 +1401,7 @@ def func_zassign_dest(machine, zgsz371, zvalue):
             if za_lz30:
                 # inline pc=15
                 # Assignment(result='zA', value=Var(name='zvalue'))
-                r.zA = zvalue
+                machine.r.zA = zvalue
                 # Assignment(result='zgsz372_lz33', value=Unit())
                 zgsz372_lz33 = ()
                 pc = 17
@@ -1415,7 +1413,7 @@ def func_zassign_dest(machine, zgsz371, zvalue):
             if zd_lz31:
                 # inline pc=20
                 # Assignment(result='zD', value=Var(name='zvalue'))
-                r.zD = zvalue
+                machine.r.zD = zvalue
                 # Assignment(result='return', value=Unit())
                 return_ = ()
                 pc = 22
@@ -1532,14 +1530,14 @@ def func_zmaybe_jump(machine, zvalue, zj):
             if zcond_lz30:
                 # inline pc=50
                 # Assignment(result='zPC', value=Var(name='zA'))
-                r.zPC = r.zA
+                machine.r.zPC = machine.r.zA
                 # Assignment(result='return', value=Unit())
                 return_ = ()
                 pc = 52
                 continue
             # LocalVarDeclaration(name='zgsz385_lz31', typ=NamedType('%bv'), value=Var(name='zPC'))
             # zgsz385_lz31: NamedType('%bv')
-            zgsz385_lz31 = bitvector.from_ruint(16, r.zPC)
+            zgsz385_lz31 = bitvector.from_ruint(16, machine.r.zPC)
             # LocalVarDeclaration(name='zgsz386_lz32', typ=NamedType('%i'), value=Number(number=1))
             # zgsz386_lz32: NamedType('%i')
             zgsz386_lz32 = IntConst_1_1
@@ -1547,7 +1545,7 @@ def func_zmaybe_jump(machine, zvalue, zj):
             # Operation(args=[Var(name='zgsz385_lz31'), Var(name='zgsz386_lz32')], name='zadd_bits_int', result='zgsz387_lz33')
             zgsz387_lz33 = supportcode.add_bits_int(zgsz385_lz31, zgsz386_lz32)
             # Assignment(result='zPC', value=Var(name='zgsz387_lz33'))
-            r.zPC = zgsz387_lz33.touint()
+            machine.r.zPC = zgsz387_lz33.touint()
             # Assignment(result='return', value=Unit())
             return_ = ()
             pc = 52
@@ -1571,13 +1569,13 @@ def zexecute_zAINST(zmergez3var, machine, ):
             # Assignment(result='zx_lz37', value=Cast(expr=Var(name='zmergez3var'), variant='zAINST'))
             zx_lz37 = Union_zinstr_zAINST.convert(zmergez3var)
             # Assignment(result='zA', value=Var(name='zx_lz37'))
-            r.zA = zx_lz37
+            machine.r.zA = zx_lz37
             # zgsz389_lz311: NamedType('%unit')
             # Assignment(result='zgsz389_lz311', value=Unit())
             zgsz389_lz311 = ()
             # LocalVarDeclaration(name='zgsz390_lz38', typ=NamedType('%bv'), value=Var(name='zPC'))
             # zgsz390_lz38: NamedType('%bv')
-            zgsz390_lz38 = bitvector.from_ruint(16, r.zPC)
+            zgsz390_lz38 = bitvector.from_ruint(16, machine.r.zPC)
             # LocalVarDeclaration(name='zgsz391_lz39', typ=NamedType('%i'), value=Number(number=1))
             # zgsz391_lz39: NamedType('%i')
             zgsz391_lz39 = IntConst_1_1
@@ -1585,7 +1583,7 @@ def zexecute_zAINST(zmergez3var, machine, ):
             # Operation(args=[Var(name='zgsz390_lz38'), Var(name='zgsz391_lz39')], name='zadd_bits_int', result='zgsz392_lz310')
             zgsz392_lz310 = supportcode.add_bits_int(zgsz390_lz38, zgsz391_lz39)
             # Assignment(result='zPC', value=Var(name='zgsz392_lz310'))
-            r.zPC = zgsz392_lz310.touint()
+            machine.r.zPC = zgsz392_lz310.touint()
             # Assignment(result='zgsz388_lz30', value=Unit())
             zgsz388_lz30 = ()
             pc = 30
@@ -1650,7 +1648,7 @@ def func_zfetch_decode_execute(machine, zgsz396):
         if pc == 0:
             # zinstr_lz30: NamedType('%bv16')
             # Operation(args=[Var(name='zPC')], name='zread_rom', result='zinstr_lz30')
-            zinstr_lz30 = supportcode.my_read_rom(r.zPC)
+            zinstr_lz30 = supportcode.my_read_rom(machine.r.zPC)
             # zx_lz31: UnionType(name='zoption')
             # Operation(args=[Var(name='zinstr_lz30')], name='zdecode', result='zx_lz31')
             zx_lz31 = func_zdecode(machine, zinstr_lz30)
@@ -1734,7 +1732,7 @@ def func_zrun(machine, zlimit, zdebug):
             if zdebug:
                 # inline pc=15
                 # Operation(args=[Var(name='zcycle_count_lz30'), Var(name='zPC'), Var(name='zA'), Var(name='zD')], name='zprint_debug', result='zgsz3103_lz39')
-                zgsz3103_lz39 = supportcode.my_print_debug(zcycle_count_lz30, r.zPC, r.zA, r.zD)
+                zgsz3103_lz39 = supportcode.my_print_debug(zcycle_count_lz30, machine.r.zPC, machine.r.zA, machine.r.zD)
                 pc = 16
                 continue
             # Assignment(result='zgsz3103_lz39', value=Unit())
@@ -1791,17 +1789,17 @@ def func_zrun(machine, zlimit, zdebug):
 
 def func_zmymain(machine, zlimit, zdebug):
     # Assignment(result='zPC', value=BitVectorConstant(constant='0x0000'))
-    r.zPC = r_uint(0x0000)
+    machine.r.zPC = r_uint(0x0000)
     # zgsz3109_lz32: NamedType('%unit')
     # Assignment(result='zgsz3109_lz32', value=Unit())
     zgsz3109_lz32 = ()
     # Assignment(result='zA', value=BitVectorConstant(constant='0x0000'))
-    r.zA = r_uint(0x0000)
+    machine.r.zA = r_uint(0x0000)
     # zgsz3108_lz31: NamedType('%unit')
     # Assignment(result='zgsz3108_lz31', value=Unit())
     zgsz3108_lz31 = ()
     # Assignment(result='zD', value=BitVectorConstant(constant='0x0000'))
-    r.zD = r_uint(0x0000)
+    machine.r.zD = r_uint(0x0000)
     # zgsz3107_lz30: NamedType('%unit')
     # Assignment(result='zgsz3107_lz30', value=Unit())
     zgsz3107_lz30 = ()

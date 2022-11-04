@@ -53,7 +53,7 @@ def _find_index(ranges, addr, width):
             return index
     return -1
 
-def promote_addr_region(addr, width, offset, executable_flag):
+def promote_addr_region(machine, addr, width, offset, executable_flag):
     outriscv = g.outriscv()
     width = intmask(outriscv.func_zword_width_bytes(None, width))
     addr = intmask(addr)
@@ -62,7 +62,7 @@ def promote_addr_region(addr, width, offset, executable_flag):
         return
     if executable_flag:
         return
-    pc = outriscv.r.zPC
+    pc = machine.r.zPC
     _observe_addr_range(pc, addr, width, g._mem_ranges)
     range_index = _get_likely_addr_range(pc, g._mem_ranges)
     if range_index < 0 or width > 8:
@@ -246,17 +246,18 @@ def plat_term_write_impl(c):
 
 def init_sail(elf_entry):
     outriscv = g.outriscv()
-    outriscv.func_zinit_model(None, ())
-    init_sail_reset_vector(elf_entry)
+    machine = outriscv.Machine()
+    outriscv.func_zinit_model(machine, ())
+    init_sail_reset_vector(machine, elf_entry)
     if not g.rv_enable_rvc:
         # this is probably unnecessary now; remove
-        outriscv.func_z_set_Misa_C(None, outriscv.r.zmisa, 0)
+        outriscv.func_z_set_Misa_C(machine, machine.r.zmisa, 0)
+    return machine
 
 def is_32bit_model():
     return False # for now
 
-def init_sail_reset_vector(entry):
-    outriscv = g.outriscv()
+def init_sail_reset_vector(machine, entry):
     RST_VEC_SIZE = 8
     reset_vec = [ # 32 bit entries
         r_uint(0x297),                                      # auipc  t0,0x0
@@ -298,7 +299,7 @@ def init_sail_reset_vector(entry):
         g.rv_rom_size = rv_rom_size
 
     # boot at reset vector
-    outriscv.r.zPC = r_uint(rv_rom_base)
+    machine.r.zPC = r_uint(rv_rom_base)
 
 def parse_dump_file(fn):
     with open(fn) as f:
@@ -419,7 +420,6 @@ def main(argv):
     print_kips = parse_flag(argv, "--print-kips")
 
     # Initialize model so that we can check or report its architecture.
-    m = outriscv.Machine()
     if len(argv) == 1:
         print_help(argv[0])
         return 1
@@ -432,10 +432,8 @@ def main(argv):
 
     entry = load_sail(file)
     for i in range(iterations):
-        init_sail(entry)
-        run_sail(limit, print_kips)
-        if i:
-            outriscv.model_init(m.l) # XXX
+        machine = init_sail(entry)
+        run_sail(machine, limit, print_kips)
     #flush_logs()
     #close_logs()
     return 0
@@ -451,17 +449,14 @@ def get_printable_location(pc, do_show_times, insn_limit, tick):
 driver = JitDriver(
     get_printable_location=get_printable_location,
     greens=['pc', 'do_show_times', 'insn_limit', 'tick'],
-    reds=['step_no', 'insn_cnt', 'r'],
+    reds=['step_no', 'insn_cnt', 'r', 'machine'],
     virtualizables=['r'])
 
 g.dump_dict = None
 
-def run_sail(insn_limit, do_show_times):
+def run_sail(machine, insn_limit, do_show_times):
     outriscv = g.outriscv()
-    if NonConstant(False):
-        r = outriscv.Registers()
-    else:
-        r = outriscv.r
+    r = machine.r
     step_no = 0
     insn_cnt = 0
     tick = False
@@ -471,15 +466,15 @@ def run_sail(insn_limit, do_show_times):
     g.interval_start = g.total_start = time.time()
     prev_pc = 0
 
-    while not outriscv.r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
-        driver.jit_merge_point(pc=outriscv.r.zPC, tick=tick,
+    while not r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
+        driver.jit_merge_point(pc=r.zPC, tick=tick,
                 insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r,
-                do_show_times=do_show_times)
+                do_show_times=do_show_times, machine=machine)
         if tick:
             if insn_cnt == g.rv_insns_per_tick:
                 insn_cnt = 0
-                outriscv.func_ztick_clock(None, ())
-                outriscv.func_ztick_platform(None, ())
+                outriscv.func_ztick_clock(machine, ())
+                outriscv.func_ztick_platform(machine, ())
             else:
                 assert do_show_times and (step_no & 0xfffff) == 0
                 curr = time.time()
@@ -489,11 +484,11 @@ def run_sail(insn_limit, do_show_times):
             continue
         # run a Sail step
         prev_pc = r.zPC
-        stepped = outriscv.func_zstep(None, Integer.fromint(step_no))
-        if outriscv.r.have_exception:
+        stepped = outriscv.func_zstep(machine, Integer.fromint(step_no))
+        if r.have_exception:
             print "ended with exception!"
-            print outriscv.r.current_exception
-            print "from", outriscv.r.throw_location
+            print r.current_exception
+            print "from", r.throw_location
             raise ValueError
         rv_insns_per_tick = g.rv_insns_per_tick
         if stepped:
@@ -510,16 +505,16 @@ def run_sail(insn_limit, do_show_times):
         if tick_cond:
             tick = True
         elif prev_pc >= r.zPC: # backward jump
-            driver.can_enter_jit(pc=outriscv.r.zPC, tick=tick,
+            driver.can_enter_jit(pc=r.zPC, tick=tick,
                     insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r,
-                    do_show_times=do_show_times)
+                    do_show_times=do_show_times, machine=machine)
     # loop end
 
     interval_end = time.time()
-    if outriscv.r.zhtif_exit_code == 0:
+    if r.zhtif_exit_code == 0:
         print "SUCCESS"
     else:
-        print "FAILURE", outriscv.r.zhtif_exit_code
+        print "FAILURE", r.zhtif_exit_code
         if not we_are_translated():
             raise ValueError
     print "Instructions: %s" % (step_no, )

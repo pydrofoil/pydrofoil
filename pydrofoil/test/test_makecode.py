@@ -236,7 +236,8 @@ fn zmain(zgsz34) {
     d = {}
     res = py.code.Source(res)
     exec res.compile() in d
-    d['func_zmain'](d['Machine'](), ())
+    machine = d['Machine']()
+    d['func_zmain'](machine, ())
     out, err = capsys.readouterr()
     assert out == """\
 in g()
@@ -248,7 +249,7 @@ x = 33
 in g()
 Fall through OK
 """
-    assert d['r'].have_exception
+    assert machine.r.have_exception
 
 def test_exceptions2(capsys):
     import py
@@ -259,7 +260,8 @@ def test_exceptions2(capsys):
     res = py.code.Source(res)
     d = {}
     exec res.compile() in d
-    d['func_zmain'](d['Machine'](), ())
+    machine = d['Machine']()
+    d['func_zmain'](machine, ())
     out, err = capsys.readouterr()
     assert out == """\
 i = 1
@@ -286,7 +288,7 @@ ok
 ok
 R = 3
 """
-    assert not d['r'].have_exception
+    assert machine.r.have_exception
 
 def test_full_nand():
     import py
@@ -303,10 +305,11 @@ def test_full_nand():
     from pydrofoil.test.nand2tetris.generated import nand_rpython as out
     supportcodenand.load_rom(addrom)
     zmymain = out.func_zmymain
-    zmymain(out.Machine(), 10, True)
-    assert out.r.zD == 5
-    assert out.r.zA == 0
-    assert out.r.zPC == 11
+    machine = out.Machine()
+    zmymain(machine, 10, True)
+    assert machine.r.zD == 5
+    assert machine.r.zA == 0
+    assert machine.r.zPC == 11
     supportcodenand.load_rom(sumrom)
     zmymain(out.Machine(), 2000, True)
     assert supportcodenand.my_read_mem(17) == 5050

@@ -217,8 +217,6 @@ class ElfHeader(object):
         else:
             format = ElfHeader.FORMAT
             ehdr_list = unpack(format, data)
-            if objectmodel.we_are_translated():
-                assert 0, "a bit broken for now"
         self.ident = ehdr_list[0]
         self.type = ehdr_list[1]
         self.machine = ehdr_list[2]
@@ -339,10 +337,6 @@ class ElfProgramHeader(object):
 
     def __init__(self, data="", is_64bit=False):
         self.is_64bit = is_64bit
-        if is_64bit:
-            self.format = self.FORMAT64
-        else:
-            self.format = self.FORMAT
         if data != "":
             self.from_bytes(data)
 
@@ -351,16 +345,26 @@ class ElfProgramHeader(object):
     # -----------------------------------------------------------------------
 
     def from_bytes(self, data):
-        assert self.is_64bit
-        phdr_list = unpack(self.FORMAT64, data)
-        self.type = phdr_list[0]
-        self.flags = phdr_list[1]
-        self.offset = phdr_list[2]
-        self.vaddr = phdr_list[3]
-        self.paddr = phdr_list[4]
-        self.filesz = phdr_list[5]
-        self.memsz = phdr_list[6]
-        self.align = phdr_list[7]
+        if self.is_64bit:
+            phdr_list = unpack(self.FORMAT64, data)
+            self.type = phdr_list[0]
+            self.flags = phdr_list[1]
+            self.offset = phdr_list[2]
+            self.vaddr = phdr_list[3]
+            self.paddr = phdr_list[4]
+            self.filesz = phdr_list[5]
+            self.memsz = phdr_list[6]
+            self.align = phdr_list[7]
+        else:
+            phdr_list = unpack(self.FORMAT, data)
+            self.type = phdr_list[0]
+            self.offset = phdr_list[1]
+            self.vaddr = phdr_list[2]
+            self.paddr = phdr_list[3]
+            self.filesz = phdr_list[4]
+            self.memsz = phdr_list[5]
+            self.flags = phdr_list[6]
+            self.align = phdr_list[7]
 
     # -----------------------------------------------------------------------
     # __str__

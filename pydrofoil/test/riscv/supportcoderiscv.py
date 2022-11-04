@@ -54,7 +54,7 @@ def _find_index(ranges, addr, width):
     return -1
 
 def promote_addr_region(addr, width, offset, executable_flag):
-    from pydrofoil.test.riscv.generated import outriscv
+    outriscv = g.outriscv()
     width = intmask(outriscv.func_zword_width_bytes(width))
     addr = intmask(addr)
     jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
@@ -89,6 +89,7 @@ class Globals(object):
         'rv_rom_base?', 'rv_rom_size?', 'mem?',
         'rv_insns_per_tick?',
         '_mem_ranges?[*]',
+        'rv64'
     ]
 
     def _init_ranges(self):
@@ -101,6 +102,14 @@ class Globals(object):
         ]
         for a, b in self._mem_ranges:
             assert b >= 8
+
+    def outriscv(self):
+        if self.rv64:
+            from pydrofoil.test.riscv.generated import outriscv
+        else:
+            from pydrofoil.test.riscv.generated import outriscv32 as outriscv
+        return outriscv
+
 
 g = Globals()
 g._mem_addr_range_next = -1
@@ -203,7 +212,7 @@ def speculate_conditional(_):
     return True
 
 def check_mask():
-    from pydrofoil.test.riscv.generated import outriscv
+    outriscv = g.outriscv()
     return r_uint(0x00000000FFFFFFFF) if outriscv.l.zxlen_val == 32 else r_uint(0xffffffffffffffff)
 
 def match_reservation(addr):
@@ -236,7 +245,7 @@ def plat_term_write_impl(c):
     os.write(1, c)
 
 def init_sail(elf_entry):
-    from pydrofoil.test.riscv.generated import outriscv
+    outriscv = g.outriscv()
     outriscv.func_zinit_model(())
     init_sail_reset_vector(elf_entry)
     if not g.rv_enable_rvc:
@@ -247,7 +256,7 @@ def is_32bit_model():
     return False # for now
 
 def init_sail_reset_vector(entry):
-    from pydrofoil.test.riscv.generated import outriscv
+    outriscv = g.outriscv()
     RST_VEC_SIZE = 8
     reset_vec = [ # 32 bit entries
         r_uint(0x297),                                      # auipc  t0,0x0
@@ -362,7 +371,7 @@ def print_help_jit():
     print JIT_HELP
 
 def main(argv):
-    from pydrofoil.test.riscv.generated import outriscv
+    outriscv = g.outriscv()
     from rpython.rlib import jit
 
     if parse_flag(argv, "--help"):
@@ -432,7 +441,7 @@ def main(argv):
     return 0
 
 def get_printable_location(pc, do_show_times, insn_limit, tick):
-    from pydrofoil.test.riscv.generated import outriscv
+    outriscv = g.outriscv()
     if tick:
         return "TICK 0x%x" % (pc, )
     if g.dump_dict and pc in g.dump_dict:
@@ -448,7 +457,7 @@ driver = JitDriver(
 g.dump_dict = None
 
 def run_sail(insn_limit, do_show_times):
-    from pydrofoil.test.riscv.generated import outriscv
+    outriscv = g.outriscv()
     if NonConstant(False):
         r = outriscv.Registers()
     else:
@@ -520,7 +529,7 @@ def run_sail(insn_limit, do_show_times):
 
 
 def load_sail(fn):
-    from pydrofoil.test.riscv.generated import outriscv
+    outriscv = g.outriscv()
     oldmem = g.mem
     if oldmem:
         oldmem.close()
@@ -570,7 +579,7 @@ def get_config_print_platform(_):
     return g.config_print_platform
 
 def get_main():
-    from pydrofoil.test.riscv.generated import outriscv
+    outriscv = g.outriscv()
     from rpython.rlib import jit
 
     outriscv.Registers._virtualizable_ = ['ztlb39', 'ztlb48', 'zminstret', 'zPC', 'znextPC', 'zmstatus', 'zmip', 'zmie', 'zsatp']

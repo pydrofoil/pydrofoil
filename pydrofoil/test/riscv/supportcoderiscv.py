@@ -55,7 +55,7 @@ def _find_index(ranges, addr, width):
 
 def promote_addr_region(addr, width, offset, executable_flag):
     outriscv = g.outriscv()
-    width = intmask(outriscv.func_zword_width_bytes(width))
+    width = intmask(outriscv.func_zword_width_bytes(None, width))
     addr = intmask(addr)
     jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
     if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
@@ -246,11 +246,11 @@ def plat_term_write_impl(c):
 
 def init_sail(elf_entry):
     outriscv = g.outriscv()
-    outriscv.func_zinit_model(())
+    outriscv.func_zinit_model(None, ())
     init_sail_reset_vector(elf_entry)
     if not g.rv_enable_rvc:
         # this is probably unnecessary now; remove
-        outriscv.func_z_set_Misa_C(outriscv.r.zmisa, 0)
+        outriscv.func_z_set_Misa_C(None, outriscv.r.zmisa, 0)
 
 def is_32bit_model():
     return False # for now
@@ -478,8 +478,8 @@ def run_sail(insn_limit, do_show_times):
         if tick:
             if insn_cnt == g.rv_insns_per_tick:
                 insn_cnt = 0
-                outriscv.func_ztick_clock(())
-                outriscv.func_ztick_platform(())
+                outriscv.func_ztick_clock(None, ())
+                outriscv.func_ztick_platform(None, ())
             else:
                 assert do_show_times and (step_no & 0xfffff) == 0
                 curr = time.time()
@@ -489,7 +489,7 @@ def run_sail(insn_limit, do_show_times):
             continue
         # run a Sail step
         prev_pc = r.zPC
-        stepped = outriscv.func_zstep(Integer.fromint(step_no))
+        stepped = outriscv.func_zstep(None, Integer.fromint(step_no))
         if outriscv.r.have_exception:
             print "ended with exception!"
             print outriscv.r.current_exception

@@ -8,7 +8,7 @@ import os
 thisdir = os.path.dirname(__file__)
 
 riscvirs = [os.path.join(thisdir, "riscv_model_RV32.ir"), os.path.join(thisdir, "riscv_model_RV64.ir")]
-outriscvpys = [os.path.join(thisdir, "generated/outriscv.py"), os.path.join(thisdir, "generated/outriscv32.py")]
+outriscvpys = [os.path.join(thisdir, "generated/outriscv32.py"), os.path.join(thisdir, "generated/outriscv.py")]
 
 def make_code(rv64=True):
     print "making python code"
@@ -17,9 +17,9 @@ def make_code(rv64=True):
     support_code = "from pydrofoil.test.riscv import supportcoderiscv as supportcode"
     res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', })
     # XXX horrible hack, they should be fixed in the model!
-    assert res.count("func_zread_ram(zrk") == 2
-    res = res.replace("def func_zread_ram(zrk", "def func_zread_ram(executable_flag, zrk")
-    res = res.replace("func_zread_ram(zrk", "func_zread_ram((type(zt) is Union_zAccessType_zExecute), zrk")
+    assert res.count("func_zread_ram(machine, zrk") == 2
+    res = res.replace("def func_zread_ram(machine, zrk", "def func_zread_ram(machine, executable_flag, zrk")
+    res = res.replace("func_zread_ram(machine, zrk", "func_zread_ram(machine, (type(zt) is Union_zAccessType_zExecute), zrk")
     assert res.count("platform_read_mem") == 1
     res = res.replace("platform_read_mem(", "platform_read_mem(executable_flag, ")
 

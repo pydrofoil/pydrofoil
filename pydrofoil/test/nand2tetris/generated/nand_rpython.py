@@ -321,7 +321,7 @@ class Enum_zarithmetic_op(object):
 
 
 
-def func_zneq_int(zx, zy):
+def func_zneq_int(machine, zx, zy):
     # zgaz30_lz30: NamedType('%bool')
     # Operation(args=[Var(name='zx'), Var(name='zy')], name='zeq_int', result='zgaz30_lz30')
     zgaz30_lz30 = supportcode.eq_int(zx, zy)
@@ -341,7 +341,7 @@ def func_zneq_int(zx, zy):
 
 
 
-def func_zsail_mask(zlen, zv):
+def func_zsail_mask(machine, zlen, zv):
     pc = 0
     while 1:
         if pc == 0:
@@ -379,7 +379,7 @@ def func_zsail_mask(zlen, zv):
 
 
 
-def func_zsail_ones(zn):
+def func_zsail_ones(machine, zn):
     # zgaz33_lz30: NamedType('%bv')
     # Operation(args=[Var(name='zn')], name='zsail_zzeros', result='zgaz33_lz30')
     zgaz33_lz30 = supportcode.zeros(zn)
@@ -396,7 +396,7 @@ def func_zsail_ones(zn):
 
 
 
-def func_zfdiv_int(zn, zm):
+def func_zfdiv_int(machine, zn, zm):
     pc = 0
     while 1:
         if pc == 0:
@@ -515,7 +515,7 @@ def func_zfdiv_int(zn, zm):
 
 
 
-def func_zbits1_to_bool(zb):
+def func_zbits1_to_bool(machine, zb):
     pc = 0
     while 1:
         if pc == 0:
@@ -572,7 +572,7 @@ def func_zbits1_to_bool(zb):
 
 
 
-def func_zdecode_compute_backwards(zargz3):
+def func_zdecode_compute_backwards(machine, zargz3):
     pc = 0
     while 1:
         if pc == 0:
@@ -878,7 +878,7 @@ def func_zdecode_compute_backwards(zargz3):
 
 
 
-def func_zdecode_jump_backwards(zargz3):
+def func_zdecode_jump_backwards(machine, zargz3):
     pc = 0
     while 1:
         if pc == 0:
@@ -1026,7 +1026,7 @@ def func_zdecode_jump_backwards(zargz3):
 
 
 
-def func_zdecode_destination(zb):
+def func_zdecode_destination(machine, zb):
     # LocalVarDeclaration(name='zgsz341_lz30', typ=TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), value=None)
     # zgsz341_lz30: TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
     zgsz341_lz30 = Tuple_1()
@@ -1055,13 +1055,13 @@ def func_zdecode_destination(zb):
     zashadowz30_lz35 = (supportcode.safe_rshift(zv__0_lz31, 2)) & r_uint(0x1)
     # zgaz312_lz36: NamedType('%bool')
     # Operation(args=[Var(name='zashadowz30_lz35')], name='zbits1_to_bool', result='zgaz312_lz36')
-    zgaz312_lz36 = func_zbits1_to_bool(zashadowz30_lz35)
+    zgaz312_lz36 = func_zbits1_to_bool(machine, zashadowz30_lz35)
     # zgaz313_lz37: NamedType('%bool')
     # Operation(args=[Var(name='zd_lz34')], name='zbits1_to_bool', result='zgaz313_lz37')
-    zgaz313_lz37 = func_zbits1_to_bool(zd_lz34)
+    zgaz313_lz37 = func_zbits1_to_bool(machine, zd_lz34)
     # zgaz314_lz38: NamedType('%bool')
     # Operation(args=[Var(name='zm_lz33')], name='zbits1_to_bool', result='zgaz314_lz38')
-    zgaz314_lz38 = func_zbits1_to_bool(zm_lz33)
+    zgaz314_lz38 = func_zbits1_to_bool(machine, zm_lz33)
     # LocalVarDeclaration(name='zgsz342_lz39', typ=TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), value=None)
     # zgsz342_lz39: TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
     zgsz342_lz39 = Tuple_1()
@@ -1080,7 +1080,7 @@ def func_zdecode_destination(zb):
 
 
 
-def func_zdecode(zmergez3var):
+def func_zdecode(machine, zmergez3var):
     pc = 0
     while 1:
         if pc == 0:
@@ -1180,13 +1180,13 @@ def func_zdecode(zmergez3var):
             zgaz321_lz310 = Tuple_2()
             # zgaz318_lz311: EnumType(name='zarithmetic_op')
             # Operation(args=[Var(name='zc_lz36')], name='zdecode_compute_backwards', result='zgaz318_lz311')
-            zgaz318_lz311 = func_zdecode_compute_backwards(zc_lz36)
+            zgaz318_lz311 = func_zdecode_compute_backwards(machine, zc_lz36)
             # zgaz319_lz312: TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
             # Operation(args=[Var(name='zdest_lz35')], name='zdecode_destination', result='zgaz319_lz312')
-            zgaz319_lz312 = func_zdecode_destination(zdest_lz35)
+            zgaz319_lz312 = func_zdecode_destination(machine, zdest_lz35)
             # zgaz320_lz313: EnumType(name='zjump')
             # Operation(args=[Var(name='zjump_lz34')], name='zdecode_jump_backwards', result='zgaz320_lz313')
-            zgaz320_lz313 = func_zdecode_jump_backwards(zjump_lz34)
+            zgaz320_lz313 = func_zdecode_jump_backwards(machine, zjump_lz34)
             # LocalVarDeclaration(name='zgsz349_lz314', typ=TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), EnumType(name='zjump')]), value=None)
             # zgsz349_lz314: TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), EnumType(name='zjump')])
             zgsz349_lz314 = Tuple_2()
@@ -1221,7 +1221,7 @@ def func_zdecode(zmergez3var):
 
 
 
-def func_zcompute_value(za, zop):
+def func_zcompute_value(machine, za, zop):
     pc = 0
     while 1:
         if pc == 0:
@@ -1371,7 +1371,7 @@ def func_zcompute_value(za, zop):
 
 
 
-def func_zassign_dest(zgsz371, zvalue):
+def func_zassign_dest(machine, zgsz371, zvalue):
     pc = 0
     while 1:
         if pc == 0:
@@ -1430,7 +1430,7 @@ def func_zassign_dest(zgsz371, zvalue):
 
 
 
-def func_zmaybe_jump(zvalue, zj):
+def func_zmaybe_jump(machine, zvalue, zj):
     pc = 0
     while 1:
         if pc == 0:
@@ -1484,7 +1484,7 @@ def func_zmaybe_jump(zvalue, zj):
                                 # zgsz381_lz38: NamedType('%i')
                                 zgsz381_lz38 = Integer.fromint(zgaz329_lz36)
                                 # Operation(args=[Var(name='zgsz381_lz38'), Var(name='zgsz382_lz37')], name='zneq_int', result='zgsz374_lz34')
-                                zgsz374_lz34 = func_zneq_int(zgsz381_lz38, zgsz382_lz37)
+                                zgsz374_lz34 = func_zneq_int(machine, zgsz381_lz38, zgsz382_lz37)
                                 pc = 41
                                 continue
                             # LocalVarDeclaration(name='zgaz328_lz39', typ=NamedType('%i64'), value=None)
@@ -1557,10 +1557,10 @@ def func_zmaybe_jump(zvalue, zj):
 
 
 
-def func_zexecute(zmergez3var):
-    return zmergez3var.meth_zexecute()
+def func_zexecute(machine, zmergez3var):
+    return zmergez3var.meth_zexecute(machine, )
 
-def zexecute_zAINST(zmergez3var):
+def zexecute_zAINST(zmergez3var, machine, ):
     pc = 0
     while 1:
         if pc == 0:
@@ -1596,7 +1596,7 @@ def zexecute_zAINST(zmergez3var):
             return return_
 Union_zinstr_zAINST.meth_zexecute = zexecute_zAINST
 
-def zexecute_zCINST(zmergez3var):
+def zexecute_zCINST(zmergez3var, machine, ):
     pc = 14
     while 1:
         if pc == 14:
@@ -1617,12 +1617,12 @@ def zexecute_zCINST(zmergez3var):
             zjump_lz34 = Union_zinstr_zCINST.convert(zmergez3var).ztup3
             # zvalue_lz35: NamedType('%bv16')
             # Operation(args=[Var(name='za_lz31'), Var(name='zop_lz32')], name='zcompute_value', result='zvalue_lz35')
-            zvalue_lz35 = func_zcompute_value(za_lz31, zop_lz32)
+            zvalue_lz35 = func_zcompute_value(machine, za_lz31, zop_lz32)
             # zgsz394_lz36: NamedType('%unit')
             # Operation(args=[Var(name='zdest_lz33'), Var(name='zvalue_lz35')], name='zassign_dest', result='zgsz394_lz36')
-            zgsz394_lz36 = func_zassign_dest(zdest_lz33, zvalue_lz35)
+            zgsz394_lz36 = func_zassign_dest(machine, zdest_lz33, zvalue_lz35)
             # Operation(args=[Var(name='zvalue_lz35'), Var(name='zjump_lz34')], name='zmaybe_jump', result='zgsz388_lz30')
-            zgsz388_lz30 = func_zmaybe_jump(zvalue_lz35, zjump_lz34)
+            zgsz388_lz30 = func_zmaybe_jump(machine, zvalue_lz35, zjump_lz34)
             pc = 30
         if pc == 30:
             # Assignment(result='return', value=Var(name='zgsz388_lz30'))
@@ -1631,7 +1631,7 @@ def zexecute_zCINST(zmergez3var):
             return return_
 Union_zinstr_zCINST.meth_zexecute = zexecute_zCINST
 
-def zexecute_default(zmergez3var):
+def zexecute_default(zmergez3var, machine, ):
     pc = 29
     while 1:
         if pc == 29:
@@ -1644,7 +1644,7 @@ Union_zinstr.meth_zexecute = zexecute_default
 
 
 
-def func_zfetch_decode_execute(zgsz396):
+def func_zfetch_decode_execute(machine, zgsz396):
     pc = 0
     while 1:
         if pc == 0:
@@ -1653,7 +1653,7 @@ def func_zfetch_decode_execute(zgsz396):
             zinstr_lz30 = supportcode.my_read_rom(r.zPC)
             # zx_lz31: UnionType(name='zoption')
             # Operation(args=[Var(name='zinstr_lz30')], name='zdecode', result='zx_lz31')
-            zx_lz31 = func_zdecode(zinstr_lz30)
+            zx_lz31 = func_zdecode(machine, zinstr_lz30)
             # zcont_lz32: NamedType('%bool')
             # Assignment(result='zcont_lz32', value=Var(name='false'))
             zcont_lz32 = False
@@ -1678,7 +1678,7 @@ def func_zfetch_decode_execute(zgsz396):
             zinstrshadowz32_lz35 = Union_zoption_zSomez3z5unionz0zzinstr.convert(zx_lz31)
             # zgsz398_lz36: NamedType('%unit')
             # Operation(args=[Var(name='zinstrshadowz32_lz35')], name='zexecute', result='zgsz398_lz36')
-            zgsz398_lz36 = func_zexecute(zinstrshadowz32_lz35)
+            zgsz398_lz36 = func_zexecute(machine, zinstrshadowz32_lz35)
             # Assignment(result='zcont_lz32', value=Var(name='true'))
             zcont_lz32 = True
             # Assignment(result='zgsz397_lz33', value=Unit())
@@ -1696,7 +1696,7 @@ def func_zfetch_decode_execute(zgsz396):
 
 
 
-def func_zrun(zlimit, zdebug):
+def func_zrun(machine, zlimit, zdebug):
     pc = 0
     while 1:
         if pc == 0:
@@ -1743,7 +1743,7 @@ def func_zrun(zlimit, zdebug):
         if pc == 16:
             # zgaz331_lz34: NamedType('%bool')
             # Operation(args=[Unit()], name='zfetch_decode_execute', result='zgaz331_lz34')
-            zgaz331_lz34 = func_zfetch_decode_execute(())
+            zgaz331_lz34 = func_zfetch_decode_execute(machine, ())
             # LocalVarDeclaration(name='zgsz3102_lz35', typ=NamedType('%unit'), value=None)
             # zgsz3102_lz35: NamedType('%unit')
             zgsz3102_lz35 = ()
@@ -1789,7 +1789,7 @@ def func_zrun(zlimit, zdebug):
 
 
 
-def func_zmymain(zlimit, zdebug):
+def func_zmymain(machine, zlimit, zdebug):
     # Assignment(result='zPC', value=BitVectorConstant(constant='0x0000'))
     r.zPC = r_uint(0x0000)
     # zgsz3109_lz32: NamedType('%unit')
@@ -1806,17 +1806,17 @@ def func_zmymain(zlimit, zdebug):
     # Assignment(result='zgsz3107_lz30', value=Unit())
     zgsz3107_lz30 = ()
     # Operation(args=[Var(name='zlimit'), Var(name='zdebug')], name='zrun', result='return')
-    return_ = func_zrun(zlimit, zdebug)
+    return_ = func_zrun(machine, zlimit, zdebug)
     # End()
     return return_
 
 
 
 
-def func_zmain(zgsz3110):
+def func_zmain(machine, zgsz3110):
     # zgaz335_lz30: NamedType('%unit')
     # Operation(args=[BitVectorConstant(constant='0x0000000000000010'), Var(name='false')], name='zmymain', result='zgaz335_lz30')
-    zgaz335_lz30 = func_zmymain(r_uint(0x0000000000000010), False)
+    zgaz335_lz30 = func_zmymain(machine, r_uint(0x0000000000000010), False)
     # Assignment(result='return', value=Var(name='zgaz335_lz30'))
     return_ = zgaz335_lz30
     # End()

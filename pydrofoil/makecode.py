@@ -341,7 +341,7 @@ class __extend__(parse.Function):
         if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
             print "making method!", self.name
             with self._scope(codegen, pyname):
-                codegen.emit("return %s.meth_%s(%s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
+                codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, entrycounts, codegen)
             return
         with self._scope(codegen, pyname):
@@ -353,9 +353,14 @@ class __extend__(parse.Function):
         codegen.emit()
 
     @contextmanager
-    def _scope(self, codegen, pyname):
+    def _scope(self, codegen, pyname, method=False):
+        if not method:
+            first = "def %s(machine, %s):" % (pyname, ", ".join(self.args))
+        else:
+            # bit messy, need the self
+            first = "def %s(%s, machine, %s):" % (pyname, self.args[0], ", ".join(self.args[1:]))
         typ = codegen.globalnames[self.name].typ
-        with codegen.enter_scope(self), codegen.emit_indent("def %s(%s):" % (pyname, ", ".join(self.args))):
+        with codegen.enter_scope(self), codegen.emit_indent(first):
             codegen.add_local('return', 'return_', typ.restype, self)
             for i, arg in enumerate(self.args):
                 codegen.add_local(arg, arg, typ.argtype.elements[i], self)
@@ -454,7 +459,7 @@ class __extend__(parse.Function):
             # recompute entrycounts
             local_entrycounts = self._compute_entrycounts(local_blocks)
             pyname = self.name + "_" + (cond.condition.variant if cond else "default")
-            with self._scope(codegen, pyname):
+            with self._scope(codegen, pyname, method=True):
                 self._emit_blocks(local_blocks, codegen, local_entrycounts, startpc=oldpc)
             codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
 
@@ -599,7 +604,11 @@ class __extend__(parse.Operation):
         else:
             args = ", ".join(sargs)
         op = codegen.getname(name)
-        codegen.emit("%s = %s(%s)" % (result, op, args))
+        info = codegen.getinfo(name)
+        if op.startswith("supportcode.") or not isinstance(info.typ, types.Function):
+            codegen.emit("%s = %s(%s)" % (result, op, args))
+        else:
+            codegen.emit("%s = %s(machine, %s)" % (result, op, args))
 
 class __extend__(parse.ConditionalJump):
     def make_op_code(self, codegen):

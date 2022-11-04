@@ -326,9 +326,9 @@ class ElfHeader(object):
 
 class ElfProgramHeader(object):
 
-    FORMAT = "????"  #untested
+    FORMAT = "<IIIIIIII"
     FORMAT64 = "<IIQQQQQQ"
-    NBYTES = -19 #struct.calcsize(FORMAT)
+    NBYTES = struct.calcsize(FORMAT)
     NBYTES64 = struct.calcsize(FORMAT64)
 
     PT_LOAD = 1 # loadable segment

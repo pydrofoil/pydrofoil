@@ -419,7 +419,7 @@ def main(argv):
     print_kips = parse_flag(argv, "--print-kips")
 
     # Initialize model so that we can check or report its architecture.
-    outriscv.model_init()
+    m = outriscv.Machine()
     if len(argv) == 1:
         print_help(argv[0])
         return 1
@@ -435,7 +435,7 @@ def main(argv):
         init_sail(entry)
         run_sail(limit, print_kips)
         if i:
-            outriscv.model_init()
+            outriscv.model_init(m.l) # XXX
     #flush_logs()
     #close_logs()
     return 0

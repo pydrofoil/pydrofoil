@@ -319,3 +319,10 @@ def parse_args(argv, shortname, longname="", want_arg=True):
             del argv[i:i+2]
             return jitarg
 
+
+
+class RegistersBase(object):
+    def __init__(self):
+        self.have_exception = False
+        self.throw_location = None
+        self.current_exception = None

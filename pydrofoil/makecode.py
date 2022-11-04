@@ -34,8 +34,8 @@ class Codegen(object):
         self.add_global("bitzero", "r_uint(0)", types.Bit())
         self.add_global("bitone", "r_uint(1)", types.Bit())
         self.add_global("$zupdate_fbits", "supportcode.update_fbits")
-        self.add_global("have_exception", "r.have_exception", types.Bool())
-        self.add_global("throw_location", "r.throw_location", types.String())
+        self.add_global("have_exception", "machine.r.have_exception", types.Bool())
+        self.add_global("throw_location", "machine.r.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("NULL", "None")
         self.declared_types = set()
@@ -139,7 +139,7 @@ class Codegen(object):
 
     def getcode(self):
         res = ["\n".join(self.declarations)]
-        res.append("def model_init():\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
+        res.append("def model_init(l):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
         res.append("\n".join(self.code))
         return "\n\n\n".join(res)
 
@@ -155,13 +155,10 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit(support_code)
         c.emit("from pydrofoil import bitvector")
         c.emit("from pydrofoil.bitvector import Integer")
-        c.emit("class Registers(object): pass")
-        c.emit("r = Registers()")
-        c.emit("r.have_exception = False")
-        c.emit("r.throw_location = None")
-        c.emit("r.current_exception = None")
+        c.emit("class Registers(supportcode.RegistersBase): pass")
         c.emit("class Lets(object): pass")
-        c.emit("l = Lets()")
+        c.emit("class Machine(object):")
+        c.emit("    def __init__(self): self.l = Lets(); self.r = Registers(); model_init(self.l)")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     try:
         ast.make_code(c)
@@ -227,7 +224,7 @@ class __extend__(parse.Union):
                     self.make_eq(codegen, rtyp, typ, pyname)
                     self.make_convert(codegen, rtyp, typ, pyname)
         if self.name == "zexception":
-            codegen.add_global("current_exception", "r.current_exception", uniontyp, self)
+            codegen.add_global("current_exception", "machine.r.current_exception", uniontyp, self)
 
     def make_init(self, codegen, rtyp, typ, pyname):
         with codegen.emit_indent("def __init__(self, a):"):
@@ -319,13 +316,13 @@ class __extend__(parse.Register):
     def make_code(self, codegen):
         typ = self.typ.resolve_type(codegen)
         if self.name in codegen.promoted_registers:
-            pyname = "jit.promote(r.%s)" % self.name
+            pyname = "jit.promote(machine.r.%s)" % self.name
         else:
-            pyname = "r.%s" % self.name
+            pyname = "machine.r.%s" % self.name
         codegen.add_global(self.name, pyname, typ, self)
         with codegen.emit_code_type("declarations"):
             codegen.emit("# %s" % (self, ))
-            codegen.emit("r.%s = %s" % (self.name, typ.uninitialized_value))
+            codegen.emit("Registers.%s = %s" % (self.name, typ.uninitialized_value))
 
 
 class __extend__(parse.Function):
@@ -539,7 +536,7 @@ class __extend__(parse.Function):
 class __extend__(parse.Let):
     def make_code(self, codegen):
         codegen.emit("# %s" % (self, ))
-        codegen.add_global(self.name, "l.%s" % self.name, self.typ.resolve_type(codegen), self)
+        codegen.add_global(self.name, "machine.l.%s" % self.name, self.typ.resolve_type(codegen), self)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
             for i, op in enumerate(self.body):

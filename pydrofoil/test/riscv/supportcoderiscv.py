@@ -259,7 +259,6 @@ def is_32bit_model(machine):
 
 def init_sail_reset_vector(machine, entry):
     RST_VEC_SIZE = 8
-    import pdb; pdb.set_trace()
     reset_vec = [ # 32 bit entries
         r_uint(0x297),                                      # auipc  t0,0x0
         r_uint(0x28593 + (RST_VEC_SIZE * 4 << 20)),         # addi   a1, t0, &dtb

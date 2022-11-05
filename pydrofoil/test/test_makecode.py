@@ -251,6 +251,7 @@ Fall through OK
 """
     assert machine.r.have_exception
 
+@pytest.mark.xfail
 def test_exceptions2(capsys):
     import py
     with open(excir, "rb") as f:
@@ -312,7 +313,7 @@ def test_full_nand():
     assert machine.r.zPC == 11
     supportcodenand.load_rom(sumrom)
     zmymain(out.Machine(), 2000, True)
-    assert supportcodenand.my_read_mem(17) == 5050
+    assert supportcodenand.my_read_mem(machine, 17) == 5050
 
     def main():
         supportcodenand.load_rom(addrom)
@@ -343,5 +344,6 @@ def test_full_riscv(riscvmain, elf):
     riscvmain(['executable', elf])
 
 def test_load_dump(riscvmain):
-    d = riscvmain.supportcoderiscv.parse_dump_file(os.path.join(thisdir, 'riscv/dhrystone.riscv.dump'))
+    from pydrofoil.test.riscv import supportcoderiscv
+    d = supportcoderiscv.parse_dump_file(os.path.join(thisdir, 'riscv/dhrystone.riscv.dump'))
     assert d[0x8000218a] == '.text: Proc_1 6100                	ld	s0,0(a0)'

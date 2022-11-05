@@ -36,15 +36,15 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
 # | rom | clint | .... | ram <htif inside> ram
 
 @jit.not_in_trace
-def _observe_addr_range(pc, addr, width, ranges):
+def _observe_addr_range(machine, pc, addr, width, ranges):
     index = _find_index(ranges, addr, width)
     machine.g._mem_addr_range_next = index
 
 @jit.elidable
-def _get_likely_addr_range(pc, ranges):
+def _get_likely_addr_range(g, pc, ranges):
     # not really at all elidable, but it does not matter. the result is only
     # used to produce some guards
-    return machine.g._mem_addr_range_next
+    return g._mem_addr_range_next
 
 def _find_index(ranges, addr, width):
     for index, (start, stop) in enumerate(ranges):
@@ -53,7 +53,7 @@ def _find_index(ranges, addr, width):
     return -1
 
 def promote_addr_region(machine, addr, width, offset, executable_flag):
-    g = machine.g
+    g = jit.promote(machine.g)
     width = intmask(machine.word_width_bytes(width))
     addr = intmask(addr)
     jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
@@ -62,8 +62,8 @@ def promote_addr_region(machine, addr, width, offset, executable_flag):
     if executable_flag:
         return
     pc = machine.r.zPC
-    _observe_addr_range(pc, addr, width, g._mem_ranges)
-    range_index = _get_likely_addr_range(pc, g._mem_ranges)
+    _observe_addr_range(machine, pc, addr, width, g._mem_ranges)
+    range_index = _get_likely_addr_range(g, pc, g._mem_ranges)
     if range_index < 0 or width > 8:
         return
     # the next line produces two guards
@@ -196,7 +196,7 @@ def plat_rom_size(machine, _):
 
 # Provides entropy for the scalar cryptography extension.
 def plat_get_16_random_bits(machine, _):
-    return rv_16_random_bits()
+    return rv_16_random_bits(machine)
 
 def plat_clint_base(machine, _):
     return machine.g.rv_clint_base

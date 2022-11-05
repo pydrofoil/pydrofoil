@@ -245,7 +245,7 @@ def append_64(machine, bv, v):
 
 # vector stuff
 
-@objectmodel.specialize.argtype(0, 1, 3)
+@objectmodel.specialize.argtype(1, 2, 4)
 def vector_update_inplace(machine, res, l, index, element):
     # super weird, the C backend does the same
     if res is not l:
@@ -259,7 +259,7 @@ def vector_update(machine, bv, index, element):
 def vector_access(machine, bv, index):
     return bv.read_bit(index.toint())
 
-def update_fbits(machine, fb, index, element):
+def update_fbits(fb, index, element):
     assert 0 <= index < 64
     if element:
         return fb | (r_uint(1) << index)

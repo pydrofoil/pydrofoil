@@ -209,7 +209,7 @@ def print_int(machine, s, i):
     print s + i.str()
     return ()
 
-@objectmodel.specialize.argtype(0)
+@objectmodel.specialize.argtype(1)
 def reg_deref(machine, s):
     return s
 

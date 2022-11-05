@@ -54,7 +54,7 @@ def _find_index(ranges, addr, width):
 
 def promote_addr_region(machine, addr, width, offset, executable_flag):
     g = machine.g
-    width = intmask(machine.outriscv().func_zword_width_bytes(machine, width))
+    width = intmask(machine.word_width_bytes(width))
     addr = intmask(addr)
     jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
     if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
@@ -247,12 +247,11 @@ def plat_term_write_impl(c):
     os.write(1, c)
 
 def init_sail(machine, elf_entry):
-    outriscv = machine.outriscv()
-    outriscv.func_zinit_model(machine, ())
+    machine.init_model()
     init_sail_reset_vector(machine, elf_entry)
     if not machine.g.rv_enable_rvc:
         # this is probably unnecessary now; remove
-        outriscv.func_z_set_Misa_C(machine, machine.r.zmisa, 0)
+        machine.set_Misa_C(machine.r.zmisa, 0)
 
 def is_32bit_model(machine):
     return not machine.g.rv64
@@ -441,8 +440,7 @@ def main(machinecls, argv):
     #close_logs()
     return 0
 
-def get_printable_location(pc, do_show_times, insn_limit, tick):
-    outriscv = g.outriscv()
+def get_printable_location(pc, do_show_times, insn_limit, tick, g):
     if tick:
         return "TICK 0x%x" % (pc, )
     if g.dump_dict and pc in g.dump_dict:
@@ -451,13 +449,12 @@ def get_printable_location(pc, do_show_times, insn_limit, tick):
 
 driver = JitDriver(
     get_printable_location=get_printable_location,
-    greens=['pc', 'do_show_times', 'insn_limit', 'tick'],
+    greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'g'],
     reds=['step_no', 'insn_cnt', 'r', 'machine'],
     virtualizables=['r'])
 
 
 def run_sail(machine, insn_limit, do_show_times):
-    outriscv = machine.outriscv()
     r = machine.r
     step_no = 0
     insn_cnt = 0
@@ -471,12 +468,12 @@ def run_sail(machine, insn_limit, do_show_times):
     while not r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
         driver.jit_merge_point(pc=r.zPC, tick=tick,
                 insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r,
-                do_show_times=do_show_times, machine=machine)
+                do_show_times=do_show_times, machine=machine, g=machine.g)
         if tick:
             if insn_cnt == machine.g.rv_insns_per_tick:
                 insn_cnt = 0
-                outriscv.func_ztick_clock(machine, ())
-                outriscv.func_ztick_platform(machine, ())
+                machine.tick_clock()
+                machine.tick_platform()
             else:
                 assert do_show_times and (step_no & 0xfffff) == 0
                 curr = time.time()
@@ -486,7 +483,7 @@ def run_sail(machine, insn_limit, do_show_times):
             continue
         # run a Sail step
         prev_pc = r.zPC
-        stepped = outriscv.func_zstep(machine, Integer.fromint(step_no))
+        stepped = machine.step(Integer.fromint(step_no))
         if r.have_exception:
             print "ended with exception!"
             print r.current_exception
@@ -509,7 +506,7 @@ def run_sail(machine, insn_limit, do_show_times):
         elif prev_pc >= r.zPC: # backward jump
             driver.can_enter_jit(pc=r.zPC, tick=tick,
                     insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r,
-                    do_show_times=do_show_times, machine=machine)
+                    do_show_times=do_show_times, machine=machine, g=machine.g)
     # loop end
 
     interval_end = time.time()
@@ -526,7 +523,6 @@ def run_sail(machine, insn_limit, do_show_times):
 
 
 def load_sail(machine, fn):
-    outriscv = machine.outriscv()
     g = machine.g
     oldmem = g.mem
     if oldmem:
@@ -555,8 +551,6 @@ def print_string(prefix, msg):
     return ()
 
 def print_instr(machine, s):
-    if "within_phys_mem" in s:
-        import pdb; pdb.set_trace()
     print s
     return ()
 
@@ -579,10 +573,24 @@ def get_main(outriscv, rv64):
         def __init__(self):
             outriscv.Machine.__init__(self)
             self.g = Globals(rv64=rv64)
-            self._outriscv = outriscv
 
-        def outriscv(self):
-            return self._outriscv
+        def tick_clock(self):
+            return outriscv.func_ztick_clock(self, ())
+
+        def tick_platform(self):
+            return outriscv.func_ztick_platform(self, ())
+
+        def word_width_bytes(self, width):
+            return outriscv.func_zword_width_bytes(self, width)
+
+        def init_model(self):
+            return outriscv.func_zinit_model(self, ())
+
+        def set_Misa_C(self, *args):
+            return outriscv.func_z_set_Misa_C(self, *args)
+
+        def step(self, *args):
+            return outriscv.func_zstep(self, *args)
 
     def bound_main(argv):
         return main(Machine, argv)

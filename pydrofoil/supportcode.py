@@ -6,7 +6,7 @@ from pydrofoil.bitvector import Integer
 
 @objectmodel.specialize.call_location()
 def make_dummy(name):
-    def dummy(*args):
+    def dummy(machine, *args):
         if objectmodel.we_are_translated():
             print "not implemented!", name
             raise ValueError
@@ -96,19 +96,19 @@ make_dummy('zeros')
 
 # generic helpers
 
-def zero_extend(a, b):
+def zero_extend(machine, a, b):
     return a
 
-def add_bits_int(a, b):
+def add_bits_int(machine, a, b):
     return a.add_int(b)
 
-def sub_bits_int(a, b):
+def sub_bits_int(machine, a, b):
     return a.sub_int(b)
 
-def length(gbv):
+def length(machine, gbv):
     return Integer.fromint(gbv.size)
 
-def fast_signed(op, n):
+def fast_signed(machine, op, n):
     if n == 64:
         return intmask(op)
     assert n > 0
@@ -117,69 +117,69 @@ def fast_signed(op, n):
     op = op & ((u1 << n) - 1) # mask off higher bits to be sure
     return intmask((op ^ m) - m)
 
-def sign_extend(gbv, lint):
+def sign_extend(machine, gbv, lint):
     size = lint.toint()
     return gbv.sign_extend(size)
 
 def raise_type_error():
     raise TypeError
 
-def eq_int(a, b):
+def eq_int(machine, a, b):
     assert isinstance(a, Integer)
     return a.eq(b)
 
-def eq_bit(a, b):
+def eq_bit(machine, a, b):
     return a == b
 
-def eq_bits(gvba, gvbb):
+def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)
 
-def xor_bits(gvba, gvbb):
+def xor_bits(machine, gvba, gvbb):
     return gvba.xor(gvbb)
 
-def and_bits(gvba, gvbb):
+def and_bits(machine, gvba, gvbb):
     return gvba.and_(gvbb)
 
-def or_bits(gvba, gvbb):
+def or_bits(machine, gvba, gvbb):
     return gvba.or_(gvbb)
 
-def not_bits(gvba):
+def not_bits(machine, gvba):
     return gvba.invert()
 
-def safe_rshift(n, shift):
+def safe_rshift(machine, n, shift):
     assert shift >= 0
     if shift >= 64:
         return r_uint(0)
     return n >> shift
 
-def lteq(ia, ib):
+def lteq(machine, ia, ib):
     return ia.le(ib)
 
-def lt(ia, ib):
+def lt(machine, ia, ib):
     return ia.lt(ib)
 
-def gt(ia, ib):
+def gt(machine, ia, ib):
     return ia.gt(ib)
 
-def gteq(ia, ib):
+def gteq(machine, ia, ib):
     return ia.ge(ib)
 
-def add_int(ia, ib):
+def add_int(machine, ia, ib):
     return ia.add(ib)
 
-def sub_int(ia, ib):
+def sub_int(machine, ia, ib):
     return ia.sub(ib)
 
-def mult_int(ia, ib):
+def mult_int(machine, ia, ib):
     return ia.mul(ib)
 
-def tdiv_int(ia, ib):
+def tdiv_int(machine, ia, ib):
     return ia.tdiv(ib)
 
-def tmod_int(ia, ib):
+def tmod_int(machine, ia, ib):
     return ia.tmod(ib)
 
-def emod_int(ia, ib):
+def emod_int(machine, ia, ib):
     a = ia.toint()
     b = ib.toint()
     if a < 0 or b < 0:
@@ -187,118 +187,118 @@ def emod_int(ia, ib):
         raise ValueError # risc-v only needs the positive small case
     return Integer.fromint(a % b)
 
-def max_int(ia, ib):
+def max_int(machine, ia, ib):
     if ia.gt(ib):
         return ia
     return ib
 
-def min_int(ia, ib):
+def min_int(machine, ia, ib):
     if ia.lt(ib):
         return ia
     return ib
 
-def print_endline(s):
+def print_endline(machine, s):
     print s
     return ()
 
-def print_bits(s, b):
+def print_bits(machine, s, b):
     print s + b.string_of_bits()
     return ()
 
-def print_int(s, i):
+def print_int(machine, s, i):
     print s + i.str()
     return ()
 
 @objectmodel.specialize.argtype(0)
-def reg_deref(s):
+def reg_deref(machine, s):
     return s
 
-def not_(b):
+def not_(machine, b):
     return not b
 
-def sail_assert(*args):
+def sail_assert(machine, *args):
     pass
 
-def eq_bool(a, b):
+def eq_bool(machine, a, b):
     return a == b
 
-def shiftl(gbv, i):
+def shiftl(machine, gbv, i):
     return gbv.lshift(i.toint())
 
-def shiftr(gbv, i):
+def shiftr(machine, gbv, i):
     return gbv.rshift(i.toint())
 
-def shift_bits_left(gbv, gbva):
+def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)
 
-def shift_bits_right(gbv, gbva):
+def shift_bits_right(machine, gbv, gbva):
     return gbv.rshift_bits(gbva)
 
-def sail_unsigned(gbv):
+def sail_unsigned(machine, gbv):
     return gbv.unsigned()
 
-def sail_signed(gbv):
+def sail_signed(machine, gbv):
     return gbv.signed()
 
-def append_64(bv, v):
+def append_64(machine, bv, v):
     return bv.append_64(v)
 
 # vector stuff
 
 @objectmodel.specialize.argtype(0, 1, 3)
-def vector_update_inplace(res, l, index, element):
+def vector_update_inplace(machine, res, l, index, element):
     # super weird, the C backend does the same
     if res is not l:
         l = l[:]
     l[index] = element
     return l
 
-def vector_update(bv, index, element):
+def vector_update(machine, bv, index, element):
     return bv.update_bit(index.toint(), element)
 
-def vector_access(bv, index):
+def vector_access(machine, bv, index):
     return bv.read_bit(index.toint())
 
-def update_fbits(fb, index, element):
+def update_fbits(machine, fb, index, element):
     assert 0 <= index < 64
     if element:
         return fb | (r_uint(1) << index)
     else:
         return fb & ~(r_uint(1) << index)
 
-def vector_update_subrange(bv, n, m, s):
+def vector_update_subrange(machine, bv, n, m, s):
     return bv.update_subrange(n.toint(), m.toint(), s)
 
-def vector_subrange(bv, n, m):
+def vector_subrange(machine, bv, n, m):
     return bv.subrange(n.toint(), m.toint())
 
 
-def elf_tohost(_):
+def elf_tohost(machine, _):
     return Integer.fromint(0)
 
-def get_slice_int(len, n, start):
+def get_slice_int(machine, len, n, start):
     return n.slice(len.toint(), start.toint())
 
-def platform_barrier(_):
+def platform_barrier(machine, _):
     return ()
 
-def platform_write_mem_ea(write_kind, addr_size, addr, n):
+def platform_write_mem_ea(machine, write_kind, addr_size, addr, n):
     return ()
 
 
 # strings
 
-def concat_str(a, b):
+def concat_str(machine, a, b):
     return a + b
 
 
-def string_of_bits(gbv):
+def string_of_bits(machine, gbv):
     return gbv.string_of_bits()
 
-def decimal_string_of_bits(sbits):
+def decimal_string_of_bits(machine, sbits):
     return str(sbits)
     
-def string_of_int(r):
+def string_of_int(machine, r):
     return r.str()
 
 

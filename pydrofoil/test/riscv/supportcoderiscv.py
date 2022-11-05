@@ -13,24 +13,24 @@ from rpython.rlib import jit
 import time
 
 
-def write_mem(addr, content): # write a single byte
-    g.mem.write(addr, 1, content)
+def write_mem(machine, addr, content): # write a single byte
+    machine.g.mem.write(addr, 1, content)
     return True
 
-def platform_read_mem(executable_flag, read_kind, addr_size, addr, n):
+def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
     n = n.toint()
     assert n <= 8
     assert addr_size == 64
     addr = addr.touint()
-    res = g.mem.read(addr, n, executable_flag)
+    res = machine.g.mem.read(addr, n, executable_flag)
     return bitvector.from_ruint(n*8, res)
 
-def platform_write_mem(write_kind, addr_size, addr, n, data):
+def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
     n = n.toint()
     assert n <= 8
     assert addr_size == 64
     assert data.size == n * 8
-    g.mem.write(addr.touint(), n, data.touint())
+    machine.g.mem.write(addr.touint(), n, data.touint())
     return True
 
 # rough memory layout:
@@ -39,13 +39,13 @@ def platform_write_mem(write_kind, addr_size, addr, n, data):
 @jit.not_in_trace
 def _observe_addr_range(pc, addr, width, ranges):
     index = _find_index(ranges, addr, width)
-    g._mem_addr_range_next = index
+    machine.g._mem_addr_range_next = index
 
 @jit.elidable
 def _get_likely_addr_range(pc, ranges):
     # not really at all elidable, but it does not matter. the result is only
     # used to produce some guards
-    return g._mem_addr_range_next
+    return machine.g._mem_addr_range_next
 
 def _find_index(ranges, addr, width):
     for index, (start, stop) in enumerate(ranges):
@@ -54,8 +54,8 @@ def _find_index(ranges, addr, width):
     return -1
 
 def promote_addr_region(machine, addr, width, offset, executable_flag):
-    outriscv = g.outriscv()
-    width = intmask(outriscv.func_zword_width_bytes(None, width))
+    g = machine.g
+    width = intmask(machine.outriscv().func_zword_width_bytes(machine, width))
     addr = intmask(addr)
     jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
     if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
@@ -92,6 +92,49 @@ class Globals(object):
         'rv64'
     ]
 
+    def __init__(self, rv64=True):
+        self.rv64 = rv64
+        self._mem_addr_range_next = -1
+        self.mem = None
+        self.rv_enable_pmp                  = False
+        self.rv_enable_zfinx                = False
+        self.rv_enable_rvc                  = True
+        self.rv_enable_next                 = False
+        self.rv_enable_writable_misa        = True
+        self.rv_enable_fdext                = True
+        self.rv_enable_dirty_update         = False
+        self.rv_enable_misaligned           = False
+        self.rv_mtval_has_illegal_inst_bits = False
+
+        self.rv_ram_base = r_uint(0x80000000)
+        self.rv_ram_size = r_uint(0x4000000)
+
+        self.rv_rom_base = r_uint(0x1000)
+        self.rv_rom_size = r_uint(0x100)
+
+        self.random = Random(1)
+
+        self.rv_clint_base = r_uint(0x2000000)
+        self.rv_clint_size = r_uint(0xc0000)
+
+        self.rv_htif_tohost = r_uint(0x80001000)
+        self.rv_insns_per_tick = 100
+
+        self.dtb = None
+
+        self.term_fd = 1
+
+        self.reservation = r_uint(0)
+        self.reservation_valid = False
+
+        self.dump_dict = None
+
+        self.config_print_instr = True
+        self.config_print_reg = True
+        self.config_print_mem_access = True
+        self.config_print_platform = True
+        self.config_print_rvfi = False
+
     def _init_ranges(self):
         self._mem_ranges = [
             (intmask(self.rv_rom_base), intmask(self.rv_rom_base + self.rv_rom_size)),
@@ -103,137 +146,97 @@ class Globals(object):
         for a, b in self._mem_ranges:
             assert b >= 8
 
-    def outriscv(self):
-        if self.rv64:
-            from pydrofoil.test.riscv.generated import outriscv
-        else:
-            from pydrofoil.test.riscv.generated import outriscv32 as outriscv
-        return outriscv
-
-
-g = Globals()
-g._mem_addr_range_next = -1
-g.mem = None
-g.rv_enable_pmp                  = False
-g.rv_enable_zfinx                = False
-g.rv_enable_rvc                  = True
-g.rv_enable_next                 = False
-g.rv_enable_writable_misa        = True
-g.rv_enable_fdext                = True
-g.rv_enable_dirty_update         = False
-g.rv_enable_misaligned           = False
-g.rv_mtval_has_illegal_inst_bits = False
-
-g.rv_ram_base = r_uint(0x80000000)
-g.rv_ram_size = r_uint(0x4000000)
-
-g.rv_rom_base = r_uint(0x1000)
-g.rv_rom_size = r_uint(0x100)
-
-g.random = Random(1)
 
 DEFAULT_RSTVEC = 0x00001000
 
-def rv_16_random_bits():
+def rv_16_random_bits(machine):
     # pseudo-random for determinism for now
-    return r_uint(g.random.genrand32()) & r_uint(0xffff)
+    return r_uint(machine.g.random.genrand32()) & r_uint(0xffff)
 
-g.rv_clint_base = r_uint(0x2000000)
-g.rv_clint_size = r_uint(0xc0000)
-
-g.rv_htif_tohost = r_uint(0x80001000)
-g.rv_insns_per_tick = 100
-
-g.dtb = None
-
-g.term_fd = 1
 
 # C externs
 
-def sys_enable_rvc(_):
-    return g.rv_enable_rvc
+def sys_enable_rvc(machine, _):
+    return machine.g.rv_enable_rvc
 
-def sys_enable_next(_):
-    return g.rv_enable_next
+def sys_enable_next(machine, _):
+    return machine.g.rv_enable_next
 
-def sys_enable_fdext(_):
-    return g.rv_enable_fdext
+def sys_enable_fdext(machine, _):
+    return machine.g.rv_enable_fdext
 
-def sys_enable_zfinx(_):
-    return g.rv_enable_zfinx
+def sys_enable_zfinx(machine, _):
+    return machine.g.rv_enable_zfinx
 
-def sys_enable_writable_misa(_):
-    return g.rv_enable_writable_misa
+def sys_enable_writable_misa(machine, _):
+    return machine.g.rv_enable_writable_misa
 
-def plat_enable_dirty_update(_):
-    return g.rv_enable_dirty_update
+def plat_enable_dirty_update(machine, _):
+    return machine.g.rv_enable_dirty_update
 
-def plat_enable_misaligned_access(_):
-    return g.rv_enable_misaligned
+def plat_enable_misaligned_access(machine, _):
+    return machine.g.rv_enable_misaligned
 
-def plat_mtval_has_illegal_inst_bits(_):
-    return g.rv_mtval_has_illegal_inst_bits
+def plat_mtval_has_illegal_inst_bits(machine, _):
+    return machine.g.rv_mtval_has_illegal_inst_bits
 
-def plat_enable_pmp(_):
-    return g.rv_enable_pmp
+def plat_enable_pmp(machine, _):
+    return machine.g.rv_enable_pmp
 
-def plat_ram_base(_):
-    return g.rv_ram_base
+def plat_ram_base(machine, _):
+    return machine.g.rv_ram_base
 
-def plat_ram_size(_):
-    return g.rv_ram_size
+def plat_ram_size(machine, _):
+    return machine.g.rv_ram_size
 
-def plat_rom_base(_):
-    return g.rv_rom_base
+def plat_rom_base(machine, _):
+    return machine.g.rv_rom_base
 
-def plat_rom_size(_):
-    return g.rv_rom_size
+def plat_rom_size(machine, _):
+    return machine.g.rv_rom_size
 
 # Provides entropy for the scalar cryptography extension.
-def plat_get_16_random_bits(_):
+def plat_get_16_random_bits(machine, _):
     return rv_16_random_bits()
 
-def plat_clint_base(_):
-    return g.rv_clint_base
+def plat_clint_base(machine, _):
+    return machine.g.rv_clint_base
 
-def plat_clint_size(_):
-    return g.rv_clint_size
+def plat_clint_size(machine, _):
+    return machine.g.rv_clint_size
 
-g.reservation = r_uint(0)
-g.reservation_valid = False
 
-def load_reservation(addr):
-    g.reservation = addr
-    g.reservation_valid = True
+def load_reservation(machine, addr):
+    machine.g.reservation = addr
+    machine.g.reservation_valid = True
     #print "reservation <- 0x%x" % (addr, )
     return ()
 
-def speculate_conditional(_):
+def speculate_conditional(machine, _):
     return True
 
-def check_mask():
-    outriscv = g.outriscv()
-    return r_uint(0x00000000FFFFFFFF) if outriscv.l.zxlen_val == 32 else r_uint(0xffffffffffffffff)
+def check_mask(machine):
+    return r_uint(0x00000000FFFFFFFF) if machine.l.zxlen_val == 32 else r_uint(0xffffffffffffffff)
 
-def match_reservation(addr):
-    mask = check_mask()
-    ret = g.reservation_valid and ((g.reservation & mask) == (addr & mask))
+def match_reservation(machine, addr):
+    mask = check_mask(machine)
+    ret = machine.g.reservation_valid and (machine.g.reservation & mask) == (addr & mask)
     return ret
 
-def cancel_reservation(_):
-    g.reservation_valid = False
+def cancel_reservation(machine, _):
+    machine.g.reservation_valid = False
     return ()
 
-def plat_term_write(s):
+def plat_term_write(machine, s):
     import os
-    os.write(g.term_fd, chr(s & 0xff))
+    os.write(machine.g.term_fd, chr(s & 0xff))
     return ()
 
-def plat_insns_per_tick(_):
+def plat_insns_per_tick(machine, _):
     pass
 
-def plat_htif_tohost(_):
-    return g.rv_htif_tohost
+def plat_htif_tohost(machine, _):
+    return machine.g.rv_htif_tohost
 
 def memea(len, n):
     return ()
@@ -244,15 +247,13 @@ def memea(len, n):
 def plat_term_write_impl(c):
     os.write(1, c)
 
-def init_sail(elf_entry):
-    outriscv = g.outriscv()
-    machine = outriscv.Machine()
+def init_sail(machine, elf_entry):
+    outriscv = machine.outriscv()
     outriscv.func_zinit_model(machine, ())
     init_sail_reset_vector(machine, elf_entry)
-    if not g.rv_enable_rvc:
+    if not machine.g.rv_enable_rvc:
         # this is probably unnecessary now; remove
         outriscv.func_z_set_Misa_C(machine, machine.r.zmisa, 0)
-    return machine
 
 def is_32bit_model():
     return False # for now
@@ -277,26 +278,26 @@ def init_sail_reset_vector(machine, entry):
     addr = r_uint(rv_rom_base)
     for i, fourbytes in enumerate(reset_vec):
         for j in range(4):
-            write_mem(addr, fourbytes & 0xff) # little endian
+            write_mem(machine, addr, fourbytes & 0xff) # little endian
             addr += 1
             fourbytes >>= 8
         assert fourbytes == 0
-    if g.dtb:
-        for i, char in enumerate(g.dtb):
-            write_mem(addr, r_uint(ord(char)))
+    if machine.g.dtb:
+        for i, char in enumerate(machine.g.dtb):
+            write_mem(machine, addr, r_uint(ord(char)))
             addr += 1
 
     align = 0x1000
     # zero-fill to page boundary
     rom_end = r_uint((addr + align - 1) / align * align)
     for i in range(intmask(addr), rom_end):
-        write_mem(addr, 0)
+        write_mem(machine, addr, 0)
         addr += 1
 
     # set rom size
     rv_rom_size = rom_end - rv_rom_base
-    if g.rv_rom_size != rv_rom_size:
-        g.rv_rom_size = rv_rom_size
+    if machine.g.rv_rom_size != rv_rom_size:
+        machine.g.rv_rom_size = rv_rom_size
 
     # boot at reset vector
     machine.r.zPC = r_uint(rv_rom_base)
@@ -371,8 +372,7 @@ JIT_HELP = "\n".join(JIT_HELP)
 def print_help_jit():
     print JIT_HELP
 
-def main(argv):
-    outriscv = g.outriscv()
+def main(machinecls, argv):
     from rpython.rlib import jit
 
     if parse_flag(argv, "--help"):
@@ -380,10 +380,6 @@ def main(argv):
         return 0
 
     blob = parse_args(argv, "-b", "--device-tree-blob")
-    if blob:
-        with open(blob, "rb") as f:
-            g.dtb = f.read()
-
     limit = 0
     str_limit = parse_args(argv, "-l", "--inst-limit")
     if str_limit:
@@ -391,14 +387,7 @@ def main(argv):
         print "instruction limit", limit
 
     dump_file = parse_args(argv, "--dump")
-    if dump_file:
-        print "dump file", dump_file
-        g.dump_dict = parse_dump_file(dump_file)
-
     per_tick = parse_args(argv, "--instructions-per-tick")
-    if per_tick:
-        ipt = int(per_tick)
-        g.rv_insns_per_tick = ipt
 
     jitopts = parse_args(argv, "--jit")
     if jitopts:
@@ -411,11 +400,7 @@ def main(argv):
             print "invalid jit option"
             return 1
 
-    if not parse_flag(argv, "--verbose"):
-        g.config_print_instr = False
-        g.config_print_reg = False
-        g.config_print_mem_access = False
-        g.config_print_platform = False
+    verbose = parse_flag(argv, "--verbose")
 
     print_kips = parse_flag(argv, "--print-kips")
 
@@ -430,10 +415,29 @@ def main(argv):
         iterations = 1
     #init_logs()
 
-    entry = load_sail(file)
+    machine = machinecls()
+    if blob:
+        with open(blob, "rb") as f:
+            machine.g.dtb = f.read()
+    entry = load_sail(machine, file)
+    init_sail(machine, entry)
+    if not verbose:
+        machine.g.config_print_instr = False
+        machine.g.config_print_reg = False
+        machine.g.config_print_mem_access = False
+        machine.g.config_print_platform = False
+    if dump_file:
+        print "dump file", dump_file
+        machine.g.dump_dict = parse_dump_file(dump_file)
+    if per_tick:
+        ipt = int(per_tick)
+        machine.g.rv_insns_per_tick = ipt
+
+
     for i in range(iterations):
-        machine = init_sail(entry)
         run_sail(machine, limit, print_kips)
+        if i:
+            init_sail(machine, entry)
     #flush_logs()
     #close_logs()
     return 0
@@ -452,18 +456,17 @@ driver = JitDriver(
     reds=['step_no', 'insn_cnt', 'r', 'machine'],
     virtualizables=['r'])
 
-g.dump_dict = None
 
 def run_sail(machine, insn_limit, do_show_times):
-    outriscv = g.outriscv()
+    outriscv = machine.outriscv()
     r = machine.r
     step_no = 0
     insn_cnt = 0
     tick = False
 
-    g._init_ranges()
+    machine.g._init_ranges()
 
-    g.interval_start = g.total_start = time.time()
+    machine.g.interval_start = machine.g.total_start = time.time()
     prev_pc = 0
 
     while not r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
@@ -471,15 +474,15 @@ def run_sail(machine, insn_limit, do_show_times):
                 insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r,
                 do_show_times=do_show_times, machine=machine)
         if tick:
-            if insn_cnt == g.rv_insns_per_tick:
+            if insn_cnt == machine.g.rv_insns_per_tick:
                 insn_cnt = 0
                 outriscv.func_ztick_clock(machine, ())
                 outriscv.func_ztick_platform(machine, ())
             else:
                 assert do_show_times and (step_no & 0xfffff) == 0
                 curr = time.time()
-                print "kips:", 0x100000 / 1000. / (curr - g.interval_start)
-                g.interval_start = curr
+                print "kips:", 0x100000 / 1000. / (curr - machine.g.interval_start)
+                machine.g.interval_start = curr
             tick = False
             continue
         # run a Sail step
@@ -490,12 +493,12 @@ def run_sail(machine, insn_limit, do_show_times):
             print r.current_exception
             print "from", r.throw_location
             raise ValueError
-        rv_insns_per_tick = g.rv_insns_per_tick
+        rv_insns_per_tick = machine.g.rv_insns_per_tick
         if stepped:
             step_no += 1
             if rv_insns_per_tick:
                 insn_cnt += 1
-        if g.config_print_instr:
+        if machine.g.config_print_instr:
             # there's an extra newline in the C emulator that I don't know
             # where from, add it here to ease diffing
             print
@@ -518,13 +521,14 @@ def run_sail(machine, insn_limit, do_show_times):
         if not we_are_translated():
             raise ValueError
     print "Instructions: %s" % (step_no, )
-    print "Total time (s): %s" % (interval_end - g.total_start)
-    print "Perf: %s Kips" % (step_no / 1000. / (interval_end - g.total_start), )
+    print "Total time (s): %s" % (interval_end - machine.g.total_start)
+    print "Perf: %s Kips" % (step_no / 1000. / (interval_end - machine.g.total_start), )
 
 
 
-def load_sail(fn):
-    outriscv = g.outriscv()
+def load_sail(machine, fn):
+    outriscv = machine.outriscv()
+    g = machine.g
     oldmem = g.mem
     if oldmem:
         oldmem.close()
@@ -546,17 +550,12 @@ def load_sail(fn):
 
 # printing
 
-g.config_print_instr = True
-g.config_print_reg = True
-g.config_print_mem_access = True
-g.config_print_platform = True
-g.config_print_rvfi = False
 
 def print_string(prefix, msg):
     print prefix, msg
     return ()
 
-def print_instr(s):
+def print_instr(machine, s):
     print s
     return ()
 
@@ -564,18 +563,29 @@ print_reg = print_instr
 print_mem_access = print_reg
 print_platform = print_reg
 
-def get_config_print_instr(_):
-    return g.config_print_instr
-def get_config_print_reg(_):
-    return g.config_print_reg
-def get_config_print_mem(_):
-    return g.config_print_mem_access
-def get_config_print_platform(_):
-    return g.config_print_platform
+def get_config_print_instr(machine, _):
+    return machine.g.config_print_instr
+def get_config_print_reg(machine, _):
+    return machine.g.config_print_reg
+def get_config_print_mem(machine, _):
+    return machine.g.config_print_mem_access
+def get_config_print_platform(machine, _):
+    return machine.g.config_print_platform
 
-def get_main():
-    outriscv = g.outriscv()
+def get_main(outriscv):
+    class Machine(outriscv.Machine):
+        _immutable_fields_ = ['g']
+        def __init__(self):
+            outriscv.Machine.__init__(self)
+            self.g = Globals()
+            self._outriscv = outriscv
+
+        def outriscv(self):
+            return self._outriscv
+
+    def bound_main(argv):
+        return main(Machine, argv)
     from rpython.rlib import jit
 
     outriscv.Registers._virtualizable_ = ['ztlb39', 'ztlb48', 'zminstret', 'zPC', 'znextPC', 'zmstatus', 'zmip', 'zmie', 'zsatp']
-    return main
+    return bound_main

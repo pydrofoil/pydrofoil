@@ -337,11 +337,7 @@ def test_full_mips():
 def riscvmain():
     from pydrofoil.test.riscv.targetriscv import make_code
     outriscv, supportcoderiscv = make_code()
-    supportcoderiscv.g.config_print_instr = False
-    supportcoderiscv.g.config_print_reg = False
-    supportcoderiscv.g.config_print_mem_access = False
-    supportcoderiscv.g.config_print_platform = False
-    res = supportcoderiscv.get_main()
+    res = supportcoderiscv.get_main(outriscv)
     res.supportcoderiscv = supportcoderiscv
     return res
 

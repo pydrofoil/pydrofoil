@@ -593,7 +593,7 @@ class __extend__(parse.Operation):
             codegen.emit("%s = [%s] * %s" % (result, oftyp.uninitialized_value, sargs[0]))
             return
         elif name.startswith("$zinternal_vector_update"):
-            codegen.emit("%s = supportcode.vector_update_inplace(%s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
+            codegen.emit("%s = supportcode.vector_update_inplace(machine, %s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
             return
 
         if not sargs:
@@ -602,10 +602,12 @@ class __extend__(parse.Operation):
             args = ", ".join(sargs)
         op = codegen.getname(name)
         info = codegen.getinfo(name)
-        if op.startswith("supportcode.") or not isinstance(info.typ, types.Function):
-            codegen.emit("%s = %s(%s)" % (result, op, args))
-        else:
+        if isinstance(info.typ, types.Function):
+            # pass machine, even to supportcode functions
             codegen.emit("%s = %s(machine, %s)" % (result, op, args))
+        else:
+            # constructors etc don't get machine passed (yet)
+            codegen.emit("%s = %s(%s)" % (result, op, args))
 
 class __extend__(parse.ConditionalJump):
     def make_op_code(self, codegen):

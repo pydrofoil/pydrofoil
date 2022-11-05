@@ -21,7 +21,7 @@ def make_code(rv64=True):
     res = res.replace("def func_zread_ram(machine, zrk", "def func_zread_ram(machine, executable_flag, zrk")
     res = res.replace("func_zread_ram(machine, zrk", "func_zread_ram(machine, (type(zt) is Union_zAccessType_zExecute), zrk")
     assert res.count("platform_read_mem") == 1
-    res = res.replace("platform_read_mem(", "platform_read_mem(executable_flag, ")
+    res = res.replace("platform_read_mem(machine, ", "platform_read_mem(machine, executable_flag, ")
 
     # another one of them:
     assert res.count("return_ = Union_zExt_DataAddr_Check_zExt_DataAddr_OK(zaddr_lz30") == 1
@@ -33,7 +33,6 @@ def make_code(rv64=True):
     else:
         from pydrofoil.test.riscv.generated import outriscv32 as outriscv
     from pydrofoil.test.riscv import supportcoderiscv
-    supportcoderiscv.g.rv64 = rv64
     return outriscv, supportcoderiscv
 
 def target(*args):
@@ -41,7 +40,7 @@ def target(*args):
     outriscv, supportcoderiscv = make_code()
     print "translating to C!"
     from pydrofoil.test.riscv.supportcoderiscv import get_main
-    main = get_main()
+    main = get_main(outriscv)
     return main
 
 if __name__ == '__main__':

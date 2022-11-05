@@ -20,7 +20,6 @@ def write_mem(machine, addr, content): # write a single byte
 def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
     n = n.toint()
     assert n <= 8
-    assert addr_size == 64
     addr = addr.touint()
     res = machine.g.mem.read(addr, n, executable_flag)
     return bitvector.from_ruint(n*8, res)
@@ -255,17 +254,18 @@ def init_sail(machine, elf_entry):
         # this is probably unnecessary now; remove
         outriscv.func_z_set_Misa_C(machine, machine.r.zmisa, 0)
 
-def is_32bit_model():
-    return False # for now
+def is_32bit_model(machine):
+    return not machine.g.rv64
 
 def init_sail_reset_vector(machine, entry):
     RST_VEC_SIZE = 8
+    import pdb; pdb.set_trace()
     reset_vec = [ # 32 bit entries
         r_uint(0x297),                                      # auipc  t0,0x0
         r_uint(0x28593 + (RST_VEC_SIZE * 4 << 20)),         # addi   a1, t0, &dtb
         r_uint(0xf1402573),                                 # csrr   a0, mhartid
         r_uint(0x0182a283)  # lw     t0,24(t0)
-        if is_32bit_model() else
+        if is_32bit_model(machine) else
         r_uint(0x0182b283), # ld     t0,24(t0)
         r_uint(0x28067),                                    # jr     t0
         r_uint(0),
@@ -556,6 +556,8 @@ def print_string(prefix, msg):
     return ()
 
 def print_instr(machine, s):
+    if "within_phys_mem" in s:
+        import pdb; pdb.set_trace()
     print s
     return ()
 
@@ -572,12 +574,12 @@ def get_config_print_mem(machine, _):
 def get_config_print_platform(machine, _):
     return machine.g.config_print_platform
 
-def get_main(outriscv):
+def get_main(outriscv, rv64):
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
         def __init__(self):
             outriscv.Machine.__init__(self)
-            self.g = Globals()
+            self.g = Globals(rv64=rv64)
             self._outriscv = outriscv
 
         def outriscv(self):

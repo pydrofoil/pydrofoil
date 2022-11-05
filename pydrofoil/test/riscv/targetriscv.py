@@ -33,14 +33,12 @@ def make_code(rv64=True):
     else:
         from pydrofoil.test.riscv.generated import outriscv32 as outriscv
     from pydrofoil.test.riscv import supportcoderiscv
-    return outriscv, supportcoderiscv
+    return supportcoderiscv.get_main(outriscv, rv64)
 
 def target(*args):
     import py
-    outriscv, supportcoderiscv = make_code()
+    main = make_code()
     print "translating to C!"
-    from pydrofoil.test.riscv.supportcoderiscv import get_main
-    main = get_main(outriscv)
     return main
 
 if __name__ == '__main__':

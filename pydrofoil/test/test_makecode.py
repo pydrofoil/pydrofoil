@@ -336,10 +336,7 @@ def test_full_mips():
 @pytest.fixture(scope='session')
 def riscvmain():
     from pydrofoil.test.riscv.targetriscv import make_code
-    outriscv, supportcoderiscv = make_code()
-    res = supportcoderiscv.get_main(outriscv)
-    res.supportcoderiscv = supportcoderiscv
-    return res
+    return make_code()
 
 @pytest.mark.parametrize("elf", elfs)
 def test_full_riscv(riscvmain, elf):

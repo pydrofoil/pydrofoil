@@ -14,6 +14,36 @@ class Machine(object):
     def __init__(self): self.l = Lets(); self.r = Registers(); model_init(self)
 UninitInt = bitvector.Integer.fromint(-0xfefee)
 
+class Enum_zjump(object):
+    zJDONT = 0
+    zJGT = 1
+    zJEQ = 2
+    zJGE = 3
+    zJLT = 4
+    zJNE = 5
+    zJLE = 6
+    zJMP = 7
+
+class Enum_zarithmetic_op(object):
+    zC_ZERO = 9
+    zC_ONE = 10
+    zC_MINUSONE = 11
+    zC_D = 12
+    zC_A = 13
+    zC_NOT_D = 14
+    zC_NOT_A = 15
+    zC_NEG_D = 16
+    zC_NEG_A = 17
+    zC_D_ADD_1 = 18
+    zC_A_ADD_1 = 19
+    zC_D_SUB_1 = 20
+    zC_A_SUB_1 = 21
+    zC_D_ADD_A = 22
+    zC_D_SUB_A = 23
+    zC_A_SUB_D = 24
+    zC_D_AND_A = 25
+    zC_D_OR_A = 26
+
 class Tuple_1(object): # TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
     def eq(self, other):
         assert isinstance(other, Tuple_1)
@@ -307,36 +337,6 @@ def model_init(machine):
 
 
 
-class Enum_zjump(object):
-    zJDONT = 0
-    zJGT = 1
-    zJEQ = 2
-    zJGE = 3
-    zJLT = 4
-    zJNE = 5
-    zJLE = 6
-    zJMP = 7
-
-
-class Enum_zarithmetic_op(object):
-    zC_ZERO = 9
-    zC_ONE = 10
-    zC_MINUSONE = 11
-    zC_D = 12
-    zC_A = 13
-    zC_NOT_D = 14
-    zC_NOT_A = 15
-    zC_NEG_D = 16
-    zC_NEG_A = 17
-    zC_D_ADD_1 = 18
-    zC_A_ADD_1 = 19
-    zC_D_SUB_1 = 20
-    zC_A_SUB_1 = 21
-    zC_D_ADD_A = 22
-    zC_D_SUB_A = 23
-    zC_A_SUB_D = 24
-    zC_D_AND_A = 25
-    zC_D_OR_A = 26
 
 
 

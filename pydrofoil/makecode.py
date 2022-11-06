@@ -185,14 +185,15 @@ class __extend__(parse.Enum):
     def make_code(self, codegen):
         name = "Enum_" + self.name
         self.pyname = name
-        with codegen.emit_indent("class %s(object):" % name):
-            for index, name in enumerate(self.names, start=codegen.last_enum):
-                codegen.add_global(name, "%s.%s" % (self.pyname, name), types.Enum(self), self)
-                codegen.emit("%s = %s" % (name, index))
-            codegen.last_enum += len(self.names) + 1 # gap of 1
-            typ = types.Enum(self)
-            codegen.add_named_type(self.name, self.pyname, typ, self)
-            typ.uninitialized_value = "-1"
+        with codegen.emit_code_type("declarations"):
+            with codegen.emit_indent("class %s(object):" % name):
+                for index, name in enumerate(self.names, start=codegen.last_enum):
+                    codegen.add_global(name, "%s.%s" % (self.pyname, name), types.Enum(self), self)
+                    codegen.emit("%s = %s" % (name, index))
+                codegen.last_enum += len(self.names) + 1 # gap of 1
+                typ = types.Enum(self)
+                codegen.add_named_type(self.name, self.pyname, typ, self)
+                typ.uninitialized_value = "-1"
 
 class __extend__(parse.Union):
     def make_code(self, codegen):
@@ -226,10 +227,25 @@ class __extend__(parse.Union):
                     self.make_convert(codegen, rtyp, typ, pyname)
                 if rtyp is types.Unit():
                     codegen.emit("%s.singleton = %s(())" % (pyname, pyname))
+                if type(rtyp) is types.Enum:
+                    # for enum union options, we make singletons
+                    for enum_value in rtyp.ast.names:
+                        subclassname = "%s_%s" % (pyname, enum_value)
+                        with codegen.emit_indent("class %s(%s):" % (subclassname, pyname)):
+                            codegen.emit("a = %s" % (codegen.getname(enum_value), ))
+                        codegen.emit("%s.singleton = %s()" % (subclassname, subclassname))
         if self.name == "zexception":
             codegen.add_global("current_exception", "machine.r.current_exception", uniontyp, self)
 
     def make_init(self, codegen, rtyp, typ, pyname):
+        if type(rtyp) is types.Enum:
+            codegen.emit("@staticmethod")
+            codegen.emit("@objectmodel.specialize.arg_or_var(0)")
+            with codegen.emit_indent("def construct(a):"):
+                for enum_value in rtyp.ast.names:
+                    codegen.emit("if a == %s: return %s_%s.singleton" % (codegen.getname(enum_value), pyname, enum_value))
+                codegen.emit("raise ValueError")
+            return
         with codegen.emit_indent("def __init__(self, a):"):
             if rtyp is types.Unit():
                 codegen.emit("pass")
@@ -283,6 +299,8 @@ class __extend__(parse.Union):
                         codegen.emit("raise TypeError")
 
     def constructor(self, info, op, args, argtyps):
+        if len(argtyps) == 1 and type(argtyps[0]) is types.Enum:
+            return "%s.construct(%s)" % (op, args)
         if argtyps == [types.Unit()]:
             return "%s.singleton" % (op, )
         return "%s(%s)" % (op, args)
@@ -819,7 +837,7 @@ class __extend__(parse.Comparison):
 
 class __extend__(parse.UnionVariantCheck):
     def to_code(self, codegen):
-        return "type(%s) is not %s" % (self.var.to_code(codegen), codegen.getname(self.variant))
+        return "not isinstance(%s, %s)" % (self.var.to_code(codegen), codegen.getname(self.variant))
 
 # ____________________________________________________________
 # types

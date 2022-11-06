@@ -99,6 +99,7 @@ make_dummy('zeros')
 def zero_extend(machine, a, b):
     return a
 
+@objectmodel.always_inline
 def add_bits_int(machine, a, b):
     return a.add_int(b)
 

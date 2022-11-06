@@ -62,10 +62,14 @@ class SmallBitVector(BitVector):
         assert isinstance(other, SmallBitVector)
         return other
 
+    @always_inline
     def add_int(self, i):
         if isinstance(i, SmallInteger):
             if i.val > 0:
                 return SmallBitVector(self.size, self.val + r_uint(i.val), True)
+        return self._add_int_slow(i)
+
+    def _add_int_slow(self, i):
         # XXX can be better
         return from_bigint(self.size, self.rbigint_mask(self.size, self.tobigint().add(i.tobigint())))
 

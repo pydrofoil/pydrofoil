@@ -6,14 +6,12 @@ from pydrofoil.test.nand2tetris import supportcodenand as supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer
 
-class Registers(object): pass
-r = Registers()
-r.have_exception = False
-r.throw_location = None
-r.current_exception = None
+class Registers(supportcode.RegistersBase): pass
 
 class Lets(object): pass
-l = Lets()
+
+class Machine(object):
+    def __init__(self): self.l = Lets(); self.r = Registers(); model_init(self)
 UninitInt = bitvector.Integer.fromint(-0xfefee)
 
 class Tuple_1(object): # TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
@@ -82,6 +80,30 @@ class Union_zinstr_zCINST(Union_zinstr):
             res.ztup2 = inst.utup2
             res.ztup3 = inst.utup3
             return res
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztup0(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.utup0
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztup1(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.utup1
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztup2(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.utup2
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztup3(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.utup3
         else:
             raise TypeError
 
@@ -217,11 +239,11 @@ class Tuple_16(object): # TupleType(elements=[NamedType('%bv64'), NamedType('%bv
         if not (self.utup3 == other.utup3): return False # NamedType('%bv16')
         return True
 # Register(name='zPC', typ=NamedType('%bv16'))
-r.zPC = r_uint(0)
+Registers.zPC = r_uint(0)
 # Register(name='zA', typ=NamedType('%bv16'))
-r.zA = r_uint(0)
+Registers.zA = r_uint(0)
 # Register(name='zD', typ=NamedType('%bv16'))
-r.zD = r_uint(0)
+Registers.zD = r_uint(0)
 
 class Tuple_17(object): # TupleType(elements=[NamedType('%bv6')])
     def eq(self, other):
@@ -277,7 +299,7 @@ class Tuple_24(object): # TupleType(elements=[NamedType('%bv64'), NamedType('%bo
         return True
 
 
-def model_init():
+def model_init(machine):
     pass
 
 
@@ -321,12 +343,12 @@ class Enum_zarithmetic_op(object):
 
 
 
-def func_zneq_int(zx, zy):
+def func_zneq_int(machine, zx, zy):
     # zgaz30_lz30: NamedType('%bool')
     # Operation(args=[Var(name='zx'), Var(name='zy')], name='zeq_int', result='zgaz30_lz30')
-    zgaz30_lz30 = supportcode.eq_int(zx, zy)
+    zgaz30_lz30 = supportcode.eq_int(machine, zx, zy)
     # Operation(args=[Var(name='zgaz30_lz30')], name='znot_bool', result='return')
-    return_ = supportcode.not_(zgaz30_lz30)
+    return_ = supportcode.not_(machine, zgaz30_lz30)
     # End()
     return return_
 
@@ -341,7 +363,7 @@ def func_zneq_int(zx, zy):
 
 
 
-def func_zsail_mask(zlen, zv):
+def func_zsail_mask(machine, zlen, zv):
     pc = 0
     while 1:
         if pc == 0:
@@ -350,17 +372,17 @@ def func_zsail_mask(zlen, zv):
             zgaz32_lz30 = False
             # zgaz31_lz31: NamedType('%i')
             # Operation(args=[Var(name='zv')], name='zbitvector_length', result='zgaz31_lz31')
-            zgaz31_lz31 = supportcode.length(zv)
+            zgaz31_lz31 = supportcode.length(machine, zv)
             # Operation(args=[Var(name='zlen'), Var(name='zgaz31_lz31')], name='zlteq_int', result='zgaz32_lz30')
-            zgaz32_lz30 = supportcode.lteq(zlen, zgaz31_lz31)
+            zgaz32_lz30 = supportcode.lteq(machine, zlen, zgaz31_lz31)
             if zgaz32_lz30:
                 # inline pc=7
                 # Operation(args=[Var(name='zv'), Var(name='zlen')], name='ztruncate', result='return')
-                return_ = supportcode.sail_truncate(zv, zlen)
+                return_ = supportcode.sail_truncate(machine, zv, zlen)
                 pc = 8
                 continue
             # Operation(args=[Var(name='zv'), Var(name='zlen')], name='zsail_zzero_extend', result='return')
-            return_ = supportcode.zero_extend(zv, zlen)
+            return_ = supportcode.zero_extend(machine, zv, zlen)
             pc = 8
         if pc == 8:
             # End()
@@ -379,12 +401,12 @@ def func_zsail_mask(zlen, zv):
 
 
 
-def func_zsail_ones(zn):
+def func_zsail_ones(machine, zn):
     # zgaz33_lz30: NamedType('%bv')
     # Operation(args=[Var(name='zn')], name='zsail_zzeros', result='zgaz33_lz30')
-    zgaz33_lz30 = supportcode.zeros(zn)
+    zgaz33_lz30 = supportcode.zeros(machine, zn)
     # Operation(args=[Var(name='zgaz33_lz30')], name='znot_vec', result='return')
-    return_ = supportcode.not_bits(zgaz33_lz30)
+    return_ = supportcode.not_bits(machine, zgaz33_lz30)
     # End()
     return return_
 
@@ -396,7 +418,7 @@ def func_zsail_ones(zn):
 
 
 
-def func_zfdiv_int(zn, zm):
+def func_zfdiv_int(machine, zn, zm):
     pc = 0
     while 1:
         if pc == 0:
@@ -410,7 +432,7 @@ def func_zfdiv_int(zn, zm):
             # zgsz30_lz317: NamedType('%i')
             zgsz30_lz317 = IntConst_0_1
             # Operation(args=[Var(name='zn'), Var(name='zgsz30_lz317')], name='zlt_int', result='zgaz34_lz314')
-            zgaz34_lz314 = supportcode.lt(zn, zgsz30_lz317)
+            zgaz34_lz314 = supportcode.lt(machine, zn, zgsz30_lz317)
             # LocalVarDeclaration(name='zgsz31_lz315', typ=NamedType('%bool'), value=None)
             # zgsz31_lz315: NamedType('%bool')
             zgsz31_lz315 = False
@@ -420,7 +442,7 @@ def func_zfdiv_int(zn, zm):
                 # zgsz32_lz316: NamedType('%i')
                 zgsz32_lz316 = IntConst_0_1
                 # Operation(args=[Var(name='zm'), Var(name='zgsz32_lz316')], name='zgt_int', result='zgsz31_lz315')
-                zgsz31_lz315 = supportcode.gt(zm, zgsz32_lz316)
+                zgsz31_lz315 = supportcode.gt(machine, zm, zgsz32_lz316)
                 pc = 10
                 continue
             # Assignment(result='zgsz31_lz315', value=Var(name='false'))
@@ -441,14 +463,14 @@ def func_zfdiv_int(zn, zm):
                 # zgsz38_lz34: NamedType('%i')
                 zgsz38_lz34 = IntConst_1_1
                 # Operation(args=[Var(name='zn'), Var(name='zgsz38_lz34')], name='zadd_atom', result='zgaz36_lz33')
-                zgaz36_lz33 = supportcode.add_int(zn, zgsz38_lz34)
+                zgaz36_lz33 = supportcode.add_int(machine, zn, zgsz38_lz34)
                 # Operation(args=[Var(name='zgaz36_lz33'), Var(name='zm')], name='ztdiv_int', result='zgaz37_lz31')
-                zgaz37_lz31 = supportcode.tdiv_int(zgaz36_lz33, zm)
+                zgaz37_lz31 = supportcode.tdiv_int(machine, zgaz36_lz33, zm)
                 # LocalVarDeclaration(name='zgsz39_lz32', typ=NamedType('%i'), value=Number(number=1))
                 # zgsz39_lz32: NamedType('%i')
                 zgsz39_lz32 = IntConst_1_1
                 # Operation(args=[Var(name='zgaz37_lz31'), Var(name='zgsz39_lz32')], name='zsub_atom', result='return')
-                return_ = supportcode.sub_int(zgaz37_lz31, zgsz39_lz32)
+                return_ = supportcode.sub_int(machine, zgaz37_lz31, zgsz39_lz32)
                 pc = 41
                 continue
             # LocalVarDeclaration(name='zgaz39_lz35', typ=NamedType('%bool'), value=None)
@@ -461,7 +483,7 @@ def func_zfdiv_int(zn, zm):
             # zgsz33_lz313: NamedType('%i')
             zgsz33_lz313 = IntConst_0_1
             # Operation(args=[Var(name='zn'), Var(name='zgsz33_lz313')], name='zgt_int', result='zgaz38_lz310')
-            zgaz38_lz310 = supportcode.gt(zn, zgsz33_lz313)
+            zgaz38_lz310 = supportcode.gt(machine, zn, zgsz33_lz313)
             # LocalVarDeclaration(name='zgsz34_lz311', typ=NamedType('%bool'), value=None)
             # zgsz34_lz311: NamedType('%bool')
             zgsz34_lz311 = False
@@ -471,7 +493,7 @@ def func_zfdiv_int(zn, zm):
                 # zgsz35_lz312: NamedType('%i')
                 zgsz35_lz312 = IntConst_0_1
                 # Operation(args=[Var(name='zm'), Var(name='zgsz35_lz312')], name='zlt_int', result='zgsz34_lz311')
-                zgsz34_lz311 = supportcode.lt(zm, zgsz35_lz312)
+                zgsz34_lz311 = supportcode.lt(machine, zm, zgsz35_lz312)
                 pc = 22
                 continue
             # Assignment(result='zgsz34_lz311', value=Var(name='false'))
@@ -492,18 +514,18 @@ def func_zfdiv_int(zn, zm):
                 # zgsz36_lz39: NamedType('%i')
                 zgsz36_lz39 = IntConst_1_1
                 # Operation(args=[Var(name='zn'), Var(name='zgsz36_lz39')], name='zsub_atom', result='zgaz310_lz38')
-                zgaz310_lz38 = supportcode.sub_int(zn, zgsz36_lz39)
+                zgaz310_lz38 = supportcode.sub_int(machine, zn, zgsz36_lz39)
                 # Operation(args=[Var(name='zgaz310_lz38'), Var(name='zm')], name='ztdiv_int', result='zgaz311_lz36')
-                zgaz311_lz36 = supportcode.tdiv_int(zgaz310_lz38, zm)
+                zgaz311_lz36 = supportcode.tdiv_int(machine, zgaz310_lz38, zm)
                 # LocalVarDeclaration(name='zgsz37_lz37', typ=NamedType('%i'), value=Number(number=1))
                 # zgsz37_lz37: NamedType('%i')
                 zgsz37_lz37 = IntConst_1_1
                 # Operation(args=[Var(name='zgaz311_lz36'), Var(name='zgsz37_lz37')], name='zsub_atom', result='return')
-                return_ = supportcode.sub_int(zgaz311_lz36, zgsz37_lz37)
+                return_ = supportcode.sub_int(machine, zgaz311_lz36, zgsz37_lz37)
                 pc = 33
                 continue
             # Operation(args=[Var(name='zn'), Var(name='zm')], name='ztdiv_int', result='return')
-            return_ = supportcode.tdiv_int(zn, zm)
+            return_ = supportcode.tdiv_int(machine, zn, zm)
             pc = 33
         if pc == 33:
             pc = 41
@@ -515,7 +537,7 @@ def func_zfdiv_int(zn, zm):
 
 
 
-def func_zbits1_to_bool(zb):
+def func_zbits1_to_bool(machine, zb):
     pc = 0
     while 1:
         if pc == 0:
@@ -572,7 +594,7 @@ def func_zbits1_to_bool(zb):
 
 
 
-def func_zdecode_compute_backwards(zargz3):
+def func_zdecode_compute_backwards(machine, zargz3):
     pc = 0
     while 1:
         if pc == 0:
@@ -878,7 +900,7 @@ def func_zdecode_compute_backwards(zargz3):
 
 
 
-def func_zdecode_jump_backwards(zargz3):
+def func_zdecode_jump_backwards(machine, zargz3):
     pc = 0
     while 1:
         if pc == 0:
@@ -1026,7 +1048,7 @@ def func_zdecode_jump_backwards(zargz3):
 
 
 
-def func_zdecode_destination(zb):
+def func_zdecode_destination(machine, zb):
     # LocalVarDeclaration(name='zgsz341_lz30', typ=TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), value=None)
     # zgsz341_lz30: TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
     zgsz341_lz30 = Tuple_1()
@@ -1037,7 +1059,7 @@ def func_zdecode_destination(zb):
     # za_lz32: NamedType('%bv1')
     za_lz32 = r_uint(0)
     # TemplatedOperation(args=[Var(name='zv__0_lz31'), Number(number=2)], name='@slice', result='za_lz32', templateparam=Number(number=1))
-    za_lz32 = (supportcode.safe_rshift(zv__0_lz31, 2)) & r_uint(0x1)
+    za_lz32 = (supportcode.safe_rshift(machine, zv__0_lz31, 2)) & r_uint(0x1)
     # LocalVarDeclaration(name='zm_lz33', typ=NamedType('%bv1'), value=None)
     # zm_lz33: NamedType('%bv1')
     zm_lz33 = r_uint(0)
@@ -1047,21 +1069,21 @@ def func_zdecode_destination(zb):
     # zd_lz34: NamedType('%bv1')
     zd_lz34 = r_uint(0)
     # TemplatedOperation(args=[Var(name='zv__0_lz31'), Number(number=1)], name='@slice', result='zd_lz34', templateparam=Number(number=1))
-    zd_lz34 = (supportcode.safe_rshift(zv__0_lz31, 1)) & r_uint(0x1)
+    zd_lz34 = (supportcode.safe_rshift(machine, zv__0_lz31, 1)) & r_uint(0x1)
     # LocalVarDeclaration(name='zashadowz30_lz35', typ=NamedType('%bv1'), value=None)
     # zashadowz30_lz35: NamedType('%bv1')
     zashadowz30_lz35 = r_uint(0)
     # TemplatedOperation(args=[Var(name='zv__0_lz31'), Number(number=2)], name='@slice', result='zashadowz30_lz35', templateparam=Number(number=1))
-    zashadowz30_lz35 = (supportcode.safe_rshift(zv__0_lz31, 2)) & r_uint(0x1)
+    zashadowz30_lz35 = (supportcode.safe_rshift(machine, zv__0_lz31, 2)) & r_uint(0x1)
     # zgaz312_lz36: NamedType('%bool')
     # Operation(args=[Var(name='zashadowz30_lz35')], name='zbits1_to_bool', result='zgaz312_lz36')
-    zgaz312_lz36 = func_zbits1_to_bool(zashadowz30_lz35)
+    zgaz312_lz36 = func_zbits1_to_bool(machine, zashadowz30_lz35)
     # zgaz313_lz37: NamedType('%bool')
     # Operation(args=[Var(name='zd_lz34')], name='zbits1_to_bool', result='zgaz313_lz37')
-    zgaz313_lz37 = func_zbits1_to_bool(zd_lz34)
+    zgaz313_lz37 = func_zbits1_to_bool(machine, zd_lz34)
     # zgaz314_lz38: NamedType('%bool')
     # Operation(args=[Var(name='zm_lz33')], name='zbits1_to_bool', result='zgaz314_lz38')
-    zgaz314_lz38 = func_zbits1_to_bool(zm_lz33)
+    zgaz314_lz38 = func_zbits1_to_bool(machine, zm_lz33)
     # LocalVarDeclaration(name='zgsz342_lz39', typ=TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), value=None)
     # zgsz342_lz39: TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
     zgsz342_lz39 = Tuple_1()
@@ -1080,7 +1102,7 @@ def func_zdecode_destination(zb):
 
 
 
-def func_zdecode(zmergez3var):
+def func_zdecode(machine, zmergez3var):
     pc = 0
     while 1:
         if pc == 0:
@@ -1094,7 +1116,7 @@ def func_zdecode(zmergez3var):
             # zgaz317_lz316: NamedType('%bv1')
             zgaz317_lz316 = r_uint(0)
             # TemplatedOperation(args=[Var(name='zv__1_lz315'), Number(number=15)], name='@slice', result='zgaz317_lz316', templateparam=Number(number=1))
-            zgaz317_lz316 = (supportcode.safe_rshift(zv__1_lz315, 15)) & r_uint(0x1)
+            zgaz317_lz316 = (supportcode.safe_rshift(machine, zv__1_lz315, 15)) & r_uint(0x1)
             # zgsz348_lz317: NamedType('%bool')
             # Operation(args=[Var(name='zgaz317_lz316'), BitVectorConstant(constant='0b0')], name='@eq', result='zgsz348_lz317')
             zgsz348_lz317 = zgaz317_lz316 == r_uint(0b0)
@@ -1123,7 +1145,7 @@ def func_zdecode(zmergez3var):
             zgsz346_lz323 = IntConst_16_1
             # zgsz347_lz324: NamedType('%bv')
             # Operation(args=[Var(name='zgsz345_lz322'), Var(name='zgsz346_lz323')], name='zsail_zzero_extend', result='zgsz347_lz324')
-            zgsz347_lz324 = supportcode.zero_extend(zgsz345_lz322, zgsz346_lz323)
+            zgsz347_lz324 = supportcode.zero_extend(machine, zgsz345_lz322, zgsz346_lz323)
             # Assignment(result='zgaz315_lz321', value=Var(name='zgsz347_lz324'))
             zgaz315_lz321 = zgsz347_lz324.touint()
             # Operation(args=[Var(name='zgaz315_lz321')], name='zAINST', result='zgaz316_lz319')
@@ -1142,7 +1164,7 @@ def func_zdecode(zmergez3var):
             # zgaz323_lz32: NamedType('%bv3')
             zgaz323_lz32 = r_uint(0)
             # TemplatedOperation(args=[Var(name='zv__3_lz31'), Number(number=13)], name='@slice', result='zgaz323_lz32', templateparam=Number(number=3))
-            zgaz323_lz32 = (supportcode.safe_rshift(zv__3_lz31, 13)) & r_uint(0x7)
+            zgaz323_lz32 = (supportcode.safe_rshift(machine, zv__3_lz31, 13)) & r_uint(0x7)
             # zgsz350_lz33: NamedType('%bool')
             # Operation(args=[Var(name='zgaz323_lz32'), BitVectorConstant(constant='0b111')], name='@eq', result='zgsz350_lz33')
             zgsz350_lz33 = zgaz323_lz32 == r_uint(0b111)
@@ -1161,17 +1183,17 @@ def func_zdecode(zmergez3var):
             # zdest_lz35: NamedType('%bv3')
             zdest_lz35 = r_uint(0)
             # TemplatedOperation(args=[Var(name='zv__3_lz31'), Number(number=3)], name='@slice', result='zdest_lz35', templateparam=Number(number=3))
-            zdest_lz35 = (supportcode.safe_rshift(zv__3_lz31, 3)) & r_uint(0x7)
+            zdest_lz35 = (supportcode.safe_rshift(machine, zv__3_lz31, 3)) & r_uint(0x7)
             # LocalVarDeclaration(name='zc_lz36', typ=NamedType('%bv6'), value=None)
             # zc_lz36: NamedType('%bv6')
             zc_lz36 = r_uint(0)
             # TemplatedOperation(args=[Var(name='zv__3_lz31'), Number(number=6)], name='@slice', result='zc_lz36', templateparam=Number(number=6))
-            zc_lz36 = (supportcode.safe_rshift(zv__3_lz31, 6)) & r_uint(0x3f)
+            zc_lz36 = (supportcode.safe_rshift(machine, zv__3_lz31, 6)) & r_uint(0x3f)
             # LocalVarDeclaration(name='za_lz37', typ=NamedType('%bv1'), value=None)
             # za_lz37: NamedType('%bv1')
             za_lz37 = r_uint(0)
             # TemplatedOperation(args=[Var(name='zv__3_lz31'), Number(number=12)], name='@slice', result='za_lz37', templateparam=Number(number=1))
-            za_lz37 = (supportcode.safe_rshift(zv__3_lz31, 12)) & r_uint(0x1)
+            za_lz37 = (supportcode.safe_rshift(machine, zv__3_lz31, 12)) & r_uint(0x1)
             # LocalVarDeclaration(name='zgaz322_lz38', typ=UnionType(name='zinstr'), value=None)
             # zgaz322_lz38: UnionType(name='zinstr')
             zgaz322_lz38 = Union_zinstr()
@@ -1180,13 +1202,13 @@ def func_zdecode(zmergez3var):
             zgaz321_lz310 = Tuple_2()
             # zgaz318_lz311: EnumType(name='zarithmetic_op')
             # Operation(args=[Var(name='zc_lz36')], name='zdecode_compute_backwards', result='zgaz318_lz311')
-            zgaz318_lz311 = func_zdecode_compute_backwards(zc_lz36)
+            zgaz318_lz311 = func_zdecode_compute_backwards(machine, zc_lz36)
             # zgaz319_lz312: TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
             # Operation(args=[Var(name='zdest_lz35')], name='zdecode_destination', result='zgaz319_lz312')
-            zgaz319_lz312 = func_zdecode_destination(zdest_lz35)
+            zgaz319_lz312 = func_zdecode_destination(machine, zdest_lz35)
             # zgaz320_lz313: EnumType(name='zjump')
             # Operation(args=[Var(name='zjump_lz34')], name='zdecode_jump_backwards', result='zgaz320_lz313')
-            zgaz320_lz313 = func_zdecode_jump_backwards(zjump_lz34)
+            zgaz320_lz313 = func_zdecode_jump_backwards(machine, zjump_lz34)
             # LocalVarDeclaration(name='zgsz349_lz314', typ=TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), EnumType(name='zjump')]), value=None)
             # zgsz349_lz314: TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), EnumType(name='zjump')])
             zgsz349_lz314 = Tuple_2()
@@ -1221,7 +1243,7 @@ def func_zdecode(zmergez3var):
 
 
 
-def func_zcompute_value(za, zop):
+def func_zcompute_value(machine, za, zop):
     pc = 0
     while 1:
         if pc == 0:
@@ -1234,16 +1256,16 @@ def func_zcompute_value(za, zop):
             if zgaz324_lz34:
                 # inline pc=6
                 # Assignment(result='zashadowz31_lz30', value=Var(name='zA'))
-                zashadowz31_lz30 = r.zA
+                zashadowz31_lz30 = machine.r.zA
                 pc = 7
                 continue
             # Operation(args=[Var(name='zA')], name='zread_mem', result='zashadowz31_lz30')
-            zashadowz31_lz30 = supportcode.my_read_mem(r.zA)
+            zashadowz31_lz30 = supportcode.my_read_mem(machine, machine.r.zA)
             pc = 7
         if pc == 7:
             # zd_lz31: NamedType('%bv16')
             # Assignment(result='zd_lz31', value=Var(name='zD'))
-            zd_lz31 = r.zD
+            zd_lz31 = machine.r.zD
             # LocalVarDeclaration(name='zresult_lz32', typ=NamedType('%bv16'), value=None)
             # zresult_lz32: NamedType('%bv16')
             zresult_lz32 = r_uint(0)
@@ -1371,7 +1393,7 @@ def func_zcompute_value(za, zop):
 
 
 
-def func_zassign_dest(zgsz371, zvalue):
+def func_zassign_dest(machine, zgsz371, zvalue):
     pc = 0
     while 1:
         if pc == 0:
@@ -1390,7 +1412,7 @@ def func_zassign_dest(zgsz371, zvalue):
             if zm_lz32:
                 # inline pc=10
                 # Operation(args=[Var(name='zA'), Var(name='zvalue')], name='zwrite_mem', result='zgsz373_lz34')
-                zgsz373_lz34 = supportcode.my_write_mem(r.zA, zvalue)
+                zgsz373_lz34 = supportcode.my_write_mem(machine, machine.r.zA, zvalue)
                 pc = 11
                 continue
             # Assignment(result='zgsz373_lz34', value=Unit())
@@ -1403,7 +1425,7 @@ def func_zassign_dest(zgsz371, zvalue):
             if za_lz30:
                 # inline pc=15
                 # Assignment(result='zA', value=Var(name='zvalue'))
-                r.zA = zvalue
+                machine.r.zA = zvalue
                 # Assignment(result='zgsz372_lz33', value=Unit())
                 zgsz372_lz33 = ()
                 pc = 17
@@ -1415,7 +1437,7 @@ def func_zassign_dest(zgsz371, zvalue):
             if zd_lz31:
                 # inline pc=20
                 # Assignment(result='zD', value=Var(name='zvalue'))
-                r.zD = zvalue
+                machine.r.zD = zvalue
                 # Assignment(result='return', value=Unit())
                 return_ = ()
                 pc = 22
@@ -1430,7 +1452,7 @@ def func_zassign_dest(zgsz371, zvalue):
 
 
 
-def func_zmaybe_jump(zvalue, zj):
+def func_zmaybe_jump(machine, zvalue, zj):
     pc = 0
     while 1:
         if pc == 0:
@@ -1467,7 +1489,7 @@ def func_zmaybe_jump(zvalue, zj):
                                     # zgaz330_lz35: NamedType('%i64')
                                     zgaz330_lz35 = -0xfefe
                                     # TemplatedOperation(args=[Var(name='zvalue')], name='@signed', result='zgaz330_lz35', templateparam=Number(number=64))
-                                    zgaz330_lz35 = supportcode.fast_signed(zvalue, 16)
+                                    zgaz330_lz35 = supportcode.fast_signed(machine, zvalue, 16)
                                     # Operation(args=[Var(name='zgaz330_lz35'), Number(number=0)], name='@lteq', result='zgsz374_lz34')
                                     zgsz374_lz34 = (zgaz330_lz35 <= 0)
                                     pc = 41
@@ -1476,7 +1498,7 @@ def func_zmaybe_jump(zvalue, zj):
                                 # zgaz329_lz36: NamedType('%i64')
                                 zgaz329_lz36 = -0xfefe
                                 # TemplatedOperation(args=[Var(name='zvalue')], name='@signed', result='zgaz329_lz36', templateparam=Number(number=64))
-                                zgaz329_lz36 = supportcode.fast_signed(zvalue, 16)
+                                zgaz329_lz36 = supportcode.fast_signed(machine, zvalue, 16)
                                 # LocalVarDeclaration(name='zgsz382_lz37', typ=NamedType('%i'), value=Number(number=0))
                                 # zgsz382_lz37: NamedType('%i')
                                 zgsz382_lz37 = IntConst_0_1
@@ -1484,14 +1506,14 @@ def func_zmaybe_jump(zvalue, zj):
                                 # zgsz381_lz38: NamedType('%i')
                                 zgsz381_lz38 = Integer.fromint(zgaz329_lz36)
                                 # Operation(args=[Var(name='zgsz381_lz38'), Var(name='zgsz382_lz37')], name='zneq_int', result='zgsz374_lz34')
-                                zgsz374_lz34 = func_zneq_int(zgsz381_lz38, zgsz382_lz37)
+                                zgsz374_lz34 = func_zneq_int(machine, zgsz381_lz38, zgsz382_lz37)
                                 pc = 41
                                 continue
                             # LocalVarDeclaration(name='zgaz328_lz39', typ=NamedType('%i64'), value=None)
                             # zgaz328_lz39: NamedType('%i64')
                             zgaz328_lz39 = -0xfefe
                             # TemplatedOperation(args=[Var(name='zvalue')], name='@signed', result='zgaz328_lz39', templateparam=Number(number=64))
-                            zgaz328_lz39 = supportcode.fast_signed(zvalue, 16)
+                            zgaz328_lz39 = supportcode.fast_signed(machine, zvalue, 16)
                             # Operation(args=[Var(name='zgaz328_lz39'), Number(number=0)], name='@lt', result='zgsz374_lz34')
                             zgsz374_lz34 = (zgaz328_lz39 < 0)
                             pc = 41
@@ -1500,7 +1522,7 @@ def func_zmaybe_jump(zvalue, zj):
                         # zgaz327_lz310: NamedType('%i64')
                         zgaz327_lz310 = -0xfefe
                         # TemplatedOperation(args=[Var(name='zvalue')], name='@signed', result='zgaz327_lz310', templateparam=Number(number=64))
-                        zgaz327_lz310 = supportcode.fast_signed(zvalue, 16)
+                        zgaz327_lz310 = supportcode.fast_signed(machine, zvalue, 16)
                         # Operation(args=[Var(name='zgaz327_lz310'), Number(number=0)], name='@gteq', result='zgsz374_lz34')
                         zgsz374_lz34 = (zgaz327_lz310 >= 0)
                         pc = 41
@@ -1509,7 +1531,7 @@ def func_zmaybe_jump(zvalue, zj):
                     # zgaz326_lz311: NamedType('%i64')
                     zgaz326_lz311 = -0xfefe
                     # TemplatedOperation(args=[Var(name='zvalue')], name='@signed', result='zgaz326_lz311', templateparam=Number(number=64))
-                    zgaz326_lz311 = supportcode.fast_signed(zvalue, 16)
+                    zgaz326_lz311 = supportcode.fast_signed(machine, zvalue, 16)
                     # Operation(args=[Var(name='zgaz326_lz311'), Number(number=0)], name='@eq', result='zgsz374_lz34')
                     zgsz374_lz34 = (zgaz326_lz311 == 0)
                     pc = 41
@@ -1518,7 +1540,7 @@ def func_zmaybe_jump(zvalue, zj):
                 # zgaz325_lz312: NamedType('%i64')
                 zgaz325_lz312 = -0xfefe
                 # TemplatedOperation(args=[Var(name='zvalue')], name='@signed', result='zgaz325_lz312', templateparam=Number(number=64))
-                zgaz325_lz312 = supportcode.fast_signed(zvalue, 16)
+                zgaz325_lz312 = supportcode.fast_signed(machine, zvalue, 16)
                 # Operation(args=[Var(name='zgaz325_lz312'), Number(number=0)], name='@gt', result='zgsz374_lz34')
                 zgsz374_lz34 = (zgaz325_lz312 > 0)
                 pc = 41
@@ -1532,22 +1554,22 @@ def func_zmaybe_jump(zvalue, zj):
             if zcond_lz30:
                 # inline pc=50
                 # Assignment(result='zPC', value=Var(name='zA'))
-                r.zPC = r.zA
+                machine.r.zPC = machine.r.zA
                 # Assignment(result='return', value=Unit())
                 return_ = ()
                 pc = 52
                 continue
             # LocalVarDeclaration(name='zgsz385_lz31', typ=NamedType('%bv'), value=Var(name='zPC'))
             # zgsz385_lz31: NamedType('%bv')
-            zgsz385_lz31 = bitvector.from_ruint(16, r.zPC)
+            zgsz385_lz31 = bitvector.from_ruint(16, machine.r.zPC)
             # LocalVarDeclaration(name='zgsz386_lz32', typ=NamedType('%i'), value=Number(number=1))
             # zgsz386_lz32: NamedType('%i')
             zgsz386_lz32 = IntConst_1_1
             # zgsz387_lz33: NamedType('%bv')
             # Operation(args=[Var(name='zgsz385_lz31'), Var(name='zgsz386_lz32')], name='zadd_bits_int', result='zgsz387_lz33')
-            zgsz387_lz33 = supportcode.add_bits_int(zgsz385_lz31, zgsz386_lz32)
+            zgsz387_lz33 = supportcode.add_bits_int(machine, zgsz385_lz31, zgsz386_lz32)
             # Assignment(result='zPC', value=Var(name='zgsz387_lz33'))
-            r.zPC = zgsz387_lz33.touint()
+            machine.r.zPC = zgsz387_lz33.touint()
             # Assignment(result='return', value=Unit())
             return_ = ()
             pc = 52
@@ -1557,10 +1579,10 @@ def func_zmaybe_jump(zvalue, zj):
 
 
 
-def func_zexecute(zmergez3var):
-    return zmergez3var.meth_zexecute()
+def func_zexecute(machine, zmergez3var):
+    return zmergez3var.meth_zexecute(machine, )
 
-def zexecute_zAINST(zmergez3var):
+def zexecute_zAINST(zmergez3var, machine, ):
     pc = 0
     while 1:
         if pc == 0:
@@ -1571,21 +1593,21 @@ def zexecute_zAINST(zmergez3var):
             # Assignment(result='zx_lz37', value=Cast(expr=Var(name='zmergez3var'), variant='zAINST'))
             zx_lz37 = Union_zinstr_zAINST.convert(zmergez3var)
             # Assignment(result='zA', value=Var(name='zx_lz37'))
-            r.zA = zx_lz37
+            machine.r.zA = zx_lz37
             # zgsz389_lz311: NamedType('%unit')
             # Assignment(result='zgsz389_lz311', value=Unit())
             zgsz389_lz311 = ()
             # LocalVarDeclaration(name='zgsz390_lz38', typ=NamedType('%bv'), value=Var(name='zPC'))
             # zgsz390_lz38: NamedType('%bv')
-            zgsz390_lz38 = bitvector.from_ruint(16, r.zPC)
+            zgsz390_lz38 = bitvector.from_ruint(16, machine.r.zPC)
             # LocalVarDeclaration(name='zgsz391_lz39', typ=NamedType('%i'), value=Number(number=1))
             # zgsz391_lz39: NamedType('%i')
             zgsz391_lz39 = IntConst_1_1
             # zgsz392_lz310: NamedType('%bv')
             # Operation(args=[Var(name='zgsz390_lz38'), Var(name='zgsz391_lz39')], name='zadd_bits_int', result='zgsz392_lz310')
-            zgsz392_lz310 = supportcode.add_bits_int(zgsz390_lz38, zgsz391_lz39)
+            zgsz392_lz310 = supportcode.add_bits_int(machine, zgsz390_lz38, zgsz391_lz39)
             # Assignment(result='zPC', value=Var(name='zgsz392_lz310'))
-            r.zPC = zgsz392_lz310.touint()
+            machine.r.zPC = zgsz392_lz310.touint()
             # Assignment(result='zgsz388_lz30', value=Unit())
             zgsz388_lz30 = ()
             pc = 30
@@ -1596,7 +1618,7 @@ def zexecute_zAINST(zmergez3var):
             return return_
 Union_zinstr_zAINST.meth_zexecute = zexecute_zAINST
 
-def zexecute_zCINST(zmergez3var):
+def zexecute_zCINST(zmergez3var, machine, ):
     pc = 14
     while 1:
         if pc == 14:
@@ -1605,24 +1627,24 @@ def zexecute_zCINST(zmergez3var):
             zgsz388_lz30 = ()
             # za_lz31: NamedType('%bv1')
             # Assignment(result='za_lz31', value=FieldAccess(element='ztup0', obj=Cast(expr=Var(name='zmergez3var'), variant='zCINST')))
-            za_lz31 = Union_zinstr_zCINST.convert(zmergez3var).ztup0
+            za_lz31 = Union_zinstr_zCINST.convert_ztup0(zmergez3var)
             # zop_lz32: EnumType(name='zarithmetic_op')
             # Assignment(result='zop_lz32', value=FieldAccess(element='ztup1', obj=Cast(expr=Var(name='zmergez3var'), variant='zCINST')))
-            zop_lz32 = Union_zinstr_zCINST.convert(zmergez3var).ztup1
+            zop_lz32 = Union_zinstr_zCINST.convert_ztup1(zmergez3var)
             # zdest_lz33: TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
             # Assignment(result='zdest_lz33', value=FieldAccess(element='ztup2', obj=Cast(expr=Var(name='zmergez3var'), variant='zCINST')))
-            zdest_lz33 = Union_zinstr_zCINST.convert(zmergez3var).ztup2
+            zdest_lz33 = Union_zinstr_zCINST.convert_ztup2(zmergez3var)
             # zjump_lz34: EnumType(name='zjump')
             # Assignment(result='zjump_lz34', value=FieldAccess(element='ztup3', obj=Cast(expr=Var(name='zmergez3var'), variant='zCINST')))
-            zjump_lz34 = Union_zinstr_zCINST.convert(zmergez3var).ztup3
+            zjump_lz34 = Union_zinstr_zCINST.convert_ztup3(zmergez3var)
             # zvalue_lz35: NamedType('%bv16')
             # Operation(args=[Var(name='za_lz31'), Var(name='zop_lz32')], name='zcompute_value', result='zvalue_lz35')
-            zvalue_lz35 = func_zcompute_value(za_lz31, zop_lz32)
+            zvalue_lz35 = func_zcompute_value(machine, za_lz31, zop_lz32)
             # zgsz394_lz36: NamedType('%unit')
             # Operation(args=[Var(name='zdest_lz33'), Var(name='zvalue_lz35')], name='zassign_dest', result='zgsz394_lz36')
-            zgsz394_lz36 = func_zassign_dest(zdest_lz33, zvalue_lz35)
+            zgsz394_lz36 = func_zassign_dest(machine, zdest_lz33, zvalue_lz35)
             # Operation(args=[Var(name='zvalue_lz35'), Var(name='zjump_lz34')], name='zmaybe_jump', result='zgsz388_lz30')
-            zgsz388_lz30 = func_zmaybe_jump(zvalue_lz35, zjump_lz34)
+            zgsz388_lz30 = func_zmaybe_jump(machine, zvalue_lz35, zjump_lz34)
             pc = 30
         if pc == 30:
             # Assignment(result='return', value=Var(name='zgsz388_lz30'))
@@ -1631,7 +1653,7 @@ def zexecute_zCINST(zmergez3var):
             return return_
 Union_zinstr_zCINST.meth_zexecute = zexecute_zCINST
 
-def zexecute_default(zmergez3var):
+def zexecute_default(zmergez3var, machine, ):
     pc = 29
     while 1:
         if pc == 29:
@@ -1644,16 +1666,16 @@ Union_zinstr.meth_zexecute = zexecute_default
 
 
 
-def func_zfetch_decode_execute(zgsz396):
+def func_zfetch_decode_execute(machine, zgsz396):
     pc = 0
     while 1:
         if pc == 0:
             # zinstr_lz30: NamedType('%bv16')
             # Operation(args=[Var(name='zPC')], name='zread_rom', result='zinstr_lz30')
-            zinstr_lz30 = supportcode.my_read_rom(r.zPC)
+            zinstr_lz30 = supportcode.my_read_rom(machine, machine.r.zPC)
             # zx_lz31: UnionType(name='zoption')
             # Operation(args=[Var(name='zinstr_lz30')], name='zdecode', result='zx_lz31')
-            zx_lz31 = func_zdecode(zinstr_lz30)
+            zx_lz31 = func_zdecode(machine, zinstr_lz30)
             # zcont_lz32: NamedType('%bool')
             # Assignment(result='zcont_lz32', value=Var(name='false'))
             zcont_lz32 = False
@@ -1678,7 +1700,7 @@ def func_zfetch_decode_execute(zgsz396):
             zinstrshadowz32_lz35 = Union_zoption_zSomez3z5unionz0zzinstr.convert(zx_lz31)
             # zgsz398_lz36: NamedType('%unit')
             # Operation(args=[Var(name='zinstrshadowz32_lz35')], name='zexecute', result='zgsz398_lz36')
-            zgsz398_lz36 = func_zexecute(zinstrshadowz32_lz35)
+            zgsz398_lz36 = func_zexecute(machine, zinstrshadowz32_lz35)
             # Assignment(result='zcont_lz32', value=Var(name='true'))
             zcont_lz32 = True
             # Assignment(result='zgsz397_lz33', value=Unit())
@@ -1696,7 +1718,7 @@ def func_zfetch_decode_execute(zgsz396):
 
 
 
-def func_zrun(zlimit, zdebug):
+def func_zrun(machine, zlimit, zdebug):
     pc = 0
     while 1:
         if pc == 0:
@@ -1734,7 +1756,7 @@ def func_zrun(zlimit, zdebug):
             if zdebug:
                 # inline pc=15
                 # Operation(args=[Var(name='zcycle_count_lz30'), Var(name='zPC'), Var(name='zA'), Var(name='zD')], name='zprint_debug', result='zgsz3103_lz39')
-                zgsz3103_lz39 = supportcode.my_print_debug(zcycle_count_lz30, r.zPC, r.zA, r.zD)
+                zgsz3103_lz39 = supportcode.my_print_debug(machine, zcycle_count_lz30, machine.r.zPC, machine.r.zA, machine.r.zD)
                 pc = 16
                 continue
             # Assignment(result='zgsz3103_lz39', value=Unit())
@@ -1743,7 +1765,7 @@ def func_zrun(zlimit, zdebug):
         if pc == 16:
             # zgaz331_lz34: NamedType('%bool')
             # Operation(args=[Unit()], name='zfetch_decode_execute', result='zgaz331_lz34')
-            zgaz331_lz34 = func_zfetch_decode_execute(())
+            zgaz331_lz34 = func_zfetch_decode_execute(machine, ())
             # LocalVarDeclaration(name='zgsz3102_lz35', typ=NamedType('%unit'), value=None)
             # zgsz3102_lz35: NamedType('%unit')
             zgsz3102_lz35 = ()
@@ -1756,12 +1778,12 @@ def func_zrun(zlimit, zdebug):
                 # zgaz332_lz37: NamedType('%i64')
                 zgaz332_lz37 = -0xfefe
                 # TemplatedOperation(args=[Var(name='zcycle_count_lz30')], name='@signed', result='zgaz332_lz37', templateparam=Number(number=64))
-                zgaz332_lz37 = supportcode.fast_signed(zcycle_count_lz30, 64)
+                zgaz332_lz37 = supportcode.fast_signed(machine, zcycle_count_lz30, 64)
                 # LocalVarDeclaration(name='zgaz333_lz38', typ=NamedType('%i64'), value=None)
                 # zgaz333_lz38: NamedType('%i64')
                 zgaz333_lz38 = -0xfefe
                 # TemplatedOperation(args=[Var(name='zlimit')], name='@signed', result='zgaz333_lz38', templateparam=Number(number=64))
-                zgaz333_lz38 = supportcode.fast_signed(zlimit, 64)
+                zgaz333_lz38 = supportcode.fast_signed(machine, zlimit, 64)
                 # Operation(args=[Var(name='zgaz332_lz37'), Var(name='zgaz333_lz38')], name='@lt', result='zgaz334_lz36')
                 zgaz334_lz36 = (zgaz332_lz37 < zgaz333_lz38)
                 if zgaz334_lz36:
@@ -1789,34 +1811,34 @@ def func_zrun(zlimit, zdebug):
 
 
 
-def func_zmymain(zlimit, zdebug):
+def func_zmymain(machine, zlimit, zdebug):
     # Assignment(result='zPC', value=BitVectorConstant(constant='0x0000'))
-    r.zPC = r_uint(0x0000)
+    machine.r.zPC = r_uint(0x0000)
     # zgsz3109_lz32: NamedType('%unit')
     # Assignment(result='zgsz3109_lz32', value=Unit())
     zgsz3109_lz32 = ()
     # Assignment(result='zA', value=BitVectorConstant(constant='0x0000'))
-    r.zA = r_uint(0x0000)
+    machine.r.zA = r_uint(0x0000)
     # zgsz3108_lz31: NamedType('%unit')
     # Assignment(result='zgsz3108_lz31', value=Unit())
     zgsz3108_lz31 = ()
     # Assignment(result='zD', value=BitVectorConstant(constant='0x0000'))
-    r.zD = r_uint(0x0000)
+    machine.r.zD = r_uint(0x0000)
     # zgsz3107_lz30: NamedType('%unit')
     # Assignment(result='zgsz3107_lz30', value=Unit())
     zgsz3107_lz30 = ()
     # Operation(args=[Var(name='zlimit'), Var(name='zdebug')], name='zrun', result='return')
-    return_ = func_zrun(zlimit, zdebug)
+    return_ = func_zrun(machine, zlimit, zdebug)
     # End()
     return return_
 
 
 
 
-def func_zmain(zgsz3110):
+def func_zmain(machine, zgsz3110):
     # zgaz335_lz30: NamedType('%unit')
     # Operation(args=[BitVectorConstant(constant='0x0000000000000010'), Var(name='false')], name='zmymain', result='zgaz335_lz30')
-    zgaz335_lz30 = func_zmymain(r_uint(0x0000000000000010), False)
+    zgaz335_lz30 = func_zmymain(machine, r_uint(0x0000000000000010), False)
     # Assignment(result='return', value=Var(name='zgaz335_lz30'))
     return_ = zgaz335_lz30
     # End()

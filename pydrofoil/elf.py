@@ -28,7 +28,7 @@
 import struct
 
 from rpython.rlib.rstruct.runpack import runpack
-from rpython.rlib.rarithmetic import intmask
+from rpython.rlib.rarithmetic import intmask, r_uint
 from rpython.rlib import objectmodel
 
 import binascii
@@ -165,7 +165,7 @@ class SparseMemoryImage(object):
 class ElfHeader(object):
 
     FORMAT64 = "<16sHHIQQQIHHHHHH"
-    FORMAT = "<16sHHIIIIIHHHHHH"
+    FORMAT =   "<16sHHIIIIIHHHHHH"
     NBYTES = struct.calcsize(FORMAT)
     NBYTES64 = struct.calcsize(FORMAT64)
 
@@ -214,23 +214,37 @@ class ElfHeader(object):
         if self.is_64bit:
             format = ElfHeader.FORMAT64
             ehdr_list = unpack(format, data)
+            self.ident = ehdr_list[0]
+            self.type = ehdr_list[1]
+            self.machine = ehdr_list[2]
+            self.version = ehdr_list[3]
+            self.entry = ehdr_list[4]
+            self.phoff = ehdr_list[5]
+            self.shoff = ehdr_list[6]
+            self.flags = ehdr_list[7]
+            self.ehsize = ehdr_list[8]
+            self.phentsize = ehdr_list[9]
+            self.phnum = ehdr_list[10]
+            self.shentsize = ehdr_list[11]
+            self.shnum = ehdr_list[12]
+            self.shstrndx = ehdr_list[13]
         else:
             format = ElfHeader.FORMAT
             ehdr_list = unpack(format, data)
-        self.ident = ehdr_list[0]
-        self.type = ehdr_list[1]
-        self.machine = ehdr_list[2]
-        self.version = ehdr_list[3]
-        self.entry = ehdr_list[4]
-        self.phoff = ehdr_list[5]
-        self.shoff = ehdr_list[6]
-        self.flags = ehdr_list[7]
-        self.ehsize = ehdr_list[8]
-        self.phentsize = ehdr_list[9]
-        self.phnum = ehdr_list[10]
-        self.shentsize = ehdr_list[11]
-        self.shnum = ehdr_list[12]
-        self.shstrndx = ehdr_list[13]
+            self.ident = ehdr_list[0]
+            self.type = ehdr_list[1]
+            self.machine = ehdr_list[2]
+            self.version = ehdr_list[3]
+            self.entry = r_uint(ehdr_list[4])
+            self.phoff = r_uint(ehdr_list[5])
+            self.shoff = r_uint(ehdr_list[6])
+            self.flags = ehdr_list[7]
+            self.ehsize = ehdr_list[8]
+            self.phentsize = ehdr_list[9]
+            self.phnum = ehdr_list[10]
+            self.shentsize = ehdr_list[11]
+            self.shnum = ehdr_list[12]
+            self.shstrndx = ehdr_list[13]
 
     # -----------------------------------------------------------------------
     # to_bytes
@@ -358,13 +372,13 @@ class ElfProgramHeader(object):
         else:
             phdr_list = unpack(self.FORMAT, data)
             self.type = phdr_list[0]
-            self.offset = phdr_list[1]
-            self.vaddr = phdr_list[2]
-            self.paddr = phdr_list[3]
-            self.filesz = phdr_list[4]
-            self.memsz = phdr_list[5]
+            self.offset = r_uint(phdr_list[1])
+            self.vaddr = r_uint(phdr_list[2])
+            self.paddr = r_uint(phdr_list[3])
+            self.filesz = r_uint(phdr_list[4])
+            self.memsz = r_uint(phdr_list[5])
             self.flags = phdr_list[6]
-            self.align = phdr_list[7]
+            self.align = r_uint(phdr_list[7])
 
     # -----------------------------------------------------------------------
     # __str__

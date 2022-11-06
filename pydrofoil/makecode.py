@@ -34,8 +34,8 @@ class Codegen(object):
         self.add_global("bitzero", "r_uint(0)", types.Bit())
         self.add_global("bitone", "r_uint(1)", types.Bit())
         self.add_global("$zupdate_fbits", "supportcode.update_fbits")
-        self.add_global("have_exception", "r.have_exception", types.Bool())
-        self.add_global("throw_location", "r.throw_location", types.String())
+        self.add_global("have_exception", "machine.r.have_exception", types.Bool())
+        self.add_global("throw_location", "machine.r.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("NULL", "None")
         self.declared_types = set()
@@ -139,7 +139,7 @@ class Codegen(object):
 
     def getcode(self):
         res = ["\n".join(self.declarations)]
-        res.append("def model_init():\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
+        res.append("def model_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
         res.append("\n".join(self.code))
         return "\n\n\n".join(res)
 
@@ -155,13 +155,10 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit(support_code)
         c.emit("from pydrofoil import bitvector")
         c.emit("from pydrofoil.bitvector import Integer")
-        c.emit("class Registers(object): pass")
-        c.emit("r = Registers()")
-        c.emit("r.have_exception = False")
-        c.emit("r.throw_location = None")
-        c.emit("r.current_exception = None")
+        c.emit("class Registers(supportcode.RegistersBase): pass")
         c.emit("class Lets(object): pass")
-        c.emit("l = Lets()")
+        c.emit("class Machine(object):")
+        c.emit("    def __init__(self): self.l = Lets(); self.r = Registers(); model_init(self)")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     try:
         ast.make_code(c)
@@ -227,7 +224,7 @@ class __extend__(parse.Union):
                     self.make_eq(codegen, rtyp, typ, pyname)
                     self.make_convert(codegen, rtyp, typ, pyname)
         if self.name == "zexception":
-            codegen.add_global("current_exception", "r.current_exception", uniontyp, self)
+            codegen.add_global("current_exception", "machine.r.current_exception", uniontyp, self)
 
     def make_init(self, codegen, rtyp, typ, pyname):
         with codegen.emit_indent("def __init__(self, a):"):
@@ -273,6 +270,14 @@ class __extend__(parse.Union):
                     codegen.emit("return inst.a")
             with codegen.emit_indent("else:"):
                 codegen.emit("raise TypeError")
+        if type(rtyp) is types.Tuple:
+            for fieldnum, fieldtyp in enumerate(rtyp.elements):
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_ztup%s(inst):" % fieldnum):
+                    with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
+                        codegen.emit("return inst.utup%s" % (fieldnum, ))
+                    with codegen.emit_indent("else:"):
+                        codegen.emit("raise TypeError")
 
 class __extend__(parse.Struct):
     def make_code(self, codegen):
@@ -319,13 +324,13 @@ class __extend__(parse.Register):
     def make_code(self, codegen):
         typ = self.typ.resolve_type(codegen)
         if self.name in codegen.promoted_registers:
-            pyname = "jit.promote(r.%s)" % self.name
+            pyname = "jit.promote(machine.r.%s)" % self.name
         else:
-            pyname = "r.%s" % self.name
+            pyname = "machine.r.%s" % self.name
         codegen.add_global(self.name, pyname, typ, self)
         with codegen.emit_code_type("declarations"):
             codegen.emit("# %s" % (self, ))
-            codegen.emit("r.%s = %s" % (self.name, typ.uninitialized_value))
+            codegen.emit("Registers.%s = %s" % (self.name, typ.uninitialized_value))
 
 
 class __extend__(parse.Function):
@@ -341,7 +346,7 @@ class __extend__(parse.Function):
         if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
             print "making method!", self.name
             with self._scope(codegen, pyname):
-                codegen.emit("return %s.meth_%s(%s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
+                codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, entrycounts, codegen)
             return
         with self._scope(codegen, pyname):
@@ -353,9 +358,14 @@ class __extend__(parse.Function):
         codegen.emit()
 
     @contextmanager
-    def _scope(self, codegen, pyname):
+    def _scope(self, codegen, pyname, method=False):
+        if not method:
+            first = "def %s(machine, %s):" % (pyname, ", ".join(self.args))
+        else:
+            # bit messy, need the self
+            first = "def %s(%s, machine, %s):" % (pyname, self.args[0], ", ".join(self.args[1:]))
         typ = codegen.globalnames[self.name].typ
-        with codegen.enter_scope(self), codegen.emit_indent("def %s(%s):" % (pyname, ", ".join(self.args))):
+        with codegen.enter_scope(self), codegen.emit_indent(first):
             codegen.add_local('return', 'return_', typ.restype, self)
             for i, arg in enumerate(self.args):
                 codegen.add_local(arg, arg, typ.argtype.elements[i], self)
@@ -454,7 +464,7 @@ class __extend__(parse.Function):
             # recompute entrycounts
             local_entrycounts = self._compute_entrycounts(local_blocks)
             pyname = self.name + "_" + (cond.condition.variant if cond else "default")
-            with self._scope(codegen, pyname):
+            with self._scope(codegen, pyname, method=True):
                 self._emit_blocks(local_blocks, codegen, local_entrycounts, startpc=oldpc)
             codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
 
@@ -534,7 +544,7 @@ class __extend__(parse.Function):
 class __extend__(parse.Let):
     def make_code(self, codegen):
         codegen.emit("# %s" % (self, ))
-        codegen.add_global(self.name, "l.%s" % self.name, self.typ.resolve_type(codegen), self)
+        codegen.add_global(self.name, "machine.l.%s" % self.name, self.typ.resolve_type(codegen), self)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
             for i, op in enumerate(self.body):
@@ -591,7 +601,7 @@ class __extend__(parse.Operation):
             codegen.emit("%s = [%s] * %s" % (result, oftyp.uninitialized_value, sargs[0]))
             return
         elif name.startswith("$zinternal_vector_update"):
-            codegen.emit("%s = supportcode.vector_update_inplace(%s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
+            codegen.emit("%s = supportcode.vector_update_inplace(machine, %s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
             return
 
         if not sargs:
@@ -599,7 +609,13 @@ class __extend__(parse.Operation):
         else:
             args = ", ".join(sargs)
         op = codegen.getname(name)
-        codegen.emit("%s = %s(%s)" % (result, op, args))
+        info = codegen.getinfo(name)
+        if isinstance(info.typ, types.Function):
+            # pass machine, even to supportcode functions
+            codegen.emit("%s = %s(machine, %s)" % (result, op, args))
+        else:
+            # constructors etc don't get machine passed (yet)
+            codegen.emit("%s = %s(%s)" % (result, op, args))
 
 class __extend__(parse.ConditionalJump):
     def make_op_code(self, codegen):
@@ -724,7 +740,10 @@ class __extend__(parse.Undefined):
 
 class __extend__(parse.FieldAccess):
     def to_code(self, codegen):
-        objtyp = self.obj.gettyp(codegen)
+        obj = self.obj
+        if isinstance(obj, parse.Cast):
+            return "%s.convert_%s(%s)" % (codegen.getname(obj.variant), self.element, obj.expr.to_code(codegen))
+        objtyp = obj.gettyp(codegen)
         res = "%s.%s" % (self.obj.to_code(codegen), self.element)
         if isinstance(objtyp, types.Struct) and self.element in codegen.promoted_registers:
             return "jit.promote(%s)" % res

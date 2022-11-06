@@ -85,29 +85,29 @@ def test_vector_update():
     for c in gbv, bv:
         x = c(6, 1)
         res = x.update_bit(2, 1)
-        assert res.size == 6
+        assert res.size() == 6
         assert res.toint() == 0b101
 
         x = c(6, 1)
         res = x.update_bit(0, 1)
-        assert res.size == 6
+        assert res.size() == 6
         assert res.toint() == 0b1
 
         x = c(6, 0b11)
         res = x.update_bit(2, 0)
-        assert res.size == 6
+        assert res.size() == 6
         assert res.toint() == 0b011
 
         x = c(6, 0b111)
         res = x.update_bit(1, 0)
-        assert res.size == 6
+        assert res.size() == 6
         assert res.toint() == 0b101
 
 def test_vector_subrange():
     for c in gbv, bv:
         x = c(6, 0b111)
         r = x.subrange(3, 2)
-        assert r.size == 2
+        assert r.size() == 2
         assert r.toint() == 1
         assert isinstance(r, bitvector.SmallBitVector)
 
@@ -136,44 +136,44 @@ def test_vector_shift():
     for c in gbv, bv:
         x = c(8, 0b10001101)
         res = x.lshift(5)
-        assert res.size == 8
+        assert res.size() == 8
         assert res.toint() == 0b10100000
 
         x = c(8, 0b10001101)
         res = x.rshift(5)
-        assert res.size == 8
+        assert res.size() == 8
         assert res.toint() == 0b00000100
 
         x = c(8, 0b10001101)
         res = x.lshift(65)
-        assert res.size == 8
+        assert res.size() == 8
         assert res.toint() == 0
 
         x = c(8, 0b10001101)
         res = x.rshift(65)
-        assert res.size == 8
+        assert res.size() == 8
         assert res.toint() == 0
 
 def test_vector_shift_bits():
     for c in gbv, bv:
         x = c(8, 0b10001101)
         res = x.lshift_bits(c(8, 5))
-        assert res.size == 8
+        assert res.size() == 8
         assert res.toint() == 0b10100000
 
         x = c(8, 0b10001101)
         res = x.rshift_bits(c(16, 5))
-        assert res.size == 8
+        assert res.size() == 8
         assert res.toint() == 0b00000100
 
         x = c(8, 0b10001101)
         res = x.lshift_bits(c(8, 65))
-        assert res.size == 8
+        assert res.size() == 8
         assert res.toint() == 0
 
         x = c(8, 0b10001101)
         res = x.rshift_bits(c(16, 65))
-        assert res.size == 8
+        assert res.size() == 8
         assert res.toint() == 0
 
 def test_bitvector_touint():

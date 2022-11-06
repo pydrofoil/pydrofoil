@@ -14,22 +14,22 @@ import time
 
 
 def write_mem(machine, addr, content): # write a single byte
-    machine.g.mem.write(addr, 1, content)
+    jit.promote(machine.g).mem.write(addr, 1, content)
     return True
 
 def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
     n = n.toint()
     assert n <= 8
     addr = addr.touint()
-    res = machine.g.mem.read(addr, n, executable_flag)
+    res = jit.promote(machine.g).mem.read(addr, n, executable_flag)
     return bitvector.from_ruint(n*8, res)
 
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
     n = n.toint()
     assert n <= 8
     assert addr_size == 64
-    assert data.size == n * 8
-    machine.g.mem.write(addr.touint(), n, data.touint())
+    assert data.size() == n * 8
+    jit.promote(machine.g).mem.write(addr.touint(), n, data.touint())
     return True
 
 # rough memory layout:
@@ -38,7 +38,7 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
 @jit.not_in_trace
 def _observe_addr_range(machine, pc, addr, width, ranges):
     index = _find_index(ranges, addr, width)
-    machine.g._mem_addr_range_next = index
+    jit.promote(machine.g)._mem_addr_range_next = index
 
 @jit.elidable
 def _get_likely_addr_range(g, pc, ranges):
@@ -465,10 +465,13 @@ def run_sail(machine, insn_limit, do_show_times):
     prev_pc = 0
     g = machine.g
 
-    while not machine._reg_zhtif_done and (insn_limit == 0 or step_no < insn_limit):
+    while 1:
         driver.jit_merge_point(pc=machine._reg_zPC, tick=tick,
                 insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
                 do_show_times=do_show_times, machine=machine, g=g)
+        if machine._reg_zhtif_done or not (insn_limit == 0 or step_no < insn_limit):
+            break
+        jit.promote(machine.g)
         if tick:
             if insn_cnt == g.rv_insns_per_tick:
                 insn_cnt = 0
@@ -570,7 +573,7 @@ def get_config_print_platform(machine, _):
 def get_main(outriscv, rv64):
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
-        _virtualizable_ = ['ztlb39', 'ztlb48', 'zminstret', 'zPC', 'znextPC', 'zmstatus', 'zmip', 'zmie', 'zsatp']
+        _virtualizable_ = ['_reg_ztlb39', '_reg_ztlb48', '_reg_zminstret', '_reg_zPC', '_reg_znextPC', '_reg_zmstatus', '_reg_zmip', '_reg_zmie', '_reg_zsatp', '_zeg_zx1']
         def __init__(self):
             outriscv.Machine.__init__(self)
             self.g = Globals(rv64=rv64)

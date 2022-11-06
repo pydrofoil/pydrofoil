@@ -107,7 +107,7 @@ def sub_bits_int(machine, a, b):
     return a.sub_int(b)
 
 def length(machine, gbv):
-    return Integer.fromint(gbv.size)
+    return gbv.size_as_int()
 
 def fast_signed(machine, op, n):
     if n == 64:

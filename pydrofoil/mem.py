@@ -54,8 +54,10 @@ class MemBase(object):
             value = value >> 8
         assert not value
 
-    def mark_page_executable(self, start_addr):
-        pass
+# every word starts out as NORMAL. can transition to IMMUTABLE when used as
+# executable memory, which does not need a version change. transitioning from
+# NORMAL to MUTABLE does not need a version change either. only a transition
+# IMMUTABLE to MUTABLE needs one.
 
 MEM_STATUS_IMMUTABLE = 'i'
 MEM_STATUS_NORMAL = 'n'
@@ -121,9 +123,11 @@ class FlatMemory(MemBase):
         if executable_flag:
             jit.promote(start_addr)
         mem_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+        if executable_flag:
+            self.mark_word_immutable(start_addr)
 
         if (executable_flag and
-                self._get_status_page(mem_offset, self.version) == MEM_STATUS_IMMUTABLE):
+                self._get_status_word(mem_offset, self.version) == MEM_STATUS_IMMUTABLE):
             data = self._immutable_read(mem_offset, self.version)
         else:
             data = self.mem[mem_offset]
@@ -140,7 +144,7 @@ class FlatMemory(MemBase):
         return self.mem[mem_offset]
 
     @jit.elidable_promote('all')
-    def _get_status_page(self, mem_offset, version):
+    def _get_status_word(self, mem_offset, version):
         assert version is self.version
         return self.status[mem_offset]
 
@@ -164,26 +168,18 @@ class FlatMemory(MemBase):
         self.mem[mem_offset] = value
 
     def _invalidate(self, mem_offset):
-        print "invalidating", mem_offset
-        pagestart = mem_offset & ~self.PAGE_MASK
         self.version = Version()
-        for bo in range(pagestart, pagestart + self.PAGE_MASK + 1):
-            self.status[bo] = MEM_STATUS_MUTABLE
+        print "invalidating", mem_offset
+        self.status[mem_offset] = MEM_STATUS_MUTABLE
 
-    def mark_page_executable(self, addr):
-        jit.promote(addr)
+    @jit.not_in_trace
+    def mark_word_immutable(self, addr):
         mem_offset, inword_addr, mask = self._split_addr(addr, 1)
-        status = self._get_status_page(mem_offset, self.version)
+        status = self._get_status_word(mem_offset, self.version)
         if status != MEM_STATUS_NORMAL:
             return
-        pagestart = mem_offset & ~self.PAGE_MASK
-        self._mark_page_executable(pagestart)
-
-    def _mark_page_executable(self, pagestart):
-        self.version = Version()
-        for mem_offset in range(pagestart, pagestart + self.PAGE_MASK + 1):
-            assert self.status[mem_offset] != MEM_STATUS_MUTABLE
-            self.status[mem_offset] = MEM_STATUS_IMMUTABLE
+        #print "mark_word_immutable", mem_offset
+        self.status[mem_offset] = MEM_STATUS_IMMUTABLE
 
 
 class BlockMemory(MemBase):
@@ -309,16 +305,6 @@ class SplitMemory(MemBase):
         if self.check_mem2(start_addr):
             return self.mem2._aligned_write(start_addr - self.address_base2, num_bytes, value)
         raise ValueError
-
-    def mark_page_executable(self, start_addr):
-        if self.address_base1:
-            if self.check_mem1(start_addr):
-                return self.mem1.mark_page_executable(start_addr - self.address_base1)
-        else:
-            if self.check_mem1_fast(start_addr):
-                return self.mem1.mark_page_executable(start_addr)
-        if self.check_mem2(start_addr):
-            return self.mem2.mark_page_executable(start_addr - self.address_base2)
 
     def close(self):
         self.mem1.close()

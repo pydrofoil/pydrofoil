@@ -6,6 +6,7 @@ from pydrofoil import mem
 from rpython.rlib.rarithmetic import r_uint, intmask
 
 elffile = os.path.join(os.path.dirname(__file__), "riscv/input/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
+elffile32 = os.path.join(os.path.dirname(__file__), "riscv/input/rv32ui-p-addi.elf")
 dhryelffile = os.path.join(os.path.dirname(__file__), "riscv/input/dhrystone.riscv")
 
 class TBM(mem.BlockMemory):
@@ -51,6 +52,16 @@ def test_elf_reader():
     assert m.read(0x0000000080000D42, 2) == 0x4e4c
 
 
+def test_elf_reader32():
+    from pydrofoil import elf
+    m = mem.BlockMemory()
+    with open(elffile32, "rb") as f:
+        entrypoint = elf.elf_read_process_image(m, f)
+    assert entrypoint == 0x80000000
+    # used to be wrong in the segment reader
+    assert m.read(0x0000000080000000, 2) == 0x6f
+
+
 def test_invalidation_logic():
     m = mem.FlatMemory()
     m.write(0, 8, 0x0a1b2c3d4e5f6789)
@@ -59,42 +70,51 @@ def test_invalidation_logic():
     assert set(m.status) == {mem.MEM_STATUS_NORMAL}
     v1 = m.version
 
-    m.mark_page_executable(0)
+    assert m._aligned_read(0, 8, True) == 0x0a1b2c3d4e5f6789
     v2 = m.version
-    assert v1 is not v2
-    assert m.status[:512] == [mem.MEM_STATUS_IMMUTABLE] * 512
-    assert set(m.status[512:]) == {mem.MEM_STATUS_NORMAL}
+    # going from normal -> immutable does not change version
+    assert v1 is v2
+    assert m.status[0] == mem.MEM_STATUS_IMMUTABLE
+    assert set(m.status[1:]) == {mem.MEM_STATUS_NORMAL}
 
-    m.mark_page_executable(1)
+    assert m._aligned_read(8, 8, True) == 0xdeaddeaddeaddead
     v3 = m.version
     assert v2 is v3
-    assert m.status[:512] == [mem.MEM_STATUS_IMMUTABLE] * 512
-    assert set(m.status[512:]) == {mem.MEM_STATUS_NORMAL}
+    assert m.status[:2] == [mem.MEM_STATUS_IMMUTABLE] * 2
+    assert set(m.status[2:]) == {mem.MEM_STATUS_NORMAL}
 
     m.write(8, 8, 0xdeaddeaddeaddead) # same value!
     v3 = m.version
     assert v2 is v3
-    assert m.status[:512] == [mem.MEM_STATUS_IMMUTABLE] * 512
-    assert set(m.status[512:]) == {mem.MEM_STATUS_NORMAL}
+    assert m.status[:2] == [mem.MEM_STATUS_IMMUTABLE] * 2
+    assert set(m.status[2:]) == {mem.MEM_STATUS_NORMAL}
 
     for val in [1, 2, 3, 4]:
         m.write(8, 8, val) # different value!
-        assert m.status[:512] == [mem.MEM_STATUS_MUTABLE] * 512
-        assert set(m.status[512:]) == {mem.MEM_STATUS_NORMAL}
+        assert m.status[:2] == [mem.MEM_STATUS_IMMUTABLE, mem.MEM_STATUS_MUTABLE]
+        assert set(m.status[2:]) == {mem.MEM_STATUS_NORMAL}
     v4 = m.version
     assert v4 is not v3
 
-    m.mark_page_executable(0) # re-marking as executable does nothing
-    assert m.status[:512] == [mem.MEM_STATUS_MUTABLE] * 512
-    assert set(m.status[512:]) == {mem.MEM_STATUS_NORMAL}
+    # re-reading as executable does not change the status
+    assert m._aligned_read(8, 8, True) == 4
+    assert m.status[:2] == [mem.MEM_STATUS_IMMUTABLE, mem.MEM_STATUS_MUTABLE]
+    assert set(m.status[2:]) == {mem.MEM_STATUS_NORMAL}
     v5 = m.version
     assert v4 is v5
+
+    # writing to a normal word does not change the status or the version
+    m._aligned_write(16, 8, 0x17)
+    assert m.status[:2] == [mem.MEM_STATUS_IMMUTABLE, mem.MEM_STATUS_MUTABLE]
+    assert set(m.status[2:]) == {mem.MEM_STATUS_NORMAL}
+    v6 = m.version
+    assert v4 is v6
+
 
 def test_immutable_reads():
     m = mem.FlatMemory()
     m.write(0, 8, 0x0a1b2c3d4e5f6789)
     m.write(8, 8, 0xdeaddeaddeaddead)
-    m.mark_page_executable(0)
 
     assert m.read(0, 8, True) == 0x0a1b2c3d4e5f6789
     assert m.read(8, 8, True) == 0xdeaddeaddeaddead
@@ -105,6 +125,13 @@ def test_immutable_reads():
         return offset
     m._immutable_read = _immutable_read
 
+    # reading anything as executable marks is immutable
     for i in range(512):
         assert m.read(i * 8, 8, True) == i
     assert read_offsets == range(512)
+
+    # but not if its mutable
+    del read_offsets[:]
+    m.write(0, 8, 17)
+    assert m.read(0, 8, True) == 17
+    assert read_offsets == []

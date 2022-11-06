@@ -13,6 +13,12 @@ class __extend__(pairtype(types.FixedBitVector, types.GenericBitVector)):
         assert from_.width <= 64
         return "bitvector.from_ruint(%s, %s)" % (from_.width, ast.to_code(codegen))
 
+class __extend__(pairtype(types.FixedBitVector, types.FixedBitVector)):
+    def convert((from_, to), ast, codegen):
+        if from_ is to:
+            return ast.to_code(codegen)
+        return "supportcode.raise_type_error()" # I can't find what sail does here!
+
 class __extend__(pairtype(types.SmallBitVector, types.GenericBitVector)):
     def convert((from_, to), ast, codegen):
         arg = ast.to_code(codegen)

@@ -48,7 +48,7 @@ class __extend__(types.FixedBitVector):
     def make_op_code_special_bvaccess(self, ast, (sarg1, sarg2), argtyps):
         if sarg2 == "0":
             return "r_uint(1) & %s" % sarg1
-        return "r_uint(1) & supportcode.safe_rshift(%s, r_uint(%s))" % (sarg1, sarg2)
+        return "r_uint(1) & supportcode.safe_rshift(machine, %s, r_uint(%s))" % (sarg1, sarg2)
 
     def make_op_code_special_concat(self, ast, (sarg1, sarg2), (argtyp1, argtyp2)):
         return "(%s << %s) | %s" % (sarg1, argtyp2.width, sarg2)
@@ -63,7 +63,7 @@ class __extend__(types.FixedBitVector):
         if num.number == 0:
             s = arg.to_code(codegen)
         else:
-            s = "supportcode.safe_rshift(%s, %s)" % (arg.to_code(codegen), num.number)
+            s = "supportcode.safe_rshift(machine, %s, %s)" % (arg.to_code(codegen), num.number)
         return ruint_mask(s, width)
 
     def make_op_code_templated_signed(self, ast, codegen):
@@ -73,7 +73,7 @@ class __extend__(types.FixedBitVector):
         width = ast.templateparam.number
         restyp = codegen.gettyp(ast.result)
         assert isinstance(restyp, types.MachineInt) and width == 64
-        return "supportcode.fast_signed(%s, %s)" % (arg.to_code(codegen), self.width)
+        return "supportcode.fast_signed(machine, %s, %s)" % (arg.to_code(codegen), self.width)
 
     def make_op_code_templated_unsigned(self, ast, codegen):
         arg, = ast.args
@@ -99,7 +99,7 @@ class __extend__(types.SmallBitVector):
         if num.number == 0:
             s = "%s.touint()" % (sarg, )
         else:
-            s = "supportcode.safe_rshift(%s.touint(), %s)" % (sarg, num.number)
+            s = "supportcode.safe_rshift(machine, %s.touint(), %s)" % (sarg, num.number)
         return ruint_mask(s, width)
 
 class __extend__(types.GenericBitVector):

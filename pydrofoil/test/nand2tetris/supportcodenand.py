@@ -26,7 +26,7 @@ def load_rom(fn):
         i += 1
     MEM.rom = l[:]
 
-def my_read_rom(addr):
+def my_read_rom(machine, addr):
     jit.promote(addr)
     if addr < len(MEM.rom):
         return rarithmetic.r_uint(MEM.rom[addr])
@@ -34,10 +34,10 @@ def my_read_rom(addr):
 
 MEM.mem = [rarithmetic.r_uint(0)] * 65536
 
-def my_read_mem(addr):
+def my_read_mem(machine, addr):
     return MEM.mem[addr]
-def my_write_mem(addr, val):
+def my_write_mem(machine, addr, val):
     MEM.mem[addr] = val
-def my_print_debug(cycle_count, pc, a, d):
+def my_print_debug(machine, cycle_count, pc, a, d):
     print "PC: %s, A: %s, D: %s, cycle count: %s" % (pc, a, d, cycle_count)
 

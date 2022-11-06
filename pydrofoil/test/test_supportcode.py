@@ -19,38 +19,40 @@ def si(val):
 def bi(val):
     return bitvector.BigInteger(rbigint.fromlong(val))
 
+machine = "dummy"
+
 def test_fast_signed():
-    assert supportcode.fast_signed(0b0, 1) == 0
-    assert supportcode.fast_signed(0b1, 1) == -1
-    assert supportcode.fast_signed(0b0, 2) == 0
-    assert supportcode.fast_signed(0b1, 2) == 1
-    assert supportcode.fast_signed(0b10, 2) == -2
-    assert supportcode.fast_signed(0b11, 2) == -1
+    assert supportcode.fast_signed(machine, 0b0, 1) == 0
+    assert supportcode.fast_signed(machine, 0b1, 1) == -1
+    assert supportcode.fast_signed(machine, 0b0, 2) == 0
+    assert supportcode.fast_signed(machine, 0b1, 2) == 1
+    assert supportcode.fast_signed(machine, 0b10, 2) == -2
+    assert supportcode.fast_signed(machine, 0b11, 2) == -1
 
 def test_signed():
     for c in gbv, bv:
-        assert supportcode.sail_signed(c(1, 0b0)).toint() == 0
-        assert supportcode.sail_signed(c(1, 0b1)).toint() == -1
-        assert supportcode.sail_signed(c(2, 0b0)).toint() == 0
-        assert supportcode.sail_signed(c(2, 0b1)).toint() == 1
-        assert supportcode.sail_signed(c(2, 0b10)).toint() == -2
-        assert supportcode.sail_signed(c(2, 0b11)).toint() == -1
-        assert supportcode.sail_signed(c(64, 0xffffffffffffffff)).toint() == -1
-        assert supportcode.sail_signed(c(64, 0x1)).toint() == 1
+        assert supportcode.sail_signed(machine, c(1, 0b0)).toint() == 0
+        assert supportcode.sail_signed(machine, c(1, 0b1)).toint() == -1
+        assert supportcode.sail_signed(machine, c(2, 0b0)).toint() == 0
+        assert supportcode.sail_signed(machine, c(2, 0b1)).toint() == 1
+        assert supportcode.sail_signed(machine, c(2, 0b10)).toint() == -2
+        assert supportcode.sail_signed(machine, c(2, 0b11)).toint() == -1
+        assert supportcode.sail_signed(machine, c(64, 0xffffffffffffffff)).toint() == -1
+        assert supportcode.sail_signed(machine, c(64, 0x1)).toint() == 1
 
 def test_sign_extend():
     for c in gbv, bv:
-        assert supportcode.sign_extend(c(1, 0b0), Integer.fromint(2)).toint() == 0
-        assert supportcode.sign_extend(c(1, 0b1), Integer.fromint(2)).toint() == 0b11
-        assert supportcode.sign_extend(c(2, 0b00), Integer.fromint(4)).toint() == 0
-        assert supportcode.sign_extend(c(2, 0b01), Integer.fromint(4)).toint() == 1
-        assert supportcode.sign_extend(c(2, 0b10), Integer.fromint(4)).toint() == 0b1110
-        assert supportcode.sign_extend(c(2, 0b11), Integer.fromint(4)).toint() == 0b1111
+        assert supportcode.sign_extend(machine, c(1, 0b0), Integer.fromint(2)).toint() == 0
+        assert supportcode.sign_extend(machine, c(1, 0b1), Integer.fromint(2)).toint() == 0b11
+        assert supportcode.sign_extend(machine, c(2, 0b00), Integer.fromint(4)).toint() == 0
+        assert supportcode.sign_extend(machine, c(2, 0b01), Integer.fromint(4)).toint() == 1
+        assert supportcode.sign_extend(machine, c(2, 0b10), Integer.fromint(4)).toint() == 0b1110
+        assert supportcode.sign_extend(machine, c(2, 0b11), Integer.fromint(4)).toint() == 0b1111
 
-        assert supportcode.sign_extend(c(2, 0b00), Integer.fromint(100)).tobigint().tolong() == 0
-        assert supportcode.sign_extend(c(2, 0b01), Integer.fromint(100)).tobigint().tolong() == 1
-        assert supportcode.sign_extend(c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111110
-        assert supportcode.sign_extend(c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+        assert supportcode.sign_extend(machine, c(2, 0b00), Integer.fromint(100)).tobigint().tolong() == 0
+        assert supportcode.sign_extend(machine, c(2, 0b01), Integer.fromint(100)).tobigint().tolong() == 1
+        assert supportcode.sign_extend(machine, c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111110
+        assert supportcode.sign_extend(machine, c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
 
 def test_unsigned():
@@ -64,13 +66,13 @@ def test_unsigned():
 
 def test_get_slice_int():
     for c in si, bi:
-        assert supportcode.get_slice_int(Integer.fromint(8), c(0b011010010000), Integer.fromint(4)).tolong() == 0b01101001
-        assert supportcode.get_slice_int(Integer.fromint(8), c(-1), Integer.fromint(4)).tolong() == 0b11111111
-        assert supportcode.get_slice_int(Integer.fromint(64), c(-1), Integer.fromint(5)).tolong() == 0xffffffffffffffff
-        assert supportcode.get_slice_int(Integer.fromint(100), c(-1), Integer.fromint(11)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
-        assert supportcode.get_slice_int(Integer.fromint(8), c(-1), Integer.fromint(1000)).tolong() == 0b11111111
-        assert supportcode.get_slice_int(Integer.fromint(64), c(-1), Integer.fromint(1000)).tolong() == 0xffffffffffffffff
-        assert supportcode.get_slice_int(Integer.fromint(100), c(-1), Integer.fromint(1000)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+        assert supportcode.get_slice_int(machine, Integer.fromint(8), c(0b011010010000), Integer.fromint(4)).tolong() == 0b01101001
+        assert supportcode.get_slice_int(machine, Integer.fromint(8), c(-1), Integer.fromint(4)).tolong() == 0b11111111
+        assert supportcode.get_slice_int(machine, Integer.fromint(64), c(-1), Integer.fromint(5)).tolong() == 0xffffffffffffffff
+        assert supportcode.get_slice_int(machine, Integer.fromint(100), c(-1), Integer.fromint(11)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+        assert supportcode.get_slice_int(machine, Integer.fromint(8), c(-1), Integer.fromint(1000)).tolong() == 0b11111111
+        assert supportcode.get_slice_int(machine, Integer.fromint(64), c(-1), Integer.fromint(1000)).tolong() == 0xffffffffffffffff
+        assert supportcode.get_slice_int(machine, Integer.fromint(100), c(-1), Integer.fromint(1000)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
 
 def test_vector_access():

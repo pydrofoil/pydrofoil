@@ -270,6 +270,14 @@ class __extend__(parse.Union):
                     codegen.emit("return inst.a")
             with codegen.emit_indent("else:"):
                 codegen.emit("raise TypeError")
+        if type(rtyp) is types.Tuple:
+            for fieldnum, fieldtyp in enumerate(rtyp.elements):
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_ztup%s(inst):" % fieldnum):
+                    with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
+                        codegen.emit("return inst.utup%s" % (fieldnum, ))
+                    with codegen.emit_indent("else:"):
+                        codegen.emit("raise TypeError")
 
 class __extend__(parse.Struct):
     def make_code(self, codegen):
@@ -732,7 +740,10 @@ class __extend__(parse.Undefined):
 
 class __extend__(parse.FieldAccess):
     def to_code(self, codegen):
-        objtyp = self.obj.gettyp(codegen)
+        obj = self.obj
+        if isinstance(obj, parse.Cast):
+            return "%s.convert_%s(%s)" % (codegen.getname(obj.variant), self.element, obj.expr.to_code(codegen))
+        objtyp = obj.gettyp(codegen)
         res = "%s.%s" % (self.obj.to_code(codegen), self.element)
         if isinstance(objtyp, types.Struct) and self.element in codegen.promoted_registers:
             return "jit.promote(%s)" % res

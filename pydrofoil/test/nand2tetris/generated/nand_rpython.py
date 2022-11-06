@@ -82,6 +82,30 @@ class Union_zinstr_zCINST(Union_zinstr):
             return res
         else:
             raise TypeError
+    @staticmethod
+    def convert_ztup0(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.utup0
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztup1(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.utup1
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztup2(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.utup2
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztup3(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.utup3
+        else:
+            raise TypeError
 
 class Union_zoption(object):
     def eq(self, other):
@@ -1603,16 +1627,16 @@ def zexecute_zCINST(zmergez3var, machine, ):
             zgsz388_lz30 = ()
             # za_lz31: NamedType('%bv1')
             # Assignment(result='za_lz31', value=FieldAccess(element='ztup0', obj=Cast(expr=Var(name='zmergez3var'), variant='zCINST')))
-            za_lz31 = Union_zinstr_zCINST.convert(zmergez3var).ztup0
+            za_lz31 = Union_zinstr_zCINST.convert_ztup0(zmergez3var)
             # zop_lz32: EnumType(name='zarithmetic_op')
             # Assignment(result='zop_lz32', value=FieldAccess(element='ztup1', obj=Cast(expr=Var(name='zmergez3var'), variant='zCINST')))
-            zop_lz32 = Union_zinstr_zCINST.convert(zmergez3var).ztup1
+            zop_lz32 = Union_zinstr_zCINST.convert_ztup1(zmergez3var)
             # zdest_lz33: TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
             # Assignment(result='zdest_lz33', value=FieldAccess(element='ztup2', obj=Cast(expr=Var(name='zmergez3var'), variant='zCINST')))
-            zdest_lz33 = Union_zinstr_zCINST.convert(zmergez3var).ztup2
+            zdest_lz33 = Union_zinstr_zCINST.convert_ztup2(zmergez3var)
             # zjump_lz34: EnumType(name='zjump')
             # Assignment(result='zjump_lz34', value=FieldAccess(element='ztup3', obj=Cast(expr=Var(name='zmergez3var'), variant='zCINST')))
-            zjump_lz34 = Union_zinstr_zCINST.convert(zmergez3var).ztup3
+            zjump_lz34 = Union_zinstr_zCINST.convert_ztup3(zmergez3var)
             # zvalue_lz35: NamedType('%bv16')
             # Operation(args=[Var(name='za_lz31'), Var(name='zop_lz32')], name='zcompute_value', result='zvalue_lz35')
             zvalue_lz35 = func_zcompute_value(machine, za_lz31, zop_lz32)

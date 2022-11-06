@@ -217,8 +217,10 @@ def reg_deref(machine, s):
 def not_(machine, b):
     return not b
 
-def sail_assert(machine, *args):
-    pass
+def sail_assert(cond, st):
+    if not objectmodel.we_are_translated() and not cond:
+        import pdb; pdb.set_trace()
+    assert cond, st
 
 def eq_bool(machine, a, b):
     return a == b

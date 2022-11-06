@@ -325,7 +325,6 @@ def parse_args(argv, shortname, longname="", want_arg=True):
 
 
 class RegistersBase(object):
-    def __init__(self):
-        self.have_exception = False
-        self.throw_location = None
-        self.current_exception = None
+    have_exception = False
+    throw_location = None
+    current_exception = None

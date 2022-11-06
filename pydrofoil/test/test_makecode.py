@@ -249,7 +249,7 @@ x = 33
 in g()
 Fall through OK
 """
-    assert machine.r.have_exception
+    assert machine.have_exception
 
 @pytest.mark.xfail
 def test_exceptions2(capsys):
@@ -289,7 +289,7 @@ ok
 ok
 R = 3
 """
-    assert machine.r.have_exception
+    assert machine.have_exception
 
 def test_full_nand():
     import py
@@ -308,9 +308,9 @@ def test_full_nand():
     zmymain = out.func_zmymain
     machine = out.Machine()
     zmymain(machine, 10, True)
-    assert machine.r.zD == 5
-    assert machine.r.zA == 0
-    assert machine.r.zPC == 11
+    assert machine._reg_zD == 5
+    assert machine._reg_zA == 0
+    assert machine._reg_zPC == 11
     supportcodenand.load_rom(sumrom)
     zmymain(out.Machine(), 2000, True)
     assert supportcodenand.my_read_mem(machine, 17) == 5050

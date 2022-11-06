@@ -34,8 +34,8 @@ class Codegen(object):
         self.add_global("bitzero", "r_uint(0)", types.Bit())
         self.add_global("bitone", "r_uint(1)", types.Bit())
         self.add_global("$zupdate_fbits", "supportcode.update_fbits")
-        self.add_global("have_exception", "machine.r.have_exception", types.Bool())
-        self.add_global("throw_location", "machine.r.throw_location", types.String())
+        self.add_global("have_exception", "machine.have_exception", types.Bool())
+        self.add_global("throw_location", "machine.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("NULL", "None")
         self.declared_types = set()
@@ -155,10 +155,9 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit(support_code)
         c.emit("from pydrofoil import bitvector")
         c.emit("from pydrofoil.bitvector import Integer")
-        c.emit("class Registers(supportcode.RegistersBase): pass")
         c.emit("class Lets(object): pass")
-        c.emit("class Machine(object):")
-        c.emit("    def __init__(self): self.l = Lets(); self.r = Registers(); model_init(self)")
+        c.emit("class Machine(supportcode.RegistersBase):")
+        c.emit("    def __init__(self): self.l = Lets(); model_init(self)")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     try:
         ast.make_code(c)
@@ -235,7 +234,7 @@ class __extend__(parse.Union):
                             codegen.emit("a = %s" % (codegen.getname(enum_value), ))
                         codegen.emit("%s.singleton = %s()" % (subclassname, subclassname))
         if self.name == "zexception":
-            codegen.add_global("current_exception", "machine.r.current_exception", uniontyp, self)
+            codegen.add_global("current_exception", "machine.current_exception", uniontyp, self)
 
     def make_init(self, codegen, rtyp, typ, pyname):
         if type(rtyp) is types.Enum:
@@ -348,15 +347,16 @@ class __extend__(parse.GlobalVal):
 
 class __extend__(parse.Register):
     def make_code(self, codegen):
+        self.pyname = "_reg_%s" % (self.name, )
         typ = self.typ.resolve_type(codegen)
         if self.name in codegen.promoted_registers:
-            pyname = "jit.promote(machine.r.%s)" % self.name
+            pyname = "jit.promote(machine.%s)" % self.pyname
         else:
-            pyname = "machine.r.%s" % self.name
+            pyname = "machine.%s" % self.pyname
         codegen.add_global(self.name, pyname, typ, self)
         with codegen.emit_code_type("declarations"):
             codegen.emit("# %s" % (self, ))
-            codegen.emit("Registers.%s = %s" % (self.name, typ.uninitialized_value))
+            codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
 
 
 class __extend__(parse.Function):

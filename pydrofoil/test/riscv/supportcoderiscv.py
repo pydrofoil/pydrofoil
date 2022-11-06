@@ -61,7 +61,7 @@ def promote_addr_region(machine, addr, width, offset, executable_flag):
         return
     if executable_flag:
         return
-    pc = machine.r.zPC
+    pc = machine._reg_zPC
     _observe_addr_range(machine, pc, addr, width, g._mem_ranges)
     range_index = _get_likely_addr_range(g, pc, g._mem_ranges)
     if range_index < 0 or width > 8:
@@ -251,7 +251,7 @@ def init_sail(machine, elf_entry):
     init_sail_reset_vector(machine, elf_entry)
     if not machine.g.rv_enable_rvc:
         # this is probably unnecessary now; remove
-        machine.set_Misa_C(machine.r.zmisa, 0)
+        machine.set_Misa_C(machine._reg_zmisa, 0)
 
 def is_32bit_model(machine):
     return not machine.g.rv64
@@ -298,7 +298,7 @@ def init_sail_reset_vector(machine, entry):
         machine.g.rv_rom_size = rv_rom_size
 
     # boot at reset vector
-    machine.r.zPC = r_uint(rv_rom_base)
+    machine._reg_zPC = r_uint(rv_rom_base)
 
 def parse_dump_file(fn):
     with open(fn) as f:
@@ -450,12 +450,11 @@ def get_printable_location(pc, do_show_times, insn_limit, tick, g):
 driver = JitDriver(
     get_printable_location=get_printable_location,
     greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'g'],
-    reds=['step_no', 'insn_cnt', 'r', 'machine'],
-    virtualizables=['r'])
+    reds=['step_no', 'insn_cnt', 'machine'],
+    virtualizables=['machine'])
 
 
 def run_sail(machine, insn_limit, do_show_times):
-    r = machine.r
     step_no = 0
     insn_cnt = 0
     tick = False
@@ -464,37 +463,38 @@ def run_sail(machine, insn_limit, do_show_times):
 
     machine.g.interval_start = machine.g.total_start = time.time()
     prev_pc = 0
+    g = machine.g
 
-    while not r.zhtif_done and (insn_limit == 0 or step_no < insn_limit):
-        driver.jit_merge_point(pc=r.zPC, tick=tick,
-                insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r,
-                do_show_times=do_show_times, machine=machine, g=machine.g)
+    while not machine._reg_zhtif_done and (insn_limit == 0 or step_no < insn_limit):
+        driver.jit_merge_point(pc=machine._reg_zPC, tick=tick,
+                insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
+                do_show_times=do_show_times, machine=machine, g=g)
         if tick:
-            if insn_cnt == machine.g.rv_insns_per_tick:
+            if insn_cnt == g.rv_insns_per_tick:
                 insn_cnt = 0
                 machine.tick_clock()
                 machine.tick_platform()
             else:
                 assert do_show_times and (step_no & 0xfffff) == 0
                 curr = time.time()
-                print "kips:", 0x100000 / 1000. / (curr - machine.g.interval_start)
-                machine.g.interval_start = curr
+                print "kips:", 0x100000 / 1000. / (curr - g.interval_start)
+                g.interval_start = curr
             tick = False
             continue
         # run a Sail step
-        prev_pc = r.zPC
+        prev_pc = machine._reg_zPC
         stepped = machine.step(Integer.fromint(step_no))
-        if r.have_exception:
+        if machine.have_exception:
             print "ended with exception!"
-            print r.current_exception
-            print "from", r.throw_location
+            print machine.current_exception
+            print "from", machine.throw_location
             raise ValueError
-        rv_insns_per_tick = machine.g.rv_insns_per_tick
+        rv_insns_per_tick = g.rv_insns_per_tick
         if stepped:
             step_no += 1
             if rv_insns_per_tick:
                 insn_cnt += 1
-        if machine.g.config_print_instr:
+        if g.config_print_instr:
             # there's an extra newline in the C emulator that I don't know
             # where from, add it here to ease diffing
             print
@@ -503,17 +503,17 @@ def run_sail(machine, insn_limit, do_show_times):
                 rv_insns_per_tick and insn_cnt == rv_insns_per_tick)
         if tick_cond:
             tick = True
-        elif prev_pc >= r.zPC: # backward jump
-            driver.can_enter_jit(pc=r.zPC, tick=tick,
-                    insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt, r=r,
-                    do_show_times=do_show_times, machine=machine, g=machine.g)
+        elif prev_pc >= machine._reg_zPC: # backward jump
+            driver.can_enter_jit(pc=machine._reg_zPC, tick=tick,
+                    insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
+                    do_show_times=do_show_times, machine=machine, g=g)
     # loop end
 
     interval_end = time.time()
-    if r.zhtif_exit_code == 0:
+    if machine._reg_zhtif_exit_code == 0:
         print "SUCCESS"
     else:
-        print "FAILURE", r.zhtif_exit_code
+        print "FAILURE", machine._reg_zhtif_exit_code
         if not we_are_translated():
             raise ValueError
     print "Instructions: %s" % (step_no, )
@@ -570,6 +570,7 @@ def get_config_print_platform(machine, _):
 def get_main(outriscv, rv64):
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
+        _virtualizable_ = ['ztlb39', 'ztlb48', 'zminstret', 'zPC', 'znextPC', 'zmstatus', 'zmip', 'zmie', 'zsatp']
         def __init__(self):
             outriscv.Machine.__init__(self)
             self.g = Globals(rv64=rv64)
@@ -596,5 +597,4 @@ def get_main(outriscv, rv64):
         return main(Machine, argv)
     from rpython.rlib import jit
 
-    outriscv.Registers._virtualizable_ = ['ztlb39', 'ztlb48', 'zminstret', 'zPC', 'znextPC', 'zmstatus', 'zmip', 'zmie', 'zsatp']
     return bound_main

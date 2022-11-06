@@ -34,6 +34,7 @@ class Tuple_2(object): # TupleType(elements=[NamedType('%bv1'), EnumType(name='z
 class Union_zinstr(object):
     def eq(self, other):
         return False
+Union_zinstr.singleton = Union_zinstr()
 
 class Union_zinstr_zAINST(Union_zinstr):
     a = r_uint(0)
@@ -110,6 +111,7 @@ class Union_zinstr_zCINST(Union_zinstr):
 class Union_zoption(object):
     def eq(self, other):
         return False
+Union_zoption.singleton = Union_zoption()
 
 class Union_zoption_zNone(Union_zoption):
     def __init__(self, a):
@@ -124,9 +126,10 @@ class Union_zoption_zNone(Union_zoption):
             return ()
         else:
             raise TypeError
+Union_zoption_zNone.singleton = Union_zoption_zNone(())
 
 class Union_zoption_zSomez3z5unionz0zzinstr(Union_zoption):
-    a = Union_zinstr()
+    a = Union_zinstr.singleton
     def __init__(self, a):
         self.a = a # UnionType(name='zinstr')
     def eq(self, other):
@@ -1108,7 +1111,7 @@ def func_zdecode(machine, zmergez3var):
         if pc == 0:
             # LocalVarDeclaration(name='zgsz344_lz30', typ=UnionType(name='zoption'), value=None)
             # zgsz344_lz30: UnionType(name='zoption')
-            zgsz344_lz30 = Union_zoption()
+            zgsz344_lz30 = Union_zoption.singleton
             # zv__1_lz315: NamedType('%bv16')
             # Assignment(result='zv__1_lz315', value=Var(name='zmergez3var'))
             zv__1_lz315 = zmergez3var
@@ -1133,7 +1136,7 @@ def func_zdecode(machine, zmergez3var):
             zx_lz318 = (zv__1_lz315) & r_uint(0x7fff)
             # LocalVarDeclaration(name='zgaz316_lz319', typ=UnionType(name='zinstr'), value=None)
             # zgaz316_lz319: UnionType(name='zinstr')
-            zgaz316_lz319 = Union_zinstr()
+            zgaz316_lz319 = Union_zinstr.singleton
             # LocalVarDeclaration(name='zgaz315_lz321', typ=NamedType('%bv16'), value=None)
             # zgaz315_lz321: NamedType('%bv16')
             zgaz315_lz321 = r_uint(0)
@@ -1196,7 +1199,7 @@ def func_zdecode(machine, zmergez3var):
             za_lz37 = (supportcode.safe_rshift(machine, zv__3_lz31, 12)) & r_uint(0x1)
             # LocalVarDeclaration(name='zgaz322_lz38', typ=UnionType(name='zinstr'), value=None)
             # zgaz322_lz38: UnionType(name='zinstr')
-            zgaz322_lz38 = Union_zinstr()
+            zgaz322_lz38 = Union_zinstr.singleton
             # LocalVarDeclaration(name='zgaz321_lz310', typ=TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), EnumType(name='zjump')]), value=None)
             # zgaz321_lz310: TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), EnumType(name='zjump')])
             zgaz321_lz310 = Tuple_2()
@@ -1232,7 +1235,7 @@ def func_zdecode(machine, zmergez3var):
             pc = 61
         if pc == 60:
             # Operation(args=[Unit()], name='zNone', result='zgsz344_lz30')
-            zgsz344_lz30 = Union_zoption_zNone(())
+            zgsz344_lz30 = Union_zoption_zNone.singleton
             pc = 61
         if pc == 61:
             # Assignment(result='return', value=Var(name='zgsz344_lz30'))

@@ -204,9 +204,10 @@ class __extend__(parse.Union):
             with codegen.emit_indent("class %s(object):" % name):
                 with codegen.emit_indent("def eq(self, other):"):
                     codegen.emit("return False")
+            codegen.emit("%s.singleton = %s()" % (name, name))
             self.pynames = []
             uniontyp = types.Union(self)
-            uniontyp.uninitialized_value = "%s()" % (self.pyname, )
+            uniontyp.uninitialized_value = "%s.singleton" % (name, )
             codegen.add_named_type(self.name, self.pyname, uniontyp, self)
             for name, typ in zip(self.names, self.types):
                 rtyp = typ.resolve_type(codegen)
@@ -223,6 +224,8 @@ class __extend__(parse.Union):
                     self.make_init(codegen, rtyp, typ, pyname)
                     self.make_eq(codegen, rtyp, typ, pyname)
                     self.make_convert(codegen, rtyp, typ, pyname)
+                if rtyp is types.Unit():
+                    codegen.emit("%s.singleton = %s(())" % (pyname, pyname))
         if self.name == "zexception":
             codegen.add_global("current_exception", "machine.r.current_exception", uniontyp, self)
 
@@ -278,6 +281,11 @@ class __extend__(parse.Union):
                         codegen.emit("return inst.utup%s" % (fieldnum, ))
                     with codegen.emit_indent("else:"):
                         codegen.emit("raise TypeError")
+
+    def constructor(self, info, op, args, argtyps):
+        if argtyps == [types.Unit()]:
+            return "%s.singleton" % (op, )
+        return "%s(%s)" % (op, args)
 
 class __extend__(parse.Struct):
     def make_code(self, codegen):
@@ -613,6 +621,8 @@ class __extend__(parse.Operation):
         if isinstance(info.typ, types.Function):
             # pass machine, even to supportcode functions
             codegen.emit("%s = %s(machine, %s)" % (result, op, args))
+        elif isinstance(info.typ, types.Union):
+            codegen.emit("%s = %s" % (result, info.ast.constructor(info, op, args, argtyps)))
         else:
             # constructors etc don't get machine passed (yet)
             codegen.emit("%s = %s(%s)" % (result, op, args))

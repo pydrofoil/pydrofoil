@@ -23,7 +23,7 @@ def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
     assert n <= 8
     addr = addr.touint()
     res = jit.promote(machine.g).mem.read(addr, n, executable_flag)
-    return bitvector.from_ruint(n*8, res)
+    return bitvector.SmallBitVector(n*8, res) # breaking abstracting a bit, but much more efficient
 
 @always_inline
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):

@@ -202,6 +202,7 @@ class __extend__(parse.Union):
             typ.resolve_type(codegen) # pre-declare the types
         with codegen.emit_code_type("declarations"):
             with codegen.emit_indent("class %s(object):" % name):
+                codegen.emit("@objectmodel.always_inline")
                 with codegen.emit_indent("def eq(self, other):"):
                     codegen.emit("return False")
             codegen.emit("%s.singleton = %s()" % (name, name))
@@ -256,6 +257,7 @@ class __extend__(parse.Union):
                 codegen.emit("self.a = a # %s" % (typ, ))
 
     def make_eq(self, codegen, rtyp, typ, pyname):
+        codegen.emit("@objectmodel.always_inline")
         with codegen.emit_indent("def eq(self, other):"):
             codegen.emit("if type(self) is not type(other): return False")
             if rtyp is types.Unit():
@@ -325,6 +327,7 @@ class __extend__(parse.Struct):
                 for arg, typ in zip(self.names, self.types):
                     codegen.emit("res.%s = self.%s # %s" % (arg, arg, typ))
                 codegen.emit("return res")
+            codegen.emit("@objectmodel.always_inline")
             with codegen.emit_indent("def eq(self, other):"):
                 codegen.emit("assert isinstance(other, %s)" % (self.pyname, ))
                 for arg, typ in zip(self.names, self.types):
@@ -909,6 +912,7 @@ class __extend__(parse.TupleType):
         typ = types.Tuple(tuple([e.resolve_type(codegen) for e in self.elements]))
         with codegen.cached_declaration(typ, "Tuple") as pyname:
             with codegen.emit_indent("class %s(object): # %s" % (pyname, self)):
+                codegen.emit("@objectmodel.always_inline")
                 with codegen.emit_indent("def eq(self, other):"):
                     codegen.emit("assert isinstance(other, %s)" % (pyname, ))
                     for index, fieldtyp in enumerate(self.elements):

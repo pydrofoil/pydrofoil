@@ -136,6 +136,7 @@ class SmallBitVector(BitVectorWithSize):
         width = n - m + 1
         return SmallBitVector(width, self.val >> m, True)
 
+    @always_inline
     def sign_extend(self, i):
         if i == self.size():
             return self

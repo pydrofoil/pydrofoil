@@ -17,6 +17,7 @@ def write_mem(machine, addr, content): # write a single byte
     jit.promote(machine.g).mem.write(addr, 1, content)
     return True
 
+@always_inline
 def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
     n = n.toint()
     assert n <= 8
@@ -24,6 +25,7 @@ def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
     res = jit.promote(machine.g).mem.read(addr, n, executable_flag)
     return bitvector.from_ruint(n*8, res)
 
+@always_inline
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
     n = n.toint()
     assert n <= 8
@@ -600,4 +602,10 @@ def get_main(outriscv, rv64):
         return main(Machine, argv)
     from rpython.rlib import jit
 
+    # a bit of micro-optimization
+    always_inline(outriscv.func_zread_ram)
+    always_inline(outriscv.func_zphys_mem_read)
+    always_inline(outriscv.func_zwrite_ram)
+    always_inline(outriscv.func_zphys_mem_write)
+    always_inline(outriscv.func_zwithin_phys_mem)
     return bound_main

@@ -43,6 +43,7 @@ class Enum_zarithmetic_op(object):
     zC_D_OR_A = 26
 
 class Tuple_1(object): # TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_1)
         if not (self.utup0 == other.utup0): return False # NamedType('%bool')
@@ -51,6 +52,7 @@ class Tuple_1(object): # TupleType(elements=[NamedType('%bool'), NamedType('%boo
         return True
 
 class Tuple_2(object): # TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), EnumType(name='zjump')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_2)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv1')
@@ -60,6 +62,7 @@ class Tuple_2(object): # TupleType(elements=[NamedType('%bv1'), EnumType(name='z
         return True
 
 class Union_zinstr(object):
+    @objectmodel.always_inline
     def eq(self, other):
         return False
 Union_zinstr.singleton = Union_zinstr()
@@ -68,6 +71,7 @@ class Union_zinstr_zAINST(Union_zinstr):
     a = r_uint(0)
     def __init__(self, a):
         self.a = a # NamedType('%bv16')
+    @objectmodel.always_inline
     def eq(self, other):
         if type(self) is not type(other): return False
         if not (self.a == other.a): return False # NamedType('%bv16')
@@ -91,6 +95,7 @@ class Union_zinstr_zCINST(Union_zinstr):
         self.utup1 = a.ztup1
         self.utup2 = a.ztup2
         self.utup3 = a.ztup3
+    @objectmodel.always_inline
     def eq(self, other):
         if type(self) is not type(other): return False
         # TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op'), TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), EnumType(name='zjump')])
@@ -137,6 +142,7 @@ class Union_zinstr_zCINST(Union_zinstr):
             raise TypeError
 
 class Union_zoption(object):
+    @objectmodel.always_inline
     def eq(self, other):
         return False
 Union_zoption.singleton = Union_zoption()
@@ -144,6 +150,7 @@ Union_zoption.singleton = Union_zoption()
 class Union_zoption_zNone(Union_zoption):
     def __init__(self, a):
         pass
+    @objectmodel.always_inline
     def eq(self, other):
         if type(self) is not type(other): return False
         return True
@@ -160,6 +167,7 @@ class Union_zoption_zSomez3z5unionz0zzinstr(Union_zoption):
     a = Union_zinstr.singleton
     def __init__(self, a):
         self.a = a # UnionType(name='zinstr')
+    @objectmodel.always_inline
     def eq(self, other):
         if type(self) is not type(other): return False
         if not (self.a.eq(other.a)): return False # UnionType(name='zinstr')
@@ -173,12 +181,14 @@ class Union_zoption_zSomez3z5unionz0zzinstr(Union_zoption):
             raise TypeError
 
 class Tuple_3(object): # TupleType(elements=[NamedType('%bool')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_3)
         if not (self.utup0 == other.utup0): return False # NamedType('%bool')
         return True
 
 class Tuple_4(object): # TupleType(elements=[NamedType('%bool'), NamedType('%bool')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_4)
         if not (self.utup0 == other.utup0): return False # NamedType('%bool')
@@ -186,6 +196,7 @@ class Tuple_4(object): # TupleType(elements=[NamedType('%bool'), NamedType('%boo
         return True
 
 class Tuple_5(object): # TupleType(elements=[NamedType('%i'), NamedType('%i')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_5)
         if not (self.utup0.eq(other.utup0)): return False # NamedType('%i')
@@ -193,6 +204,7 @@ class Tuple_5(object): # TupleType(elements=[NamedType('%i'), NamedType('%i')])
         return True
 
 class Tuple_6(object): # TupleType(elements=[NamedType('%bv'), NamedType('%bv')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_6)
         if not (self.utup0.eq(other.utup0)): return False # NamedType('%bv')
@@ -200,12 +212,14 @@ class Tuple_6(object): # TupleType(elements=[NamedType('%bv'), NamedType('%bv')]
         return True
 
 class Tuple_7(object): # TupleType(elements=[NamedType('%bv')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_7)
         if not (self.utup0.eq(other.utup0)): return False # NamedType('%bv')
         return True
 
 class Tuple_8(object): # TupleType(elements=[NamedType('%bv'), NamedType('%i')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_8)
         if not (self.utup0.eq(other.utup0)): return False # NamedType('%bv')
@@ -213,6 +227,7 @@ class Tuple_8(object): # TupleType(elements=[NamedType('%bv'), NamedType('%i')])
         return True
 
 class Tuple_9(object): # TupleType(elements=[NamedType('%i'), NamedType('%bv')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_9)
         if not (self.utup0.eq(other.utup0)): return False # NamedType('%i')
@@ -220,6 +235,7 @@ class Tuple_9(object): # TupleType(elements=[NamedType('%i'), NamedType('%bv')])
         return True
 
 class Tuple_10(object): # TupleType(elements=[NamedType('%bv'), NamedType('%bv64')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_10)
         if not (self.utup0.eq(other.utup0)): return False # NamedType('%bv')
@@ -227,6 +243,7 @@ class Tuple_10(object): # TupleType(elements=[NamedType('%bv'), NamedType('%bv64
         return True
 
 class Tuple_11(object): # TupleType(elements=[NamedType('%bv'), NamedType('%i'), NamedType('%i')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_11)
         if not (self.utup0.eq(other.utup0)): return False # NamedType('%bv')
@@ -235,6 +252,7 @@ class Tuple_11(object): # TupleType(elements=[NamedType('%bv'), NamedType('%i'),
         return True
 
 class Tuple_12(object): # TupleType(elements=[NamedType('%i')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_12)
         if not (self.utup0.eq(other.utup0)): return False # NamedType('%i')
@@ -243,12 +261,14 @@ IntConst_0_1 = Integer.fromint(0)
 IntConst_1_1 = Integer.fromint(1)
 
 class Tuple_13(object): # TupleType(elements=[NamedType('%bv1')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_13)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv1')
         return True
 
 class Tuple_14(object): # TupleType(elements=[NamedType('%bv16'), NamedType('%bv16')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_14)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv16')
@@ -256,12 +276,14 @@ class Tuple_14(object): # TupleType(elements=[NamedType('%bv16'), NamedType('%bv
         return True
 
 class Tuple_15(object): # TupleType(elements=[NamedType('%bv16')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_15)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv16')
         return True
 
 class Tuple_16(object): # TupleType(elements=[NamedType('%bv64'), NamedType('%bv16'), NamedType('%bv16'), NamedType('%bv16')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_16)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv64')
@@ -277,18 +299,21 @@ Machine._reg_zA = r_uint(0)
 Machine._reg_zD = r_uint(0)
 
 class Tuple_17(object): # TupleType(elements=[NamedType('%bv6')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_17)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv6')
         return True
 
 class Tuple_18(object): # TupleType(elements=[NamedType('%bv3')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_18)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv3')
         return True
 
 class Tuple_19(object): # TupleType(elements=[UnionType(name='zinstr')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_19)
         if not (self.utup0.eq(other.utup0)): return False # UnionType(name='zinstr')
@@ -296,6 +321,7 @@ class Tuple_19(object): # TupleType(elements=[UnionType(name='zinstr')])
 IntConst_16_1 = Integer.fromint(16)
 
 class Tuple_20(object): # TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_20)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv1')
@@ -303,6 +329,7 @@ class Tuple_20(object): # TupleType(elements=[NamedType('%bv1'), EnumType(name='
         return True
 
 class Tuple_21(object): # TupleType(elements=[TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]), NamedType('%bv16')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_21)
         if not (self.utup0.eq(other.utup0)): return False # TupleType(elements=[NamedType('%bool'), NamedType('%bool'), NamedType('%bool')])
@@ -310,6 +337,7 @@ class Tuple_21(object): # TupleType(elements=[TupleType(elements=[NamedType('%bo
         return True
 
 class Tuple_22(object): # TupleType(elements=[NamedType('%bv16'), EnumType(name='zjump')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_22)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv16')
@@ -317,12 +345,14 @@ class Tuple_22(object): # TupleType(elements=[NamedType('%bv16'), EnumType(name=
         return True
 
 class Tuple_23(object): # TupleType(elements=[NamedType('%unit')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_23)
         if not (True): return False # NamedType('%unit')
         return True
 
 class Tuple_24(object): # TupleType(elements=[NamedType('%bv64'), NamedType('%bool')])
+    @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_24)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv64')

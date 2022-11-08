@@ -154,11 +154,10 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit("import operator")
         c.emit(support_code)
         c.emit("from pydrofoil import bitvector")
-        c.emit("from pydrofoil.bitvector import Integer")
         c.emit("class Lets(object): pass")
         c.emit("class Machine(supportcode.RegistersBase):")
         c.emit("    def __init__(self): self.l = Lets(); model_init(self)")
-        c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
+        c.emit("UninitInt = bitvector.int_fromint(-0xfefee)")
     try:
         ast.make_code(c)
     except Exception:
@@ -596,7 +595,12 @@ class __extend__(parse.LocalVarDeclaration):
     def make_op_code(self, codegen, need_default_init=True):
         codegen.emit("# %s: %s" % (self.name, self.typ))
         typ = self.typ.resolve_type(codegen)
-        codegen.add_local(self.name, self.name, typ, self)
+        if 0: #typ is types.Int():
+            import pdb; pdb.set_trace()
+            pyname = "(%s_1, %s_2)" % (self.name, self.name)
+        else:
+            pyname = self.name
+        codegen.add_local(self.name, pyname, typ, self)
         if self.value is not None:
             result = codegen.gettarget(self.name)
             othertyp = self.value.gettyp(codegen)

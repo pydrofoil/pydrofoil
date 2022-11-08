@@ -2,7 +2,6 @@ from rpython.rlib import objectmodel
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import r_uint, intmask
 from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer
 
 @objectmodel.specialize.call_location()
 def make_dummy(name):
@@ -125,7 +124,7 @@ def length(machine, gbv):
     return gbv.size_as_int()
 
 def sign_extend(machine, gbv, lint):
-    size = lint.toint()
+    size = bitvector.int_toint(lint)
     return gbv.sign_extend(size)
 
 def eq_bits(machine, gvba, gvbb):
@@ -147,11 +146,13 @@ def print_bits(machine, s, b):
     print s + b.string_of_bits()
     return ()
 
+@objectmodel.always_inline
 def shiftl(machine, gbv, i):
-    return gbv.lshift(i.toint())
+    return gbv.lshift(bitvector.int_toint(i))
 
+@objectmodel.always_inline
 def shiftr(machine, gbv, i):
-    return gbv.rshift(i.toint())
+    return gbv.rshift(bitvector.int_toint(i))
 
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)
@@ -159,20 +160,24 @@ def shift_bits_left(machine, gbv, gbva):
 def shift_bits_right(machine, gbv, gbva):
     return gbv.rshift_bits(gbva)
 
+@objectmodel.always_inline
 def sail_unsigned(machine, gbv):
     return gbv.unsigned()
 
+@objectmodel.always_inline
 def sail_signed(machine, gbv):
     return gbv.signed()
 
 def append_64(machine, bv, v):
     return bv.append_64(v)
 
+@objectmodel.always_inline
 def vector_update(machine, bv, index, element):
-    return bv.update_bit(index.toint(), element)
+    return bv.update_bit(bitvector.int_toint(index), element)
 
+@objectmodel.always_inline
 def vector_access(machine, bv, index):
-    return bv.read_bit(index.toint())
+    return bv.read_bit(bitvector.int_toint(index))
 
 def update_fbits(fb, index, element):
     assert 0 <= index < 64
@@ -182,10 +187,10 @@ def update_fbits(fb, index, element):
         return fb & ~(r_uint(1) << index)
 
 def vector_update_subrange(machine, bv, n, m, s):
-    return bv.update_subrange(n.toint(), m.toint(), s)
+    return bv.update_subrange(bitvector.int_toint(n), bitvector.int_toint(m), s)
 
 def vector_subrange(machine, bv, n, m):
-    return bv.subrange(n.toint(), m.toint())
+    return bv.subrange(bitvector.int_toint(n), bitvector.int_toint(m))
 
 def string_of_bits(machine, gbv):
     return gbv.string_of_bits()
@@ -196,60 +201,72 @@ def decimal_string_of_bits(machine, sbits):
 
 # integers
 
-def eq_int(machine, a, b):
-    assert isinstance(a, Integer)
-    return a.eq(b)
+@objectmodel.always_inline
+def eq_int(machine, ia, ib):
+    return bitvector.int_eq(ia, ib)
 
 def eq_bit(machine, a, b):
     return a == b
 
+@objectmodel.always_inline
 def lteq(machine, ia, ib):
-    return ia.le(ib)
+    return bitvector.int_le(ia, ib)
 
+@objectmodel.always_inline
 def lt(machine, ia, ib):
-    return ia.lt(ib)
+    return bitvector.int_lt(ia, ib)
 
+@objectmodel.always_inline
 def gt(machine, ia, ib):
-    return ia.gt(ib)
+    return bitvector.int_gt(ia, ib)
 
+@objectmodel.always_inline
 def gteq(machine, ia, ib):
-    return ia.ge(ib)
+    return bitvector.int_ge(ia, ib)
 
+@objectmodel.always_inline
 def add_int(machine, ia, ib):
-    return ia.add(ib)
+    return bitvector.int_add(ia, ib)
 
+@objectmodel.always_inline
 def sub_int(machine, ia, ib):
-    return ia.sub(ib)
+    return bitvector.int_sub(ia, ib)
 
+@objectmodel.always_inline
 def mult_int(machine, ia, ib):
-    return ia.mul(ib)
+    return bitvector.int_mul(ia, ib)
 
 def tdiv_int(machine, ia, ib):
-    return ia.tdiv(ib)
+    return bitvector.int_tdiv(ia, ib)
 
+@objectmodel.always_inline
 def tmod_int(machine, ia, ib):
-    return ia.tmod(ib)
+    return bitvector.int_tmod(ia, ib)
 
+@objectmodel.always_inline
 def emod_int(machine, ia, ib):
-    a = ia.toint()
-    b = ib.toint()
+    a = bitvector.int_toint(ia)
+    b = bitvector.int_toint(ib)
     if a < 0 or b < 0:
         print "emod_int with negative args not implemented yet", a, b
         raise ValueError # risc-v only needs the positive small case
-    return Integer.fromint(a % b)
+    return bitvector.int_fromint(a % b)
 
+@objectmodel.always_inline
 def max_int(machine, ia, ib):
-    if ia.gt(ib):
+    if bitvector.int_gt(ia, ib):
         return ia
     return ib
 
+@objectmodel.always_inline
 def min_int(machine, ia, ib):
-    if ia.lt(ib):
+    if bitvector.int_lt(ia, ib):
         return ia
     return ib
 
+@objectmodel.always_inline
 def get_slice_int(machine, len, n, start):
-    return n.slice(len.toint(), start.toint())
+    return bitvector.int_slice(n, bitvector.int_toint(len), bitvector.int_toint(start))
 
 def safe_rshift(machine, n, shift):
     assert shift >= 0
@@ -257,8 +274,9 @@ def safe_rshift(machine, n, shift):
         return r_uint(0)
     return n >> shift
 
+@objectmodel.always_inline
 def print_int(machine, s, i):
-    print s + i.str()
+    print s + bitvector.int_tostr(i)
     return ()
 
 def not_(machine, b):
@@ -267,8 +285,8 @@ def not_(machine, b):
 def eq_bool(machine, a, b):
     return a == b
 
-def string_of_int(machine, r):
-    return r.str()
+def string_of_int(machine, ia):
+    return bitvector.int_tostr(ia)
 
 
 # various
@@ -297,7 +315,7 @@ def vector_update_inplace(machine, res, l, index, element):
     return l
 
 def elf_tohost(machine, _):
-    return Integer.fromint(0)
+    return bitvector.int_fromint(0)
 
 def platform_barrier(machine, _):
     return ()

@@ -47,7 +47,7 @@ class __extend__(pairtype(types.Int, types.FixedBitVector)):
 
 class __extend__(pairtype(types.String, types.Int)):
     def convert((from_, to), ast, codegen):
-        return "Integer.fromstr(%s)" % (ast.to_code(codegen), )
+        return "bitvector.int_fromstr(%s)" % (ast.to_code(codegen), )
 
 class __extend__(pairtype(types.MachineInt, types.Int)):
     def convert((from_, to), ast, codegen):
@@ -55,13 +55,13 @@ class __extend__(pairtype(types.MachineInt, types.Int)):
             s = str(ast.number)
             s = s.replace('-', 'NEG_')
             with codegen.cached_declaration(("num", ast.number), "IntConst_" + s) as pyname:
-                codegen.emit("%s = Integer.fromint(%s)" % (pyname, ast.to_code(codegen)))
+                codegen.emit("%s = bitvector.int_fromint(%s)" % (pyname, ast.to_code(codegen)))
             return pyname
-        return "Integer.fromint(%s)" % ast.to_code(codegen)
+        return "bitvector.int_fromint(%s)" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.Int, types.MachineInt)):
     def convert((from_, to), ast, codegen):
-        return "%s.toint()" % ast.to_code(codegen)
+        return "bitvector.int_toint(%s)" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.Tuple, types.Tuple)):
     def convert((from_, to), ast, codegen):

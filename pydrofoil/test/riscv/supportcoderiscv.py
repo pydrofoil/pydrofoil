@@ -1,5 +1,4 @@
 from pydrofoil.supportcode import *
-from pydrofoil.bitvector import Integer
 from pydrofoil import elf
 from pydrofoil import mem as mem_mod
 
@@ -19,7 +18,7 @@ def write_mem(machine, addr, content): # write a single byte
 
 @always_inline
 def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
-    n = n.toint()
+    n = bitvector.int_toint(n)
     assert n <= 8
     addr = addr.touint()
     res = jit.promote(machine.g).mem.read(addr, n, executable_flag)
@@ -27,7 +26,7 @@ def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
 
 @always_inline
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
-    n = n.toint()
+    n = bitvector.int_toint(n)
     assert n <= 8
     assert addr_size == 64
     assert data.size() == n * 8
@@ -488,7 +487,7 @@ def run_sail(machine, insn_limit, do_show_times):
             continue
         # run a Sail step
         prev_pc = machine._reg_zPC
-        stepped = machine.step(Integer.fromint(step_no))
+        stepped = machine.step(bitvector.int_fromint(step_no))
         if machine.have_exception:
             print "ended with exception!"
             print machine.current_exception
@@ -600,6 +599,8 @@ def get_main(outriscv, rv64):
 
     def bound_main(argv):
         return main(Machine, argv)
+    bound_main.outriscv = outriscv
+    bound_main.Machine = Machine
     from rpython.rlib import jit
 
     # a bit of micro-optimization

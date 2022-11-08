@@ -2,7 +2,7 @@ import pytest
 
 from pydrofoil import supportcode
 from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
+from pydrofoil.bitvector import int_fromint, int_frombigint
 
 from rpython.rlib.rarithmetic import r_uint, intmask
 from rpython.rlib.rbigint import rbigint
@@ -14,10 +14,10 @@ def bv(size, val):
     return bitvector.from_ruint(size, r_uint(val))
 
 def si(val):
-    return bitvector.SmallInteger(val)
+    return int_fromint(val)
 
 def bi(val):
-    return bitvector.BigInteger(rbigint.fromlong(val))
+    return int_frombigint(rbigint.fromlong(val))
 
 machine = "dummy"
 
@@ -30,49 +30,51 @@ def test_fast_signed():
     assert supportcode.fast_signed(machine, 0b11, 2) == -1
 
 def test_signed():
+    def check(size, val):
+        return bitvector.int_tolong(supportcode.sail_signed(machine, c(size, val)))
     for c in gbv, bv:
-        assert supportcode.sail_signed(machine, c(1, 0b0)).toint() == 0
-        assert supportcode.sail_signed(machine, c(1, 0b1)).toint() == -1
-        assert supportcode.sail_signed(machine, c(2, 0b0)).toint() == 0
-        assert supportcode.sail_signed(machine, c(2, 0b1)).toint() == 1
-        assert supportcode.sail_signed(machine, c(2, 0b10)).toint() == -2
-        assert supportcode.sail_signed(machine, c(2, 0b11)).toint() == -1
-        assert supportcode.sail_signed(machine, c(64, 0xffffffffffffffff)).toint() == -1
-        assert supportcode.sail_signed(machine, c(64, 0x1)).toint() == 1
+        assert check(1, 0) == 0
+        assert check(1, 0b1) == -1
+        assert check(2, 0b0) == 0
+        assert check(2, 0b1) == 1
+        assert check(2, 0b10) == -2
+        assert check(2, 0b11) == -1
+        assert check(64, 0xffffffffffffffff) == -1
+        assert check(64, 0x1) == 1
 
 def test_sign_extend():
     for c in gbv, bv:
-        assert supportcode.sign_extend(machine, c(1, 0b0), Integer.fromint(2)).toint() == 0
-        assert supportcode.sign_extend(machine, c(1, 0b1), Integer.fromint(2)).toint() == 0b11
-        assert supportcode.sign_extend(machine, c(2, 0b00), Integer.fromint(4)).toint() == 0
-        assert supportcode.sign_extend(machine, c(2, 0b01), Integer.fromint(4)).toint() == 1
-        assert supportcode.sign_extend(machine, c(2, 0b10), Integer.fromint(4)).toint() == 0b1110
-        assert supportcode.sign_extend(machine, c(2, 0b11), Integer.fromint(4)).toint() == 0b1111
+        assert supportcode.sign_extend(machine, c(1, 0b0), int_fromint(2)).toint() == 0
+        assert supportcode.sign_extend(machine, c(1, 0b1), int_fromint(2)).toint() == 0b11
+        assert supportcode.sign_extend(machine, c(2, 0b00), int_fromint(4)).toint() == 0
+        assert supportcode.sign_extend(machine, c(2, 0b01), int_fromint(4)).toint() == 1
+        assert supportcode.sign_extend(machine, c(2, 0b10), int_fromint(4)).toint() == 0b1110
+        assert supportcode.sign_extend(machine, c(2, 0b11), int_fromint(4)).toint() == 0b1111
 
-        assert supportcode.sign_extend(machine, c(2, 0b00), Integer.fromint(100)).tobigint().tolong() == 0
-        assert supportcode.sign_extend(machine, c(2, 0b01), Integer.fromint(100)).tobigint().tolong() == 1
-        assert supportcode.sign_extend(machine, c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111110
-        assert supportcode.sign_extend(machine, c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+        assert supportcode.sign_extend(machine, c(2, 0b00), int_fromint(100)).tobigint().tolong() == 0
+        assert supportcode.sign_extend(machine, c(2, 0b01), int_fromint(100)).tobigint().tolong() == 1
+        assert supportcode.sign_extend(machine, c(2, 0b10), int_fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111110
+        assert supportcode.sign_extend(machine, c(2, 0b11), int_fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
 
 def test_unsigned():
     for c in gbv, bv:
         x = c(8, 0b10001101)
-        assert x.unsigned().tolong() == 0b10001101
+        assert bitvector.int_tolong(x.unsigned()) == 0b10001101
         x = c(64, 0b10001101)
-        assert x.unsigned().tolong() == 0b10001101
+        assert bitvector.int_tolong(x.unsigned()) == 0b10001101
         x = c(64, r_uint(-1))
-        assert x.unsigned().tolong() == (1<<64)-1
+        assert bitvector.int_tolong(x.unsigned()) == (1<<64)-1
 
 def test_get_slice_int():
     for c in si, bi:
-        assert supportcode.get_slice_int(machine, Integer.fromint(8), c(0b011010010000), Integer.fromint(4)).tolong() == 0b01101001
-        assert supportcode.get_slice_int(machine, Integer.fromint(8), c(-1), Integer.fromint(4)).tolong() == 0b11111111
-        assert supportcode.get_slice_int(machine, Integer.fromint(64), c(-1), Integer.fromint(5)).tolong() == 0xffffffffffffffff
-        assert supportcode.get_slice_int(machine, Integer.fromint(100), c(-1), Integer.fromint(11)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
-        assert supportcode.get_slice_int(machine, Integer.fromint(8), c(-1), Integer.fromint(1000)).tolong() == 0b11111111
-        assert supportcode.get_slice_int(machine, Integer.fromint(64), c(-1), Integer.fromint(1000)).tolong() == 0xffffffffffffffff
-        assert supportcode.get_slice_int(machine, Integer.fromint(100), c(-1), Integer.fromint(1000)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+        assert supportcode.get_slice_int(machine, int_fromint(8), c(0b011010010000), int_fromint(4)).tolong() == 0b01101001
+        assert supportcode.get_slice_int(machine, int_fromint(8), c(-1), int_fromint(4)).tolong() == 0b11111111
+        assert supportcode.get_slice_int(machine, int_fromint(64), c(-1), int_fromint(5)).tolong() == 0xffffffffffffffff
+        assert supportcode.get_slice_int(machine, int_fromint(100), c(-1), int_fromint(11)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+        assert supportcode.get_slice_int(machine, int_fromint(8), c(-1), int_fromint(1000)).tolong() == 0b11111111
+        assert supportcode.get_slice_int(machine, int_fromint(64), c(-1), int_fromint(1000)).tolong() == 0xffffffffffffffff
+        assert supportcode.get_slice_int(machine, int_fromint(100), c(-1), int_fromint(1000)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
 
 def test_vector_access():
@@ -201,8 +203,8 @@ def test_bv_bitwise():
 def test_eq_int():
     for c1 in bi, si:
         for c2 in bi, si:
-            assert c1(-12331).eq(c2(-12331))
-            assert not c1(-12331).eq(c2(12331))
+            assert bitvector.int_eq(c1(-12331), c2(-12331))
+            assert not bitvector.int_eq(c1(-12331), c2(12331))
 
 def test_op_int():
     for c1 in bi, si:
@@ -211,42 +213,43 @@ def test_op_int():
                 a = c1(v1)
                 for v2 in [-10, 223, 12311, 0, 1, 2**63-1, -2**45]:
                     b = c2(v2)
-                    assert a.add(b).tolong() == v1 + v2
-                    assert a.sub(b).tolong() == v1 - v2
-                    assert a.mul(b).tolong() == v1 * v2
+                    assert bitvector.int_tolong(bitvector.int_add(a, b)) == v1 + v2
+                    assert bitvector.int_tolong(bitvector.int_sub(a, b)) == v1 - v2
+                    assert bitvector.int_tolong(bitvector.int_mul(a, b)) == v1 * v2
                     if v2:
-                        assert c1(abs(v1)).tdiv(c2(abs(v2))).tolong() == abs(v1) // abs(v2)
-                        assert c1(abs(v1)).tmod(c2(abs(v2))).tolong() == abs(v1) % abs(v2)
+                        assert bitvector.int_tolong(bitvector.int_tdiv(c1(abs(v1)), c2(abs(v2)))) == abs(v1) // abs(v2)
+                        assert bitvector.int_tolong(bitvector.int_tmod(c1(abs(v1)), c2(abs(v2)))) == abs(v1) % abs(v2)
                         # (a/b) * b + a%b == a
-                        assert a.tdiv(b).mul(b).add(a.tmod(b)).eq(a)
+                        assert bitvector.int_eq(bitvector.int_add(bitvector.int_mul(bitvector.int_tdiv(a, b), b), bitvector.int_tmod(a, b)), a)
 
-                    assert a.eq(b) == (v1 == v2)
-                    assert a.lt(b) == (v1 < v2)
-                    assert a.gt(b) == (v1 > v2)
-                    assert a.le(b) == (v1 <= v2)
-                    assert a.ge(b) == (v1 >= v2)
+                    assert bitvector.int_eq(a, b) == (v1 == v2)
+                    assert bitvector.int_lt(a, b) == (v1 < v2)
+                    assert bitvector.int_gt(a, b) == (v1 > v2)
+                    assert bitvector.int_le(a, b) == (v1 <= v2)
+                    assert bitvector.int_ge(a, b) == (v1 >= v2)
                 with pytest.raises(ZeroDivisionError):
-                    c1(v1).tdiv(c2(0))
-                    c1(v1).tmod(c2(0))
+                    bitvector.int_tdiv(c1(v1), c2(0))
+                with pytest.raises(ZeroDivisionError):
+                    bitvector.int_tmod(c1(v1), c2(0))
 
 def test_op_int_div_mod():
     for c1 in bi, si:
         for c2 in bi, si:
             # round towards zero
-            assert c1(1).tdiv(c2(2)).tolong() == 0
-            assert c1(-1).tdiv(c2(2)).tolong() == 0
-            assert c1(1).tdiv(c2(-2)).tolong() == 0
-            assert c1(-1).tdiv(c2(-2)).tolong() == 0
+            assert bitvector.int_tolong(bitvector.int_tdiv(c1(1), c2(2))) == 0
+            assert bitvector.int_tolong(bitvector.int_tdiv(c1(-1), c2(2))) == 0
+            assert bitvector.int_tolong(bitvector.int_tdiv(c1(1), c2(-2))) == 0
+            assert bitvector.int_tolong(bitvector.int_tdiv(c1(-1), c2(-2))) == 0
 
             # mod signs
-            assert c1(5).tmod(c2(3)).tolong() == 2
-            assert c1(5).tmod(c2(-3)).tolong() == 2
-            assert c1(-5).tmod(c2(3)).tolong() == -2
-            assert c1(-5).tmod(c2(-3)).tolong() == -2
+            assert bitvector.int_tolong(bitvector.int_tmod(c1(5), c2(3))) == 2
+            assert bitvector.int_tolong(bitvector.int_tmod(c1(5), c2(-3))) == 2
+            assert bitvector.int_tolong(bitvector.int_tmod(c1(-5), c2(3))) == -2
+            assert bitvector.int_tolong(bitvector.int_tmod(c1(-5), c2(-3))) == -2
 
             # ovf correctly
-            assert c1(-2**63).tdiv(c2(-1)).tolong() == 2 ** 63
-            assert c1(-2**63).tmod(c2(-1)).tolong() == 0
+            assert bitvector.int_tolong(bitvector.int_tdiv(c1(-2**63), c2(-1))) == 2 ** 63
+            assert bitvector.int_tolong(bitvector.int_tmod(c1(-2**63), c2(-1))) == 0
 
 
 def test_op_gv_int():
@@ -262,3 +265,7 @@ def test_string_of_bits():
         assert c(64, 0x1245ab).string_of_bits() == "0x00000000001245AB"
         assert c(3, 0b1).string_of_bits() == "0b001"
         assert c(9, 0b1101).string_of_bits() == "0b000001101"
+
+def test_int_fromstr():
+    for s in ['0', '-1', '12315', '1' * 100, '-' + '2' * 200]:
+        assert bitvector.int_tolong(bitvector.int_fromstr(s)) == int(s)

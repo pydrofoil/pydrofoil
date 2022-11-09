@@ -645,6 +645,8 @@ class __extend__(parse.Operation):
         info = codegen.getinfo(name)
         if isinstance(info.typ, types.Function):
             # pass machine, even to supportcode functions
+            if types.Int() in argtyps:
+                import pdb; pdb.set_trace()
             codegen.emit("%s = %s(machine, %s)" % (result, op, args))
         elif isinstance(info.typ, types.Union):
             codegen.emit("%s = %s" % (result, info.ast.constructor(info, op, args, argtyps)))

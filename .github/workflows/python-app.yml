@@ -33,7 +33,7 @@ jobs:
         python -m pip install rply hypothesis
     - name: Test with pytest
       run: |
-        python pypy/pytest.py -v pydrofoil/
+        python pypy/pytest.py -v pydrofoil/ riscv/
     - name: Translate and run binary
       run: |
         PYTHONPATH=. python pypy/rpython/bin/rpython -Ojit --output=pydrofoil-riscv-64 riscv/targetriscv.py

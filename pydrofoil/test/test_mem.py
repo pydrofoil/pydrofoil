@@ -5,9 +5,6 @@ import random
 from pydrofoil import mem
 from rpython.rlib.rarithmetic import r_uint, intmask
 
-elffile = os.path.join(os.path.dirname(__file__), "riscv/input/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
-elffile32 = os.path.join(os.path.dirname(__file__), "riscv/input/rv32ui-p-addi.elf")
-dhryelffile = os.path.join(os.path.dirname(__file__), "riscv/input/dhrystone.riscv")
 
 class TBM(mem.BlockMemory):
     ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints
@@ -41,26 +38,6 @@ def test_mem_write_read(memcls):
                     addr = r_uint(base_addr + offset * size)
                     assert mem.read(addr, size) == data[offset]
     mem.close()
-
-def test_elf_reader():
-    from pydrofoil import elf
-    m = mem.BlockMemory()
-    with open(elffile, "rb") as f:
-        entrypoint = elf.elf_read_process_image(m, f)
-    assert entrypoint == 0x80000000
-    # used to be wrong in the segment reader
-    assert m.read(0x0000000080000D42, 2) == 0x4e4c
-
-
-def test_elf_reader32():
-    from pydrofoil import elf
-    m = mem.BlockMemory()
-    with open(elffile32, "rb") as f:
-        entrypoint = elf.elf_read_process_image(m, f)
-    assert entrypoint == 0x80000000
-    # used to be wrong in the segment reader
-    assert m.read(0x0000000080000000, 2) == 0x6f
-
 
 def test_invalidation_logic():
     m = mem.FlatMemory()

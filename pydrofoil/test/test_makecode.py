@@ -4,21 +4,9 @@ from pydrofoil.makecode import *
 import os
 
 thisdir = os.path.dirname(__file__)
-elfdir = os.path.join(thisdir, "riscv/input")
 cir = os.path.join(thisdir, "nand2tetris/generated/nand2tetris.jib")
 excir = os.path.join(thisdir, "exc/exc.ir")
-riscvir = os.path.join(thisdir, "riscv/riscv_model_RV64.ir")
 outpy = os.path.join(thisdir, "nand2tetris/generated/nand_rpython.py")
-outmipspy = os.path.join(thisdir, "mips/generated/outmips.py")
-outriscvpy = os.path.join(thisdir, "riscv/generated/outriscv.py")
-
-elfs = """
-rv64ui-p-addi.elf rv64um-v-mul.elf rv64um-v-mulhu.elf rv64um-p-div.elf
-rv64um-p-rem.elf rv64ua-v-amoadd_w.elf rv64ua-v-amomax_d.elf
-"""
-
-elfs = [os.path.join(elfdir, fn) for fn in elfs.split()]
-
 
 addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test", "nand2tetris", "input", "Add.hack.bin")
 sumrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test", "nand2tetris", "input", "sum.hack.bin")
@@ -320,16 +308,3 @@ def test_full_nand():
     t = Translation(main, [])
     t.rtype() # check that it's rpython
 
-@pytest.fixture(scope='session')
-def riscvmain():
-    from riscv.targetriscv import make_code
-    return make_code()
-
-@pytest.mark.parametrize("elf", elfs)
-def test_full_riscv(riscvmain, elf):
-    riscvmain(['executable', elf])
-
-def test_load_dump(riscvmain):
-    from riscv import supportcoderiscv
-    d = supportcoderiscv.parse_dump_file(os.path.join(thisdir, 'riscv/dhrystone.riscv.dump'))
-    assert d[0x8000218a] == '.text: Proc_1 6100                	ld	s0,0(a0)'

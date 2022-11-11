@@ -336,7 +336,7 @@ def test_full_mips():
 
 @pytest.fixture(scope='session')
 def riscvmain():
-    from pydrofoil.test.riscv.targetriscv import make_code
+    from riscv.targetriscv import make_code
     return make_code()
 
 @pytest.mark.parametrize("elf", elfs)
@@ -344,6 +344,6 @@ def test_full_riscv(riscvmain, elf):
     riscvmain(['executable', elf])
 
 def test_load_dump(riscvmain):
-    from pydrofoil.test.riscv import supportcoderiscv
+    from riscv import supportcoderiscv
     d = supportcoderiscv.parse_dump_file(os.path.join(thisdir, 'riscv/dhrystone.riscv.dump'))
     assert d[0x8000218a] == '.text: Proc_1 6100                	ld	s0,0(a0)'

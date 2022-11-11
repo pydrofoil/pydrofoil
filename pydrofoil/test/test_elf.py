@@ -1,10 +1,13 @@
 import os
+from os.path import dirname
 
 from pydrofoil import elf
 
-elffile = os.path.join(os.path.dirname(__file__), "riscv/input/rv64ui-p-addi.elf")
-elffile32 = os.path.join(os.path.dirname(__file__), "riscv/input/rv32ui-p-addi.elf")
-#elffile2 = os.path.join(os.path.dirname(__file__), "riscv/input/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
+toplevel = dirname(dirname(dirname(__file__)))
+
+elffile = os.path.join(toplevel, "riscv/input/rv64ui-p-addi.elf")
+elffile32 = os.path.join(toplevel, "riscv/input/rv32ui-p-addi.elf")
+#elffile2 = os.path.join(toplevel, "riscv/input/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
 
 def test_elf_riscv64():
     with open(elffile, "rb") as f:

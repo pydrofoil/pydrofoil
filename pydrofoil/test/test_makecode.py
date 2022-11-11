@@ -7,7 +7,6 @@ thisdir = os.path.dirname(__file__)
 elfdir = os.path.join(thisdir, "riscv/input")
 cir = os.path.join(thisdir, "nand2tetris/generated/nand2tetris.jib")
 excir = os.path.join(thisdir, "exc/exc.ir")
-mipsir = os.path.join(thisdir, "mips/mips.ir")
 riscvir = os.path.join(thisdir, "riscv/riscv_model_RV64.ir")
 outpy = os.path.join(thisdir, "nand2tetris/generated/nand_rpython.py")
 outmipspy = os.path.join(thisdir, "mips/generated/outmips.py")
@@ -320,19 +319,6 @@ def test_full_nand():
         zmymain(out.Machine(), 10, False)
     t = Translation(main, [])
     t.rtype() # check that it's rpython
-
-@pytest.mark.xfail
-def test_full_mips():
-    import py
-    with open(mipsir, "rb") as f:
-        s = f.read()
-    support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
-    res = parse_and_make_code(s, support_code)
-    with open(outmipspy, "w") as f:
-        f.write(res)
-    d = {}
-    res = py.code.Source(res)
-    exec res.compile() in d
 
 @pytest.fixture(scope='session')
 def riscvmain():

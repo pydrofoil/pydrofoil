@@ -34,3 +34,7 @@ jobs:
     - name: Test with pytest
       run: |
         python pypy/pytest.py -v pydrofoil/
+    - name: Translate and run binary
+      run: |
+        PYTHONPATH=. python pypy/rpython/bin/rpython -Ojit --output=pydrofoil-riscv-64 riscv/targetriscv.py
+        ./pydrofoil-riscv-64 riscv/test/input/rv64ui-p-addi.elf

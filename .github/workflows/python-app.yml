@@ -38,3 +38,7 @@ jobs:
       run: |
         PYTHONPATH=. python pypy/rpython/bin/rpython -Ojit --output=pydrofoil-riscv-64 riscv/targetriscv.py
         ./pydrofoil-riscv-64 riscv/input/rv64ui-p-addi.elf
+    - uses: actions/upload-artifact@v3
+      with:
+        name: pydrofoil-riscv-64
+        path: ./pydrofoil-riscv-64

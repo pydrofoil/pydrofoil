@@ -20,9 +20,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python 2.7
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
-        python-version: "2.7"
+        python-version: "pypy-2.7-v7.3.9"
     - name: Checkout PyPy
       uses: actions/checkout@v3
       with:

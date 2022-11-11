@@ -1,7 +1,7 @@
 # This workflow will install Python dependencies, run tests and lint with a single version of Python
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
-name: Python application
+name: Pydrofoil
 
 on:
   push:
@@ -20,9 +20,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python 2.7
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
-        python-version: "2.7"
+        python-version: "pypy-2.7-v7.3.9"
     - name: Checkout PyPy
       uses: actions/checkout@v3
       with:
@@ -33,4 +33,12 @@ jobs:
         python -m pip install rply hypothesis
     - name: Test with pytest
       run: |
-        python pypy/pytest.py -v pydrofoil/
+        python pypy/pytest.py -v pydrofoil/ riscv/
+    - name: Translate and run binary
+      run: |
+        PYTHONPATH=. python pypy/rpython/bin/rpython -Ojit --output=pydrofoil-riscv-64 riscv/targetriscv.py
+        ./pydrofoil-riscv-64 riscv/input/rv64ui-p-addi.elf
+    - uses: actions/upload-artifact@v3
+      with:
+        name: pydrofoil-riscv-64
+        path: ./pydrofoil-riscv-64

@@ -4,22 +4,9 @@ from pydrofoil.makecode import *
 import os
 
 thisdir = os.path.dirname(__file__)
-elfdir = os.path.join(thisdir, "riscv/input")
 cir = os.path.join(thisdir, "nand2tetris/generated/nand2tetris.jib")
 excir = os.path.join(thisdir, "exc/exc.ir")
-mipsir = os.path.join(thisdir, "mips/mips.ir")
-riscvir = os.path.join(thisdir, "riscv/riscv_model_RV64.ir")
 outpy = os.path.join(thisdir, "nand2tetris/generated/nand_rpython.py")
-outmipspy = os.path.join(thisdir, "mips/generated/outmips.py")
-outriscvpy = os.path.join(thisdir, "riscv/generated/outriscv.py")
-
-elfs = """
-rv64ui-p-addi.elf rv64um-v-mul.elf rv64um-v-mulhu.elf rv64um-p-div.elf
-rv64um-p-rem.elf rv64ua-v-amoadd_w.elf rv64ua-v-amomax_d.elf
-"""
-
-elfs = [os.path.join(elfdir, fn) for fn in elfs.split()]
-
 
 addrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test", "nand2tetris", "input", "Add.hack.bin")
 sumrom = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test", "nand2tetris", "input", "sum.hack.bin")
@@ -321,32 +308,6 @@ def test_full_nand():
     t = Translation(main, [])
     t.rtype() # check that it's rpython
 
-@pytest.mark.xfail
-def test_full_mips():
-    import py
-    with open(mipsir, "rb") as f:
-        s = f.read()
-    support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
-    res = parse_and_make_code(s, support_code)
-    with open(outmipspy, "w") as f:
-        f.write(res)
-    d = {}
-    res = py.code.Source(res)
-    exec res.compile() in d
-
-@pytest.fixture(scope='session')
-def riscvmain():
-    from pydrofoil.test.riscv.targetriscv import make_code
-    return make_code()
-
-@pytest.mark.parametrize("elf", elfs)
-def test_full_riscv(riscvmain, elf):
-    riscvmain(['executable', elf])
-
-def test_load_dump(riscvmain):
-    from pydrofoil.test.riscv import supportcoderiscv
-    d = supportcoderiscv.parse_dump_file(os.path.join(thisdir, 'riscv/dhrystone.riscv.dump'))
-    assert d[0x8000218a] == '.text: Proc_1 6100                	ld	s0,0(a0)'
 
 def test_opt_mem_read_risc(riscvmain):
     from rpython.translator.interactive import Translation

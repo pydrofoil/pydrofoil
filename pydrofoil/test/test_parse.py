@@ -4,7 +4,6 @@ import os
 
 thisdir = os.path.dirname(__file__)
 cir = os.path.join(thisdir, "nand2tetris/generated/nand2tetris.jib")
-mipsir = os.path.join(thisdir, "mips/mips.ir")
 riscvir = os.path.join(thisdir, "riscv/riscv_model_RV64.ir")
 
 def test_lex_full():
@@ -288,22 +287,3 @@ def test_parse_full():
         print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
         assert 0
 
-def test_parse_full_mips():
-    with open(mipsir, "rb") as f:
-        s = f.read()
-    try:
-        res = parser.parse(lexer.lex(s))
-    except (LexingError, ParsingError) as e:
-        print e.getsourcepos()
-        print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
-        assert 0
-
-def test_parse_full_riscv():
-    with open(riscvir, "rb") as f:
-        s = f.read()
-    try:
-        res = parser.parse(lexer.lex(s))
-    except (LexingError, ParsingError) as e:
-        print e.getsourcepos()
-        print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
-        raise

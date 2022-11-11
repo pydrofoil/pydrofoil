@@ -1,6 +1,7 @@
 Fast RISC-V Sail emulation using PyPy/RPython's JIT compiler
 ==
 
+[![CI status](https://github.com/pydrofoil/pydrofoil/actions/workflows/python-app.yml/badge.svg)](https://github.com/pydrofoil/pydrofoil/actions/workflows/python-app.yml)
 [![Documentation Status](https://readthedocs.org/projects/pydrofoil/badge/?version=latest)](https://docs.pydrofoil.org/en/latest/?badge=latest)
 
 This repository contains Pydrofoil, an experimental emulator for RISC-V based

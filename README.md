@@ -1,4 +1,4 @@
-#Fast RISC-V Sail emulation using PyPy/RPython's JIT compiler
+# Fast RISC-V Sail emulation using PyPy/RPython's JIT compiler
 
 
 [![CI status](https://github.com/pydrofoil/pydrofoil/actions/workflows/python-app.yml/badge.svg)](https://github.com/pydrofoil/pydrofoil/actions/workflows/python-app.yml)
@@ -12,7 +12,7 @@ It's built on top of the [RPython meta-jit
 compiler](https://www3.hhu.de/stups/downloads/pdf/BoCuFiRi09_246.pdf) and
 reuses all its optimizations, backends, etc.
 
-##Getting Started
+## Getting Started
 
 Clone the repo. Then run the top-level Makefile. Running `make pydrofoil will:
 - Create a virtualenv with python2 (assuming your OS has `python2` and a

@@ -9,7 +9,7 @@ pydrofoil-riscv64: venv_riscv/bin/python pypy/rpython/bin/rpython ## Build pydro
 
 venv_riscv/bin/python:  ## create a virtualenv
 	@virtualenv -p python2 ./venv_riscv
-	@venv_riscv/bin/python -mpip install rply
+	@venv_riscv/bin/python -mpip install rply "hypothesis<4.40"
 
 pypy/rpython/bin/rpython: ## clone the submodule
 	git submodule update --init --depth 1

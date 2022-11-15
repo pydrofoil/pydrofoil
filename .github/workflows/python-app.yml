@@ -27,8 +27,8 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
-        sudo apt install virtualenv
-        virtualenv -p python ./venv_riscv
+        python -m pip install virtualenv
+        python -m virtualenv ./venv_riscv
         ./venv_riscv/bin/python -mpip install rply "hypothesis<4.40"
         make pypy/rpython/bin/rpython
 

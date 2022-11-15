@@ -27,7 +27,7 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
-        apt install virtualenv
+        sudo apt install virtualenv
         virtualenv -p python ./venv_riscv
         ./venv_riscv/bin/python -mpip install rply "hypothesis<4.40"
 

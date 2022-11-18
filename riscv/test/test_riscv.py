@@ -67,3 +67,33 @@ def test_elf_reader32():
         entrypoint = elf.elf_read_process_image(m, f)
     assert entrypoint == 0x80000000
     assert m.read(0x0000000080000000, 2) == 0x6f
+
+
+def test_opt_mem_read_risc(riscvmain):
+    from rpython.translator.interactive import Translation
+    from rpython.translator.backendopt.ssa import SSI_to_SSA
+    from rpython.rlib.rarithmetic import r_uint, intmask
+    from pydrofoil import mem as mem_mod
+    from rpython.translator.backendopt.stat import print_statistics
+    from pydrofoil import bitvector
+    
+    outriscv = riscvmain.outriscv
+    Machine = riscvmain.Machine
+    machine = Machine()
+    machine.init_model()
+    machine.g.mem = mem_mod.FlatMemory(False)
+    outriscv.func_zwithin_phys_mem(machine, r_uint(12), *bitvector.int_fromint(2))
+    def f(addr):
+        addr = r_uint(addr)
+        #access = outriscv.Union_zAccessType_zReadz3z5unit.singleton
+        return outriscv.func_zwithin_phys_mem(machine, addr, *bitvector.int_fromint(2))
+        #res = outriscv.func_zmem_read(machine, access, addr, 8, False, False, False)
+        return res is not None
+    t = Translation(f, [int], withsmallfuncsets=5)
+    t.rtype()
+    t.backendopt()
+    g = [g for g in t.driver.translator.graphs if "within_phys_mem" in g.name][0]
+    print_statistics(g, t.driver.translator)
+    SSI_to_SSA(g)
+    g.view()
+

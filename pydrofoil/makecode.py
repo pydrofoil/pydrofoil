@@ -387,16 +387,29 @@ class __extend__(parse.Function):
 
     @contextmanager
     def _scope(self, codegen, pyname, method=False):
+        typ = codegen.globalnames[self.name].typ
+        args = []
+        startlines = []
+        for i, arg in enumerate(self.args):
+            argtyp = typ.argtype.elements[i]
+            if argtyp is types.Int():
+                args.append("%s_0" % (arg, ))
+                args.append("%s_1" % (arg, ))
+                startlines.append("%s = (%s_0, %s_1)" % (arg, arg, arg))
+            else:
+                args.append(arg)
+
         if not method:
-            first = "def %s(machine, %s):" % (pyname, ", ".join(self.args))
+            first = "def %s(machine, %s):" % (pyname, ", ".join(args))
         else:
             # bit messy, need the self
-            first = "def %s(%s, machine, %s):" % (pyname, self.args[0], ", ".join(self.args[1:]))
-        typ = codegen.globalnames[self.name].typ
+            first = "def %s(%s, machine, %s):" % (pyname, self.args[0], ", ".join(args[1:]))
         with codegen.enter_scope(self), codegen.emit_indent(first):
             codegen.add_local('return', 'return_', typ.restype, self)
             for i, arg in enumerate(self.args):
                 codegen.add_local(arg, arg, typ.argtype.elements[i], self)
+            for startline in startlines:
+                codegen.emit(startline)
             yield
 
     def _prepare_blocks(self):
@@ -644,10 +657,20 @@ class __extend__(parse.Operation):
         op = codegen.getname(name)
         info = codegen.getinfo(name)
         if isinstance(info.typ, types.Function):
-            # pass machine, even to supportcode functions
-            if types.Int() in argtyps:
-                import pdb; pdb.set_trace()
-            codegen.emit("%s = %s(machine, %s)" % (result, op, args))
+            expand_ints = not info.pyname.startswith("supportcode.")
+            if expand_ints:
+                newargs = []
+                for index, (arg, argtyp) in enumerate(zip(sargs, argtyps)):
+                    if argtyp is types.Int():
+                        newargs.append("%s[0]" % (arg, ))
+                        newargs.append("%s[1]" % (arg, ))
+                    else:
+                        newargs.append(arg)
+                # pass machine, even to supportcode functions
+            else:
+                newargs = sargs
+            codegen.emit("%s = %s(machine, %s)" % (result, op, ", ".join(newargs)))
+
         elif isinstance(info.typ, types.Union):
             codegen.emit("%s = %s" % (result, info.ast.constructor(info, op, args, argtyps)))
         else:

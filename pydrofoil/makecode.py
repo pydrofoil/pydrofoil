@@ -67,7 +67,7 @@ class Codegen(object):
     def getname(self, name):
         if self.localnames is None or name not in self.localnames:
             return self.globalnames[name].pyname
-        return name
+        return self.localnames[name].pyname
 
     def getinfo(self, name):
         if name in self.localnames:
@@ -608,8 +608,7 @@ class __extend__(parse.LocalVarDeclaration):
     def make_op_code(self, codegen, need_default_init=True):
         codegen.emit("# %s: %s" % (self.name, self.typ))
         typ = self.typ.resolve_type(codegen)
-        if 0: #typ is types.Int():
-            import pdb; pdb.set_trace()
+        if typ is types.Int():
             pyname = "(%s_1, %s_2)" % (self.name, self.name)
         else:
             pyname = self.name

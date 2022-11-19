@@ -85,9 +85,9 @@ def test_opt_mem_read_risc(riscvmain):
     outriscv.func_zwithin_phys_mem(machine, r_uint(12), *bitvector.int_fromint(2))
     def f(addr):
         addr = r_uint(addr)
-        #access = outriscv.Union_zAccessType_zReadz3z5unit.singleton
-        return outriscv.func_zwithin_phys_mem(machine, addr, *bitvector.int_fromint(2))
-        #res = outriscv.func_zmem_read(machine, access, addr, 8, False, False, False)
+        access = outriscv.Union_zAccessType_zReadz3z5unit.singleton
+        #return outriscv.func_zwithin_phys_mem(machine, addr, *bitvector.int_fromint(2))
+        res = outriscv.func_zmem_read(machine, access, addr, 8, False, False, False)
         return res is not None
     t = Translation(f, [int], withsmallfuncsets=5)
     t.rtype()
@@ -95,5 +95,6 @@ def test_opt_mem_read_risc(riscvmain):
     g = [g for g in t.driver.translator.graphs if "within_phys_mem" in g.name][0]
     print_statistics(g, t.driver.translator)
     SSI_to_SSA(g)
+    t.viewcg()
     g.view()
 

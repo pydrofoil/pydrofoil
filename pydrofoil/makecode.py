@@ -218,7 +218,11 @@ class __extend__(parse.Union):
                     # default field values
                     if type(rtyp) is types.Tuple:
                         for fieldnum, fieldtyp in enumerate(rtyp.elements):
-                            codegen.emit("utup%s = %s" % (fieldnum, fieldtyp.uninitialized_value))
+                            if fieldtyp is types.Int():
+                                codegen.emit("utup%s_0 = -0xfefee" % (fieldnum, ))
+                                codegen.emit("utup%s_1 = None" % (fieldnum, ))
+                            else:
+                                codegen.emit("utup%s = %s" % (fieldnum, fieldtyp.uninitialized_value))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                     self.make_init(codegen, rtyp, typ, pyname)
@@ -251,7 +255,13 @@ class __extend__(parse.Union):
             elif type(rtyp) is types.Tuple:
                 codegen.emit("# %s" % typ)
                 for fieldnum, fieldtyp in enumerate(rtyp.elements):
-                    codegen.emit("self.utup%s = a.ztup%s" % (fieldnum, fieldnum))
+                    if fieldtyp is types.Int():
+                        codegen.emit("self.utup%s_0 = a.ztup%s[0]" % (fieldnum, fieldnum))
+                        codegen.emit("self.utup%s_1 = a.ztup%s[1]" % (fieldnum, fieldnum))
+                    else:
+                        codegen.emit("self.utup%s = a.ztup%s" % (fieldnum, fieldnum))
+            elif rtyp is types.Int():
+                assert 0, "not implemented"
             else:
                 codegen.emit("self.a = a # %s" % (typ, ))
 
@@ -265,8 +275,10 @@ class __extend__(parse.Union):
             elif type(rtyp) is types.Tuple:
                 codegen.emit("# %s" % typ)
                 for fieldnum, fieldtyp in enumerate(rtyp.elements):
+                    expr = self.read_field(fieldnum, fieldtyp, 'self')
+                    otherexpr = self.read_field(fieldnum, fieldtyp, 'other')
                     codegen.emit("if %s: return False # %s" % (
-                        fieldtyp.make_op_code_special_neq(None, ('self.utup%s' % fieldnum, 'other.utup%s' % fieldnum), (fieldtyp, fieldtyp)),
+                        fieldtyp.make_op_code_special_neq(None, (expr, otherexpr), (fieldtyp, fieldtyp)),
                         typ.elements[fieldnum]))
             else:
                 codegen.emit("if %s: return False # %s" % (
@@ -283,7 +295,8 @@ class __extend__(parse.Union):
                 elif type(rtyp) is types.Tuple:
                     codegen.emit("res = %s" % rtyp.uninitialized_value)
                     for fieldnum, fieldtyp in enumerate(rtyp.elements):
-                        codegen.emit("res.ztup%s = inst.utup%s" % (fieldnum, fieldnum))
+                        codegen.emit("res.ztup%s = %s" % (fieldnum,
+                            self.read_field(fieldnum, fieldtyp, 'inst')))
                     codegen.emit("return res")
                 else:
                     codegen.emit("return inst.a")
@@ -294,7 +307,7 @@ class __extend__(parse.Union):
                 codegen.emit("@staticmethod")
                 with codegen.emit_indent("def convert_ztup%s(inst):" % fieldnum):
                     with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
-                        codegen.emit("return inst.utup%s" % (fieldnum, ))
+                        codegen.emit("return %s" % self.read_field(fieldnum, fieldtyp, 'inst'))
                     with codegen.emit_indent("else:"):
                         codegen.emit("raise TypeError")
 
@@ -304,6 +317,12 @@ class __extend__(parse.Union):
         if argtyps == [types.Unit()]:
             return "%s.singleton" % (op, )
         return "%s(%s)" % (op, args)
+
+    def read_field(self, fieldnum, fieldtyp, selfvar='self'):
+        if fieldtyp is types.Int():
+            return "(%s.utup%s_0, %s.utup%s_1)" % (selfvar, fieldnum, selfvar, fieldnum)
+        else:
+            return "%s.utup%s" % (selfvar, fieldnum)
 
 class __extend__(parse.Struct):
     def make_code(self, codegen):

@@ -95,6 +95,4 @@ def test_opt_mem_read_risc(riscvmain):
     g = [g for g in t.driver.translator.graphs if "within_phys_mem" in g.name][0]
     print_statistics(g, t.driver.translator)
     SSI_to_SSA(g)
-    t.viewcg()
-    g.view()
 

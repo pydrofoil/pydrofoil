@@ -138,7 +138,7 @@ class __extend__(types.MachineInt):
 
 class __extend__(types.Int):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
-        return "%s.eq(%s)" % (sarg1, sarg2)
+        return "supportcode.eq_int(%s, %s)" % (sarg1, sarg2)
 
 class __extend__(types.List):
     def make_op_code_special_hd(self, ast, sargs, argtyps):

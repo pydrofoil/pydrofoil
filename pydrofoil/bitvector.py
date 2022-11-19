@@ -46,6 +46,23 @@ class BitVector(object):
     def append_64(self, ui):
         return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
 
+    # annoying manual optimization for bitvector methods that return ints
+    @always_inline
+    def signed(self):
+        if isinstance(self, SmallBitVector):
+            return self.signed_smallbv()
+        else:
+            assert isinstance(self, GenericBitVector)
+            return self.signed_genericbv()
+
+    @always_inline
+    def unsigned(self):
+        if isinstance(self, SmallBitVector):
+            return self.unsigned_smallbv()
+        else:
+            assert isinstance(self, GenericBitVector)
+            return self.unsigned_genericbv()
+
 class BitVectorWithSize(BitVector):
     _attrs_ = ['_size']
     _immutable_fields_ = ['_size']
@@ -183,7 +200,7 @@ class SmallBitVector(BitVectorWithSize):
         return self.make((self.val & mask) | (s.touint() << m), True)
 
     @always_inline
-    def signed(self):
+    def signed_smallbv(self):
         n = self.size()
         if n == 64:
             return int_fromint(intmask(self.val))
@@ -194,7 +211,7 @@ class SmallBitVector(BitVectorWithSize):
         return int_fromint(intmask((op ^ m) - m))
 
     @always_inline
-    def unsigned(self):
+    def unsigned_smallbv(self):
         return int_fromruint(self.val)
 
     def eq(self, other):
@@ -305,7 +322,7 @@ class GenericBitVector(BitVectorWithSize):
         mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m).invert()
         return self.make(self.rval.and_(mask).or_(s.tobigint().lshift(m)))
 
-    def signed(self):
+    def signed_genericbv(self):
         n = self.size()
         assert n > 0
         u1 = rbigint.fromint(1)
@@ -314,7 +331,7 @@ class GenericBitVector(BitVectorWithSize):
         op = op.and_((u1.lshift(n)).int_sub(1)) # mask off higher bits to be sure
         return int_frombigint(op.xor(m).sub(m))
 
-    def unsigned(self):
+    def unsigned_genericbv(self):
         return int_frombigint(self.rval)
 
     def eq(self, other):

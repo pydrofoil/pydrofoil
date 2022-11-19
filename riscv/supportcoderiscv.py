@@ -594,6 +594,7 @@ def get_main(outriscv, rv64):
         def set_Misa_C(self, *args):
             return outriscv.func_z_set_Misa_C(self, *args)
 
+        @always_inline
         def step(self, step):
             return outriscv.func_zstep(self, step[0], step[1])
 

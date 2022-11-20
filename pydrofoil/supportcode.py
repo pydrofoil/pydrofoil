@@ -115,32 +115,40 @@ def fast_signed(machine, op, n):
 
 @objectmodel.always_inline
 def add_bits_int(machine, a, b):
-    return a.add_int(b)
+    return bitvector.bv_add_int(a, b)
 
+@objectmodel.always_inline
 def sub_bits_int(machine, a, b):
-    return a.sub_int(b)
+    return bitvector.bv_sub_int(a, b)
 
+@objectmodel.always_inline
 def length(machine, gbv):
-    return gbv.size_as_int()
+    return bitvector.bv_size_as_int(gbv)
 
+@objectmodel.always_inline
 def sign_extend(machine, gbv, lint):
     size = bitvector.int_toint(lint)
-    return gbv.sign_extend(size)
+    return bitvector.bv_sign_extend(gbv, size)
 
+@objectmodel.always_inline
 def eq_bits(machine, gvba, gvbb):
-    return gvba.eq(gvbb)
+    return bitvector.bv_eq(gvba, gvbb)
 
+@objectmodel.always_inline
 def xor_bits(machine, gvba, gvbb):
-    return gvba.xor(gvbb)
+    return bitvector.bv_xor(gvba, gvbb)
 
+@objectmodel.always_inline
 def and_bits(machine, gvba, gvbb):
-    return gvba.and_(gvbb)
+    return bitvector.bv_and(gvba, gvbb)
 
+@objectmodel.always_inline
 def or_bits(machine, gvba, gvbb):
-    return gvba.or_(gvbb)
+    return bitvector.bv_or(gvba, gvbb)
 
+@objectmodel.always_inline
 def not_bits(machine, gvba):
-    return gvba.invert()
+    return bitvector.bv_invert(gvba)
 
 def print_bits(machine, s, b):
     print s + b.string_of_bits()
@@ -148,36 +156,38 @@ def print_bits(machine, s, b):
 
 @objectmodel.always_inline
 def shiftl(machine, gbv, i):
-    return gbv.lshift(bitvector.int_toint(i))
+    return bitvector.bv_lshift(gbv, bitvector.int_toint(i))
 
 @objectmodel.always_inline
 def shiftr(machine, gbv, i):
-    return gbv.rshift(bitvector.int_toint(i))
+    return bitvector.bv_rshift(gbv, bitvector.int_toint(i))
 
+@objectmodel.always_inline
 def shift_bits_left(machine, gbv, gbva):
-    return gbv.lshift_bits(gbva)
+    return bitvector.bv_lshift_bits(gbv, gbva)
 
+@objectmodel.always_inline
 def shift_bits_right(machine, gbv, gbva):
-    return gbv.rshift_bits(gbva)
+    return bitvector.bv_rshift_bits(gbv, gbva)
 
 @objectmodel.always_inline
 def sail_unsigned(machine, gbv):
-    return gbv.unsigned()
+    return bitvector.bv_unsigned(gbv)
 
 @objectmodel.always_inline
 def sail_signed(machine, gbv):
-    return gbv.signed()
+    return bitvector.bv_signed(gbv)
 
 def append_64(machine, bv, v):
-    return bv.append_64(v)
+    return bitvector.bv_append_64(bv, v)
 
 @objectmodel.always_inline
 def vector_update(machine, bv, index, element):
-    return bv.update_bit(bitvector.int_toint(index), element)
+    return bitvector.bv_update_bit(bv, bitvector.int_toint(index), element)
 
 @objectmodel.always_inline
 def vector_access(machine, bv, index):
-    return bv.read_bit(bitvector.int_toint(index))
+    return bitvector.bv_read_bit(bv, bitvector.int_toint(index))
 
 def update_fbits(fb, index, element):
     assert 0 <= index < 64
@@ -187,13 +197,13 @@ def update_fbits(fb, index, element):
         return fb & ~(r_uint(1) << index)
 
 def vector_update_subrange(machine, bv, n, m, s):
-    return bv.update_subrange(bitvector.int_toint(n), bitvector.int_toint(m), s)
+    return bitvector.bv_update_subrange(bv, bitvector.int_toint(n), bitvector.int_toint(m), s)
 
 def vector_subrange(machine, bv, n, m):
-    return bv.subrange(bitvector.int_toint(n), bitvector.int_toint(m))
+    return bitvector.bv_subrange(bv, bitvector.int_toint(n), bitvector.int_toint(m))
 
 def string_of_bits(machine, gbv):
-    return gbv.string_of_bits()
+    return bitvector.bv_string_of_bits(gbv)
 
 def decimal_string_of_bits(machine, sbits):
     return str(sbits)

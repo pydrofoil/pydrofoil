@@ -88,7 +88,7 @@ class __extend__(types.FixedBitVector):
 
 class __extend__(types.SmallBitVector):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
-        return "%s.touint() == %s.touint()" % (sarg1, sarg2)
+        return "bitvector.bv_touint(%s) == bitvector.bv_touint(%s)" % (sarg1, sarg2)
 
     def make_op_code_templated_slice(self, ast, codegen):
         arg, num = ast.args
@@ -97,14 +97,14 @@ class __extend__(types.SmallBitVector):
         width = ast.templateparam.number
         sarg = arg.to_code(codegen)
         if num.number == 0:
-            s = "%s.touint()" % (sarg, )
+            s = "bitvector.bv_touint(%s)" % (sarg, )
         else:
-            s = "supportcode.safe_rshift(machine, %s.touint(), %s)" % (sarg, num.number)
+            s = "supportcode.safe_rshift(machine, bitvector.bv_touint(%s), %s)" % (sarg, num.number)
         return ruint_mask(s, width)
 
 class __extend__(types.GenericBitVector):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps):
-        return "%s.eq(%s)" % (sarg1, sarg2)
+        return "bitvector.bv_eq(%s, %s)" % (sarg1, sarg2)
 
 class __extend__(types.MachineInt):
     def machineintop(self, template, sargs, argtyps):

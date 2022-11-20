@@ -26,7 +26,7 @@ class __extend__(pairtype(types.SmallBitVector, types.GenericBitVector)):
 
 class __extend__(pairtype(types.SmallBitVector, types.FixedBitVector)):
     def convert((from_, to), ast, codegen):
-        return "%s.touint()" % ast.to_code(codegen)
+        return "bitvector.bv_touint(%s)" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.FixedBitVector, types.SmallBitVector)):
     def convert((from_, to), ast, codegen):
@@ -34,7 +34,7 @@ class __extend__(pairtype(types.FixedBitVector, types.SmallBitVector)):
 
 class __extend__(pairtype(types.GenericBitVector, types.FixedBitVector)):
     def convert((from_, to), ast, codegen):
-        return "%s.touint()" % ast.to_code(codegen)
+        return "bitvector.bv_touint(%s)" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.GenericBitVector, types.SmallBitVector)):
     def convert((from_, to), ast, codegen):
@@ -43,6 +43,7 @@ class __extend__(pairtype(types.GenericBitVector, types.SmallBitVector)):
 class __extend__(pairtype(types.Int, types.FixedBitVector)):
     def convert((from_, to), ast, codegen):
         assert to.width <= 64
+        xxx
         return "%s.touint()" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.String, types.Int)):

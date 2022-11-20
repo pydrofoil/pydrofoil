@@ -20,17 +20,17 @@ def write_mem(machine, addr, content): # write a single byte
 def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
     n = bitvector.int_toint(n)
     assert n <= 8
-    addr = addr.touint()
+    addr = bitvector.bv_touint(addr)
     res = jit.promote(machine.g).mem.read(addr, n, executable_flag)
-    return bitvector.SmallBitVector(n*8, res) # breaking abstracting a bit, but much more efficient
+    return bitvector.from_int(n*8, res)
 
 @always_inline
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
     n = bitvector.int_toint(n)
     assert n <= 8
     assert addr_size == 64
-    assert data.size() == n * 8
-    jit.promote(machine.g).mem.write(addr.touint(), n, data.touint())
+    assert bitvector.bv_size(data) == n * 8
+    jit.promote(machine.g).mem.write(bitvector.bv_touint(addr), n, bitvector.bv_touint(data))
     return True
 
 # rough memory layout:

@@ -30,6 +30,10 @@ def from_bigint(size, rval):
     return big_bv(size, rval, True)
 
 @always_inline
+def from_int(size, val):
+    return from_ruint(size, r_uint(val))
+
+@always_inline
 def small_bv(size, val, normalize=False):
     assert size <= 64
     assert isinstance(val, r_uint)

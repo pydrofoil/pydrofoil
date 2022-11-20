@@ -2,7 +2,7 @@ import sys
 from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
-from rpython.rlib.objectmodel import always_inline, specialize, dont_inline
+from rpython.rlib.objectmodel import always_inline, specialize, dont_inline, we_are_translated
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 
@@ -43,7 +43,7 @@ def small_bv(size, val, normalize=False):
 
 @always_inline
 def big_bv(size, rval, normalize=False):
-    assert size > 64
+    assert size > 64 or not we_are_translated()
     if normalize:
         rval = bigint_size_mask(size, rval)
     return (size, r_uint(-1), rval)
@@ -75,6 +75,7 @@ def bv_string_of_bits(bv):
 def bv_tolong(bv): # only for tests
     return bv_tobigint(bv).tolong()
 
+@always_inline
 def bv_signed(bv):
     size, val, rval = bv
     if rval is None:
@@ -86,13 +87,13 @@ def bv_signed(bv):
         op = val & ((u1 << size) - 1) # mask off higher bits to be sure
         return int_fromint(intmask((op ^ m) - m))
     else:
-        assert size > 64
         u1 = rbigint.fromint(1)
         m = u1.lshift(size - 1)
         op = rval
         op = op.and_((u1.lshift(size)).int_sub(1)) # mask off higher bits to be sure
         return int_frombigint(op.xor(m).sub(m))
 
+@always_inline
 def bv_unsigned(bv):
     size, val, rval = bv
     if rval is None:
@@ -100,6 +101,7 @@ def bv_unsigned(bv):
     else:
         return int_frombigint(rval)
 
+@always_inline
 def bv_lshift(bv, i):
     size, val, rval = bv
     if rval is None:
@@ -110,6 +112,7 @@ def bv_lshift(bv, i):
     else:
         return big_bv(size, rval.lshift(i), True)
 
+@always_inline
 def bv_rshift(bv, i):
     size, val, rval = bv
     if rval is None:
@@ -120,45 +123,48 @@ def bv_rshift(bv, i):
     else:
         return big_bv(size, rval.rshift(i), True)
 
+@always_inline
 def bv_lshift_bits(self, other):
     return bv_lshift(self, bv_toint(other))
 
+@always_inline
 def bv_rshift_bits(self, other):
     return bv_rshift(self, bv_toint(other))
 
+@always_inline
 def bv_and(self, other):
     sizea, vala, rvala = self
-    sizeb, valb, rvalb = other
-    assert sizea == sizeb
     if rvala is None:
+        sizeb, valb, rvalb = other
         assert rvalb is None
         return small_bv(sizea, vala & valb, True)
     else:
-        assert rvalb is not None
+        rvalb = bv_tobigint(other)
         return big_bv(sizea, rvala.and_(rvalb), True)
 
+@always_inline
 def bv_or(self, other):
     sizea, vala, rvala = self
-    sizeb, valb, rvalb = other
-    assert sizea == sizeb
     if rvala is None:
+        sizeb, valb, rvalb = other
         assert rvalb is None
         return small_bv(sizea, vala | valb, True)
     else:
-        assert rvalb is not None
+        rvalb = bv_tobigint(other)
         return big_bv(sizea, rvala.or_(rvalb), True)
 
+@always_inline
 def bv_xor(self, other):
     sizea, vala, rvala = self
-    sizeb, valb, rvalb = other
-    assert sizea == sizeb
     if rvala is None:
+        sizeb, valb, rvalb = other
         assert rvalb is None
         return small_bv(sizea, vala ^ valb, True)
     else:
-        assert rvalb is not None
+        rvalb = bv_tobigint(other)
         return big_bv(sizea, rvala.xor(rvalb), True)
 
+@always_inline
 def bv_invert(bv):
     size, val, rval = bv
     if rval is None:
@@ -166,17 +172,18 @@ def bv_invert(bv):
     else:
         return big_bv(size, rval.invert(), True)
 
+@always_inline
 def bv_eq(self, other):
     sizea, vala, rvala = self
     sizeb, valb, rvalb = other
     assert sizea == sizeb
-    if rvala is None:
-        assert rvalb is None
+    if rvala is None and rvalb is None:
         return vala == valb
-    else:
-        assert rvalb is not None
-        return rvala.eq(valb)
+    rvala = bv_tobigint(self)
+    rvalb = bv_tobigint(other)
+    return rvala.eq(rvalb)
 
+@always_inline
 def bv_toint(bv):
     size, val, rval = bv
     if rval is None:
@@ -250,7 +257,7 @@ def bv_update_subrange(bv, n, m, s):
     assert width == n - m + 1
     assert width <= size
     if rvala is None:
-        assert rvalb is None
+        valb = bv_touint(s)
         if width == size:
             return s
         # width cannot be 64 in the next line because of the if above
@@ -259,7 +266,7 @@ def bv_update_subrange(bv, n, m, s):
     else:
         # XXX put slowpath into its own function
         mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m).invert()
-        return big_bv(rvala.and_(mask).or_(bv_tobigint(s).lshift(m)))
+        return big_bv(size, rvala.and_(mask).or_(bv_tobigint(s).lshift(m)))
 
 @always_inline
 def bv_add_int(bv, i):

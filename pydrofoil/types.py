@@ -77,7 +77,7 @@ class FixedBitVector(Type):
 
 @unique
 class SmallBitVector(Type):
-    uninitialized_value = "None"
+    uninitialized_value = "(19, r_uint(-1), None)"
 
     # small bitvector: length of at most width
     def __init__(self, width):
@@ -88,7 +88,7 @@ class SmallBitVector(Type):
 
 @unique
 class GenericBitVector(Type):
-    uninitialized_value = "None"
+    uninitialized_value = "(123, r_uint(-1), None)"
 
 @unique
 class MachineInt(Type):

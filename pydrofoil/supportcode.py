@@ -196,9 +196,11 @@ def update_fbits(fb, index, element):
     else:
         return fb & ~(r_uint(1) << index)
 
+@objectmodel.always_inline
 def vector_update_subrange(machine, bv, n, m, s):
     return bitvector.bv_update_subrange(bv, bitvector.int_toint(n), bitvector.int_toint(m), s)
 
+@objectmodel.always_inline
 def vector_subrange(machine, bv, n, m):
     return bitvector.bv_subrange(bv, bitvector.int_toint(n), bitvector.int_toint(m))
 

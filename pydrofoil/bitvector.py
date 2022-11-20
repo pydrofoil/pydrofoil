@@ -6,346 +6,325 @@ from rpython.rlib.objectmodel import always_inline, specialize, dont_inline
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 
+# implement bitvectors in a weird way. they are triples:
+# (size, value-as-ruint or -1, None or value-as-rbigint)
+# this is done so we can pass them as three local variables everywhere and need
+# no allocation in a lot of situations.
+
+# rules for what needs an inline:
+# - everything that returns a triple should be inlined
+# - all the complicated bigint calculation should be hidden if possible
+
+
 @always_inline
 @specialize.arg_or_var(0)
 def from_ruint(size, val):
     if size <= 64:
-        return SmallBitVector(size, val, True)
-    return GenericBitVector(size, rbigint.fromrarith_int(val), True)
+        return small_bv(size, val, True)
+    return big_bv(size, rbigint.fromrarith_int(val), True)
 
 @always_inline
 def from_bigint(size, rval):
     if size <= 64:
-        return SmallBitVector(size, BitVector.rbigint_mask(size, rval).touint())
-    return GenericBitVector(size, rval, True)
+        return small_bv(size, bigint_size_mask(size, rval).touint())
+    return big_bv(size, rval, True)
 
-class BitVector(object):
-    _attrs_ = []
+@always_inline
+def small_bv(size, val, normalize=False):
+    assert size <= 64
+    assert isinstance(val, r_uint)
+    if normalize and size != 64:
+        val = val & ((r_uint(1) << size) - 1)
+    return (size, val, None)
 
-    def size(self):
-        raise NotImplementedError("abstract base class")
+@always_inline
+def big_bv(size, rval, normalize=False):
+    assert size > 64
+    if normalize:
+        rval = bigint_size_mask(size, rval)
+    return (size, r_uint(-1), rval)
 
-    def size_as_int(self):
-        return int_fromint(self.size())
+@dont_inline
+def bigint_size_mask(size, rval):
+    return rval.and_(rbigint.fromint(1).lshift(size).int_sub(1))
 
-    def string_of_bits(self):
-        if self.size() % 4 == 0:
-            res = self.tobigint().format("0123456789ABCDEF")
-            return "0x%s%s" % ("0" * max(0, self.size() // 4 - len(res)), res)
-        else:
-            res = self.tobigint().format("01")
-            return "0b%s%s" % ("0" * max(0, self.size() - len(res)), res)
+@always_inline
+def bv_size(bv):
+    size, val, rval = bv
+    return size
 
-    @staticmethod
-    def rbigint_mask(size, rval):
-        return rval.and_(rbigint.fromint(1).lshift(size).int_sub(1))
+@always_inline
+def bv_size_as_int(bv):
+    size, val, rval = bv
+    return int_fromint(size)
 
-    def tolong(self): # only for tests:
-        return self.tobigint().tolong()
+def bv_string_of_bits(bv):
+    size = bv[0]
+    rval = bv_tobigint(bv)
+    if size % 4 == 0:
+        res = rval.format("0123456789ABCDEF")
+        return "0x%s%s" % ("0" * max(0, size // 4 - len(res)), res)
+    else:
+        res = rval.format("01")
+        return "0b%s%s" % ("0" * max(0, size - len(res)), res)
 
-    def append_64(self, ui):
-        return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
+def bv_tolong(bv): # only for tests
+    return bv_tobigint(bv).tolong()
 
-    # annoying manual optimization for bitvector methods that return ints
-    @always_inline
-    def signed(self):
-        if isinstance(self, SmallBitVector):
-            return self.signed_smallbv()
-        else:
-            assert isinstance(self, GenericBitVector)
-            return self.signed_genericbv()
-
-    @always_inline
-    def unsigned(self):
-        if isinstance(self, SmallBitVector):
-            return self.unsigned_smallbv()
-        else:
-            assert isinstance(self, GenericBitVector)
-            return self.unsigned_genericbv()
-
-class BitVectorWithSize(BitVector):
-    _attrs_ = ['_size']
-    _immutable_fields_ = ['_size']
-
-    def __init__(self, size):
-        self._size = size
-
-    def size(self):
-        return self._size
-
-
-class SmallBitVector(BitVectorWithSize):
-    _immutable_fields_ = ['val']
-
-    def __init__(self, size, val, normalize=False):
-        self._size = size # number of bits
-        assert isinstance(val, r_uint)
-        if normalize and size != 64:
-            val = val & ((r_uint(1) << size) - 1)
-        self.val = val # r_uint
-
-    def __repr__(self):
-        return "<SmallBitVector %s 0x%x>" % (self.size(), self.val)
-
-    def make(self, val, normalize=False):
-        return SmallBitVector(self.size(), val, normalize)
-
-    def _check_size(self, other):
-        assert other.size() == self.size()
-        assert isinstance(other, SmallBitVector)
-        return other
-
-    @always_inline
-    def add_int(self, i):
-        val, rval = i
-        if rval is None:
-            if val > 0:
-                return self.make(self.val + r_uint(val), True)
-        return self._add_int_slow(val, rval)
-
-    def _add_int_slow(self, val, rval):
-        rval = int_tobigint_components(val, rval)
-        # XXX can be better
-        return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().add(rval)))
-
-    @always_inline
-    def sub_int(self, i):
-        val, rval = i
-        if rval is None:
-            if val > 0:
-                return self.make(self.val - r_uint(val), True)
-        return self._sub_int_slow(val, rval)
-
-    def _sub_int_slow(self, val, rval):
-        rval = int_tobigint_components(val, rval)
-        # XXX can be better
-        return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().sub(rval)))
-
-    def print_bits(self):
-        print self.__repr__()
-
-    def lshift(self, i):
-        assert i >= 0
-        if i >= 64:
-            return self.make(r_uint(0))
-        return self.make(self.val << i, True)
-
-    def rshift(self, i):
-        assert i >= 0
-        if i >= self.size():
-            return self.make(r_uint(0))
-        return self.make(self.val >> i)
-
-    def lshift_bits(self, other):
-        return self.lshift(other.toint())
-
-    def rshift_bits(self, other):
-        return self.rshift(other.toint())
-
-    def xor(self, other):
-        assert isinstance(other, SmallBitVector)
-        return self.make(self.val ^ other.val, True)
-
-    def and_(self, other):
-        assert isinstance(other, SmallBitVector)
-        return self.make(self.val & other.val, True)
-
-    def or_(self, other):
-        assert isinstance(other, SmallBitVector)
-        return self.make(self.val | other.val, True)
-
-    def invert(self):
-        return self.make(~self.val, True)
-
-    def subrange(self, n, m):
-        width = n - m + 1
-        return SmallBitVector(width, self.val >> m, True)
-
-    @always_inline
-    def sign_extend(self, i):
-        if i == self.size():
-            return self
-        if i > 64:
-            return GenericBitVector._sign_extend(rbigint.fromrarith_int(self.val), self.size(), i)
-        assert i > self.size()
-        highest_bit = (self.val >> (self.size() - 1)) & 1
-        if not highest_bit:
-            return from_ruint(i, self.val)
-        else:
-            extra_bits = i - self.size()
-            bits = ((r_uint(1) << extra_bits) - 1) << self.size()
-            return from_ruint(i, bits | self.val)
-
-    def read_bit(self, pos):
-        assert pos < self.size()
-        mask = r_uint(1) << pos
-        return r_uint(bool(self.val & mask))
-
-    def update_bit(self, pos, bit):
-        assert pos < self.size()
-        mask = r_uint(1) << pos
-        if bit:
-            return self.make(self.val | mask)
-        else:
-            return self.make(self.val & ~mask, True)
-
-    def update_subrange(self, n, m, s):
-        width = s.size()
-        assert width <= self.size()
-        if width == self.size():
-            return s
-        assert width == n - m + 1
-        # width cannot be 64 in the next line because of the if above
-        mask = ~(((r_uint(1) << width) - 1) << m)
-        return self.make((self.val & mask) | (s.touint() << m), True)
-
-    @always_inline
-    def signed_smallbv(self):
-        n = self.size()
-        if n == 64:
-            return int_fromint(intmask(self.val))
-        assert n > 0
-        u1 = r_uint(1)
-        m = u1 << (n - 1)
-        op = self.val & ((u1 << n) - 1) # mask off higher bits to be sure
-        return int_fromint(intmask((op ^ m) - m))
-
-    @always_inline
-    def unsigned_smallbv(self):
-        return int_fromruint(self.val)
-
-    def eq(self, other):
-        other = self._check_size(other)
-        return self.val == other.val
-
-    def toint(self):
-        return intmask(self.val)
-
-    def touint(self):
-        return self.val
-
-    def tobigint(self):
-        return rbigint.fromrarith_int(self.val)
-
-
-class GenericBitVector(BitVectorWithSize):
-    _immutable_fields_ = ['rval']
-
-    def __init__(self, size, rval, normalize=False):
+def bv_signed(bv):
+    size, val, rval = bv
+    if rval is None:
+        if size == 64:
+            return int_fromint(intmask(val))
         assert size > 0
-        self._size = size
-        if normalize:
-            rval = self._size_mask(rval)
-        self.rval = rval # rbigint
-
-    def make(self, rval, normalize=False):
-        return GenericBitVector(self.size(), rval, normalize)
-
-    def __repr__(self):
-        return "<GenericBitVector %s %r>" % (self.size(), self.rval)
-
-    def _size_mask(self, val):
-        return self.rbigint_mask(self.size(), val)
-
-    def add_int(self, i):
-        return self.make(self._size_mask(self.rval.add(int_tobigint(i))))
-
-    def sub_int(self, i):
-        return self.make(self._size_mask(self.rval.sub(int_tobigint(i))))
-
-    def print_bits(self):
-        print "GenericBitVector<%s, %s>" % (self.size(), self.rval.hex())
-
-    def lshift(self, i):
-        return self.make(self._size_mask(self.rval.lshift(i)))
-
-    def rshift(self, i):
-        return self.make(self._size_mask(self.rval.rshift(i)))
-
-    def lshift_bits(self, other):
-        return self.make(self._size_mask(self.rval.lshift(other.toint())))
-
-    def rshift_bits(self, other):
-        return self.make(self._size_mask(self.rval.rshift(other.toint())))
-
-    def xor(self, other):
-        return self.make(self._size_mask(self.rval.xor(other.tobigint())))
-
-    def or_(self, other):
-        return self.make(self._size_mask(self.rval.or_(other.tobigint())))
-
-    def and_(self, other):
-        return self.make(self._size_mask(self.rval.and_(other.tobigint())))
-
-    def invert(self):
-        return self.make(self._size_mask(self.rval.invert()))
-
-    def subrange(self, n, m):
-        width = n - m + 1
-        if m == 0:
-            return from_bigint(width, self.rval)
-        if width < 64: # somewhat annoying that 64 doesn't work
-            mask = (r_uint(1) << width) - 1
-            res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
-            return SmallBitVector(width, r_uint(res))
-        return from_bigint(width, self.rval.rshift(m))
-
-    def sign_extend(self, i):
-        if i == self.size():
-            return self
-        assert i > self.size()
-        return self._sign_extend(self.rval, self.size(), i)
-
-    @staticmethod
-    def _sign_extend(rval, size, target_size):
-        highest_bit = rval.rshift(size - 1).int_and_(1).toint()
-        if not highest_bit:
-            return GenericBitVector(target_size, rval)
-        else:
-            extra_bits = target_size - size
-            bits = rbigint.fromint(1).lshift(extra_bits).int_sub(1).lshift(size)
-            return GenericBitVector(target_size, bits.or_(rval))
-
-    def read_bit(self, pos):
-        return bool(self.rval.abs_rshift_and_mask(r_ulonglong(pos), 1))
-
-    def update_bit(self, pos, bit):
-        mask = rbigint.fromint(1).lshift(pos)
-        if bit:
-            return self.make(self.rval.or_(mask))
-        else:
-            return self.make(self._size_mask(self.rval.and_(mask.invert())))
-
-    def update_subrange(self, n, m, s):
-        width = s.size()
-        assert width == n - m + 1
-        mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m).invert()
-        return self.make(self.rval.and_(mask).or_(s.tobigint().lshift(m)))
-
-    def signed_genericbv(self):
-        n = self.size()
-        assert n > 0
+        u1 = r_uint(1)
+        m = u1 << (size - 1)
+        op = val & ((u1 << size) - 1) # mask off higher bits to be sure
+        return int_fromint(intmask((op ^ m) - m))
+    else:
+        assert size > 64
         u1 = rbigint.fromint(1)
-        m = u1.lshift(n - 1)
-        op = self.rval
-        op = op.and_((u1.lshift(n)).int_sub(1)) # mask off higher bits to be sure
+        m = u1.lshift(size - 1)
+        op = rval
+        op = op.and_((u1.lshift(size)).int_sub(1)) # mask off higher bits to be sure
         return int_frombigint(op.xor(m).sub(m))
 
-    def unsigned_genericbv(self):
-        return int_frombigint(self.rval)
+def bv_unsigned(bv):
+    size, val, rval = bv
+    if rval is None:
+        return int_fromruint(val)
+    else:
+        return int_frombigint(rval)
 
-    def eq(self, other):
-        assert self.size() == other.size()
-        return self.rval.eq(other.tobigint())
+def bv_lshift(bv, i):
+    size, val, rval = bv
+    if rval is None:
+        assert i >= 0
+        if i >= 64:
+            return small_bv(size, r_uint(0))
+        return small_bv(size, val << i, True)
+    else:
+        return big_bv(size, rval.lshift(i), True)
 
-    def toint(self):
-        return self.rval.toint()
+def bv_rshift(bv, i):
+    size, val, rval = bv
+    if rval is None:
+        assert i >= 0
+        if i >= size:
+            return small_bv(size, r_uint(0))
+        return small_bv(size, val >> i)
+    else:
+        return big_bv(size, rval.rshift(i), True)
 
-    def touint(self):
-        return self.rval.touint()
+def bv_lshift_bits(self, other):
+    return bv_lshift(self, bv_toint(other))
 
-    def tobigint(self):
-        return self.rval
+def bv_rshift_bits(self, other):
+    return bv_rshift(self, bv_toint(other))
+
+def bv_and(self, other):
+    sizea, vala, rvala = self
+    sizeb, valb, rvalb = other
+    assert sizea == sizeb
+    if rvala is None:
+        assert rvalb is None
+        return small_bv(sizea, vala & valb, True)
+    else:
+        assert rvalb is not None
+        return big_bv(sizea, rvala.and_(rvalb), True)
+
+def bv_or(self, other):
+    sizea, vala, rvala = self
+    sizeb, valb, rvalb = other
+    assert sizea == sizeb
+    if rvala is None:
+        assert rvalb is None
+        return small_bv(sizea, vala | valb, True)
+    else:
+        assert rvalb is not None
+        return big_bv(sizea, rvala.or_(rvalb), True)
+
+def bv_xor(self, other):
+    sizea, vala, rvala = self
+    sizeb, valb, rvalb = other
+    assert sizea == sizeb
+    if rvala is None:
+        assert rvalb is None
+        return small_bv(sizea, vala ^ valb, True)
+    else:
+        assert rvalb is not None
+        return big_bv(sizea, rvala.xor(rvalb), True)
+
+def bv_invert(bv):
+    size, val, rval = bv
+    if rval is None:
+        return small_bv(size, ~val, True)
+    else:
+        return big_bv(size, rval.invert(), True)
+
+def bv_eq(self, other):
+    sizea, vala, rvala = self
+    sizeb, valb, rvalb = other
+    assert sizea == sizeb
+    if rvala is None:
+        assert rvalb is None
+        return vala == valb
+    else:
+        assert rvalb is not None
+        return rvala.eq(valb)
+
+def bv_toint(bv):
+    size, val, rval = bv
+    if rval is None:
+        return intmask(val)
+    else:
+        return rval.toint()
+
+def bv_touint(bv):
+    size, val, rval = bv
+    if rval is None:
+        return val
+    else:
+        return rval.touint()
+
+def bv_tobigint(bv):
+    size, val, rval = bv
+    if rval is None:
+        return rbigint.fromrarith_int(val)
+    else:
+        return rval
+
+def bv_read_bit(bv, pos):
+    size, val, rval = bv
+    assert pos < size
+    if rval is None:
+        mask = r_uint(1) << pos
+        return r_uint(bool(val & mask))
+    else:
+        return r_uint(bool(rval.abs_rshift_and_mask(r_ulonglong(pos), 1)))
+
+def bv_subrange(bv, n, m):
+    size, val, rval = bv
+    width = n - m + 1
+    if rval is None:
+        return small_bv(width, val >> m, True)
+    else:
+        if m == 0:
+            return from_bigint(width, rval)
+        if width < 64: # somewhat annoying that 64 doesn't work
+            mask = (r_uint(1) << width) - 1
+            res = rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
+            return small_bv(width, r_uint(res))
+        return big_bv(width, rval.rshift(m), True)
+
+@always_inline
+def bv_update_bit(bv, pos, bit):
+    size, val, rval = bv
+    assert pos < size
+    if rval is None:
+        mask = r_uint(1) << pos
+        if bit:
+            return small_bv(size, val | mask)
+        else:
+            return small_bv(size, val & ~mask, True)
+    else:
+        rval = _bv_update_bit_bigint(size, rval, pos, bit)
+        return big_bv(size, rval)
+
+@dont_inline
+def _bv_update_bit_bigint(size, rval, pos, bit):
+    mask = rbigint.fromint(1).lshift(pos)
+    if bit:
+        return rval.or_(mask)
+    else:
+        rval = rval.and_(mask.invert())
+        return bigint_size_mask(size, rval)
+
+def bv_update_subrange(bv, n, m, s):
+    size, vala, rvala = bv
+    width, valb, rvalb = s
+    assert width == n - m + 1
+    assert width <= size
+    if rvala is None:
+        assert rvalb is None
+        if width == size:
+            return s
+        # width cannot be 64 in the next line because of the if above
+        mask = ~(((r_uint(1) << width) - 1) << m)
+        return small_bv(size, (vala & mask) | (valb << m), True)
+    else:
+        # XXX put slowpath into its own function
+        mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m).invert()
+        return big_bv(rvala.and_(mask).or_(bv_tobigint(s).lshift(m)))
+
+@always_inline
+def bv_add_int(bv, i):
+    size, val, rval = bv
+    vali, rvali = i
+    if rval is None and rvali is None and vali > 0:
+        return small_bv(size, val + r_uint(vali), True)
+    return from_bigint(size, _bv_add_int_slow(size, val, rval, vali, rvali))
+
+@dont_inline
+def _bv_add_int_slow(size, val, rval, vali, rvali):
+    # XXX can be better
+    rvali = int_tobigint_components(vali, rvali)
+    rval = bv_tobigint((size, val, rval))
+    return rval.add(rvali)
+
+
+@always_inline
+def bv_sub_int(bv, i):
+    size, val, rval = bv
+    vali, rvali = i
+    if rval is None and rvali is None and vali > 0:
+        return small_bv(size, val - r_uint(vali), True)
+    return from_bigint(size, _bv_sub_int_slow(size, val, rval, vali, rvali))
+
+@dont_inline
+def _bv_sub_int_slow(size, val, rval, vali, rvali):
+    # XXX can be better
+    rvali = int_tobigint_components(vali, rvali)
+    rval = bv_tobigint((size, val, rval))
+    return rval.sub(rvali)
+
+@always_inline
+def bv_sign_extend(bv, i):
+    size, val, rval = bv
+    if i == size:
+        return (size, val, rval)
+    if rval is None and i <= 64:
+        assert i > size
+        highest_bit = (val >> (size - 1)) & 1
+        if not highest_bit:
+            return from_ruint(i, val)
+        else:
+            extra_bits = i - size
+            bits = ((r_uint(1) << extra_bits) - 1) << size
+            return from_ruint(i, bits | val)
+    else:
+        # either i > 64 or rval is not None
+        rval = bv_tobigint(bv)
+        assert i > size
+        return from_bigint(i, _bv_sign_extend_slow(size, val, rval, i))
+
+@dont_inline
+def _bv_sign_extend_slow(size, val, rval, target_size):
+    rval = bv_tobigint((size, val, rval))
+    highest_bit = rval.rshift(size - 1).int_and_(1).toint()
+    if not highest_bit:
+        return rval
+    else:
+        extra_bits = target_size - size
+        bits = rbigint.fromint(1).lshift(extra_bits).int_sub(1).lshift(size)
+        return bits.or_(rval)
+
+
+def append_64(self, ui):
+    xxx
+    return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
+
+
 
 # integers: the type needs to be able to represent arbitrarily big integers
 # 

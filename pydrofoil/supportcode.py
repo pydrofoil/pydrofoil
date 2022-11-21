@@ -151,7 +151,7 @@ def not_bits(machine, gvba):
     return bitvector.bv_invert(gvba)
 
 def print_bits(machine, s, b):
-    print s + b.string_of_bits()
+    print s + bitvector.bv_string_of_bits(b)
     return ()
 
 @objectmodel.always_inline
@@ -177,9 +177,6 @@ def sail_unsigned(machine, gbv):
 @objectmodel.always_inline
 def sail_signed(machine, gbv):
     return bitvector.bv_signed(gbv)
-
-def append_64(machine, bv, v):
-    return bitvector.bv_append_64(bv, v)
 
 @objectmodel.always_inline
 def vector_update(machine, bv, index, element):

@@ -221,8 +221,16 @@ class __extend__(parse.Union):
                             if fieldtyp is types.Int():
                                 codegen.emit("utup%s_0 = -0xfefee" % (fieldnum, ))
                                 codegen.emit("utup%s_1 = None" % (fieldnum, ))
+                            elif isinstance(fieldtyp, types.SmallBitVector) or fieldtyp is types.GenericBitVector():
+                                codegen.emit("utup%s_0 = 0xdeadcafe" % (fieldnum, ))
+                                codegen.emit("utup%s_1 = r_uint(-1)" % (fieldnum, ))
+                                codegen.emit("utup%s_2 = None" % (fieldnum, ))
                             else:
                                 codegen.emit("utup%s = %s" % (fieldnum, fieldtyp.uninitialized_value))
+                    elif isinstance(rtyp, types.SmallBitVector) or rtyp is types.GenericBitVector():
+                        codegen.emit("bv_0 = 0xbebe")
+                        codegen.emit("bv_1 = r_uint(-35)")
+                        codegen.emit("bv_2 = None")
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                     self.make_init(codegen, rtyp, typ, pyname)
@@ -249,6 +257,7 @@ class __extend__(parse.Union):
                     codegen.emit("if a == %s: return %s_%s.singleton" % (codegen.getname(enum_value), pyname, enum_value))
                 codegen.emit("raise ValueError")
             return
+        codegen.emit("@objectmodel.always_inline")
         with codegen.emit_indent("def __init__(self, a):"):
             if rtyp is types.Unit():
                 codegen.emit("pass")
@@ -258,10 +267,18 @@ class __extend__(parse.Union):
                     if fieldtyp is types.Int():
                         codegen.emit("self.utup%s_0 = a.ztup%s[0]" % (fieldnum, fieldnum))
                         codegen.emit("self.utup%s_1 = a.ztup%s[1]" % (fieldnum, fieldnum))
+                    elif isinstance(fieldtyp, types.SmallBitVector) or fieldtyp is types.GenericBitVector():
+                        codegen.emit("self.utup%s_0 = a.ztup%s[0]" % (fieldnum, fieldnum))
+                        codegen.emit("self.utup%s_1 = a.ztup%s[1]" % (fieldnum, fieldnum))
+                        codegen.emit("self.utup%s_2 = a.ztup%s[2]" % (fieldnum, fieldnum))
                     else:
                         codegen.emit("self.utup%s = a.ztup%s" % (fieldnum, fieldnum))
             elif rtyp is types.Int():
                 assert 0, "not implemented"
+            elif isinstance(rtyp, types.SmallBitVector) or rtyp is types.GenericBitVector():
+                codegen.emit("self.bv_0 = a[0]")
+                codegen.emit("self.bv_1 = a[1]")
+                codegen.emit("self.bv_2 = a[2]")
             else:
                 codegen.emit("self.a = a # %s" % (typ, ))
 
@@ -298,6 +315,8 @@ class __extend__(parse.Union):
                         codegen.emit("res.ztup%s = %s" % (fieldnum,
                             self.read_field(fieldnum, fieldtyp, 'inst')))
                     codegen.emit("return res")
+                elif isinstance(rtyp, types.SmallBitVector) or rtyp is types.GenericBitVector():
+                    codegen.emit("return inst.bv_0, inst.bv_1, inst.bv_2")
                 else:
                     codegen.emit("return inst.a")
             with codegen.emit_indent("else:"):
@@ -321,6 +340,8 @@ class __extend__(parse.Union):
     def read_field(self, fieldnum, fieldtyp, selfvar='self'):
         if fieldtyp is types.Int():
             return "(%s.utup%s_0, %s.utup%s_1)" % (selfvar, fieldnum, selfvar, fieldnum)
+        elif isinstance(fieldtyp, types.SmallBitVector) or fieldtyp is types.GenericBitVector():
+            return "(%s.utup%s_0, %s.utup%s_1, %s.utup%s_2)" % (selfvar, fieldnum, selfvar, fieldnum, selfvar, fieldnum)
         else:
             return "%s.utup%s" % (selfvar, fieldnum)
 
@@ -415,6 +436,11 @@ class __extend__(parse.Function):
                 args.append("%s_0" % (arg, ))
                 args.append("%s_1" % (arg, ))
                 startlines.append("%s = (%s_0, %s_1)" % (arg, arg, arg))
+            elif isinstance(argtyp, types.SmallBitVector) or argtyp is types.GenericBitVector():
+                args.append("%s_0" % (arg, ))
+                args.append("%s_1" % (arg, ))
+                args.append("%s_2" % (arg, ))
+                startlines.append("%s = (%s_0, %s_1, %s_2)" % (arg, arg, arg, arg))
             else:
                 args.append(arg)
 
@@ -426,7 +452,14 @@ class __extend__(parse.Function):
         with codegen.enter_scope(self), codegen.emit_indent(first):
             codegen.add_local('return', 'return_', typ.restype, self)
             for i, arg in enumerate(self.args):
-                codegen.add_local(arg, arg, typ.argtype.elements[i], self)
+                argtyp = typ.argtype.elements[i]
+                if argtyp is types.Int():
+                    pyname = "(%s_0, %s_1)" % (arg, arg)
+                elif isinstance(argtyp, types.SmallBitVector) or argtyp is types.GenericBitVector():
+                    pyname = "(%s_0, %s_1, %s_2)" % (arg, arg, arg)
+                else:
+                    pyname = arg
+                codegen.add_local(arg, pyname, typ.argtype.elements[i], self)
             for startline in startlines:
                 codegen.emit(startline)
             yield
@@ -629,6 +662,8 @@ class __extend__(parse.LocalVarDeclaration):
         typ = self.typ.resolve_type(codegen)
         if typ is types.Int():
             pyname = "(%s_1, %s_2)" % (self.name, self.name)
+        elif isinstance(typ, types.SmallBitVector) or typ is types.GenericBitVector():
+            pyname = "(%s_1, %s_2, %s_3)" % (self.name, self.name, self.name)
         else:
             pyname = self.name
         codegen.add_local(self.name, pyname, typ, self)
@@ -682,6 +717,10 @@ class __extend__(parse.Operation):
                     if argtyp is types.Int():
                         newargs.append("%s[0]" % (arg, ))
                         newargs.append("%s[1]" % (arg, ))
+                    elif isinstance(argtyp, types.SmallBitVector) or argtyp is types.GenericBitVector():
+                        newargs.append("%s[0]" % (arg, ))
+                        newargs.append("%s[1]" % (arg, ))
+                        newargs.append("%s[2]" % (arg, ))
                     else:
                         newargs.append(arg)
                 # pass machine, even to supportcode functions

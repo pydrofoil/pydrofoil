@@ -331,10 +331,6 @@ def _bv_sign_extend_slow(size, val, rval, target_size):
         return bits.or_(rval)
 
 
-def append_64(self, ui):
-    xxx
-    return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
-
 
 
 # integers: the type needs to be able to represent arbitrarily big integers

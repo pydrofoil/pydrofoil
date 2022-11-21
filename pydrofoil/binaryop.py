@@ -69,11 +69,16 @@ class __extend__(pairtype(types.Tuple, types.Tuple)):
         if from_ is to:
             return ast.to_code(codegen)
         with codegen.cached_declaration((from_, to), "convert_%s_%s" % (from_.pyname, to.pyname)) as pyname:
+            codegen.emit("@objectmodel.always_inline")
             with codegen.emit_indent("def %s(t1):" % pyname), codegen.enter_scope(parse.Function(None, None, None)):
                 codegen.add_local("t1", "t1", from_, None)
+                codegen.add_local("res", "res", to, None)
                 codegen.emit("res = %s()" % (to.pyname, ))
                 for i, (typfrom, typto) in enumerate(zip(from_.elements, to.elements)):
-                    codegen.emit("res.ztup%s = %s" % (i, pair(typfrom, typto).convert(parse.FieldAccess(parse.Var("t1"), "ztup%s" % i), codegen)))
+                    converted = pair(typfrom, typto).convert(parse.FieldAccess(parse.Var("t1"), "ztup%s" % i), codegen)
+                    # hack, use parse.Number because its argument is passed as a string into the resulting code
+                    synthetic_ast = parse.TupleElementAssignment("res", i, parse.Number(converted))
+                    synthetic_ast.make_op_code(codegen)
                 codegen.emit("return res")
         return "%s(%s)" % (pyname, ast.to_code(codegen))
 

@@ -143,6 +143,9 @@ class Codegen(object):
         res.append("\n".join(self.code))
         return "\n\n\n".join(res)
 
+def is_bvtyp(typ):
+    return isinstance(typ, types.SmallBitVector) or typ is types.GenericBitVector()
+
 
 def parse_and_make_code(s, support_code, promoted_registers=set()):
     ast = parse.parser.parse(parse.lexer.lex(s))
@@ -221,13 +224,13 @@ class __extend__(parse.Union):
                             if fieldtyp is types.Int():
                                 codegen.emit("utup%s_0 = -0xfefee" % (fieldnum, ))
                                 codegen.emit("utup%s_1 = None" % (fieldnum, ))
-                            elif isinstance(fieldtyp, types.SmallBitVector) or fieldtyp is types.GenericBitVector():
+                            elif is_bvtyp(fieldtyp):
                                 codegen.emit("utup%s_0 = 0xdeadcafe" % (fieldnum, ))
                                 codegen.emit("utup%s_1 = r_uint(-1)" % (fieldnum, ))
                                 codegen.emit("utup%s_2 = None" % (fieldnum, ))
                             else:
                                 codegen.emit("utup%s = %s" % (fieldnum, fieldtyp.uninitialized_value))
-                    elif isinstance(rtyp, types.SmallBitVector) or rtyp is types.GenericBitVector():
+                    elif is_bvtyp(rtyp):
                         codegen.emit("bv_0 = 0xbebe")
                         codegen.emit("bv_1 = r_uint(-35)")
                         codegen.emit("bv_2 = None")
@@ -263,19 +266,26 @@ class __extend__(parse.Union):
                 codegen.emit("pass")
             elif type(rtyp) is types.Tuple:
                 codegen.emit("# %s" % typ)
+                written = False
                 for fieldnum, fieldtyp in enumerate(rtyp.elements):
+                    if fieldtyp is types.Unit():
+                        continue
+                    written = True
                     if fieldtyp is types.Int():
-                        codegen.emit("self.utup%s_0 = a.ztup%s[0]" % (fieldnum, fieldnum))
-                        codegen.emit("self.utup%s_1 = a.ztup%s[1]" % (fieldnum, fieldnum))
-                    elif isinstance(fieldtyp, types.SmallBitVector) or fieldtyp is types.GenericBitVector():
-                        codegen.emit("self.utup%s_0 = a.ztup%s[0]" % (fieldnum, fieldnum))
-                        codegen.emit("self.utup%s_1 = a.ztup%s[1]" % (fieldnum, fieldnum))
-                        codegen.emit("self.utup%s_2 = a.ztup%s[2]" % (fieldnum, fieldnum))
+                        codegen.emit("self.utup%s_0 = a.ztup%s_0" % (fieldnum, fieldnum))
+                        codegen.emit("self.utup%s_1 = a.ztup%s_1" % (fieldnum, fieldnum))
+                    elif is_bvtyp(fieldtyp):
+                        codegen.emit("self.utup%s_0 = a.ztup%s_0" % (fieldnum, fieldnum))
+                        codegen.emit("self.utup%s_1 = a.ztup%s_1" % (fieldnum, fieldnum))
+                        codegen.emit("self.utup%s_2 = a.ztup%s_2" % (fieldnum, fieldnum))
                     else:
                         codegen.emit("self.utup%s = a.ztup%s" % (fieldnum, fieldnum))
+                if not written:
+                    codegen.emit('pass')
+
             elif rtyp is types.Int():
                 assert 0, "not implemented"
-            elif isinstance(rtyp, types.SmallBitVector) or rtyp is types.GenericBitVector():
+            elif is_bvtyp(rtyp):
                 codegen.emit("self.bv_0 = a[0]")
                 codegen.emit("self.bv_1 = a[1]")
                 codegen.emit("self.bv_2 = a[2]")
@@ -312,10 +322,20 @@ class __extend__(parse.Union):
                 elif type(rtyp) is types.Tuple:
                     codegen.emit("res = %s" % rtyp.uninitialized_value)
                     for fieldnum, fieldtyp in enumerate(rtyp.elements):
-                        codegen.emit("res.ztup%s = %s" % (fieldnum,
-                            self.read_field(fieldnum, fieldtyp, 'inst')))
+                        if fieldtyp is types.Unit():
+                            continue
+                        if fieldtyp is types.Int():
+                            codegen.emit("res.ztup%s_0 = inst.utup%s_0" % (fieldnum, fieldnum))
+                            codegen.emit("res.ztup%s_1 = inst.utup%s_1" % (fieldnum, fieldnum))
+                        elif is_bvtyp(fieldtyp):
+                            codegen.emit("res.ztup%s_0 = inst.utup%s_0" % (fieldnum, fieldnum))
+                            codegen.emit("res.ztup%s_1 = inst.utup%s_1" % (fieldnum, fieldnum))
+                            codegen.emit("res.ztup%s_2 = inst.utup%s_2" % (fieldnum, fieldnum))
+                        else:
+                            codegen.emit("res.ztup%s = %s" % (fieldnum,
+                                self.read_field(fieldnum, fieldtyp, 'inst')))
                     codegen.emit("return res")
-                elif isinstance(rtyp, types.SmallBitVector) or rtyp is types.GenericBitVector():
+                elif is_bvtyp(rtyp):
                     codegen.emit("return inst.bv_0, inst.bv_1, inst.bv_2")
                 else:
                     codegen.emit("return inst.a")
@@ -340,7 +360,7 @@ class __extend__(parse.Union):
     def read_field(self, fieldnum, fieldtyp, selfvar='self'):
         if fieldtyp is types.Int():
             return "(%s.utup%s_0, %s.utup%s_1)" % (selfvar, fieldnum, selfvar, fieldnum)
-        elif isinstance(fieldtyp, types.SmallBitVector) or fieldtyp is types.GenericBitVector():
+        elif is_bvtyp(fieldtyp):
             return "(%s.utup%s_0, %s.utup%s_1, %s.utup%s_2)" % (selfvar, fieldnum, selfvar, fieldnum, selfvar, fieldnum)
         else:
             return "%s.utup%s" % (selfvar, fieldnum)
@@ -436,7 +456,7 @@ class __extend__(parse.Function):
                 args.append("%s_0" % (arg, ))
                 args.append("%s_1" % (arg, ))
                 startlines.append("%s = (%s_0, %s_1)" % (arg, arg, arg))
-            elif isinstance(argtyp, types.SmallBitVector) or argtyp is types.GenericBitVector():
+            elif is_bvtyp(argtyp):
                 args.append("%s_0" % (arg, ))
                 args.append("%s_1" % (arg, ))
                 args.append("%s_2" % (arg, ))
@@ -455,7 +475,7 @@ class __extend__(parse.Function):
                 argtyp = typ.argtype.elements[i]
                 if argtyp is types.Int():
                     pyname = "(%s_0, %s_1)" % (arg, arg)
-                elif isinstance(argtyp, types.SmallBitVector) or argtyp is types.GenericBitVector():
+                elif is_bvtyp(argtyp):
                     pyname = "(%s_0, %s_1, %s_2)" % (arg, arg, arg)
                 else:
                     pyname = arg
@@ -662,7 +682,7 @@ class __extend__(parse.LocalVarDeclaration):
         typ = self.typ.resolve_type(codegen)
         if typ is types.Int():
             pyname = "(%s_1, %s_2)" % (self.name, self.name)
-        elif isinstance(typ, types.SmallBitVector) or typ is types.GenericBitVector():
+        elif is_bvtyp(typ):
             pyname = "(%s_1, %s_2, %s_3)" % (self.name, self.name, self.name)
         else:
             pyname = self.name
@@ -677,6 +697,13 @@ class __extend__(parse.LocalVarDeclaration):
             # need to make a tuple instance
             result = codegen.gettarget(self.name)
             codegen.emit("%s = %s" % (result, typ.uninitialized_value))
+
+def tupleindexread(stuple, index):
+    # another terrible hack, but very expedient
+    if stuple.startswith("(") and stuple.endswith(")") and index <= stuple.count(","):
+        elements = stuple[1:-1].split(",")
+        return elements[index]
+    return "%s[%s]" % (stuple, index)
 
 class __extend__(parse.Operation):
     def make_op_code(self, codegen):
@@ -715,12 +742,12 @@ class __extend__(parse.Operation):
                 newargs = []
                 for index, (arg, argtyp) in enumerate(zip(sargs, argtyps)):
                     if argtyp is types.Int():
-                        newargs.append("%s[0]" % (arg, ))
-                        newargs.append("%s[1]" % (arg, ))
-                    elif isinstance(argtyp, types.SmallBitVector) or argtyp is types.GenericBitVector():
-                        newargs.append("%s[0]" % (arg, ))
-                        newargs.append("%s[1]" % (arg, ))
-                        newargs.append("%s[2]" % (arg, ))
+                        newargs.append(tupleindexread(arg, 0))
+                        newargs.append(tupleindexread(arg, 1))
+                    elif is_bvtyp(argtyp):
+                        newargs.append(tupleindexread(arg, 0))
+                        newargs.append(tupleindexread(arg, 1))
+                        newargs.append(tupleindexread(arg, 2))
                     else:
                         newargs.append(arg)
                 # pass machine, even to supportcode functions
@@ -762,7 +789,17 @@ class __extend__(parse.Assignment):
 
 class __extend__(parse.TupleElementAssignment):
     def make_op_code(self, codegen):
-        codegen.emit("%s.ztup%s = %s" % (self.tup, self.index, self.value.to_code(codegen)))
+        tuptyp = codegen.getinfo(self.tup).typ
+        assert isinstance(tuptyp, types.Tuple)
+        fieldtyp = tuptyp.elements[self.index]
+        if fieldtyp is types.Unit():
+            pass
+        elif fieldtyp is types.Int():
+            codegen.emit("%s.ztup%s_0, %s.ztup%s_1 = %s" % (self.tup, self.index, self.tup, self.index, self.value.to_code(codegen)))
+        elif is_bvtyp(fieldtyp):
+            codegen.emit("%s.ztup%s_0, %s.ztup%s_1, %s.ztup%s_2 = %s" % (self.tup, self.index, self.tup, self.index, self.tup, self.index, self.value.to_code(codegen)))
+        else:
+            codegen.emit("%s.ztup%s = %s" % (self.tup, self.index, self.value.to_code(codegen)))
 
 class __extend__(parse.StructElementAssignment):
     def make_op_code(self, codegen):
@@ -861,7 +898,18 @@ class __extend__(parse.FieldAccess):
         if isinstance(obj, parse.Cast):
             return "%s.convert_%s(%s)" % (codegen.getname(obj.variant), self.element, obj.expr.to_code(codegen))
         objtyp = obj.gettyp(codegen)
-        res = "%s.%s" % (self.obj.to_code(codegen), self.element)
+        objstr = self.obj.to_code(codegen)
+        if isinstance(objtyp, types.Tuple):
+            assert self.element.startswith("ztup")
+            index = int(self.element[4:])
+            fieldtyp = objtyp.elements[index]
+            if fieldtyp is types.Unit():
+                return "()"
+            elif fieldtyp is types.Int():
+                return "(%s.ztup%s_0, %s.ztup%s_1)" % (objstr, index, objstr, index)
+            elif is_bvtyp(fieldtyp):
+                return "(%s.ztup%s_0, %s.ztup%s_1, %s.ztup%s_2)" % (objstr, index, objstr, index, objstr, index)
+        res = "%s.%s" % (objstr, self.element)
         if isinstance(objtyp, types.Struct) and self.element in codegen.promoted_registers:
             return "jit.promote(%s)" % res
         return res
@@ -1003,6 +1051,8 @@ class __extend__(parse.TupleType):
                     codegen.emit("assert isinstance(other, %s)" % (pyname, ))
                     for index, fieldtyp in enumerate(self.elements):
                         rtyp = fieldtyp.resolve_type(codegen)
+                        if rtyp is types.Unit():
+                            continue
                         codegen.emit("if %s: return False # %s" % (
                             rtyp.make_op_code_special_neq(None, ('self.utup%s' % index, 'other.utup%s' % index), (rtyp, rtyp)), fieldtyp))
                     codegen.emit("return True")

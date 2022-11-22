@@ -3,3 +3,5 @@
 pydrofoil/test/out.py
 nand2tetris/nand2tetris
 usession*/
+venv_riscv/
+riscv-tools/

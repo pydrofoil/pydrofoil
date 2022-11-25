@@ -5,6 +5,8 @@ from contextlib import contextmanager
 
 import sys
 
+parse.BaseAst.call_count = 0
+
 assert sys.maxint == 2 ** 63 - 1, "only 64 bit platforms are supported!"
 
 class NameInfo(object):
@@ -167,6 +169,9 @@ def parse_and_make_code(s, support_code, promoted_registers=frozenset(), inline_
     except Exception:
         print c.getcode()
         raise
+    #called = [d for d in ast.declarations if d.call_count]
+    #called.sort(key=lambda d: d.call_count)
+    #called.reverse()
     return c.getcode()
 
 
@@ -739,6 +744,9 @@ class __extend__(parse.Operation):
         op = codegen.getname(name)
         info = codegen.getinfo(name)
         if isinstance(info.typ, types.Function):
+            if info.ast is not None:
+                info.ast.call_count += 1
+
             expand_ints = not info.pyname.startswith("supportcode.")
             if expand_ints:
                 newargs = []

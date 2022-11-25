@@ -18,7 +18,7 @@ class NameInfo(object):
 
 
 class Codegen(object):
-    def __init__(self, promoted_registers=frozenset()):
+    def __init__(self, promoted_registers=frozenset(), inline_functions=frozenset()):
         self.declarations = []
         self.runtimeinit = []
         self.code = []
@@ -40,6 +40,7 @@ class Codegen(object):
         self.add_global("NULL", "None")
         self.declared_types = set()
         self.promoted_registers = promoted_registers
+        self.inline_functions = inline_functions
 
     def add_global(self, name, pyname, typ=None, ast=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -147,9 +148,9 @@ def is_bvtyp(typ):
     return isinstance(typ, types.SmallBitVector) or typ is types.GenericBitVector()
 
 
-def parse_and_make_code(s, support_code, promoted_registers=set()):
+def parse_and_make_code(s, support_code, promoted_registers=frozenset(), inline_functions=frozenset()):
     ast = parse.parser.parse(parse.lexer.lex(s))
-    c = Codegen(promoted_registers)
+    c = Codegen(promoted_registers, inline_functions)
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib import jit")
         c.emit("from rpython.rlib import objectmodel")
@@ -462,6 +463,9 @@ class __extend__(parse.Function):
             else:
                 args.append(arg)
         codegen.emit("# %s" % codegen.globalnames[self.name].ast.typ)
+        if self.name[1:] in codegen.inline_functions:
+            codegen.emit("@objectmodel.always_inline")
+
         if not method:
             first = "def %s(machine, %s):" % (pyname, ", ".join(args))
         else:

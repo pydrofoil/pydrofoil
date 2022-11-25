@@ -377,30 +377,58 @@ class __extend__(parse.Struct):
         self.pyname = name
         structtyp = types.Struct(self)
         structtyp.fieldtyps = {}
-        uninit_arg = []
         codegen.add_named_type(self.name, self.pyname, structtyp, self)
-        for typ in self.types:
-            typ.resolve_type(codegen) # pre-declare the types
+        for arg, typ in zip(self.names, self.types):
+            structtyp.fieldtyps[arg] = typ.resolve_type(codegen) # also pre-declares the types
         with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(object):" % name):
-            with codegen.emit_indent("def __init__(self, %s):" % ", ".join(self.names)):
-                for arg, typ in zip(self.names, self.types):
-                    codegen.emit("self.%s = %s # %s" % (arg, arg, typ))
-                    fieldtyp = structtyp.fieldtyps[arg] = typ.resolve_type(codegen)
-                    uninit_arg.append(fieldtyp.uninitialized_value)
+            for arg, typ in zip(self.names, self.types):
+                fieldtyp = structtyp.fieldtyps[arg]
+                if fieldtyp is types.Int():
+                    codegen.emit("%s_0 = 11986" % arg)
+                    codegen.emit("%s_1 = None" % arg)
+                elif is_bvtyp(fieldtyp):
+                    codegen.emit("%s_0 = 0" % arg)
+                    codegen.emit("%s_1 = r_uint(-5123)" % arg)
+                    codegen.emit("%s_2 = None" % arg)
+                else:
+                    codegen.emit("%s = %s" % (arg, fieldtyp.uninitialized_value))
+
             with codegen.emit_indent("def copy_into(self, res=None):"):
                 codegen.emit("if res is None: res = type(self)()")
                 for arg, typ in zip(self.names, self.types):
-                    codegen.emit("res.%s = self.%s # %s" % (arg, arg, typ))
+                    fieldtyp = structtyp.fieldtyps[arg]
+                    if fieldtyp is types.Int():
+                        codegen.emit("res.%s_0 = self.%s_0" % (arg, arg))
+                        codegen.emit("res.%s_1 = self.%s_1" % (arg, arg))
+                    elif is_bvtyp(fieldtyp):
+                        codegen.emit("res.%s_0 = self.%s_0" % (arg, arg))
+                        codegen.emit("res.%s_1 = self.%s_1" % (arg, arg))
+                        codegen.emit("res.%s_2 = self.%s_2" % (arg, arg))
+                    else:
+                        codegen.emit("res.%s = self.%s" % (arg, arg))
                 codegen.emit("return res")
             codegen.emit("@objectmodel.always_inline")
             with codegen.emit_indent("def eq(self, other):"):
                 codegen.emit("assert isinstance(other, %s)" % (self.pyname, ))
                 for arg, typ in zip(self.names, self.types):
                     rtyp = typ.resolve_type(codegen)
+                    field1 = self.read_field(codegen, 'self', arg)
+                    field2 = self.read_field(codegen, 'other', arg)
                     codegen.emit("if %s: return False # %s" % (
-                        rtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (rtyp, rtyp)), typ))
+                        rtyp.make_op_code_special_neq(None, (field1, field2), (rtyp, rtyp)), typ))
                 codegen.emit("return True")
-        structtyp.uninitialized_value = "%s(%s)" % (self.pyname, ", ".join(uninit_arg))
+        structtyp.uninitialized_value = "%s()" % (self.pyname, )
+
+    def read_field(self, codegen, var, arg):
+        typ = codegen.get_named_type(self.name)
+        fieldtyp = typ.fieldtyps[arg]
+        if fieldtyp is types.Int():
+            return "(%s.%s_0, %s.%s_1)" % (var, arg, var, arg)
+        elif is_bvtyp(fieldtyp):
+            return "(%s.%s_0, %s.%s_1, %s.%s_2)" % (var, arg, var, arg, var, arg)
+        else:
+            return "%s.%s" % (var, arg)
+
 
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
@@ -813,10 +841,17 @@ class __extend__(parse.TupleElementAssignment):
 
 class __extend__(parse.StructElementAssignment):
     def make_op_code(self, codegen):
-        typ = codegen.gettyp(self.obj).fieldtyps[self.field]
+        fieldtyp = codegen.gettyp(self.obj).fieldtyps[self.field]
         othertyp = self.value.gettyp(codegen)
-        rhs = pair(othertyp, typ).convert(self.value, codegen)
-        codegen.emit("%s.%s = %s" % (self.obj, self.field, rhs))
+        rhs = pair(othertyp, fieldtyp).convert(self.value, codegen)
+        if fieldtyp is types.Unit():
+            pass
+        elif fieldtyp is types.Int():
+            codegen.emit("%s.%s_0, %s.%s_1 = %s" % (self.obj, self.field, self.obj, self.field, rhs))
+        elif is_bvtyp(fieldtyp):
+            codegen.emit("%s.%s_0, %s.%s_1, %s.%s_2 = %s" % (self.obj, self.field, self.obj, self.field, self.obj, self.field, rhs))
+        else:
+            codegen.emit("%s.%s = %s" % (self.obj, self.field, rhs))
 
 class __extend__(parse.RefAssignment):
     def make_op_code(self, codegen):
@@ -909,6 +944,8 @@ class __extend__(parse.FieldAccess):
             return "%s.convert_%s(%s)" % (codegen.getname(obj.variant), self.element, obj.expr.to_code(codegen))
         objtyp = obj.gettyp(codegen)
         objstr = self.obj.to_code(codegen)
+        arg = self.element
+        res = "%s.%s" % (objstr, arg)
         if isinstance(objtyp, types.Tuple):
             assert self.element.startswith("ztup")
             index = int(self.element[4:])
@@ -919,9 +956,18 @@ class __extend__(parse.FieldAccess):
                 return "(%s.ztup%s_0, %s.ztup%s_1)" % (objstr, index, objstr, index)
             elif is_bvtyp(fieldtyp):
                 return "(%s.ztup%s_0, %s.ztup%s_1, %s.ztup%s_2)" % (objstr, index, objstr, index, objstr, index)
-        res = "%s.%s" % (objstr, self.element)
-        if isinstance(objtyp, types.Struct) and self.element in codegen.promoted_registers:
-            return "jit.promote(%s)" % res
+        elif isinstance(objtyp, types.Struct):
+            fieldtyp = objtyp.fieldtyps[arg]
+            if fieldtyp is types.Unit():
+                res = "()"
+            elif fieldtyp is types.Int():
+                res = "(%s.%s_0, %s.%s_1)" % (objstr, arg, objstr, arg)
+            elif is_bvtyp(fieldtyp):
+                res = "(%s.%s_0, %s.%s_1, %s.%s_2)" % (objstr, arg, objstr, arg, objstr, arg)
+            else:
+                res = "%s.%s" % (objstr, arg)
+            if arg in codegen.promoted_registers:
+                return "jit.promote(%s)" % res
         return res
 
     def gettyp(self, codegen):

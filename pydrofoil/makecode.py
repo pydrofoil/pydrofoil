@@ -455,15 +455,13 @@ class __extend__(parse.Function):
             if argtyp is types.Int():
                 args.append("%s_0" % (arg, ))
                 args.append("%s_1" % (arg, ))
-                startlines.append("%s = (%s_0, %s_1)" % (arg, arg, arg))
             elif is_bvtyp(argtyp):
                 args.append("%s_0" % (arg, ))
                 args.append("%s_1" % (arg, ))
                 args.append("%s_2" % (arg, ))
-                startlines.append("%s = (%s_0, %s_1, %s_2)" % (arg, arg, arg, arg))
             else:
                 args.append(arg)
-
+        codegen.emit("# %s" % codegen.globalnames[self.name].ast.typ)
         if not method:
             first = "def %s(machine, %s):" % (pyname, ", ".join(args))
         else:
@@ -656,9 +654,9 @@ class __extend__(parse.Function):
 
 class __extend__(parse.Let):
     def make_code(self, codegen):
-        codegen.emit("# %s" % (self, ))
         codegen.add_global(self.name, "machine.l.%s" % self.name, self.typ.resolve_type(codegen), self)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
+            codegen.emit("# %s" % (self, ))
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
             for i, op in enumerate(self.body):
                 codegen.emit("# %s" % (op, ))

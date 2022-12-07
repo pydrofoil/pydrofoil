@@ -330,6 +330,17 @@ def parse_args(argv, shortname, longname="", want_arg=True):
 
 
 class RegistersBase(object):
+    _immutable_fields_ = []
+
     have_exception = False
     throw_location = None
     current_exception = None
+
+    def __init__(self):
+        pass
+
+class ObjectBase(object):
+    _attrs_ = []
+
+class LetsBase(object):
+    _attrs_ = []

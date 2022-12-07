@@ -38,10 +38,10 @@ jobs:
 
     - name: Translate and run binary
       run: |
-        make pydrofoil-riscv64
-        ./pydrofoil-riscv64 riscv/input/rv64ui-p-addi.elf
+        make pydrofoil-riscv
+        ./pydrofoil-riscv riscv/input/rv64ui-p-addi.elf
 
     - uses: actions/upload-artifact@v3
       with:
-        name: pydrofoil-riscv64
-        path: ./pydrofoil-riscv64
+        name: pydrofoil-riscv
+        path: ./pydrofoil-riscv

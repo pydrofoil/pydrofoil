@@ -40,6 +40,7 @@ jobs:
       run: |
         make pydrofoil-riscv
         ./pydrofoil-riscv riscv/input/rv64ui-p-addi.elf
+        ./pydrofoil-riscv --rv32 riscv/input/rv32ui-p-addi.elf
 
     - uses: actions/upload-artifact@v3
       with:

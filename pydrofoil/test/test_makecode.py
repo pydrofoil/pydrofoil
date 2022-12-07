@@ -25,8 +25,8 @@ enum zjump {
   zJMP
 }
 """, support_code)
+    assert "class Enum_zjump" in res
     assert """\
-class Enum_zjump(object):
     zJDONT = 0
     zJGT = 1
     zJEQ = 2
@@ -45,7 +45,7 @@ union zinstr {
   zCINST: (%bv1, (%bool, %bool, %bool), %bool)
 }
 """, support_code)
-    assert "class Union_zinstr(object):" in res
+    assert "class Union_zinstr" in res
     assert "class Union_zinstr_zAINST(Union_zinstr):" in res
     assert "class Union_zinstr_zCINST(Union_zinstr):" in res
 

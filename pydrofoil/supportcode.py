@@ -22,7 +22,6 @@ make_dummy('plat_enable_dirty_update')
 make_dummy('plat_enable_misaligned_access')
 make_dummy('plat_enable_pmp')
 make_dummy('platform_barrier')
-make_dummy('print_int')
 make_dummy('print_mem_access')
 make_dummy('print_platform')
 make_dummy('print_reg')
@@ -91,7 +90,6 @@ make_dummy('string_length')
 make_dummy('sub_bits')
 make_dummy('sub_nat')
 make_dummy('tmod_int')
-make_dummy('vector_access')
 make_dummy('zeros')
 
 # generic helpers
@@ -332,6 +330,17 @@ def parse_args(argv, shortname, longname="", want_arg=True):
 
 
 class RegistersBase(object):
+    _immutable_fields_ = []
+
     have_exception = False
     throw_location = None
     current_exception = None
+
+    def __init__(self):
+        pass
+
+class ObjectBase(object):
+    _attrs_ = []
+
+class LetsBase(object):
+    _attrs_ = []

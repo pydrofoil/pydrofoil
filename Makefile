@@ -4,8 +4,8 @@ RPYTHON_DIR ?= pypy/rpython
 ALL: pydrofoil-riscv64
 
 
-pydrofoil-riscv64: venv_riscv/bin/python pypy/rpython/bin/rpython ## Build pydrofoil
-	PYTHONPATH=. venv_riscv/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv64 riscv/targetriscv.py
+pydrofoil-riscv: venv_riscv/bin/python pypy/rpython/bin/rpython ## Build pydrofoil
+	PYTHONPATH=. venv_riscv/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
 venv_riscv/bin/python:  ## create a virtualenv
 	@virtualenv -p python2 ./venv_riscv
@@ -27,7 +27,7 @@ riscv-tools/bin/riscv64-unknown-linux-gnu-gcc:  ## get the riscv-toolchain for U
 	## Delete the tarball ???
 
 
-riscv-tests/isa/rv64ua-p-amominu_w: riscv-tools/bin/riscv64-unknown-linux-gnu-gcc  pydrofoil-riscv64 
+riscv-tests/isa/rv64ua-p-amominu_w: riscv-tools/bin/riscv64-unknown-linux-gnu-gcc  pydrofoil-riscv
 	# Patch the Makefile in isa to use lp64d
 	sed -i -e "s/\<lp64\>/lp64d/" riscv-tests/isa/Makefile
 	# Patch the Makefile in isa to skip 32-bit tests, 

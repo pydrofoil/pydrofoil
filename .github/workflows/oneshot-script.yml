@@ -23,3 +23,12 @@ jobs:
       run: |
         ls -la
 
+    - name: download and run build script
+      run: |
+        wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script/build-pydrofoil-from-sail.sh
+        bash build-pydrofoil-from-sail.sh
+
+    - name: run two tests
+      run: |
+        ./pydrofoil-riscv --rv32 tests/riscv-tests/rv32ui-p-addi.elf
+        ./pydrofoil-riscv tests/riscv-tests/rv64ui-p-addi.elf

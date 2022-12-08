@@ -15,6 +15,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Add opam2 PPA
+      run: sudo add-apt-repository -y ppa:avsm/ppa
+    - name: Install packages
+      run: sudo apt install -y opam zlib1g-dev pkg-config libgmp-dev z3 device-tree-compiler
+    - name: Init opam
+      run: opam init --disable-sandboxing -y
+    - name: Install sail
+      run: opam install -y sail
     - uses: actions/checkout@master
       with:
         repository: riscv/sail-riscv
@@ -26,7 +34,7 @@ jobs:
     - name: download and run build script
       run: |
         wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script/build-pydrofoil-from-sail.sh
-        bash build-pydrofoil-from-sail.sh
+        eval $(opam env) && bash build-pydrofoil-from-sail.sh
 
     - name: run two tests
       run: |

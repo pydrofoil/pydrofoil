@@ -4,15 +4,21 @@ RPYTHON_DIR ?= pypy/rpython
 ALL: pydrofoil-riscv64
 
 
-pydrofoil-riscv: venv_riscv/bin/python pypy/rpython/bin/rpython ## Build pydrofoil
+pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython ## Build pydrofoil
 	PYTHONPATH=. venv_riscv/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
-venv_riscv/bin/python:  ## create a virtualenv
-	@virtualenv -p python2 ./venv_riscv
-	@venv_riscv/bin/python -mpip install rply "hypothesis<4.40"
+pypy_binary/bin/python:  ## download a PyPy binary
+	wget -c https://downloads.python.org/pypy/pypy2.7-v7.3.10-linux64.tar.bz2 -O pypy-v7.3.10.tar.bz2
+	mkdir -p pypy_binary
+	tar -C pypy_binary --strip-components=1 -xf pypy-v7.3.10.tar.bz2
+	./pypy_binary/bin/python -m ensurepip
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40"
 
 pypy/rpython/bin/rpython: ## clone the submodule
 	git submodule update --init --depth 1
+
+pydrofoil-test: pypy_binary/bin/python pypy/rpython/bin/rpython ## Run the pydrofoil implementation-level unit tests
+	./pypy_binary/bin/python pypy/pytest.py -v pydrofoil/ riscv/
 
 help:   ## Show this help.
 	@echo "\nHelp for various make targets"

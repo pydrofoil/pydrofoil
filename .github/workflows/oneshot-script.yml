@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@master
       with:
-        name: riscv/sail-riscv
+        repository: riscv/sail-riscv
 
     - name: ls
       run: |

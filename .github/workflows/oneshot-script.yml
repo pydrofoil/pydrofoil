@@ -1,0 +1,25 @@
+name: Pydrofoil-from-sail
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        name: riscv/sail-riscv
+
+    - name: ls
+      run: |
+        ls -la
+

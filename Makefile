@@ -5,7 +5,7 @@ ALL: pydrofoil-riscv64
 
 
 pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython ## Build pydrofoil
-	PYTHONPATH=. venv_riscv/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
+	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
 pypy_binary/bin/python:  ## download a PyPy binary
 	wget -c https://downloads.python.org/pypy/pypy2.7-v7.3.10-linux64.tar.bz2 -O pypy-v7.3.10.tar.bz2

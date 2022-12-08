@@ -1,3 +1,5 @@
+import os
+
 from pydrofoil.supportcode import *
 from pydrofoil.bitvector import Integer
 from pydrofoil import elf
@@ -378,9 +380,41 @@ JIT_HELP = "\n".join(JIT_HELP)
 def print_help_jit():
     print JIT_HELP
 
-def main(argv, *machineclasses):
-    from rpython.rlib import jit
+def check_file_missing(fn):
+    try:
+        os.stat(fn)
+    except OSError:
+        print "ERROR: file does not exist: %s" % (fn, )
+        return True
+    return False
 
+def main(argv, *machineclasses):
+    try:
+        return _main(argv, *machineclasses)
+    except OSError as e:
+        errno = e.errno
+        try:
+            msg = os.strerror(errno)
+        except ValueError:
+            msg = 'ERROR [errno %d]' % (errno, )
+        else:
+            msg = 'ERROR [errno %d] %s' % (errno, msg)
+        print msg
+        return -1
+    except IOError as e:
+        print "ERROR [errno %s] %s" % (e.errno, e.strerror or '')
+        return -2
+    except BaseException as e:
+        if we_are_translated():
+            from rpython.rlib.debug import debug_print_traceback
+            debug_print_traceback()
+            print "unexpected internal exception (please report a bug): %r" % (e, )
+            print "internal traceback dumped to stderr"
+            return -3
+        else:
+            raise
+
+def _main(argv, *machineclasses):
     if parse_flag(argv, "--help"):
         print_help(argv[0])
         return 0
@@ -430,8 +464,12 @@ def main(argv, *machineclasses):
 
     machine = machinecls()
     if blob:
+        if check_file_missing(blob):
+            return -1
         with open(blob, "rb") as f:
             machine.g.dtb = f.read()
+    if check_file_missing(file):
+        return -1
     entry = load_sail(machine, file)
     init_sail(machine, entry)
     if not verbose:
@@ -440,6 +478,8 @@ def main(argv, *machineclasses):
         machine.g.config_print_mem_access = False
         machine.g.config_print_platform = False
     if dump_file:
+        if check_file_missing(dump_file):
+            return -1
         print "dump file", dump_file
         machine.g.dump_dict = parse_dump_file(dump_file)
     if per_tick:

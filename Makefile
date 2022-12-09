@@ -48,6 +48,9 @@ regen-sail-ir-files: ## regenerate the JIB IR files from a RISC-V Sail model, ne
 ifndef RISCVMODELCHECKOUT
 	$(error RISCVMODELCHECKOUT not set)
 endif
+ifeq (,$(findstring 0.14,$(shell sail -v)))
+	$(error at the moment only Sail 0.14 is supported, not $(shell sail -v))
+endif
 	@# this is not great. ideally the sail model Makefile would have a
 	@# target that generates the JIB files
 	cd $(RISCVMODELCHECKOUT) && \

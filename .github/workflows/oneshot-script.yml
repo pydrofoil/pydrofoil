@@ -38,5 +38,5 @@ jobs:
 
     - name: run two tests
       run: |
-        ./pydrofoil-riscv --rv32 tests/riscv-tests/rv32ui-p-addi.elf
-        ./pydrofoil-riscv tests/riscv-tests/rv64ui-p-addi.elf
+        ./pydrofoil-riscv --rv32 test/riscv-tests/rv32ui-p-addi.elf
+        ./pydrofoil-riscv test/riscv-tests/rv64ui-p-addi.elf

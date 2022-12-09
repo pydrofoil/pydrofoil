@@ -22,7 +22,7 @@ jobs:
     - name: Init opam
       run: opam init --disable-sandboxing -y
     - name: Install sail
-      run: opam install -y sail
+      run: opam install -y sail 0.14
     - uses: actions/checkout@master
       with:
         repository: riscv/sail-riscv

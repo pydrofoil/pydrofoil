@@ -72,12 +72,12 @@ def promote_addr_region(machine, addr, width, offset, executable_flag):
             # it's aligned and the highest bit is not set. tell the jit that the
             # last three bits and the highest bit are zero. can be removed with
             # known bits analysis later
-            #jit.record_exact_value(addr & 1, 0)
-            #jit.record_exact_value(addr & 0b111, 0)
-            #jit.record_exact_value((addr + width) & 0b111, 0)
+            jit.record_exact_value(addr & 1, 0)
+            jit.record_exact_value(addr & 0b111, 0)
+            jit.record_exact_value((addr + width) & 0b111, 0)
             jit.record_exact_value(r_uint(addr) & (r_uint(1)<<63), 0)
-            #jit.record_exact_value((r_uint(addr) >> 1) & 1, 0)
-            #jit.record_exact_value((r_uint(addr) >> 2) & 1, 0)
+            jit.record_exact_value((r_uint(addr) >> 1) & 1, 0)
+            jit.record_exact_value((r_uint(addr) >> 2) & 1, 0)
     return
 
 class Globals(object):

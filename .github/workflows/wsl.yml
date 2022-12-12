@@ -27,11 +27,7 @@ jobs:
       shell: wsl-bash {0}
       run: ls -la
 
-    - name: extra packages
-      shell: wsl-bash {0}
-      run: sudo apt install build-essential
-
-    - name: Translate, run, test binary
+    - name: make
       shell: wsl-bash {0}
       run: |
         make pydrofoil-riscv

@@ -41,7 +41,7 @@ jobs:
       run: |
         make pydrofoil-riscv
 
-    - name: runt-tests
+    - name: run-tests
       shell: wsl-bash {0}
       run: |
         ./pydrofoil-riscv --version

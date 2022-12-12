@@ -21,6 +21,7 @@ all its optimizations, backends, etc.
     Using Pydrofoil <using_pydrofoil>
     Developing Pydrofoil <developing_pydrofoil>
     Useful links <useful_links>
+	Changelog <changelog>
 
 .. __: https://github.com/riscv/sail-riscv
 .. __: https://www3.hhu.de/stups/downloads/pdf/BoCuFiRi09_246.pdf

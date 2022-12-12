@@ -22,15 +22,28 @@ jobs:
         additional-packages:
           build-essential
 
-
     - name: ls
       shell: wsl-bash {0}
       run: ls -la
+
+    - name: pypy-checkout
+      shell: wsl-bash {0}
+      run: |
+        make pypy/rpython/bin/rpython
+
+    - name: pypy-binary
+      shell: wsl-bash {0}
+      run: |
+        make pypy_binary/bin/python
 
     - name: make
       shell: wsl-bash {0}
       run: |
         make pydrofoil-riscv
+
+    - name: runt-tests
+      shell: wsl-bash {0}
+      run: |
         ./pydrofoil-riscv --version
         ./pydrofoil-riscv riscv/input/rv64ui-p-addi.elf
         ./pydrofoil-riscv --rv32 riscv/input/rv32ui-p-addi.elf

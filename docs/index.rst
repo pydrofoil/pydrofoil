@@ -17,8 +17,9 @@ all its optimizations, backends, etc.
    :maxdepth: 1
    :hidden:
 
-    Building pydrofoil <building_pydrofoil>
-    Using pydrofoil <using_pydrofoil>
+    Building Pydrofoil <building_pydrofoil>
+    Using Pydrofoil <using_pydrofoil>
+    Developing Pydrofoil <developing_pydrofoil>
     Useful links <useful_links>
 
 .. __: https://github.com/riscv/sail-riscv

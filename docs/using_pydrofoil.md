@@ -45,8 +45,18 @@ dtc < os-boot/rv64-64mb.dts > os-boot/rv64-64mb.dtb
 ```
 
 This command will run the Linux image that is part of the sail-riscv repo until
-the login prompt.
+the login prompt. The `dtb` file is a device tree blob that describes the
+emulated hardware to the operating system, it gets generated from a
+human-readable input file with the `dtc` command.
 
+Booting Linux takes a bit less than 4 minutes on Pydrofoil. You can try the
+equivalent command on the standard Sail emulator:
+
+```
+./c_emulator/riscv_sim_RV64 -b os-boot/rv64-64mb.dtb os-boot/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl -l 230000000 -V
+```
+
+Which takes roughly 75 minutes.
 
 ## Commandline Options
 

@@ -13,7 +13,7 @@ pypy_binary/bin/python:  ## download a PyPy binary
 	tar -C pypy_binary --strip-components=1 -xf pypy-v7.3.10.tar.bz2
 	rm pypy-v7.3.10.tar.bz2
 	./pypy_binary/bin/python -m ensurepip
-	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40"
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml
 
 pypy/rpython/bin/rpython: ## clone the submodule
 	git submodule update --init --depth 1
@@ -42,6 +42,12 @@ riscv-tests/isa/rv64ua-p-amominu_w: riscv-tools/bin/riscv64-unknown-linux-gnu-gc
 riscv-tests: riscv-tests/isa/rv64ua-p-amominu_w  ## run the riscv-tests/isa exectuables using the emulator
 	./run_tests.sh
 
+riscv-tests: pypy_binary/bin/python pydrofoil-riscv
+ifndef RISCVMODELCHECKOUT
+	$(error RISCVMODELCHECKOUT not set)
+endif
+	./pypy_binary/bin/python run_riscv_tests.py
+
 riscv-tests-clean:
 	cd riscv-tests && make clean
 
@@ -67,3 +73,4 @@ help:   ## Show this help.
 	@echo "\nHelp for various make targets"
 	@echo "Possible commands are:"
 	@grep -h "##" $(MAKEFILE_LIST) | grep -v grep | sed -e 's/\(.*\):.*##\(.*\)/    \1: \2/'
+

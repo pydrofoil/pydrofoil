@@ -20,6 +20,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - uses: actions/checkout@v3
+      with:
+        repository: riscv/sail-riscv
+
     - name: Set up PyPy 2.7
       uses: actions/setup-python@v4
       with:
@@ -43,6 +47,16 @@ jobs:
         ./pydrofoil-riscv riscv/input/rv64ui-p-addi.elf
         ./pydrofoil-riscv --rv32 riscv/input/rv32ui-p-addi.elf
 
+    - name: Run all RISC-V tests
+      run: |
+        RISCVMODELCHECKOUT=sail-riscv make riscv-tests
+
+    - name: Publish Test Report
+      uses: mikepenz/action-junit-report@v3
+      if: always() # always run even if the previous step fails
+      with:
+        report_paths: 'pydrofoil-riscv-tests.xml'
+
     - name: Boot Linux
       run: |
         ./pydrofoil-riscv -b riscv/input/rv64-64mb.dtb riscv/input/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl -l 230000000
@@ -51,3 +65,4 @@ jobs:
       with:
         name: pydrofoil-riscv
         path: ./pydrofoil-riscv
+

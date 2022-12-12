@@ -36,6 +36,10 @@ jobs:
         wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script/build-pydrofoil-from-sail.sh
         eval $(opam env) && bash build-pydrofoil-from-sail.sh
 
+    - name: version
+      run: |
+        ./pydrofoil-riscv --version
+
     - name: run two tests
       run: |
         ./pydrofoil-riscv --rv32 test/riscv-tests/rv32ui-p-addi.elf

@@ -20,7 +20,7 @@ jobs:
       with:
         distribution: Ubuntu-20.04
         additional-packages:
-          build-essential
+          build-essential libssl-dev
 
     - name: ls
       shell: wsl-bash {0}

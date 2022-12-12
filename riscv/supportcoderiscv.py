@@ -368,7 +368,7 @@ Usage: %s [options] <elf_file>
 --print-kips                    print kip/s every 2**20 instructions
 --jit <options>                 set JIT options
 --dump <file>                   load elf file disassembly from file
---version                       print the version of pydrofoil
+--version                       print the version of pydrofoil-riscv
 --help                          print this information and exit
 """
 

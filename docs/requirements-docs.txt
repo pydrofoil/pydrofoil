@@ -1,2 +1,4 @@
 sphinx
 furo
+# For markdown
+myst-parser

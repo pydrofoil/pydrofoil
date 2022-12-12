@@ -5,3 +5,6 @@ nand2tetris/nand2tetris
 usession*/
 venv_riscv/
 riscv-tools/
+docs/_build/
+pydrofoil-riscv
+pypy_binary/

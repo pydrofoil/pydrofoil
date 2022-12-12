@@ -12,11 +12,8 @@ pypy_binary/bin/python:  ## download a PyPy binary
 	mkdir -p pypy_binary
 	tar -C pypy_binary --strip-components=1 -xf pypy-v7.3.10.tar.bz2
 	rm pypy-v7.3.10.tar.bz2
-	./pypy_binary/bin/python --version
 	./pypy_binary/bin/python -m ensurepip
-	./pypy_binary/bin/python -mpip help
-	./pypy_binary/bin/python -mpip install rply
-	./pypy_binary/bin/python -mpip install "hypothesis<4.40"
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40"
 
 pypy/rpython/bin/rpython: ## clone the submodule
 	git submodule update --init --depth 1

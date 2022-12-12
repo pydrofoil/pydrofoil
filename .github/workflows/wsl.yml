@@ -34,7 +34,28 @@ jobs:
     - name: pypy-binary
       shell: wsl-bash {0}
       run: |
-        make pypy_binary/bin/python
+	wget -c https://downloads.python.org/pypy/pypy2.7-v7.3.10-linux64.tar.bz2 -O pypy-v7.3.10.tar.bz2
+	mkdir -p pypy_binary
+	tar -C pypy_binary --strip-components=1 -xf pypy-v7.3.10.tar.bz2
+	rm pypy-v7.3.10.tar.bz2
+
+    - name: pypy-version
+      shell: wsl-bash {0}
+      run: |
+	./pypy_binary/bin/python --version
+
+    - name: pypy-ensurepip
+      shell: wsl-bash {0}
+      run: |
+	./pypy_binary/bin/python -m ensurepip
+
+    - name: pypy-pip
+      shell: wsl-bash {0}
+      run: |
+	./pypy_binary/bin/python -mpip help
+	./pypy_binary/bin/python -mpip install rply
+	./pypy_binary/bin/python -mpip install "hypothesis<4.40"
+	./pypy_binary/bin/python -mpip install "hypothesis<4.40"
 
     - name: make
       shell: wsl-bash {0}

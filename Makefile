@@ -27,29 +27,11 @@ riscv-tools/bin/riscv64-unknown-linux-gnu-gcc:  ## get the riscv-toolchain for U
 	tar -C riscv-tools --strip-components=1 -xf risc64-nightly.tar.gz
 	## Delete the tarball ???
 
-
-riscv-tests/isa/rv64ua-p-amominu_w: riscv-tools/bin/riscv64-unknown-linux-gnu-gcc  pydrofoil-riscv  ## build the test executables using a cross compiler
-	# Patch the Makefile in isa to use lp64d
-	sed -i -e "s/\<lp64\>/lp64d/" riscv-tests/isa/Makefile
-	# Patch the Makefile in isa to skip 32-bit tests,
-	# lines with
-	# $(eval $(call compile_template,.* -mabi=ilp32))
-	# should be commented out
-	export PATH=${PWD}/riscv-tools/bin:${PATH} && \
-	export RISCV_PREFIX=riscv64-unknown-linux-gnu- && \
-	cd riscv-tests && autoconf && ./configure && make isa
-
-riscv-tests: riscv-tests/isa/rv64ua-p-amominu_w  ## run the riscv-tests/isa exectuables using the emulator
-	./run_tests.sh
-
 riscv-tests: pypy_binary/bin/python pydrofoil-riscv
 ifndef RISCVMODELCHECKOUT
 	$(error RISCVMODELCHECKOUT not set)
 endif
 	./pypy_binary/bin/python run_riscv_tests.py
-
-riscv-tests-clean:
-	cd riscv-tests && make clean
 
 regen-sail-ir-files: ## regenerate the JIB IR files from a RISC-V Sail model, needs env variable RISCVMODELCHECKOUT set
 ifndef RISCVMODELCHECKOUT

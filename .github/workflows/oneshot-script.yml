@@ -34,7 +34,8 @@ jobs:
     - name: download and run build script
       run: |
         wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script/build-pydrofoil-from-sail.sh
-        eval $(opam env) && bash build-pydrofoil-from-sail.sh
+        echo ${GITHUB_REF##*/}
+        eval $(opam env) && bash build-pydrofoil-from-sail.sh ${GITHUB_REF##*/}
 
     - name: version
       run: |

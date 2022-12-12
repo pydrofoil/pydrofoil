@@ -358,7 +358,7 @@ Usage: %s [options] <elf_file>
 --rv32                          run emulator in 32bit mode
 -b/--device-tree-blob <file>    load dtb from file
 -l/--inst-limit <limit>         exit after limit instructions have been executed
---instructions-per-tick <num>   tick the emulated clock every num instructions
+--instructions-per-tick <num>   tick the emulated clock every num instructions (default: 100)
 --verbose                       print a detailed trace of every instruction executed
 --print-kips                    print kip/s every 2**20 instructions
 --jit <options>                 set JIT options

@@ -17,8 +17,8 @@ jobs:
     steps:
     - name: download build script
       run: |
-        echo github ref ${GITHUB_REF} ${GITHUB_REF##*/}
-        wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/${GITHUB_REF##*/}/build-pydrofoil-from-sail.sh
+        echo github ref ${GITHUB_REF} ${GITHUB_REF_NAME}
+        wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/${GITHUB_REF_NAME}/build-pydrofoil-from-sail.sh
     - name: Add opam2 PPA
       run: sudo add-apt-repository -y ppa:avsm/ppa
     - name: Install packages
@@ -37,7 +37,7 @@ jobs:
 
     - name: run build script
       run: |
-        eval $(opam env) && bash build-pydrofoil-from-sail.sh ${GITHUB_REF##*/}
+        eval $(opam env) && bash build-pydrofoil-from-sail.sh ${GITHUB_REF_NAME}
 
     - name: version
       run: |

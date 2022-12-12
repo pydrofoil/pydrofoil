@@ -19,7 +19,7 @@ jobs:
       uses: Vampire/setup-wsl@v1
       with:
         distribution: Ubuntu-20.04
-      additional-packages:
+        additional-packages:
           build-essential
 
     - name: ls

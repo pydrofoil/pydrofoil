@@ -1,4 +1,4 @@
-name: Pydrofoil
+name: Pydrofoil WSL
 
 on:
   push:
@@ -21,15 +21,15 @@ jobs:
         distribution: Ubuntu-20.04
 
     - name: ls
-      shell: wsl-bash
+      shell: wsl-bash {0}
       run: ls -la
 
     - name: id
-      shell: wsl-bash
+      shell: wsl-bash {0}
       run: id
 
     - name: Translate, run, test binary
-      shell: wsl-bash
+      shell: wsl-bash {0}
       run: |
         make pydrofoil-riscv
         ./pydrofoil-riscv --version

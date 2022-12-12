@@ -20,6 +20,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: uname
+      run: |
+        uname -s
+        uname -a
+
     - name: Set up PyPy 2.7
       uses: actions/setup-python@v4
       with:

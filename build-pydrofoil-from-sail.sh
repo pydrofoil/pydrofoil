@@ -5,11 +5,9 @@
 # necessary repos and downloads a pypy2 binary that is needed as part of the
 # build process
 
-pydrofoilbranch=${1:-main}
-
 if [ ! -d "pydrofoil" ]; then
   # Clone the repository if the directory does not exist
-  git clone https://github.com/pydrofoil/pydrofoil -b $pydrofoilbranch
+  git clone https://github.com/pydrofoil/pydrofoil
 fi
 
 echo "building pydrofoil binary, takes about 20 min" && \

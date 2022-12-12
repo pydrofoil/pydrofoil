@@ -19,14 +19,12 @@ jobs:
       uses: Vampire/setup-wsl@v1
       with:
         distribution: Ubuntu-20.04
+      additional-packages:
+          build-essential
 
     - name: ls
       shell: wsl-bash {0}
       run: ls -la
-
-    - name: id
-      shell: wsl-bash {0}
-      run: id
 
     - name: Translate, run, test binary
       shell: wsl-bash {0}

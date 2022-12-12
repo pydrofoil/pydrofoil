@@ -1,0 +1,38 @@
+name: Pydrofoil
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup WSL
+      uses: Vampire/setup-wsl@v1
+      with:
+        distribution: Ubuntu-20.04
+
+    - name: ls
+      shell: wsl-bash
+      run: ls -la
+
+    - name: id
+      shell: wsl-bash
+      run: id
+
+    - name: Translate, run, test binary
+      shell: wsl-bash
+      run: |
+        make pydrofoil-riscv
+        ./pydrofoil-riscv --version
+        ./pydrofoil-riscv riscv/input/rv64ui-p-addi.elf
+        ./pydrofoil-riscv --rv32 riscv/input/rv32ui-p-addi.elf
+

@@ -14,6 +14,11 @@ from rpython.rlib import jit
 
 import time
 
+VERSION = "0.0.1-alpha0"
+
+with open(os.path.join(os.path.dirname(__file__), "riscv_model_version")) as f:
+    SAIL_RISCV_VERSION = f.read().strip()
+
 
 def write_mem(machine, addr, content): # write a single byte
     jit.promote(machine.g).mem.write(addr, 1, content)
@@ -363,6 +368,7 @@ Usage: %s [options] <elf_file>
 --print-kips                    print kip/s every 2**20 instructions
 --jit <options>                 set JIT options
 --dump <file>                   load elf file disassembly from file
+--version                       print the version of pydrofoil-riscv
 --help                          print this information and exit
 """
 
@@ -417,6 +423,11 @@ def main(argv, *machineclasses):
 def _main(argv, *machineclasses):
     if parse_flag(argv, "--help"):
         print_help(argv[0])
+        return 0
+
+    version = parse_flag(argv, "--version")
+    if version:
+        print "pydrofoil-riscv %s (Sail model version: %s)" % (VERSION, SAIL_RISCV_VERSION)
         return 0
 
     blob = parse_args(argv, "-b", "--device-tree-blob")

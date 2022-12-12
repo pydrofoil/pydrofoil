@@ -33,7 +33,7 @@ jobs:
 
     - name: download and run build script
       run: |
-        wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script/build-pydrofoil-from-sail.sh
+        wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/main/build-pydrofoil-from-sail.sh
         eval $(opam env) && bash build-pydrofoil-from-sail.sh
 
     - name: run two tests

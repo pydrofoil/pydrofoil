@@ -70,4 +70,5 @@ The `pydrofoil-riscv` binary accepts the following commandline options:
   instructions (default: 100).
 - `--verbose` print a detailed trace of every instruction executed
 - `--jit off` turn dynamic binary translation/JIT compilation off
+- `--version` print the version of pydrofoil-riscv
 

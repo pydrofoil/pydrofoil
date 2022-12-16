@@ -12,6 +12,7 @@ ISA model`__. It achieves fast performance by doing dynamic binary translation
 instructions. It's built on top of the `RPython meta-jit compiler`__ and reuses
 all its optimizations, backends, etc.
 
+To get started, you can read about how to `build Pydrofoil here`__.
 
 .. toctree::
    :maxdepth: 1
@@ -25,6 +26,7 @@ all its optimizations, backends, etc.
 
 .. __: https://github.com/riscv/sail-riscv
 .. __: https://www3.hhu.de/stups/downloads/pdf/BoCuFiRi09_246.pdf
+.. __: building_pydrofoil.md
 
 ..
     Indices and tables

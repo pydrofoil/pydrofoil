@@ -9,7 +9,12 @@ Sail-based emulator also accepts. The following example commands should be
 executed from a sail-riscv checkout.
 
 ```
-$ ./pydrofoil-riscv test/riscv-tests/rv64ui-p-addi.elf
+./pydrofoil-riscv test/riscv-tests/rv64ui-p-addi.elf
+```
+
+which will print:
+
+```
 tohost located at 0x80001000
 entrypoint 0x80000000
 CSR mstatus <- 0x0000000A00000000 (input: 0x0000000000000000)
@@ -25,6 +30,11 @@ the 32-bit emulator, you can use the `--rv32` commandline option:
 
 ```
 ./pydrofoil-riscv --rv32 test/riscv-tests/rv32ui-p-addi.elf
+```
+
+which prints:
+
+```
 tohost located at 0x80001000
 entrypoint 0x80000000
 CSR mstatus <- 0x00000000 (input: 0x00000000)

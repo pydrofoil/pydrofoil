@@ -15,6 +15,7 @@ author = 'Pydrofoil Contributors'
 
 extensions = [
     'myst_parser',
+    'sphinx_copybutton',
 ]
 
 templates_path = ['_templates']

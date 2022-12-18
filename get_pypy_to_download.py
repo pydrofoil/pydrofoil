@@ -36,4 +36,4 @@ for d in data:
         break
 else:
     raise RuntimeError(f"No known stable PyPy2.7 build???")
-print(download)
+request.urlretrieve(download, filename="pypy.tar.bz2")

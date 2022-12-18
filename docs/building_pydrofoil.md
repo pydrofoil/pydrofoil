@@ -28,7 +28,7 @@ to download all the requirements for building Pydrofoil and then start the build
 process. It works like this:
 
 ```bash
-# get opam from apt, brew, or choco, and then get sail via "opam install sail.0.14"
+# get opam from apt or homebrew, and then get sail via "opam install sail.0.14"
 git clone https://github.com/riscv/sail-riscv.git # or use your existing checkout
 cd sail-riscv
 wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script/build-pydrofoil-from-sail.sh

@@ -1,5 +1,5 @@
 RPYTHON_DIR ?= pypy/rpython
-DOWNLOAD := $(shell get_pypy_to_download.py)
+DOWNLOAD := $(shell ./get_pypy_to_download.py)
 
 
 ALL: pydrofoil-riscv

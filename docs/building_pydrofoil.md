@@ -4,8 +4,8 @@ On this page we'll describe how to build or download a Pydrofoil binary.
 
 ## Requirements
 
-So far, Pydrofoil is only properly supported on Linux and WSL, on x86-64 host
-CPUs. macOS and ARM host support is planned, but not yet ready.
+Pydrofoil has been extensively tested on Ubuntu Linux on x86-64 host systems.
+It should also work on WSL and on macOS (with x86-64 and ARM CPUs).
 
 To build Pydrofoil, you need the following software installed (if you are
 working on the Sail model you likely have all of these already):
@@ -37,8 +37,9 @@ eval $(opam env --switch=pydrofoil)
 opam install sail=0.14
 ```
 
-This will create a new ocaml environment and install Sail 0.14 into it. You can
-test that it worked by running:
+This will create a new ocaml environment and install Sail 0.14 into it.
+Therefore these steps are also safe to execute if you already have Sail 0.15
+installed. You can test that it worked by running:
 
 ```
 sail
@@ -71,7 +72,7 @@ chmod a+x build-pydrofoil-from-sail.sh
 ```
 This will
 - clone the pydrofoil repo from github
-- use sail version 0.14 to translate the ISA specifications into JIB files
+- use sail to translate the ISA specifications into JIB files
   (about 5 minutes)
 - download and use a pypy2.7 to translate the RPython-based pydrofoil source
   code into an executable (about 20 minutes)

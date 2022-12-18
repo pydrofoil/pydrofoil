@@ -49,6 +49,7 @@ jobs:
           }
     - name: Extract test results and events
       run: for z in *.zip; do mkdir "${z%.*}" && cp "$z" "${z%.*}/tests.xml.zip" && cd "${z%.*}" && unzip "tests.xml.zip" && cd - ; done
+    - name: ls
       run: ls -la **
     - name: Publish test results
       uses: EnricoMi/publish-unit-test-result-action@v2

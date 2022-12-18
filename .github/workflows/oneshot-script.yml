@@ -36,13 +36,14 @@ jobs:
     - name: Install sail
       run: opam install -y sail=0.14
 
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v3
       with:
         repository: riscv/sail-riscv
 
-    - name: ls
-      run: |
-        ls -la
+    - uses: actions/checkout@v3
+      with:
+        path: pydrofoil
+      name: Pre-emptively checkout pydrofoil to get the correct branch
 
     - name: download and run build script
       run: |

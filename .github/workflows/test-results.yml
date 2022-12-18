@@ -31,7 +31,7 @@ jobs:
              run_id: ${{github.event.workflow_run.id }},
           });
           var matchArtifacts = artifacts.data.artifacts.filter((artifact) => {
-            return artifact.name == 'tests.xml' || artifact.name == 'event.json'
+            return artifact.name.startsWith('tests.xml') || artifact.name.startsWith('event.json')
           });
           var count = matchArtifacts.length;
           for (var i = 0; i < count; i++) {
@@ -47,18 +47,15 @@ jobs:
             fs.writeFileSync('${{github.workspace}}/' + dest, Buffer.from(download.data));
             console.log("Downloaded", name, "as", dest);
           }
-    - name: Extract test results
-      run: unzip tests.xml.zip
-    - name: Extract event payload
-      run: unzip event.json.zip
-    - name: ls
-      run: ls -la
+    - name: Extract test results and events
+      run: for z in *.zip; do mkdir "${z%.*}" && cp "$z" "${z%.*}/tests.xml.zip" && cd "${z%.*}" && unzip "tests.xml.zip" && cd - ; done
+      run: ls -la **
     - name: Publish test results
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
         commit: ${{ github.event.workflow_run.head_sha }}
-        event_file: event.json
+        event_file: "**/events.json"
         event_name: ${{ github.event.workflow_run.event }}
         files: 
-        junit_files: "pydrofoil-riscv-tests.xml"
+        junit_files: "**/pydrofoil-riscv-tests.xml"
 

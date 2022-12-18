@@ -75,20 +75,20 @@ jobs:
     - name: Upload binary
       uses: actions/upload-artifact@v3
       with:
-        name: pydrofoil-riscv
+        name: pydrofoil-riscv-${{ matrix.os }}
         path: ./pydrofoil-riscv
 
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: tests.xml
+        name: tests.xml-${{ matrix.os }}
         path: pydrofoil-riscv-tests.xml
 
     - name: Upload event payload
       if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: event.json
+        name: event.json-${{ matrix.os }}
         path: ${{ github.event_path }}
 

@@ -1,6 +1,5 @@
 RPYTHON_DIR ?= pypy/rpython
 
-
 ALL: pydrofoil-riscv
 
 
@@ -8,10 +7,10 @@ pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython ## Build pydrof
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
 pypy_binary/bin/python:  ## download a PyPy binary
-	wget -c https://downloads.python.org/pypy/pypy2.7-v7.3.10-linux64.tar.bz2 -O pypy-v7.3.10.tar.bz2
 	mkdir -p pypy_binary
-	tar -C pypy_binary --strip-components=1 -xf pypy-v7.3.10.tar.bz2
-	rm pypy-v7.3.10.tar.bz2
+	python3 get_pypy_to_download.py
+	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
+	rm pypy.tar.bz2
 	./pypy_binary/bin/python -m ensurepip
 	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml
 

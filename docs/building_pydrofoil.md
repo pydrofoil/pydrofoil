@@ -14,7 +14,8 @@ working on the Sail model you likely have all of these already):
 - GNU Make
 - git
 - opam
-- Sail 0.14
+- python3
+- Sail 0.14 (see next section).
 
 All the other Pydrofoil build requirements are downloaded automatically by the
 build scripts/Makefile.
@@ -27,7 +28,8 @@ installed. Otherwise, keep reading.
 [At the moment](https://github.com/pydrofoil/pydrofoil/issues/31) Pydrofoil
 only works with Sail 0.14, but we are working on 0.15 support. So in order to
 build Pydrofoil, you need to install Sail pinned to version 0.14. First install
-`opam`, the ocaml package manager. Then you can run:
+`opam`, the ocaml package manager, if you don't have it already.
+Then you can run:
 
 ```
 opam switch create pydrofoil ocaml.4.13.1
@@ -53,6 +55,7 @@ Sail 0.14 (sail2 @ opam)
 To build Pydrofoil, you first need to clone the [Sail-RISC-V
 model](https://github.com/riscv/sail-riscv) repository. If you already have a
 checkout, you can use that instead.
+
 ```
 git clone https://github.com/riscv/sail-riscv.git # or use your existing checkout
 cd sail-riscv
@@ -63,12 +66,18 @@ for building Pydrofoil and then start the build process. It works like this:
 
 ```
 wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script/build-pydrofoil-from-sail.sh
-chmod +x build-pydrofoil-from-sail.sh
+chmod a+x build-pydrofoil-from-sail.sh
 ./build-pydrofoil-from-sail.sh
 ```
+This will
+- clone the pydrofoil repo from github
+- use sail version 0.14 to translate the ISA specifications into JIB files
+  (about 5 minutes)
+- download and use a pypy2.7 to translate the RPython-based pydrofoil source
+  code into an executable (about 20 minutes)
+- copy the executable into the sail-riscv directory
 
-After about 20 minutes, the binary `pydrofoil-riscv` is generated. You can test
-that it worked like this:
+You can test that it worked like this:
 
 ```
 ./pydrofoil-riscv test/riscv-tests/rv64ui-p-beq.elf

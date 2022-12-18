@@ -7,31 +7,64 @@ On this page we'll describe how to build or download a Pydrofoil binary.
 So far, Pydrofoil is only properly supported on Linux and WSL, on x86-64 host
 CPUs. macOS and ARM host support is planned, but not yet ready.
 
-To build Pydrofoil, you need the following software installed:
+To build Pydrofoil, you need the following software installed (if you are
+working on the Sail model you likely have all of these already):
 
 - a working C-compiler (gcc or clang) installed
 - GNU Make
 - git
+- opam
 - Sail 0.14
 
-If you are working on the Sail model you likely have all of these already.
+All the other Pydrofoil build requirements are downloaded automatically by the
+build scripts/Makefile.
+
+## Installing Sail 0.14
+
+You can skip this subsection if you already have a Sail binary version 0.14
+installed. Otherwise, keep reading.
+
 [At the moment](https://github.com/pydrofoil/pydrofoil/issues/31) Pydrofoil
-only works
-with Sail 0.14, but we are working on 0.15 support. All the other Pydrofoil
-build requirements are downloaded automatically by the build scripts/Makefile.
+only works with Sail 0.14, but we are working on 0.15 support. So in order to
+build Pydrofoil, you need to install Sail pinned to version 0.14. First install
+`opam`, the ocaml package manager. Then you can run:
 
-## Starting from a Sail-riscv checkout
+```
+opam switch create pydrofoil ocaml.4.13.1
+eval $(opam env --switch=pydrofoil)
+opam install sail=0.14
+```
 
-If you already have a checkout of the [Sail-RISC-V
-model](https://github.com/riscv/sail-riscv) there is a script that you can use
-to download all the requirements for building Pydrofoil and then start the build
-process. It works like this:
+This will create a new ocaml environment and install Sail 0.14 into it. You can
+test that it worked by running:
 
+```
+sail
+```
+
+Which should print:
+
+```
+Sail 0.14 (sail2 @ opam)
+```
+
+## Building Pydrofoil Starting from a Sail-riscv checkout
+
+To build Pydrofoil, you first need to clone the [Sail-RISC-V
+model](https://github.com/riscv/sail-riscv) repository. If you already have a
+checkout, you can use that instead.
 ```
 git clone https://github.com/riscv/sail-riscv.git # or use your existing checkout
 cd sail-riscv
+```
+
+Afterwards, there is a script that you can use to download all the requirements
+for building Pydrofoil and then start the build process. It works like this:
+
+```
 wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script/build-pydrofoil-from-sail.sh
-bash build-pydrofoil-from-sail.sh
+chmod +x build-pydrofoil-from-sail.sh
+./build-pydrofoil-from-sail.sh
 ```
 
 After about 20 minutes, the binary `pydrofoil-riscv` is generated. You can test

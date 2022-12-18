@@ -27,15 +27,24 @@ model](https://github.com/riscv/sail-riscv) there is a script that you can use
 to download all the requirements for building Pydrofoil and then start the build
 process. It works like this:
 
-```
+```bash
+# get opam from apt, brew, or choco, and then get sail via "opam install sail.0.14"
 git clone https://github.com/riscv/sail-riscv.git # or use your existing checkout
 cd sail-riscv
 wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script/build-pydrofoil-from-sail.sh
-bash build-pydrofoil-from-sail.sh
+chmod a+x build-pydrofoil-from-sail.sh
+eval $(opam env)
+./build-pydrofoil-from-sail.sh
 ```
+This will
+- clone the pydrofoil repo from github
+- use sail version 0.14 to translate the ISA specifications into JIB files
+  (about 5 minutes)
+- download and use a pypy2.7 to translate the RPython-based pydrofoil source
+  code into an executable (about 20 minutes)
+- copy the executable into the sail-riscv directory
 
-After about 20 minutes, the binary `pydrofoil-riscv` is generated. You can test
-that it worked like this:
+You can test that it worked like this:
 
 ```
 ./pydrofoil-riscv test/riscv-tests/rv64ui-p-beq.elf

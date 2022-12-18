@@ -96,11 +96,8 @@ Total time (s): 0.000361
 Perf: 844.397835 Kips
 ```
 
-[See here](using_pydrofoil.md) for more instructions on how to use Pydrofoil,
+[See here](using_pydrofoil.md) for more instructions on how to **use Pydrofoil**,
 including how to boot Linux.
-
-
-## If you are working on Pydrofoil itself
 
 If you are interested in working on Pydrofoil itself, please read the
 instructions on the page [Developing Pydrofoil](developing_pydrofoil.md).

@@ -42,7 +42,7 @@ Therefore these steps are also safe to execute if you already have Sail 0.15
 installed. You can test that it worked by running:
 
 ```
-sail
+sail -v
 ```
 
 Which should print:

@@ -51,22 +51,37 @@ This is an example of how to boot a Linux kernel using the Pydrofoil emulator:
 
 ```
 dtc < os-boot/rv64-64mb.dts > os-boot/rv64-64mb.dtb
-./pydrofoil-riscv -b os-boot/rv64-64mb.dtb os-boot/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl -l 230000000
+
+./pydrofoil-riscv -b os-boot/rv64-64mb.dtb \
+   os-boot/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl -l 230000000
+
 ```
 
 This command will run the Linux image that is part of the sail-riscv repo until
 the login prompt. The `dtb` file is a device tree blob that describes the
 emulated hardware to the operating system, it gets generated from a
-human-readable input file with the `dtc` command.
+human-readable input file with the `dtc` command.  `dtc` is provided by `apt
+install device-tree-compiler` on Ubuntu. The instruction limit of 230 million
+instructions is chosen such that booting proceeds until the login prompt.
 
-Booting Linux takes a bit less than 4 minutes on Pydrofoil. You can try the
+You can try the
 equivalent command on the standard Sail emulator:
 
 ```
-./c_emulator/riscv_sim_RV64 -b os-boot/rv64-64mb.dtb os-boot/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl -l 230000000 -V
+./c_emulator/riscv_sim_RV64 --show-times -b os-boot/rv64-64mb.dtb \
+    os-boot/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl -l 230000000 -V
 ```
 
-Which takes roughly 75 minutes.
+Booting Linux is about 18 times faster with Pydrofoil  and uses about 8 times
+the memory when compared to the Sail emulator on the two Ubuntu x86_64 machines
+we tried:
+
+| x86_64 machine | Pydrofoil | Sail emulator | Ratio |
+|---|---|---|---|
+| laptop (i7-8565U) | 4min   | 75min      | 1:18.7  |
+| Ryzen 9 3900X | 115sec | 34min36sec | 1:18.1 |
+| <p style='text-align: right;'> RSS memory</p>   | 318MB  | 39MB       | 8:1 |
+
 
 ## Commandline Options
 

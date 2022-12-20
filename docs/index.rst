@@ -21,6 +21,7 @@ To get started, please consult :doc:`building_pydrofoil`.
     Building Pydrofoil <building_pydrofoil>
     Using Pydrofoil <using_pydrofoil>
     Developing Pydrofoil <developing_pydrofoil>
+    Background: Optimizations <background_optimizations>
     Useful links <useful_links>
 	Changelog <changelog>
 

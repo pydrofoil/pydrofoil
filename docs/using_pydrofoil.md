@@ -61,7 +61,8 @@ This command will run the Linux image that is part of the sail-riscv repo until
 the login prompt. The `dtb` file is a device tree blob that describes the
 emulated hardware to the operating system, it gets generated from a
 human-readable input file with the `dtc` command.  `dtc` is provided by `apt
-install device-tree-compiler` on Ubuntu.
+install device-tree-compiler` on Ubuntu. The instruction limit of 230 million
+instructions is chosen such that booting proceeds until the login prompt.
 
 You can try the
 equivalent command on the standard Sail emulator:
@@ -77,7 +78,7 @@ we tried:
 
 | x86_64 machine | Pydrofoil | Sail emulator | Ratio |
 |---|---|---|---|
-| typical laptop| 4min   | 75min      | 1:18.7  |
+| laptop (i7-8565U) | 4min   | 75min      | 1:18.7  |
 | Ryzen 9 3900X | 115sec | 34min36sec | 1:18.1 |
 | <p style='text-align: right;'> RSS memory</p>   | 318MB  | 39MB       | 8:1 |
 

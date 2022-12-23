@@ -97,3 +97,7 @@ The `pydrofoil-riscv` binary accepts the following commandline options:
 - `--jit off` turn dynamic binary translation/JIT compilation off
 - `--version` print the version of pydrofoil-riscv
 
+## Limitations
+
+Pydrofoil [currently](https://github.com/pydrofoil/pydrofoil/issues/48) does
+not support any floating point machine instructions.

@@ -160,7 +160,7 @@ class Globals(object):
             self._create_dtb()
 
     def _create_dtb(self):
-        from pydrofoil.dbt import DeviceTree
+        from pydrofoil.dtb import DeviceTree
         if self.rv64:
             isa_spec = b"rv64imac"
             mmu_spec = b"sv39"

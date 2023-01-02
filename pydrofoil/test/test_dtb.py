@@ -1,4 +1,4 @@
-from pydrofoil.dbt import DeviceTree
+from pydrofoil.dtb import DeviceTree
 
 def test_devicetree_strings():
     d = DeviceTree()

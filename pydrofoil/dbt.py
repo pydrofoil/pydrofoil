@@ -25,6 +25,7 @@ class DeviceTree(object):
     def __init__(self):
         self._strings = b""
         self._properties = []
+        self._current_handle = 1
 
     def _write_header(self, buffer):
         off_mem_rsvmap = HEADER_SIZE
@@ -53,15 +54,31 @@ class DeviceTree(object):
         buffer.append(dt_struct)
         buffer.append(self._strings)
 
-    def add_property(self, name, data):
+    def add_property_raw(self, name, data):
         offset = self._add_string(name)
         self._properties.append(FDT_PROP)
         self._properties.append(pack32(len(data)))
         self._properties.append(pack32(offset))
         self._properties.append(data)
+        if len(data) & 0b11: # 4-byte-align
+            self._properties.append(b"\x00" * (4 - (len(data) & 0b11)))
+
+    def add_property(self, name, data):
+        return self.add_property_raw(name, self._nullterminate(data))
+
+    def add_property_list(self, name, strlist):
+        data = b"\x00".join(strlist) + b"\x00"
+        return self.add_property_raw(name, data)
+
+    def add_property_empty(self, name):
+        return self.add_property_raw(name, b"")
 
     def add_property_u32(self, name, data):
-        return self.add_property(name, pack32(data))
+        return self.add_property_raw(name, pack32(data))
+
+    def add_property_u32_list(self, name, data):
+        data = b"".join([pack32(u32) for u32 in data])
+        return self.add_property_raw(name, data)
 
     def begin_node(self, name):
         terminated = self._nullterminate(name)
@@ -70,6 +87,12 @@ class DeviceTree(object):
         if len(terminated) & 0b11: # 4-byte-align
             self._properties.append(b"\x00" * (4 - (len(terminated) & 0b11)))
         return Node(self)
+
+    def begin_node_with_handle(self, name):
+        res = self.begin_node(name)
+        res.phandle = self._current_handle
+        self._current_handle += 1
+        return res
 
     def to_binary(self):
         self._properties.append(FDT_END)
@@ -94,9 +117,12 @@ class DeviceTree(object):
 class Node(object):
     def __init__(self, dt):
         self.dt = dt
+        self.phandle = -1
 
     def __enter__(self, *args):
-        pass
+        return self.phandle
 
     def __exit__(self, *args):
+        if self.phandle != -1:
+            self.dt.add_property_u32("phandle", self.phandle)
         self.dt._properties.append(FDT_END_NODE)

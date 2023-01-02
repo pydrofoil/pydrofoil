@@ -158,7 +158,7 @@ def test_rv64_dtc():
                     d.add_property(b"compatible", b"riscv,cpu-intc")
         with d.begin_node(b"memory@80000000"):
             d.add_property(b"device_type", b"memory")
-            d.add_property_u32_list(b"reg", [0, 0x80000000, 0, 0x4000000])
+            d.add_property_u64_list(b"reg", [0x80000000, 0x4000000])
         with d.begin_node(b"soc"):
             d.add_property_u32(b"#address-cells", 2)
             d.add_property_u32(b"#size-cells", 2)
@@ -167,9 +167,9 @@ def test_rv64_dtc():
             with d.begin_node("clint@2000000"):
                 d.add_property(b"compatible", b"riscv,clint0")
                 d.add_property_u32_list(b"interrupts-extended", [CPU0_intc, 3, CPU0_intc, 7])
-                d.add_property_u32_list(b"reg", [0, 0x2000000, 0, 0xc0000])
+                d.add_property_u64_list(b"reg", [0x2000000, 0xc0000])
         with d.begin_node("htif"):
-                d.add_property(b"compatible", b"ucb,htif0")
+            d.add_property(b"compatible", b"ucb,htif0")
     res = d.to_binary()
     with open("riscv/input/rv64-64mb.dtb", "rb") as f:
         target = f.read()

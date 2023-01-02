@@ -11,14 +11,18 @@ RSV_MAP = b"\x00" * 16
 RSV_MAP_SIZE = len(RSV_MAP)
 
 def pack32(val):
-    return struct.pack(">I", val)
+    assert 0 <= val < 2 ** 32
+    b0 = chr(val >> 24)
+    b1 = chr((val >> 16) & 0xff)
+    b2 = chr((val >> 8) & 0xff)
+    b3 = chr((val >> 0) & 0xff)
+    return b0 + b1 + b2 + b3
 
 FDT_BEGIN_NODE = pack32(0x1)
 FDT_END_NODE = pack32(0x2)
 FDT_PROP = pack32(0x3)
 FDT_NOP = pack32(0x4)
 FDT_END = pack32(0x9)
-
 
 
 class DeviceTree(object):
@@ -37,7 +41,7 @@ class DeviceTree(object):
 
         totalsize = off_dt_strings + len(self._strings)
         
-        header = (
+        header = [
             HEADER_MAGIC, # magic
             totalsize,
             off_dt_struct,
@@ -48,8 +52,9 @@ class DeviceTree(object):
             0, # boot_cpuid_phys, XXX correct?
             len(self._strings), # size_dt_strings
             size_dt_struct,
-        )
-        buffer.append(struct.pack(HEADER_FMT, *header))
+        ]
+        for num in header:
+            buffer.append(pack32(num))
         buffer.append(RSV_MAP)
         buffer.append(dt_struct)
         buffer.append(self._strings)
@@ -79,6 +84,13 @@ class DeviceTree(object):
     def add_property_u32_list(self, name, data):
         data = b"".join([pack32(u32) for u32 in data])
         return self.add_property_raw(name, data)
+
+    def add_property_u64_list(self, name, data):
+        u32data = []
+        for num in data:
+            u32data.append(num >> 32)
+            u32data.append(num & 0xffffffff)
+        return self.add_property_u32_list(name, u32data)
 
     def begin_node(self, name):
         terminated = self._nullterminate(name)

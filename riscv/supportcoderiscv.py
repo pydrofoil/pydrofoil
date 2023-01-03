@@ -408,6 +408,9 @@ def parse_flag(argv, flagname):
 
 helptext = """
 Usage: %s [options] <elf_file>
+
+Run the Pydrofoil RISC-V emulator on elf_file.
+
 --rv32                          run emulator in 32bit mode
 -l/--inst-limit <limit>         exit after limit instructions have been executed
 --instructions-per-tick <num>   tick the emulated clock every num instructions (default: 100)

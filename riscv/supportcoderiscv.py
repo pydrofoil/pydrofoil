@@ -144,6 +144,8 @@ class Globals(object):
         self.config_print_platform = True
         self.config_print_rvfi = False
 
+        self.cpu_hz = 1000000000 # 1 GHz
+
     def _init_ranges(self):
         self._mem_ranges = [
             (intmask(self.rv_rom_base), intmask(self.rv_rom_base + self.rv_rom_size)),
@@ -154,6 +156,52 @@ class Globals(object):
         ]
         for a, b in self._mem_ranges:
             assert b >= 8
+
+    def _create_dtb(self):
+        from pydrofoil.dtb import DeviceTree
+        if self.rv64:
+            isa_spec = b"rv64imac"
+            mmu_spec = b"sv39"
+        else:
+            isa_spec = b"rv32imac"
+            mmu_spec = b"sv32"
+        d = DeviceTree()
+        with d.begin_node(b""):
+            d.add_property_u32(b"#address-cells", 2)
+            d.add_property_u32(b"#size-cells", 2)
+            d.add_property(b"compatible", b"ucbbar,spike-bare-dev")
+            d.add_property(b"model", b"ucbbar,spike-bare")
+            with d.begin_node(b"cpus"):
+                d.add_property_u32(b"#address-cells", 1)
+                d.add_property_u32(b"#size-cells", 0)
+                d.add_property_u32(b"timebase-frequency", self.cpu_hz // self.rv_insns_per_tick)
+                with d.begin_node(b"cpu@0"):
+                    d.add_property(b"device_type", b"cpu")
+                    d.add_property_u32(b"reg", 0)
+                    d.add_property(b"status", b"okay")
+                    d.add_property(b"compatible", b"riscv")
+                    d.add_property(b"riscv,isa", isa_spec)
+                    d.add_property(b"mmu-type", b"riscv," + mmu_spec)
+                    d.add_property_u32(b"clock-frequency", self.cpu_hz)
+                    with d.begin_node_with_handle(b"interrupt-controller") as CPU0_intc:
+                        d.add_property_u32(b"#interrupt-cells", 1)
+                        d.add_property_empty(b"interrupt-controller")
+                        d.add_property(b"compatible", b"riscv,cpu-intc")
+            with d.begin_node(b"memory@%x" % (self.rv_ram_base, )):
+                d.add_property(b"device_type", b"memory")
+                d.add_property_u64_list(b"reg", [self.rv_ram_base, self.rv_ram_size])
+            with d.begin_node(b"soc"):
+                d.add_property_u32(b"#address-cells", 2)
+                d.add_property_u32(b"#size-cells", 2)
+                d.add_property_list(b"compatible", [b"ucbbar,spike-bare-soc", b"simple-bus"])
+                d.add_property_empty(b"ranges")
+                with d.begin_node("clint@%x" % (self.rv_clint_base, )):
+                    d.add_property(b"compatible", b"riscv,clint0")
+                    d.add_property_u32_list(b"interrupts-extended", [CPU0_intc, 3, CPU0_intc, 7])
+                    d.add_property_u64_list(b"reg", [self.rv_clint_base, self.rv_clint_size])
+            with d.begin_node("htif"):
+                d.add_property(b"compatible", b"ucb,htif0")
+        self.dtb = d.to_binary()
 
 
 DEFAULT_RSTVEC = 0x00001000
@@ -361,13 +409,13 @@ def parse_flag(argv, flagname):
 helptext = """
 Usage: %s [options] <elf_file>
 --rv32                          run emulator in 32bit mode
--b/--device-tree-blob <file>    load dtb from file
 -l/--inst-limit <limit>         exit after limit instructions have been executed
 --instructions-per-tick <num>   tick the emulated clock every num instructions (default: 100)
 --verbose                       print a detailed trace of every instruction executed
 --print-kips                    print kip/s every 2**20 instructions
 --jit <options>                 set JIT options
 --dump <file>                   load elf file disassembly from file
+-b/--device-tree-blob <file>    load dtb from file (usually not needed, Pydrofoil has a dtb built-in)
 --version                       print the version of pydrofoil-riscv
 --help                          print this information and exit
 """
@@ -479,6 +527,8 @@ def _main(argv, *machineclasses):
             return -1
         with open(blob, "rb") as f:
             machine.g.dtb = f.read()
+    else:
+        machine.g._create_dtb()
     if check_file_missing(file):
         return -1
     entry = load_sail(machine, file)

@@ -1,9 +1,11 @@
+from rpython.rlib.objectmodel import specialize
+from rpython.rlib.rarithmetic import r_uint
 import struct
 
 HEADER_FMT = ">IIIIIIIIII"
-HEADER_MAGIC = 0xd00dfeed
-HEADER_VERSION = 17
-HEADER_LAST_COMP_VERSION = 16
+HEADER_MAGIC = r_uint(0xd00dfeed)
+HEADER_VERSION = r_uint(17)
+HEADER_LAST_COMP_VERSION = r_uint(16)
 
 HEADER_SIZE = struct.calcsize(HEADER_FMT)
 
@@ -32,10 +34,10 @@ class DeviceTree(object):
         self._current_handle = 1
 
     def _write_header(self, buffer):
-        off_mem_rsvmap = HEADER_SIZE
+        off_mem_rsvmap = r_uint(HEADER_SIZE)
         off_dt_struct = off_mem_rsvmap + RSV_MAP_SIZE
         dt_struct = b"".join(self._properties)
-        size_dt_struct = len(dt_struct)
+        size_dt_struct = r_uint(len(dt_struct))
 
         off_dt_strings = off_dt_struct + size_dt_struct
 
@@ -78,8 +80,9 @@ class DeviceTree(object):
     def add_property_empty(self, name):
         return self.add_property_raw(name, b"")
 
+    @specialize.argtype(2)
     def add_property_u32(self, name, data):
-        return self.add_property_raw(name, pack32(data))
+        return self.add_property_raw(name, pack32(r_uint(data)))
 
     def add_property_u32_list(self, name, data):
         data = b"".join([pack32(u32) for u32 in data])
@@ -132,7 +135,7 @@ class Node(object):
         self.phandle = -1
 
     def __enter__(self, *args):
-        return self.phandle
+        return r_uint(self.phandle)
 
     def __exit__(self, *args):
         if self.phandle != -1:

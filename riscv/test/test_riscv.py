@@ -67,3 +67,17 @@ def test_elf_reader32():
         entrypoint = elf.elf_read_process_image(m, f)
     assert entrypoint == 0x80000000
     assert m.read(0x0000000080000000, 2) == 0x6f
+
+
+#
+
+def test_translation_dtb():
+    from riscv import supportcoderiscv
+    from rpython.translator.interactive import Translation
+
+    def main():
+        g = supportcoderiscv.Globals()
+        g._init_ranges()
+
+    t = Translation(main, [])
+    t.rtype() # check that it's rpython

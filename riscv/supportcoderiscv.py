@@ -156,8 +156,6 @@ class Globals(object):
         ]
         for a, b in self._mem_ranges:
             assert b >= 8
-        if self.dtb is None:
-            self._create_dtb()
 
     def _create_dtb(self):
         from pydrofoil.dtb import DeviceTree
@@ -197,7 +195,7 @@ class Globals(object):
                 d.add_property_u32(b"#size-cells", 2)
                 d.add_property_list(b"compatible", [b"ucbbar,spike-bare-soc", b"simple-bus"])
                 d.add_property_empty(b"ranges")
-                with d.begin_node("clint@%x" % (self.rv_clint_size, )):
+                with d.begin_node("clint@%x" % (self.rv_clint_base, )):
                     d.add_property(b"compatible", b"riscv,clint0")
                     d.add_property_u32_list(b"interrupts-extended", [CPU0_intc, 3, CPU0_intc, 7])
                     d.add_property_u64_list(b"reg", [self.rv_clint_base, self.rv_clint_size])
@@ -411,13 +409,13 @@ def parse_flag(argv, flagname):
 helptext = """
 Usage: %s [options] <elf_file>
 --rv32                          run emulator in 32bit mode
--b/--device-tree-blob <file>    load dtb from file
 -l/--inst-limit <limit>         exit after limit instructions have been executed
 --instructions-per-tick <num>   tick the emulated clock every num instructions (default: 100)
 --verbose                       print a detailed trace of every instruction executed
 --print-kips                    print kip/s every 2**20 instructions
 --jit <options>                 set JIT options
 --dump <file>                   load elf file disassembly from file
+-b/--device-tree-blob <file>    load dtb from file (usually not needed, Pydrofoil has a dtb built-in)
 --version                       print the version of pydrofoil-riscv
 --help                          print this information and exit
 """
@@ -529,6 +527,8 @@ def _main(argv, *machineclasses):
             return -1
         with open(blob, "rb") as f:
             machine.g.dtb = f.read()
+    else:
+        machine.g._create_dtb()
     if check_file_missing(file):
         return -1
     entry = load_sail(machine, file)

@@ -81,3 +81,12 @@ def test_translation_dtb():
 
     t = Translation(main, [])
     t.rtype() # check that it's rpython
+
+def test_compare_dtbs():
+    from riscv import supportcoderiscv
+    g = supportcoderiscv.Globals()
+    g._create_dtb()
+    with open("riscv/input/rv64-64mb.dtb", "rb") as f:
+        target = f.read()
+    assert target == g.dtb
+

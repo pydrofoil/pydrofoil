@@ -4,6 +4,7 @@ ALL: pydrofoil-riscv
 
 
 pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython ## Build pydrofoil
+	pkg-config libffi # if this fails, libffi development headers arent installed
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
 pypy_binary/bin/python:  ## download a PyPy binary

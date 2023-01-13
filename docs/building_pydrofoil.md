@@ -15,6 +15,7 @@ working on the Sail model you likely have all of these already):
 - git
 - opam
 - python3
+- libffi and its development headers (package libffi-dev on Ubuntu)
 - Sail 0.14 (see next section).
 
 All the other Pydrofoil build requirements are downloaded automatically by the
@@ -29,7 +30,7 @@ installed. Otherwise, keep reading.
 only works with Sail 0.14, but we are working on 0.15 support. So in order to
 build Pydrofoil, you need to install Sail pinned to version 0.14. First install
 `opam`, the ocaml package manager, if you don't have it already.
-Then you can run:
+Then you can run (this assumes a bash shell):
 
 ```
 opam switch create pydrofoil ocaml.4.13.1

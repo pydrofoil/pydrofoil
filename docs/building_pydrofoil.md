@@ -18,6 +18,13 @@ working on the Sail model you likely have all of these already):
 - libffi and its development headers (package libffi-dev on Ubuntu)
 - Sail 0.14 (see next section).
 
+On Ubuntu, you are able to install all of these with `apt` with the following
+command:
+
+```
+sudo apt install build-essential git opam python3 libffi-dev
+```
+
 All the other Pydrofoil build requirements are downloaded automatically by the
 build scripts/Makefile.
 

@@ -357,6 +357,7 @@ def convert_from_pypy_error(space, w_val):
 
 def generate_convert_to_pypy_bitvector_ruint(width):
     def c(space, val):
+        # TODO inefficient! always returns a long
         return space.newint(val)
     return c
 

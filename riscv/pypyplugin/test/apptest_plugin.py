@@ -25,3 +25,13 @@ def test_read_write_register():
     cpu.step() # should re-execute the auipc
     assert cpu.read_register("pc") == 0x1004
     assert cpu.read_register("x5") == 0x1000
+
+def test_read_write_ram():
+    cpu = _pydrofoil.RISCV64()
+    ram_base = 0x80000000
+    cpu.write_memory(ram_base, 0x297)
+    assert cpu.read_memory(ram_base) == 0x297
+    cpu.write_register("pc", ram_base)
+    cpu.step()
+    assert cpu.read_register("pc") == ram_base + 4
+    assert cpu.read_register("x5") == ram_base

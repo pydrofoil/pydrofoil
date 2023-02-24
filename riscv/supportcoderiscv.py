@@ -525,6 +525,7 @@ def _main(argv, *machineclasses):
     #init_logs()
 
     machine = machinecls()
+    init_mem(machine)
     if blob:
         if check_file_missing(blob):
             return -1
@@ -566,9 +567,7 @@ def get_printable_location(pc, do_show_times, insn_limit, tick, g):
         return "0x%x: %s" % (pc, g.dump_dict[pc])
     return hex(pc)
 
-
-
-def load_sail(machine, fn):
+def init_mem(machine):
     g = machine.g
     oldmem = g.mem
     if oldmem:
@@ -577,6 +576,10 @@ def load_sail(machine, fn):
     mem2 = mem_mod.FlatMemory(False, g.rv_ram_size)
     mem = mem_mod.SplitMemory(mem1, 0, mem1.size, mem2, g.rv_ram_base, g.rv_ram_size)
     g.mem = mem
+
+def load_sail(machine, fn):
+    g = machine.g
+    mem = machine.g.mem
     with open(fn, "rb") as f:
         entrypoint = elf.elf_read_process_image(mem, f) # load process image
     with open(fn, "rb") as f:

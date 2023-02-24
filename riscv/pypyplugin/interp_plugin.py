@@ -1,4 +1,5 @@
 from rpython.rlib import jit
+from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pypy.interpreter.baseobjspace import W_Root
 from pypy.interpreter.error import oefmt
 from pypy.interpreter.typedef import (TypeDef, interp2app, GetSetProperty,
@@ -32,15 +33,20 @@ def wrap_fn(fn):
     return wrapped_fn
 
 load_sail = wrap_fn(supportcoderiscv.load_sail)
+init_mem = wrap_fn(supportcoderiscv.init_mem)
 init_sail = wrap_fn(supportcoderiscv.init_sail)
 
 
 class W_RISCV64(W_Root):
-    def __init__(self, space, elf):
+    def __init__(self, space, elf=None):
         self.space = space
         self.elf = elf
         self.machine = machinecls64()
-        entry = load_sail(space, self.machine, elf)
+        init_mem(space, self.machine)
+        if elf is not None:
+            entry = load_sail(space, self.machine, elf)
+        else:
+            entry = self.machine.g.rv_ram_base
         init_sail(space, self.machine, entry)
         self.rv_insns_per_tick = 100 # TODO: make configurable
         self._step_no = 0
@@ -92,9 +98,23 @@ class W_RISCV64(W_Root):
         name = name.lower()
         return self._set_register_value(name, w_value)
 
+    @unwrap_spec(address=r_uint, width=int)
+    def read_memory(self, address, width=8):
+        if not (width == 1 or width == 2 or width == 4 or width == 8):
+            raise oefmt(space.w_ValueError, "width can only be 1, 2, 4, or 8")
+        # TODO check out of bounds
+        return self.space.newint(self.machine.g.mem.read(address, width))
 
-@unwrap_spec(elf="text")
-def riscv64_descr_new(space, w_subtype, elf):
+    @unwrap_spec(address=r_uint, value=r_uint, width=int)
+    def write_memory(self, address, value, width=8):
+        if not (width == 1 or width == 2 or width == 4 or width == 8):
+            raise oefmt(space.w_ValueError, "width can only be 1, 2, 4, or 8")
+        # TODO check out of bounds
+        self.machine.g.mem.write(address, width, value)
+
+
+@unwrap_spec(elf="text_or_none")
+def riscv64_descr_new(space, w_subtype, elf=None):
     w_res = space.allocate_instance(W_RISCV64, w_subtype)
     W_RISCV64.__init__(w_res, space, elf)
     return w_res
@@ -105,4 +125,6 @@ W_RISCV64.typedef = TypeDef("pydrofoil.RISCV64",
     step = interp2app(W_RISCV64.step),
     read_register = interp2app(W_RISCV64.read_register),
     write_register = interp2app(W_RISCV64.write_register),
+    read_memory = interp2app(W_RISCV64.read_memory),
+    write_memory = interp2app(W_RISCV64.write_memory),
 )

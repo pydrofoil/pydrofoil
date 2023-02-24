@@ -344,3 +344,24 @@ class ObjectBase(object):
 
 class LetsBase(object):
     _attrs_ = []
+
+
+# some helper functions for interfacing with PyPy, completely optional for
+# almost everything except the plugin
+
+def convert_to_pypy_error(space, val):
+    raise ValueError
+
+def convert_from_pypy_error(space, w_val):
+    raise ValueError
+
+def generate_convert_to_pypy_bitvector_ruint(width):
+    def c(space, val):
+        return space.newint(val)
+    return c
+
+def generate_convert_from_pypy_bitvector_ruint(width):
+    def c(space, w_val):
+        # TODO: stop ignoring width
+        return space.uint_w(w_val)
+    return c

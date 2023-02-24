@@ -158,6 +158,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit("class Lets(supportcode.LetsBase): pass")
         c.emit("class Machine(supportcode.RegistersBase):")
         c.emit("    def __init__(self): self.l = Lets(); model_init(self)")
+        c.emit("    _all_register_names = []")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     try:
         ast.make_code(c)
@@ -360,6 +361,8 @@ class __extend__(parse.Register):
         with codegen.emit_code_type("declarations"):
             codegen.emit("# %s" % (self, ))
             codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
+            codegen.emit("Machine._all_register_names.append((%r, %r, %s, %s))" % (
+                self.pyname, self.name, typ.convert_to_pypy, typ.convert_from_pypy))
 
 
 class __extend__(parse.Function):

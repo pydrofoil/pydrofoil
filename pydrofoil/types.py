@@ -15,6 +15,10 @@ class Type(object):
     __metaclass__ = extendabletype
     uninitialized_value = '"uninitialized_value"' # often fine for rpython!
 
+    convert_to_pypy = "supportcode.convert_to_pypy_error"
+    convert_from_pypy = "supportcode.convert_from_pypy_error"
+
+
 @unique
 class Union(Type):
     def __init__(self, ast):
@@ -71,9 +75,12 @@ class FixedBitVector(Type):
     def __init__(self, width):
         # size known at compile time
         self.width = width
+        self.convert_to_pypy = "supportcode.generate_convert_to_pypy_bitvector_ruint(%s)" % width
+        self.convert_from_pypy = "supportcode.generate_convert_from_pypy_bitvector_ruint(%s)" % width
 
     def __repr__(self):
         return "FixedBitVector(%s)" % (self.width, )
+
 
 @unique
 class SmallBitVector(Type):

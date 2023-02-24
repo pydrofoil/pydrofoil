@@ -22,6 +22,4 @@ def pytest_configure(config):
 
 def pytest_pycollect_makemodule(path, parent):
     if path.fnmatch(APPLEVEL_FN):
-        from riscv.pypyplugin import interp_plugin
-        interp_plugin._patch_machineclasses()
         return MyAppTestModule(path, parent, rewrite_asserts=True)

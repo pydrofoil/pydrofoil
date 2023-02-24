@@ -349,6 +349,7 @@ class LetsBase(object):
 # some helper functions for interfacing with PyPy, completely optional for
 # almost everything except the plugin
 
+@objectmodel.specialize.argtype(1)
 def convert_to_pypy_error(space, val):
     raise ValueError
 

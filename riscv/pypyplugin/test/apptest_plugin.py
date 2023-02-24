@@ -1,3 +1,5 @@
+from pytest import raises
+
 import os
 from os.path import dirname
 

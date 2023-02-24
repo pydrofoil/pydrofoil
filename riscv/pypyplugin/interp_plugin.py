@@ -24,9 +24,9 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None):
     W_RISCV64._init_register_names(machinecls64._all_register_names)
 
 def wrap_fn(fn):
-    def wrapped_fn(space, *args, **kwargs):
+    def wrapped_fn(space, *args):
         try:
-            return fn(*args, **kwargs)
+            return fn(*args)
         except Exception as e:
             raise oefmt(space.w_SystemError, "internal error, please report a bug: %s", str(e))
     wrapped_fn.func_name = "wrap_" + fn.func_name
@@ -101,14 +101,14 @@ class W_RISCV64(W_Root):
     @unwrap_spec(address=r_uint, width=int)
     def read_memory(self, address, width=8):
         if not (width == 1 or width == 2 or width == 4 or width == 8):
-            raise oefmt(space.w_ValueError, "width can only be 1, 2, 4, or 8")
+            raise oefmt(self.space.w_ValueError, "width can only be 1, 2, 4, or 8")
         # TODO check out of bounds
         return self.space.newint(self.machine.g.mem.read(address, width))
 
     @unwrap_spec(address=r_uint, value=r_uint, width=int)
     def write_memory(self, address, value, width=8):
         if not (width == 1 or width == 2 or width == 4 or width == 8):
-            raise oefmt(space.w_ValueError, "width can only be 1, 2, 4, or 8")
+            raise oefmt(self.space.w_ValueError, "width can only be 1, 2, 4, or 8")
         # TODO check out of bounds
         self.machine.g.mem.write(address, width, value)
 

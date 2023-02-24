@@ -312,6 +312,8 @@ def init_sail(machine, elf_entry):
     if not machine.g.rv_enable_rvc:
         # this is probably unnecessary now; remove
         machine.set_Misa_C(machine._reg_zmisa, 0)
+    machine.g._init_ranges()
+
 
 @specialize.argtype(0)
 def is_32bit_model(machine):
@@ -670,8 +672,6 @@ def get_main(outriscv, rv64):
             step_no = 0
             insn_cnt = 0
             tick = False
-
-            self.g._init_ranges()
 
             self.g.interval_start = self.g.total_start = time.time()
             prev_pc = 0

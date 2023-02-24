@@ -1,4 +1,5 @@
 from rpython.rlib import jit
+from rpython.rlib import objectmodel
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pypy.interpreter.baseobjspace import W_Root
 from pypy.interpreter.error import oefmt
@@ -28,6 +29,8 @@ def wrap_fn(fn):
         try:
             return fn(*args)
         except Exception as e:
+            if not objectmodel.we_are_translated():
+                import pdb; pdb.xpm()
             raise oefmt(space.w_SystemError, "internal error, please report a bug: %s", str(e))
     wrapped_fn.func_name = "wrap_" + fn.func_name
     return wrapped_fn
@@ -58,17 +61,39 @@ class W_RISCV64(W_Root):
     def _init_register_names(cls, _all_register_names):
         """ NOT_RPYTHON """
         from rpython.rlib.unroll import unrolling_iterable
-        register_names = [(attrname, name.lower().lstrip("z"), convert_to_pypy, convert_from_pypy)
-                for (attrname, name, convert_to_pypy, convert_from_pypy) in _all_register_names]
-        unrolling_register_names = unrolling_iterable(register_names)
+        def make_getter(attrname, name, convert_to_pypy):
+            def getter(space, machine):
+                return convert_to_pypy(space, getattr(machine, attrname))
+            getter.func_name += "_" + name
+            return getter
+        def make_setter(attrname, name, convert_from_pypy):
+            def setter(space, machine, w_value):
+                setattr(machine, attrname, convert_from_pypy(space, w_value))
+            setter.func_name += "_" + name
+            return setter
+        register_info = []
+        for (attrname, name, convert_to_pypy, convert_from_pypy) in _all_register_names:
+            name = name.lower().lstrip("z")
+            getter = make_getter(attrname, name, convert_to_pypy)
+            setter = make_setter(attrname, name, convert_from_pypy)
+            register_info.append((attrname, name, getter, setter))
+
+        unrolling_register_info = unrolling_iterable(register_info)
+        @staticmethod
+        @jit.elidable
+        def lookup_register(space, name):
+            for attrname, pyname, getter, setter in unrolling_register_info:
+                if pyname == name:
+                    return getter, setter
+            raise oefmt(space.w_ValueError, "register not found")
+        cls._lookup_register = lookup_register
+
         def get_register_value(self, name):
             machine = self.machine
             space = self.space
+            getter, _ = self._lookup_register(space, name)
             try:
-                for attrname, pyname, convert_to_pypy, _ in unrolling_register_names:
-                    if pyname == name:
-                        return convert_to_pypy(space, getattr(machine, attrname))
-                raise oefmt(space.w_ValueError, "register not found")
+                return getter(space, self.machine)
             except ValueError:
                 raise oefmt(space.w_TypeError, "could not convert register value to Python object")
         cls._get_register_value = get_register_value
@@ -76,12 +101,9 @@ class W_RISCV64(W_Root):
         def set_register_value(self, name, w_value):
             machine = self.machine
             space = self.space
+            _, setter = self._lookup_register(space, name)
             try:
-                for attrname, pyname, _, convert_from_pypy in unrolling_register_names:
-                    if pyname == name:
-                        setattr(machine, attrname, convert_from_pypy(space, w_value))
-                        return
-                raise oefmt(space.w_ValueError, "register not found")
+                setter(space, self.machine, w_value)
             except ValueError:
                 raise oefmt(space.w_TypeError, "could not convert Python object to register value")
         cls._set_register_value = set_register_value
@@ -118,7 +140,11 @@ class W_RISCV64(W_Root):
     @unwrap_spec(limit=int)
     def run(self, limit=0):
         from rpython.rlib.nonconst import NonConstant
-        run_sail(self.space, self.machine, limit, NonConstant(False))
+        if NonConstant(True):
+            do_show_times = True
+        else:
+            do_show_times = False
+        run_sail(self.space, self.machine, limit, do_show_times)
 
 
 @unwrap_spec(elf="text_or_none")

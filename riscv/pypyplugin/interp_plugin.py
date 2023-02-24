@@ -64,7 +64,7 @@ class W_RISCV64(W_Root):
                 raise oefmt(space.w_TypeError, "could not convert register value to Python object")
         cls._get_register_value = get_register_value
 
-        def set_register_value(self, w_value):
+        def set_register_value(self, name, w_value):
             machine = self.machine
             space = self.space
             try:
@@ -87,6 +87,11 @@ class W_RISCV64(W_Root):
         name = name.lower()
         return self._get_register_value(name)
 
+    @unwrap_spec(name="text")
+    def write_register(self, name, w_value):
+        name = name.lower()
+        return self._set_register_value(name, w_value)
+
 
 @unwrap_spec(elf="text")
 def riscv64_descr_new(space, w_subtype, elf):
@@ -99,4 +104,5 @@ W_RISCV64.typedef = TypeDef("pydrofoil.RISCV64",
     __new__ = interp2app(riscv64_descr_new),
     step = interp2app(W_RISCV64.step),
     read_register = interp2app(W_RISCV64.read_register),
+    write_register = interp2app(W_RISCV64.write_register),
 )

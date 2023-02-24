@@ -29,9 +29,10 @@ def test_read_write_register():
 def test_read_write_ram():
     cpu = _pydrofoil.RISCV64()
     ram_base = 0x80000000
-    cpu.write_memory(ram_base, 0x297)
-    assert cpu.read_memory(ram_base) == 0x297
+    instr = 0b1001010010111 # auipc x5, 1
+    cpu.write_memory(ram_base, instr)
+    assert cpu.read_memory(ram_base) == instr
     cpu.write_register("pc", ram_base)
     cpu.step()
     assert cpu.read_register("pc") == ram_base + 4
-    assert cpu.read_register("x5") == ram_base
+    assert cpu.read_register("x5") == ram_base + (1 << 12)

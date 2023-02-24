@@ -36,6 +36,9 @@ load_sail = wrap_fn(supportcoderiscv.load_sail)
 init_mem = wrap_fn(supportcoderiscv.init_mem)
 init_sail = wrap_fn(supportcoderiscv.init_sail)
 
+@wrap_fn
+def run_sail(machine, insn_limit, do_show_times):
+    machine.run_sail(insn_limit, do_show_times)
 
 class W_RISCV64(W_Root):
     def __init__(self, space, elf=None):
@@ -112,6 +115,11 @@ class W_RISCV64(W_Root):
         # TODO check out of bounds
         self.machine.g.mem.write(address, width, value)
 
+    @unwrap_spec(limit=int)
+    def run(self, limit=0):
+        from rpython.rlib.nonconst import NonConstant
+        run_sail(self.space, self.machine, limit, NonConstant(False))
+
 
 @unwrap_spec(elf="text_or_none")
 def riscv64_descr_new(space, w_subtype, elf=None):
@@ -127,4 +135,5 @@ W_RISCV64.typedef = TypeDef("pydrofoil.RISCV64",
     write_register = interp2app(W_RISCV64.write_register),
     read_memory = interp2app(W_RISCV64.read_memory),
     write_memory = interp2app(W_RISCV64.write_memory),
+    run = interp2app(W_RISCV64.run),
 )

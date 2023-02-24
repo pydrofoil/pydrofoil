@@ -14,6 +14,11 @@ def test_step():
     cpu = _pydrofoil.RISCV64(os.path.join(elfdir, "rv64ui-p-addi.elf"))
     cpu.step()
 
+def test_run():
+    cpu = _pydrofoil.RISCV64(os.path.join(elfdir, "rv64ui-p-addi.elf"))
+    cpu.run(100)
+    assert cpu.read_register("pc") == 0x800001e8
+
 def test_read_write_register():
     cpu = _pydrofoil.RISCV64(os.path.join(elfdir, "rv64ui-p-addi.elf"))
     assert cpu.read_register("pc") == 0x1000 # rom base at the start

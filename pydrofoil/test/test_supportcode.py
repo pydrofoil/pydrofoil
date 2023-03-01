@@ -262,3 +262,7 @@ def test_string_of_bits():
         assert c(64, 0x1245ab).string_of_bits() == "0x00000000001245AB"
         assert c(3, 0b1).string_of_bits() == "0b001"
         assert c(9, 0b1101).string_of_bits() == "0b000001101"
+        
+def test_softfloat_f32add():
+    assert supportcode.softfloat_f32add(machine, 0, 1, 1) == 2
+

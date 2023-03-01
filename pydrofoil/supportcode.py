@@ -3,6 +3,7 @@ from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import r_uint, intmask
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer
+from pydrofoil.softfloat import f32add
 
 @objectmodel.specialize.call_location()
 def make_dummy(name):
@@ -41,7 +42,6 @@ make_dummy('softfloat_f16toi32')
 make_dummy('softfloat_f16toi64')
 make_dummy('softfloat_f16toui32')
 make_dummy('softfloat_f16toui64')
-make_dummy('softfloat_f32add')
 make_dummy('softfloat_f32div')
 make_dummy('softfloat_f32eq')
 make_dummy('softfloat_f32le')
@@ -308,7 +308,11 @@ def platform_write_mem_ea(machine, write_kind, addr_size, addr, n):
 
 def concat_str(machine, a, b):
     return a + b
+    
+# softfloat
 
+def softfloat_f32add(machine, rm, v1, v2):
+    return f32add(rm, v1, v2)
 
 # argument handling
 

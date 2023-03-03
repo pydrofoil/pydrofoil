@@ -7,6 +7,12 @@ pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython ## Build pydrof
 	pkg-config libffi # if this fails, libffi development headers arent installed
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
+pypy-pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython ## Build pypy with pydrofoil plugin
+	pkg-config libffi # if this fails, libffi development headers arent installed
+	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --no-shared --output=pypy/pypy/goal/pypy-c-pydrofoil pypy/pypy/goal/targetpypystandalone.py --ext=riscv.pypyplugin
+	rm -f pypy-c-pydrofoil
+	ln -s pypy/pypy/goal/pypy-c-pydrofoil pypy-c-pydrofoil
+
 pypy_binary/bin/python:  ## download a PyPy binary
 	mkdir -p pypy_binary
 	python3 get_pypy_to_download.py

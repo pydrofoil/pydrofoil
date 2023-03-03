@@ -43,3 +43,11 @@ def test_read_write_ram():
     cpu.step()
     assert cpu.read_register("pc") == ram_base + 4
     assert cpu.read_register("x5") == ram_base + (1 << 12)
+
+def test_read_write_ram_out_of_bounds():
+    cpu = _pydrofoil.RISCV64()
+    for outofbounds in [64 * 1024 * 1024, 2**56]:
+        with raises(IndexError):
+            cpu.read_memory(outofbounds)
+        with raises(IndexError):
+            cpu.write_memory(outofbounds, 1)

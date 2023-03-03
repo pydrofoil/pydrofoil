@@ -10,6 +10,7 @@ class Lets(supportcode.LetsBase): pass
 
 class Machine(supportcode.RegistersBase):
     def __init__(self): self.l = Lets(); model_init(self)
+    _all_register_names = []
 UninitInt = bitvector.Integer.fromint(-0xfefee)
 
 class Enum_zjump(supportcode.ObjectBase):
@@ -293,10 +294,13 @@ class Tuple_16(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv64')
         return True
 # Register(name='zPC', pyname='_reg_zPC', typ=NamedType('%bv16'))
 Machine._reg_zPC = r_uint(0)
+Machine._all_register_names.append(('_reg_zPC', 'zPC', supportcode.generate_convert_to_pypy_bitvector_ruint(16), supportcode.generate_convert_from_pypy_bitvector_ruint(16)))
 # Register(name='zA', pyname='_reg_zA', typ=NamedType('%bv16'))
 Machine._reg_zA = r_uint(0)
+Machine._all_register_names.append(('_reg_zA', 'zA', supportcode.generate_convert_to_pypy_bitvector_ruint(16), supportcode.generate_convert_from_pypy_bitvector_ruint(16)))
 # Register(name='zD', pyname='_reg_zD', typ=NamedType('%bv16'))
 Machine._reg_zD = r_uint(0)
+Machine._all_register_names.append(('_reg_zD', 'zD', supportcode.generate_convert_to_pypy_bitvector_ruint(16), supportcode.generate_convert_from_pypy_bitvector_ruint(16)))
 
 class Tuple_17(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv6')])
     @objectmodel.always_inline

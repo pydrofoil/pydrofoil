@@ -127,7 +127,6 @@ class W_RISCV64(W_Root):
     def read_memory(self, address, width=8):
         if not (width == 1 or width == 2 or width == 4 or width == 8):
             raise oefmt(self.space.w_ValueError, "width can only be 1, 2, 4, or 8")
-        # TODO check out of bounds
         try:
             return self.space.newint(self.machine.g.mem.read(address, width))
         except ValueError:
@@ -137,7 +136,6 @@ class W_RISCV64(W_Root):
     def write_memory(self, address, value, width=8):
         if not (width == 1 or width == 2 or width == 4 or width == 8):
             raise oefmt(self.space.w_ValueError, "width can only be 1, 2, 4, or 8")
-        # TODO check out of bounds
         try:
             self.machine.g.mem.write(address, width, value)
         except ValueError:

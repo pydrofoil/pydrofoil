@@ -154,7 +154,7 @@ def riscv64_descr_new(space, w_subtype, elf=None):
     return w_res
 
 
-W_RISCV64.typedef = TypeDef("pydrofoil.RISCV64",
+W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     __new__ = interp2app(riscv64_descr_new),
     step = interp2app(W_RISCV64.step),
     read_register = interp2app(W_RISCV64.read_register),

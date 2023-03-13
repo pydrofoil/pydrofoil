@@ -268,6 +268,11 @@ def eq_bool(machine, a, b):
 def string_of_int(machine, r):
     return r.str()
 
+def int_to_int64(machine, r):
+    return r.toint()
+
+def int64_to_int(machine, i):
+    return Integer.fromint(i)
 
 # various
 

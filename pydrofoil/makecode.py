@@ -341,6 +341,13 @@ class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
         if self.definition is not None:
             name = eval(self.definition)
+            if "->" in name:
+                if name == "%i->%i64":
+                    name = "int_to_int64"
+                elif name == "%i64->%i":
+                    name = "int64_to_int"
+                else:
+                    import pdb; pdb.set_trace()
             if name == "not": name = "not_"
             typ = self.typ.resolve_type(codegen)
             funcname = "supportcode.%s" % (name, )
@@ -570,6 +577,14 @@ class __extend__(parse.Function):
             if op.end_of_block:
                 return
 
+class __extend__(parse.Pragma):
+    def make_code(self, codegen):
+        codegen.emit("# %s" % (self, ))
+
+class __extend__(parse.Files):
+    def make_code(self, codegen):
+        codegen.emit("# %s" % (self, ))
+
 class __extend__(parse.Let):
     def make_code(self, codegen):
         codegen.emit("# %s" % (self, ))
@@ -768,6 +783,18 @@ class __extend__(parse.Undefined):
 
     def gettyp(self, codegen):
         return self.typ.resolve_type(codegen)
+
+
+class __extend__(parse.StructConstruction):
+    def to_code(self, codegen):
+        typ = self.gettyp(codegen)
+        ast_type = typ.ast
+        sargs = [arg.to_code(codegen) for arg in self.fieldvalues]
+        assert self.fieldnames == ast_type.names
+        return "%s(%s)" % (ast_type.pyname, ", ".join(sargs))
+
+    def gettyp(self, codegen):
+        return codegen.get_named_type(self.name)
 
 class __extend__(parse.FieldAccess):
     def to_code(self, codegen):

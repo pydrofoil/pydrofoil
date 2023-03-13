@@ -71,8 +71,6 @@ union zoptionzIUinstrzIzKzK {
 
 #mangled zoption zoptionzIUinstrzIzKzK
 
-val zundefined_bitvector = "undefined_bitvector" : (%i) ->  %bv
-
 val znot_bool = "not" : (%bool) ->  %bool
 
 val zeq_int = "eq_int" : (%i, %i) ->  %bool
@@ -1133,26 +1131,14 @@ fn zmain(zgsz3120) {
 val zinitializze_registers : (%unit) ->  %unit
 
 fn zinitializze_registers(zgsz3121) {
-  zz45 : %i `61;
-  zz45 = zz5i64zDzKz5i(16) `62;
-  zz47 : %bv `63;
-  zz47 = zundefined_bitvector(zz45) `64;
-  zPC = zz47 `65;
-  zz46 : %unit `66;
-  zz46 = () `67;
-  zz42 : %i `68;
-  zz42 = zz5i64zDzKz5i(16) `69;
-  zz44 : %bv `70;
-  zz44 = zundefined_bitvector(zz42) `71;
-  zA = zz44 `72;
-  zz43 : %unit `73;
-  zz43 = () `74;
-  zz40 : %i `75;
-  zz40 = zz5i64zDzKz5i(16) `76;
-  zz41 : %bv `77;
-  zz41 = zundefined_bitvector(zz40) `78;
-  zD = zz41 `79;
-  return = () `80;
+  zPC = 0x0000 `61;
+  zz41 : %unit `62;
+  zz41 = () `63;
+  zA = 0x0000 `64;
+  zz40 : %unit `65;
+  zz40 = () `66;
+  zD = 0x0000 `67;
+  return = () `68;
   end;
 }
 

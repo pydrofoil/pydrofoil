@@ -54,8 +54,9 @@ class W_RISCV64(W_Root):
         else:
             entry = self.machine.g.rv_ram_base
         init_sail(space, self.machine, entry)
-        self.rv_insns_per_tick = 100 # TODO: make configurable
         self._step_no = 0
+        self._insn_cnt = 0 # used to check whether a tick has been reached
+        self._tick = False # should the next step tick
 
     @classmethod
     def _init_register_names(cls, _all_register_names):
@@ -110,8 +111,16 @@ class W_RISCV64(W_Root):
 
     def step(self):
         from pydrofoil.bitvector import Integer
+        if self._tick:
+            self.machine.tick_clock()
+            self.machine.tick_platform()
+            self._tick = False
         stepped = self.machine.step(Integer.fromint(self._step_no))
-        self._step_no += 1
+        if stepped:
+            self._step_no += 1
+            self._insn_cnt += 1
+            if self._insn_cnt == self.machine.g.rv_insns_per_tick:
+                self._tick = True
 
     @unwrap_spec(name="text")
     def read_register(self, name):

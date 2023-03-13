@@ -5,22 +5,23 @@ from os.path import dirname
 
 toplevel = dirname(dirname(dirname(__file__)))
 elfdir = os.path.join(toplevel, "input")
+addielf = os.path.join(elfdir, "rv64ui-p-addi.elf")
 
 def test_right_import():
     print(_pydrofoil.__dict__)
     assert hasattr(_pydrofoil, "RISCV64")
 
 def test_step():
-    cpu = _pydrofoil.RISCV64(os.path.join(elfdir, "rv64ui-p-addi.elf"))
+    cpu = _pydrofoil.RISCV64(addielf)
     cpu.step()
 
 def test_run():
-    cpu = _pydrofoil.RISCV64(os.path.join(elfdir, "rv64ui-p-addi.elf"))
+    cpu = _pydrofoil.RISCV64(addielf)
     cpu.run(100)
     assert cpu.read_register("pc") == 0x800001e8
 
 def test_read_write_register():
-    cpu = _pydrofoil.RISCV64(os.path.join(elfdir, "rv64ui-p-addi.elf"))
+    cpu = _pydrofoil.RISCV64(addielf)
     assert cpu.read_register("pc") == 0x1000 # rom base at the start
     cpu.step() # execute auipc x5,0
     assert cpu.read_register("pc") == 0x1004
@@ -51,3 +52,11 @@ def test_read_write_ram_out_of_bounds():
             cpu.read_memory(outofbounds)
         with raises(IndexError):
             cpu.write_memory(outofbounds, 1)
+
+def test_step_ticks():
+    cpu = _pydrofoil.RISCV64(addielf)
+    for i in range(100):
+        assert cpu.read_register("mtime") == 0
+        cpu.step()
+    cpu.step()
+    assert cpu.read_register("mtime") == 1

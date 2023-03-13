@@ -11,6 +11,6 @@ class Module(MixedModule):
     }
 
     def __init__(self, space, w_name):
-        from riscv.pypyplugin import interp_plugin
+        from riscv.pypymodule import interp_plugin
         MixedModule.__init__(self, space, w_name)
         interp_plugin._patch_machineclasses()

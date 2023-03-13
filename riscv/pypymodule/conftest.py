@@ -12,7 +12,7 @@ class MyAppTestModule(AppTestModule):
         res = AppTestModule.collect(self)
         if res:
             space = res[0].w_obj.space
-            space.install_mixedmodule("riscv.pypyplugin")
+            space.install_mixedmodule("riscv.pypymodule")
             w_mod = space.getbuiltinmodule("_pydrofoil")
             space.setitem(res[0].w_obj.w_func_globals, space.newtext("_pydrofoil"), w_mod)
         return res

@@ -75349,7 +75349,7 @@ fn zexecute(zmergez3var) {
   zgsz312017_lz3265 : %i = 32;
   zgsz312018_lz3266 : %bv = zresult_lz3262;
   zgsz312019_lz3267 : %bv;
-  zgsz312019_lz3267 = zEXTZ(zgsz312017_lz3265, zgsz312018_lz3266);
+  zgsz312019_lz3267 = zEXTS(zgsz312017_lz3265, zgsz312018_lz3266);
   zgaz37580_lz3263 = zgsz312019_lz3267;
   zgsz312020_lz3264 : %unit;
   zgsz312020_lz3264 = zwX_bits(zrd_lz3259, zgaz37580_lz3263);
@@ -75728,7 +75728,7 @@ fn zexecute(zmergez3var) {
   zgaz37628_lz347 : %sbv64;
   zgaz37616_lz353 : %bool;
   zgaz37615_lz389 : %i64;
-  zgsz312136_lz390 : %i = 8;
+  zgsz312136_lz390 : %i = 4;
   zgsz312137_lz391 : %i = zindex_lz345;
   zgsz312138_lz392 : %i;
   zgsz312138_lz392 = zmult_atom(zgsz312136_lz390, zgsz312137_lz391);
@@ -75744,7 +75744,7 @@ fn zexecute(zmergez3var) {
   zgsz312140_lz388 : %i;
   zgsz312140_lz388 = z__id(zgsz312139_lz387);
   zgaz37620_lz383 = zgsz312140_lz388;
-  zgsz312141_lz384 : %i = 8;
+  zgsz312141_lz384 : %i = 4;
   zgsz312142_lz385 : %i = zgaz37620_lz383;
   zgsz312143_lz386 : %i;
   zgsz312143_lz386 = zmult_atom(zgsz312141_lz384, zgsz312142_lz385);
@@ -75756,7 +75756,7 @@ fn zexecute(zmergez3var) {
   zgsz312145_lz381 : %i;
   zgsz312145_lz381 = z__id(zgsz312144_lz380);
   zgaz37622_lz376 = zgsz312145_lz381;
-  zgsz312146_lz377 : %i = 8;
+  zgsz312146_lz377 : %i = 4;
   zgsz312147_lz378 : %i = zgaz37622_lz376;
   zgsz312148_lz379 : %i;
   zgsz312148_lz379 = zmult_atom(zgsz312146_lz377, zgsz312147_lz378);
@@ -75774,14 +75774,14 @@ fn zexecute(zmergez3var) {
   goto 11647;
   zgaz37618_lz354 : %i64;
   zgaz37617_lz363 : %i64;
-  zgsz312154_lz364 : %i = 8;
+  zgsz312154_lz364 : %i = 4;
   zgsz312155_lz365 : %i = zindex_lz345;
   zgsz312156_lz366 : %i;
   zgsz312156_lz366 = zmult_atom(zgsz312154_lz364, zgsz312155_lz365);
   zgaz37617_lz363 = zgsz312156_lz366;
   zgaz37618_lz354 = @iadd(zgaz37617_lz363, 3);
   zgaz37619_lz355 : %i64;
-  zgsz312157_lz360 : %i = 8;
+  zgsz312157_lz360 : %i = 4;
   zgsz312158_lz361 : %i = zindex_lz345;
   zgsz312159_lz362 : %i;
   zgsz312159_lz362 = zmult_atom(zgsz312157_lz360, zgsz312158_lz361);

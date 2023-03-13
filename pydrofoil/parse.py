@@ -24,7 +24,7 @@ addkeyword('val')
 addkeyword('fn')
 addkeyword('end')
 addkeyword('arbitrary')
-addkeyword('failure')
+addkeyword('exit')
 addkeyword('goto')
 addkeyword('jump')
 addkeyword('register')
@@ -32,6 +32,7 @@ addkeyword('is')
 addkeyword('as')
 addkeyword('let')
 addkeyword('undefined')
+addkeyword('files')
 
 addtok('PERCENTENUM', r'%enum')
 addtok('PERCENTUNION', r'%union')
@@ -45,7 +46,7 @@ addtok('NUMBER', r'-?\d+')
 addtok('NAME', r'[a-zA-Z_%@$][a-zA-Z_0-9]*')
 addtok('STRING', r'"[^"]*"')
 addtok('ARROW', r'->')
-addtok('BACKTICK', r'`')
+addtok('SOURCEPOS', r'`[^;]+')
 addtok('LPAREN', r'[(]')
 addtok('RPAREN', r'[)]')
 addtok('LBRACE', r'[{]')
@@ -59,6 +60,7 @@ addtok('GT', r'[>]')
 addtok('DOT', r'[.]')
 addtok('AMPERSAND', r'[&]')
 addtok('STAR', r'[*]')
+addtok('HASH', r'#')
 
 lg.ignore(r'[ \n]')
 
@@ -189,7 +191,7 @@ class Function(Declaration):
         for index, op in enumerate(self.body):
             if isinstance(op, End):
                 pass
-            elif isinstance(op, Failure):
+            elif isinstance(op, Exit):
                 pass
             elif isinstance(op, Goto):
                 dotgen.emit_edge(str(id(op)), str(id(self.body[op.target])))
@@ -199,6 +201,14 @@ class Function(Declaration):
             else:
                 dotgen.emit_edge(str(id(op)), str(id(self.body[index + 1])))
 
+class Pragma(Declaration):
+    def __init__(self, name, content):
+        self.name = name
+        self.content = content
+
+class Files(Declaration):
+    def __init__(self, filenames):
+        self.filenames = filenames
 
 class Type(BaseAst):
     pass
@@ -246,35 +256,44 @@ class VecType(Type):
 class Statement(BaseAst):
     end_of_block = False
 
-class LocalVarDeclaration(Statement):
-    def __init__(self, name, typ, value=None):
+class StatementWithSourcePos(Statement):
+    sourcepos = None
+    def add_sourcepos(self, sourcepos):
+        self.sourcepos = sourcepos
+        return self
+
+class LocalVarDeclaration(StatementWithSourcePos):
+    def __init__(self, name, typ, value=None, sourcepos=None):
         self.name = name
         self.typ = typ
         self.value = value
+        self.sourcepos = sourcepos
 
-class Operation(Statement):
-    def __init__(self, result, name, args):
+class Operation(StatementWithSourcePos):
+    def __init__(self, result, name, args, sourcepos=None):
         self.result = result
         self.name = name
         self.args = args
+        self.sourcepos = sourcepos
 
-class TemplatedOperation(Statement):
-    def __init__(self, result, name, templateparam, args):
+class TemplatedOperation(StatementWithSourcePos):
+    def __init__(self, result, name, templateparam, args, sourcepos=None):
         self.result = result
         self.name = name
         self.templateparam = templateparam
         self.args = args
+        self.sourcepos = sourcepos
 
 class Goto(Statement):
     end_of_block = True
     def __init__(self, target):
         self.target = target
 
-class ConditionalJump(Statement):
-    def __init__(self, condition, target, sourcecomment):
+class ConditionalJump(StatementWithSourcePos):
+    def __init__(self, condition, target, sourcepos=None):
         self.condition = condition
         self.target = target
-        self.sourcecomment = sourcecomment
+        self.sourcepos = sourcepos
 
 class Condition(BaseAst):
     pass
@@ -293,33 +312,40 @@ class UnionVariantCheck(Condition):
         self.var = var
         self.variant = variant
 
-class Assignment(Statement):
+class Assignment(StatementWithSourcePos):
     def __init__(self, result, value):
         self.result = result
         self.value = value
 
-class TupleElementAssignment(Statement):
-    def __init__(self, tup, index, value):
+class TupleElementAssignment(StatementWithSourcePos):
+    def __init__(self, tup, index, value, sourcepos=None):
         self.tup = tup
         self.index = index
         self.value = value
+        self.sourcepos = sourcepos
 
-class StructElementAssignment(Statement):
-    def __init__(self, obj, field, value):
+class StructElementAssignment(StatementWithSourcePos):
+    def __init__(self, obj, field, value, sourcepos=None):
         self.obj = obj
         self.field = field
         self.value = value
+        self.sourcepos = sourcepos
 
-class RefAssignment(Statement):
-    def __init__(self, ref, value):
+class RefAssignment(StatementWithSourcePos):
+    def __init__(self, ref, value, sourcepos=None):
         self.ref = ref
         self.value = value
+        self.sourcepos = sourcepos
 
 class End(Statement):
     end_of_block = True
 
-class Failure(Statement):
+class Exit(StatementWithSourcePos):
     end_of_block = True
+
+    def __init__(self, kind, sourcepos=None):
+        self.kind = kind
+        self.sourcepos = sourcepos
 
 class Arbitrary(Statement):
     end_of_block = True
@@ -364,6 +390,16 @@ class Undefined(Expression):
     def __init__(self, typ):
         self.typ = typ
 
+class StructConstruction(Expression):
+    def __init__(self, name, fieldnames, values):
+        self.name = name
+        self.fieldnames = fieldnames
+        self.fieldvalues = values
+
+class StructField(BaseAst):
+    def __init__(self, fieldname, fieldvalue):
+        self.fieldname = fieldname
+        self.fieldvalue = fieldvalue
 
 # ____________________________________________________________
 # parser
@@ -376,7 +412,7 @@ def file(p):
         return File(p)
     return File(p[0].declarations + [p[1]])
 
-@pg.production('declaration : enum | union | struct | globalval | function | register | let')
+@pg.production('declaration : enum | union | struct | globalval | function | register | let | pragma | files')
 def declaration(p):
     return p[0]
 
@@ -433,6 +469,28 @@ def register(p):
 def let(p):
     return Let(p[2].value, p[4], p[7].body)
 
+@pg.production('pragma : HASH NAME pragmacontent')
+def pragma(p):
+    return Pragma(p[1].value, p[2].content)
+
+@pg.production('pragmacontent : NAME | NAME pragmacontent')
+def pragmacontent(p):
+    if len(p) == 1:
+        return Pragma(None, [p[0].value])
+    else:
+        return Pragma(None, [p[0].value] + p[1].content)
+
+@pg.production('files : FILES filescontent')
+def files(p):
+    return p[1]
+
+@pg.production('filescontent : STRING | STRING filescontent')
+def filescontent(p):
+    if len(p) == 1:
+        return Files([p[0].value])
+    else:
+        return Files([p[0].value] + p[1].filenames)
+
 @pg.production('operations : operation SEMICOLON | operation SEMICOLON operations')
 def operations(p):
     if len(p) == 2:
@@ -442,8 +500,15 @@ def operations(p):
 
 # operations
 
-@pg.production('operation : localvardeclaration | op | templatedop | conditionaljump | goto | assignment | end | failure | arbitrary')
+@pg.production('operation : operationwithposition SOURCEPOS | end | goto ')
 def operation(p):
+    if len(p) == 2:
+        return p[0].add_sourcepos(p[1].value)
+    else:
+        return p[0]
+
+@pg.production('operationwithposition : localvardeclaration | op | templatedop | conditionaljump | assignment | exit | arbitrary')
+def operationwithposition(p):
     return p[0]
 
 @pg.production('localvardeclaration : NAME COLON type | NAME COLON type EQUAL expr')
@@ -468,7 +533,7 @@ def opargs(p):
     else:
         return Operation(None, None, [p[0]] + p[2].args)
 
-@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | expr DOT NAME | LPAREN RPAREN | expr AS NAME | AMPERSAND expr')
+@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | expr DOT NAME | LPAREN RPAREN | expr AS NAME | AMPERSAND expr | STRUCT structconstruction')
 def expr(p):
     if len(p) == 1:
         if p[0].gettokentype() == "NAME":
@@ -486,6 +551,8 @@ def expr(p):
             return Unit()
         elif p[0].gettokentype() == "AMPERSAND":
             return RefOf(p[1])
+        elif p[0].gettokentype() == "STRUCT":
+            return p[1]
     elif len(p) == 3:
         if p[1].gettokentype() == "COLON":
             return Undefined(p[2])
@@ -495,9 +562,25 @@ def expr(p):
             return Cast(p[0], p[2].value)
     assert 0
 
-@pg.production('conditionaljump : JUMP condition GOTO NUMBER BACKTICK STRING')
+@pg.production('structconstruction : NAME LBRACE structconstructioncontent RBRACE')
+def structconstruction(p):
+    return StructConstruction(p[0].value, p[2].fieldnames, p[2].fieldvalues)
+
+@pg.production('structconstructioncontent : structfield | structfield COMMA structconstructioncontent')
+def structconstructioncontent(p):
+    if len(p) == 1:
+        return StructConstruction(None, [p[0].fieldname], [p[0].fieldvalue])
+    else:
+        return StructConstruction(None, [p[0].fieldname] + p[2].fieldnames, [p[0].fieldvalue] + p[2].fieldvalues)
+
+@pg.production('structfield : NAME EQUAL expr')
+def structfield(p):
+    return StructField(p[0].value, p[2])
+
+
+@pg.production('conditionaljump : JUMP condition GOTO NUMBER')
 def conditionaljump(p):
-    return ConditionalJump(p[1], int(p[3].value), p[5].value)
+    return ConditionalJump(p[1], int(p[3].value))
 
 @pg.production('condition : expr | NAME LPAREN opargs RPAREN | expr IS NAME ')
 def condition(p):
@@ -528,9 +611,9 @@ def op(p):
 def end(p):
     return End()
 
-@pg.production('failure : FAILURE')
-def failure(p):
-    return Failure()
+@pg.production('exit : EXIT NAME')
+def exit(p):
+    return Exit(p[1].value)
 
 @pg.production('arbitrary : ARBITRARY')
 def arbitrary(p):

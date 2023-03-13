@@ -697,7 +697,7 @@ class __extend__(parse.End):
     def make_op_jump(self, codegen, i):
         pass
 
-class __extend__(parse.Failure):
+class __extend__(parse.Exit):
     def make_op_code(self, codegen):
         codegen.emit("raise TypeError")
 

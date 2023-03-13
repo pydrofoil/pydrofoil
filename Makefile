@@ -31,11 +31,18 @@ pypy/rpython/bin/rpython: ## clone the submodule
 pydrofoil-test: pypy_binary/bin/python pypy/rpython/bin/rpython ## Run the pydrofoil implementation-level unit tests
 	./pypy_binary/bin/python pypy/pytest.py -v pydrofoil/ riscv/
 
+pypy/lib/pypy3.9/site-packages/pytest/__init__.py: pypy-c-pydrofoil
+	./pypy-c-pydrofoil -m ensurepip
+	./pypy-c-pydrofoil -m pip install pytest pdbpp
+
+plugin-test: pypy-c-pydrofoil pypy/lib/pypy3.9/site-packages/pytest/__init__.py ## Run the tests for the pydrofoil Python-plugin
+	./pypy-c-pydrofoil -m pytest riscv/plugin/
+
 riscv-tools/bin/riscv64-unknown-linux-gnu-gcc:  ## get the riscv-toolchain for Ubuntu 20.04
 	wget https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2022.11.18/riscv64-glibc-ubuntu-20.04-nightly-2022.11.18-nightly.tar.gz -o riscv64-nightly.tar.gz
 	mkdir riscv-tools
 	tar -C riscv-tools --strip-components=1 -xf risc64-nightly.tar.gz
-	## Delete the tarball ???
+	# Delete the tarball ???
 
 .PHONY: riscv-tests
 riscv-tests: pypy_binary/bin/python pydrofoil-riscv  ## run risc-v test suite, needs env variable RISCVMODELCHECKOUT set

@@ -4,10 +4,10 @@ from rpython.translator.tool.cbuild import ExternalCompilationInfo
 
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 INC_DIR = os.path.join(CUR_DIR, "SoftFloat-3e/source/include/")
-LIB_DIR = os.path.join(CUR_DIR, "SoftFloat-3e/build/Linux-x86_64-GCC/")
+LIB_DIR = os.path.join(CUR_DIR, "SoftFloat-3e/build/Linux-RISCV-GCC/")
 
 SRC_FILE = os.path.join(CUR_DIR, "pydrofoil_softfloat.c")
-LIB_FILE = ":softfloat.a"
+LIB_FILE = os.path.join(LIB_DIR, "softfloat.o")
 
 with open(SRC_FILE, "r") as f:
     SRC = f.read()
@@ -15,8 +15,7 @@ with open(SRC_FILE, "r") as f:
 info = ExternalCompilationInfo(
     includes=["pydrofoil_softfloat.h"],
     include_dirs=[CUR_DIR, INC_DIR],
-    libraries=[LIB_FILE],
-    library_dirs=[LIB_DIR],
+    link_files=[LIB_FILE],
     separate_module_sources=[SRC],
 )
 

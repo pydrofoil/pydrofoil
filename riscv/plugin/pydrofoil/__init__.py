@@ -4,7 +4,6 @@ ALL_EVENTS = {"step"}
 
 class RISCV64(BaseRISCV64):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self._callbacks = {}
 
     def step(self):

@@ -47,6 +47,8 @@ class GDBServer:
         
     def handle(self, packet: bytes) -> bytes:
         packet = _parse_gdb_packet(packet)
+        if packet.command == "?":
+            packet.command = "questionmark"
         method = getattr(self, packet.command, None)
         if method is not None:
             return method(packet)
@@ -95,3 +97,45 @@ class GDBServer:
             self.machine.write_memory(addr + i, data[i])
 
         return _make_packet(b"OK")
+
+    def questionmark(self, packet: GDBPacket) -> bytes:
+        return _make_packet(b"S05") # TODO is this the correct reply?
+
+    def eventloop(self, port):
+        import socket
+        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            serversocket.bind(("localhost", port))
+            serversocket.listen()
+            print("starting gdb server on port", port)
+            (sock, address) = serversocket.accept()
+            print("got connection")
+            try:
+
+                buf = bytearray()
+                while 1:
+                    buf += sock.recv(4096)
+                    print("FROM GDB:", buf)
+                    if buf.startswith(b"+-"):
+                        print("GOT -, STOPPING")
+                        return
+                    end = buf.find(b"#")
+                    if end == -1 or end + 3 > len(buf):
+                        continue
+                    packet = bytes(buf[:end+3])
+                    buf = buf[len(packet):]
+                    print("PACKET:", packet)
+                    response = self.handle(bytes(packet))
+                    print("RESPONSE:", response)
+                    sock.send(response)
+            finally:
+                sock.close()
+        finally:
+            serversocket.close()
+
+
+def start_gdb_server(elf, port=1234):
+    import pydrofoil
+    machine = pydrofoil.RISCV64(elf)
+    server = GDBServer(machine)
+    server.eventloop(port)

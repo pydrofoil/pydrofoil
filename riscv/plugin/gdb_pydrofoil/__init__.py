@@ -58,11 +58,11 @@ class GDBServer:
         addr = int(addr, 16)
         length = int(length, 16)
 
-        memory = ""
+        memory = bytearray()
         for i in range(length):
-            memory += format(self.machine.read_memory(addr + i), "02x")
+            memory += format(self.machine.read_memory(addr + i), "02x").encode("ascii")
 
-        return _make_packet(memory.encode("ascii"))
+        return _make_packet(bytes(memory))
 
     def M(self, packet: GDBPacket) -> bytes:
         args, data = packet.args.split(b":", 1)

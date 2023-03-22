@@ -124,3 +124,37 @@ def test_handle_X():
     assert resp == b"+$OK#9a"
     assert machine.addrs == [16, 17, 18, 19, 20]
     assert machine.values == [1, 2, 3, 4, 5]
+
+def test_real_gdb_packet():
+    server = GDBServer("dummy")
+    resp = server.handle(b"+$qSupported:multiprocess+;swbreak+;hwbreak+;qRelocInsn+;fork-events+;vfork-events+;exec-events+;vContSupported+;QThreadEvents+;no-resumed+;memory-tagging+;xmlRegisters=i386#77")
+    assert resp == b"+$#00"
+
+def test_handle_g():
+    class DummyMachine:
+        def __init__(self):
+            pass
+
+        def read_register(self, reg):
+            return 123
+
+    machine = DummyMachine()
+    server = GDBServer(machine)
+    resp = server.handle(b"$g#67")
+    assert len(resp) == 533
+    assert resp[18:34] == b"000000000000007b"
+
+
+def test_handle_G():
+    class DummyMachine:
+        def __init__(self):
+            self.regs = {}
+
+        def write_register(self, reg, value):
+            self.regs[reg] = value
+
+    machine = DummyMachine()
+    server = GDBServer(machine)
+    resp = server.handle(b"+$G00000000000000007b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000#81")
+    assert resp == b"+$OK#9a"
+    assert machine.regs["x1"] == 123

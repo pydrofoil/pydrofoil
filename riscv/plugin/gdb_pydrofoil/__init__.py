@@ -100,6 +100,36 @@ class GDBServer:
 
     def questionmark(self, packet: GDBPacket) -> bytes:
         return _make_packet(b"S05") # TODO is this the correct reply?
+    
+    def g(self, packet: GDBPacket) -> bytes:
+        register_data = bytearray()
+
+        # zero register
+        register_data += format(0, "016x").encode("ascii")
+
+        # general purpose registers (x1, x2, ...)
+        for reg in range(1, 32):
+            reg_val = self.machine.read_register("x" + str(reg))
+            register_data += format(reg_val, "016x").encode("ascii")
+
+        # pc register
+        reg_val = self.machine.read_register("pc")
+        register_data += format(reg_val, "016x").encode("ascii")
+
+        return _make_packet(bytes(register_data))
+    
+    def G(self, packet: GDBPacket) -> bytes:
+        data = packet.args
+
+        # general purpose registers (x1, x2, ...)
+        for reg in range(1, 32):
+            b = bytearray([int(data[reg*16+i*2:reg*16+i*2+2], 16) for i in range(8)])
+            self.machine.write_register("x" + str(reg),  int.from_bytes(b, byteorder="little"))
+
+        # pc register
+        self.machine.write_register("pc", int(data[512:], 16))
+
+        return _make_packet(b"OK")
 
     def eventloop(self, port):
         import socket

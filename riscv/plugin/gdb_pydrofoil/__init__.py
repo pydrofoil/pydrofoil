@@ -44,6 +44,7 @@ def _make_packet(cmd_and_args: bytes) -> bytes:
 class GDBServer:
     def __init__(self, machine):
         self.machine = machine
+        self.breakpoints = []
         
     def handle(self, packet: bytes) -> bytes:
         packet = _parse_gdb_packet(packet)
@@ -86,6 +87,19 @@ class GDBServer:
         self.machine.step()
 
         return _make_packet(b"S05") # TODO is this the correct reply?
+    
+    def c(self, packet: GDBPacket):
+        if len(packet.args) != 0:
+            addr = int(packet.args, 16)
+            self.machine.write_register("pc", addr)
+
+        while True:
+            self.machine.step()
+            addr = self.machine.read_register("pc")
+            if addr in self.breakpoints:
+                break
+
+        return _make_packet(b"S05") # TODO is this the correct reply?
 
     def X(self, packet: GDBPacket) -> bytes:
         args, data = packet.args.split(b":", 1)
@@ -105,18 +119,18 @@ class GDBServer:
         register_data = bytearray()
 
         # zero register
-        register_data += format(0, "016x").encode("ascii")
+        register_data += int.to_bytes(0, 8, byteorder="little")
 
         # general purpose registers (x1, x2, ...)
         for reg in range(1, 32):
             reg_val = self.machine.read_register("x" + str(reg))
-            register_data += format(reg_val, "016x").encode("ascii")
+            register_data += int.to_bytes(reg_val, 8, byteorder="little")
 
         # pc register
         reg_val = self.machine.read_register("pc")
-        register_data += format(reg_val, "016x").encode("ascii")
+        register_data += int.to_bytes(reg_val, 8, byteorder="little")
 
-        return _make_packet(bytes(register_data))
+        return _make_packet(register_data.hex().encode("ascii"))
     
     def G(self, packet: GDBPacket) -> bytes:
         data = packet.args
@@ -128,6 +142,23 @@ class GDBServer:
 
         # pc register
         self.machine.write_register("pc", int(data[512:], 16))
+
+        return _make_packet(b"OK")
+    
+    def Z(self, packet: GDBPacket):
+        addr = packet.args.split(b",")[1]
+        addr = int(addr, 16)
+
+        self.breakpoints.append(addr)
+
+        return _make_packet(b"OK")
+    
+    def z(self, packet: GDBPacket):
+        addr = packet.args.split(b",")[1]
+        addr = int(addr, 16)
+        
+        if addr in self.breakpoints:
+            self.breakpoints.remove(addr)
 
         return _make_packet(b"OK")
 

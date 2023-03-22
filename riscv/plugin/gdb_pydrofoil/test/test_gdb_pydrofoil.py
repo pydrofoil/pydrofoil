@@ -142,7 +142,7 @@ def test_handle_g():
     server = GDBServer(machine)
     resp = server.handle(b"$g#67")
     assert len(resp) == 533
-    assert resp[18:34] == b"000000000000007b"
+    assert resp[18:34] == b"7b00000000000000"
 
 
 def test_handle_G():

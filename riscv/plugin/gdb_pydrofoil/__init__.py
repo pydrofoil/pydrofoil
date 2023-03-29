@@ -40,6 +40,14 @@ def _parse_gdb_packet(packet: bytes) -> GDBPacket:
 def _make_packet(cmd_and_args: bytes) -> bytes:
     checksum = format(_calculate_checksum(cmd_and_args), "02x")
     return b"+$" + cmd_and_args + b"#" + checksum.encode("ascii")
+
+def _hex2int(data: bytes) -> int:
+    b = bytes.fromhex(data.decode("ascii"))
+    return int.from_bytes(b, byteorder="little")
+
+def _int2hex(value: int, length: int = 8) -> bytes:
+    data = int.to_bytes(value, length, byteorder="little")
+    return data.hex().encode("ascii")
     
 class GDBServer:
     def __init__(self, machine):
@@ -63,7 +71,8 @@ class GDBServer:
 
         memory = bytearray()
         for i in range(length):
-            memory += format(self.machine.read_memory(addr + i), "02x").encode("ascii")
+            value = self.machine.read_memory(addr + i, 1)
+            memory += _int2hex(value, 1)
 
         return _make_packet(bytes(memory))
 
@@ -74,8 +83,8 @@ class GDBServer:
         length = int(length, 16)
 
         for i in range(length):
-            value = int(data[i*2:i*2+2], 16)
-            self.machine.write_memory(addr + i, value)
+            value = _hex2int(data[i*2:i*2+2])
+            self.machine.write_memory(addr + i, value, 1)
 
         return _make_packet(b"OK")
 
@@ -101,17 +110,6 @@ class GDBServer:
 
         return _make_packet(b"S05") # TODO is this the correct reply?
 
-    def X(self, packet: GDBPacket) -> bytes:
-        args, data = packet.args.split(b":", 1)
-        addr, length = args.split(b",", 1)
-        addr = int(addr, 16)
-        length = int(length, 16)
-
-        for i in range(length):
-            self.machine.write_memory(addr + i, data[i])
-
-        return _make_packet(b"OK")
-
     def questionmark(self, packet: GDBPacket) -> bytes:
         return _make_packet(b"S05") # TODO is this the correct reply?
     
@@ -119,29 +117,30 @@ class GDBServer:
         register_data = bytearray()
 
         # zero register
-        register_data += int.to_bytes(0, 8, byteorder="little")
+        register_data += _int2hex(0)
 
         # general purpose registers (x1, x2, ...)
         for reg in range(1, 32):
             reg_val = self.machine.read_register("x" + str(reg))
-            register_data += int.to_bytes(reg_val, 8, byteorder="little")
+            register_data += _int2hex(reg_val)
 
         # pc register
         reg_val = self.machine.read_register("pc")
-        register_data += int.to_bytes(reg_val, 8, byteorder="little")
+        register_data += _int2hex(reg_val)
 
-        return _make_packet(register_data.hex().encode("ascii"))
+        return _make_packet(register_data)
     
     def G(self, packet: GDBPacket) -> bytes:
         data = packet.args
 
         # general purpose registers (x1, x2, ...)
         for reg in range(1, 32):
-            b = bytearray([int(data[reg*16+i*2:reg*16+i*2+2], 16) for i in range(8)])
-            self.machine.write_register("x" + str(reg),  int.from_bytes(b, byteorder="little"))
+            value = _hex2int(data[reg*16:reg*16+16])
+            self.machine.write_register("x" + str(reg), value)
 
         # pc register
-        self.machine.write_register("pc", int(data[512:], 16))
+        value = _hex2int(data[32*16:32*16+16])
+        self.machine.write_register("pc", value)
 
         return _make_packet(b"OK")
     
@@ -160,6 +159,28 @@ class GDBServer:
         if addr in self.breakpoints:
             self.breakpoints.remove(addr)
 
+        return _make_packet(b"OK")
+    
+    def p(self, packet: GDBPacket):
+        num = int(packet.args, 16)
+
+        if num == 33:
+            value = self.machine.read_register("pc")
+        else:
+            value = self.machine.read_register("x" + str(num))
+         
+        return _make_packet(_int2hex(value))
+    
+    def P(self, packet: GDBPacket):
+        num, value = packet.args.split(b"=", 1)
+        num = int(num, 16)
+        value = _hex2int(value)
+
+        if num == 33:
+            value = self.machine.write_register("pc", value)
+        else:
+            value = self.machine.write_register("x" + str(num), value)
+         
         return _make_packet(b"OK")
 
     def eventloop(self, port):

@@ -45,7 +45,7 @@ def test_handle_m():
         def __init__(self):
             self.addrs = []
 
-        def read_memory(self, addr):
+        def read_memory(self, addr, width):
             self.addrs.append(addr)
             return 1
 
@@ -61,7 +61,7 @@ def test_handle_M():
             self.addrs = []
             self.values = []
 
-        def write_memory(self, addr, value):
+        def write_memory(self, addr, value, width):
             self.addrs.append(addr)
             self.values.append(value)
 
@@ -108,23 +108,6 @@ def test_handle_s_addr():
     assert machine.register == "pc"
     assert machine.addr == 16
 
-def test_handle_X():
-    class DummyMachine:
-        def __init__(self):
-            self.addrs = []
-            self.values = []
-
-        def write_memory(self, addr, value):
-            self.addrs.append(addr)
-            self.values.append(value)
-
-    machine = DummyMachine()
-    server = GDBServer(machine)
-    resp = server.handle(b"$X10,5:\1\2\3\4\5#63")
-    assert resp == b"+$OK#9a"
-    assert machine.addrs == [16, 17, 18, 19, 20]
-    assert machine.values == [1, 2, 3, 4, 5]
-
 def test_real_gdb_packet():
     server = GDBServer("dummy")
     resp = server.handle(b"+$qSupported:multiprocess+;swbreak+;hwbreak+;qRelocInsn+;fork-events+;vfork-events+;exec-events+;vContSupported+;QThreadEvents+;no-resumed+;memory-tagging+;xmlRegisters=i386#77")
@@ -158,3 +141,80 @@ def test_handle_G():
     resp = server.handle(b"+$G00000000000000007b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000#81")
     assert resp == b"+$OK#9a"
     assert machine.regs["x1"] == 123
+
+def test_handle_p():
+    class DummyMachine:
+        def __init__(self):
+            pass
+
+        def read_register(self, reg):
+            return 123
+
+    machine = DummyMachine()
+    server = GDBServer(machine)
+    resp = server.handle(b"$p1#a1")
+    assert resp[2:-3] == b"7b00000000000000"
+
+def test_handle_P():
+    class DummyMachine:
+        def __init__(self):
+            pass
+
+        def write_register(self, reg, value):
+            assert reg == "x1" and value == 123
+
+    machine = DummyMachine()
+    server = GDBServer(machine)
+    server.handle(b"$P1=7b00000000000000#f7")
+
+def test_handle_Z():
+    class DummyMachine:
+        def __init__(self):
+            self.pc = 0
+
+        def read_register(self, name):
+            return self.pc
+
+        def step(self):
+            self.pc += 1
+
+    machine = DummyMachine()
+    server = GDBServer(machine)
+    
+    resp = server.handle(b"$Z0,64,0#7c")
+    assert resp[2:-3] == b"OK"
+
+    resp = server.handle(b"$c#63")
+    assert resp[2:-3] == b"S05"
+    assert machine.pc == 100
+
+def test_handle_z():
+    class DummyMachine:
+        def __init__(self):
+            self.pc = 0
+
+        def read_register(self, name):
+            return self.pc
+
+        def step(self):
+            self.pc += 1
+
+    machine = DummyMachine()
+    server = GDBServer(machine)
+
+    resp = server.handle(b"$Z0,65,0#7d")
+    assert resp[2:-3] == b"OK"
+    
+    resp = server.handle(b"$Z0,64,0#7c")
+    assert resp[2:-3] == b"OK"
+
+    resp = server.handle(b"$c#63")
+    assert resp[2:-3] == b"S05"
+    assert machine.pc == 100
+
+    resp = server.handle(b"$z0,64,0#9c")
+    assert resp[2:-3] == b"OK"
+
+    resp = server.handle(b"$c#63")
+    assert resp[2:-3] == b"S05"
+    assert machine.pc == 101

@@ -6,6 +6,7 @@ from os.path import dirname
 toplevel = dirname(dirname(dirname(__file__)))
 elfdir = os.path.join(toplevel, "input")
 addielf = os.path.join(elfdir, "rv64ui-p-addi.elf")
+mulelf = os.path.join(elfdir, "rv64um-v-mul.elf")
 
 def test_right_import():
     print(_pydrofoil.__dict__)
@@ -60,3 +61,31 @@ def test_step_ticks():
         cpu.step()
     cpu.step()
     assert cpu.read_register("mtime") == 1
+
+
+def test_step_monitor_mem_read():
+    cpu = _pydrofoil.RISCV64(addielf)
+    mem_accesses = cpu.step_monitor_mem()
+    assert mem_accesses == [
+        ("read_executable", 0x0000000000001000, 2, 0x0297),
+        ("read_executable", 0x0000000000001002, 2, 0x0),
+    ]
+    cpu.step()
+    cpu.step()
+    mem_accesses = cpu.step_monitor_mem()
+    assert mem_accesses == [
+        ("read_executable", 0x000000000000100C, 2, 0xB283),
+        ("read_executable", 0x000000000000100E, 2, 0x0182),
+        ("read", 0x0000000000001018, 8, 0x0000000080000000),
+    ]
+
+def test_step_monitor_mem_write():
+    cpu = _pydrofoil.RISCV64(mulelf)
+    for i in range(34):
+        cpu.step()
+    mem_accesses = cpu.step_monitor_mem()
+    assert mem_accesses == [
+        ("read_executable", 0x0000000080002914, 2, 0xB823),
+        ("read_executable", 0x0000000080002916, 2, 0x6ED8),
+        ("write", 0x0000000080004000, 8, 0x0000000020001401),
+    ]

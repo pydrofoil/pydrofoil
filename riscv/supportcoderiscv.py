@@ -569,7 +569,7 @@ def get_printable_location(pc, do_show_times, insn_limit, tick, g):
         return "0x%x: %s" % (pc, g.dump_dict[pc])
     return hex(pc)
 
-def init_mem(machine):
+def init_mem(machine, memwrappercls=None):
     g = machine.g
     oldmem = g.mem
     if oldmem:
@@ -577,6 +577,8 @@ def init_mem(machine):
     mem1 = mem_mod.FlatMemory(False)
     mem2 = mem_mod.FlatMemory(False, g.rv_ram_size)
     mem = mem_mod.SplitMemory(mem1, 0, mem1.size, mem2, g.rv_ram_base, g.rv_ram_size)
+    if memwrappercls is not None:
+        mem = memwrappercls(mem)
     g.mem = mem
 
 def load_sail(machine, fn):

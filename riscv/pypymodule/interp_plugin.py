@@ -9,6 +9,8 @@ from pypy.interpreter.gateway import unwrap_spec
 
 from riscv import supportcoderiscv
 
+from pydrofoil import mem as mem_mod
+
 def _patch_machineclasses(machinecls64=None, machinecls32=None):
     from riscv import supportcoderiscv
     from riscv.targetriscv import _make_code
@@ -48,7 +50,7 @@ class W_RISCV64(W_Root):
         self.space = space
         self.elf = elf
         self.machine = machinecls64()
-        init_mem(space, self.machine)
+        init_mem(space, self.machine, MemoryObserver)
         if elf is not None:
             entry = load_sail(space, self.machine, elf)
         else:
@@ -122,6 +124,23 @@ class W_RISCV64(W_Root):
             if self._insn_cnt == self.machine.g.rv_insns_per_tick:
                 self._tick = True
 
+    def step_monitor_mem(self):
+        result = self.machine.g.mem.memory_observer = []
+        try:
+            self.step()
+        finally:
+            self.machine.g.mem.memory_observer = None
+        space = self.space
+        res_w = []
+        for kind, start_addr, num_bytes, value in result:
+            res_w.append(space.newtuple([
+                space.newtext(kind),
+                space.newint(start_addr),
+                space.newint(num_bytes),
+                space.newint(value),
+            ]))
+        return space.newlist(res_w)
+
     @unwrap_spec(name="text")
     def read_register(self, name):
         name = name.lower()
@@ -160,6 +179,32 @@ class W_RISCV64(W_Root):
         run_sail(self.space, self.machine, limit, do_show_times)
 
 
+class MemoryObserver(mem_mod.MemBase):
+    _immutable_fields_ = ['wrapped']
+
+    def __init__(self, wrapped):
+        self.wrapped = wrapped
+        self.memory_observer = None
+
+    def read(self, start_addr, num_bytes, executable_flag=False):
+        result = self.wrapped.read(start_addr, num_bytes, executable_flag)
+        if self.memory_observer is not None:
+            if executable_flag:
+                kind = "read_executable"
+            else:
+                kind = "read"
+            self.memory_observer.append((kind, start_addr, num_bytes, result))
+        return result
+
+    def write(self, start_addr, num_bytes, value):
+        if self.memory_observer is not None:
+            self.memory_observer.append(("write", start_addr, num_bytes, value))
+        return self.wrapped.write(start_addr, num_bytes, value)
+
+    def close(self):
+        return self.wrapped.close()
+
+
 @unwrap_spec(elf="text_or_none")
 def riscv64_descr_new(space, w_subtype, elf=None):
     w_res = space.allocate_instance(W_RISCV64, w_subtype)
@@ -170,6 +215,7 @@ def riscv64_descr_new(space, w_subtype, elf=None):
 W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     __new__ = interp2app(riscv64_descr_new),
     step = interp2app(W_RISCV64.step),
+    step_monitor_mem = interp2app(W_RISCV64.step_monitor_mem),
     read_register = interp2app(W_RISCV64.read_register),
     write_register = interp2app(W_RISCV64.write_register),
     read_memory = interp2app(W_RISCV64.read_memory),

@@ -218,3 +218,35 @@ def test_handle_z():
     resp = server.handle(b"$c#63")
     assert resp[2:-3] == b"S05"
     assert machine.pc == 101
+
+def test_poll_socket():
+    class DummyMachine:
+        def __init__(self):
+            self.pc = 0
+
+        def read_register(self, name):
+            return self.pc
+
+        def step(self):
+            self.pc += 1
+
+    class DummySocket:
+        def __init__(self):
+            self.msgs = []
+
+        def recv(self, n):
+            return b"+$s#73+$s#73+$s#73+-"
+
+        def send(self, data):
+            self.msgs.append(data)
+
+    machine = DummyMachine()
+    socket = DummySocket()
+    server = GDBServer(machine)
+    
+    server.poll_socket(socket)
+
+    assert socket.msgs[0][2:-3] == b"S05"
+    assert socket.msgs[1][2:-3] == b"S05"
+    assert socket.msgs[2][2:-3] == b"S05"
+    assert machine.pc == 3

@@ -53,6 +53,7 @@ class GDBServer:
     def __init__(self, machine):
         self.machine = machine
         self.breakpoints = []
+        self.running = False
         
     def handle(self, packet: bytes) -> bytes:
         packet = _parse_gdb_packet(packet)
@@ -182,6 +183,23 @@ class GDBServer:
             value = self.machine.write_register("x" + str(num), value)
          
         return _make_packet(b"OK")
+    
+    def poll_socket(self, sock):
+        buf = bytearray()
+        while self.running:
+            buf += sock.recv(4096)
+            if buf.startswith(b"+-"):
+                print("GOT -, STOPPING")
+                return
+            end = buf.find(b"#")
+            if end == -1 or end + 3 > len(buf):
+                continue
+            packet = bytes(buf[:end+3])
+            buf = buf[len(packet):]
+            print("PACKET:", packet)
+            response = self.handle(bytes(packet))
+            print("RESPONSE:", response)
+            sock.send(response)
 
     def eventloop(self, port):
         import socket
@@ -193,31 +211,25 @@ class GDBServer:
             (sock, address) = serversocket.accept()
             print("got connection")
             try:
-
-                buf = bytearray()
-                while 1:
-                    buf += sock.recv(4096)
-                    print("FROM GDB:", buf)
-                    if buf.startswith(b"+-"):
-                        print("GOT -, STOPPING")
-                        return
-                    end = buf.find(b"#")
-                    if end == -1 or end + 3 > len(buf):
-                        continue
-                    packet = bytes(buf[:end+3])
-                    buf = buf[len(packet):]
-                    print("PACKET:", packet)
-                    response = self.handle(bytes(packet))
-                    print("RESPONSE:", response)
-                    sock.send(response)
+                self.running = True
+                self.poll_socket(sock)
             finally:
                 sock.close()
         finally:
             serversocket.close()
 
+    def stop(self):
+        self.running = False
+
 
 def start_gdb_server(elf, port=1234):
     import pydrofoil
     machine = pydrofoil.RISCV64(elf)
+    global server
     server = GDBServer(machine)
     server.eventloop(port)
+
+def stop_gdb_server():
+    # TODO find better way to stop server
+    global server
+    server.stop()

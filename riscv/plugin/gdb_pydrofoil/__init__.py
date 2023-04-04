@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import functools
+from typing import Union
 
 @dataclass
 class GDBPacket:
@@ -48,6 +50,59 @@ def _hex2int(data: bytes) -> int:
 def _int2hex(value: int, length: int = 8) -> bytes:
     data = int.to_bytes(value, length, byteorder="little")
     return data.hex().encode("ascii")
+
+def _split_args(args: Union[str, bytes]) -> Union[str, bytes]:
+    """
+    Splits a string or bytes into a flat list at delimiters `,`,`;` or `:`.
+    """
+    args_comma = args.split("," if isinstance(args, str) else b",")
+    args_semicolon = []
+    for a in args_comma:
+        args_semicolon += a.split(";" if isinstance(args, str) else b";")
+    args_colon = []
+    for a in args_semicolon:
+        args_colon += a.split(":" if isinstance(args, str) else b":")
+    return args_colon
+
+def arguments(format: str):
+    """
+    Decorator to parse gdb packet arguments.
+
+        Example:
+        ```
+        @arguments("hex,hex;*bytes")
+        def handler(self, addr, length: int, data):
+        ```
+
+        This parses the arguments as two integers (from hexadecimal format) and one bytes object that is optional.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, packet):
+            args = _split_args(packet.args)
+            args = list(filter(lambda arg: len(arg) > 0, args))
+
+            arg_types = _split_args(format)
+            arg_types = list(filter(lambda ty: len(ty) > 0, arg_types))
+
+            # parse arguments as given types
+            parsed_args = []
+            for ty, arg in zip(arg_types, args):
+                if ty == "hex" or ty == "*hex":
+                    parsed_args.append(int(arg, 16))
+                if ty == "bytes" or ty == "*bytes":
+                    parsed_args.append(arg)
+
+            # fill with None arguments if optional arguments are not provided       
+            if len(args) < len(arg_types):
+                for i in range(len(arg_types)-len(args)):
+                    if not arg_types[len(args) + i].startswith("*"):
+                        raise ValueError()
+                    parsed_args.append(None)
+
+            return func(self, *parsed_args)
+        return wrapper
+    return decorator
     
 class GDBServer:
     def __init__(self, machine):
@@ -81,11 +136,8 @@ class GDBServer:
         else:
             return _make_packet(b"") # empty response signals not supported
 
-    def m(self, packet: GDBPacket) -> bytes:
-        addr, length = packet.args.split(b",", 1)
-        addr = int(addr, 16)
-        length = int(length, 16)
-
+    @arguments("hex,hex")
+    def m(self, addr: int, length: int) -> bytes:
         memory = bytearray()
         for i in range(length):
             value = self.machine.read_memory(addr + i, 1)
@@ -93,30 +145,26 @@ class GDBServer:
 
         return _make_packet(bytes(memory))
 
-    def M(self, packet: GDBPacket) -> bytes:
-        args, data = packet.args.split(b":", 1)
-        addr, length = args.split(b",", 1)
-        addr = int(addr, 16)
-        length = int(length, 16)
-
+    @arguments("hex,hex,bytes")
+    def M(self, addr: int, length: int, data: bytes) -> bytes:
         for i in range(length):
             value = _hex2int(data[i*2:i*2+2])
             self.machine.write_memory(addr + i, value, 1)
 
         return _make_packet(b"OK")
 
-    def s(self, packet: GDBPacket):
-        if len(packet.args) != 0:
-            addr = int(packet.args, 16)
+    @arguments("*hex")
+    def s(self, addr: int):
+        if addr is not None:
             self.machine.write_register("pc", addr)
 
         self.machine.step()
 
         return _make_packet(b"S05") # TODO is this the correct reply?
     
-    def c(self, packet: GDBPacket):
-        if len(packet.args) != 0:
-            addr = int(packet.args, 16)
+    @arguments("*hex")
+    def c(self, addr: int):
+        if addr is not None:
             self.machine.write_register("pc", addr)
 
         self.hit_watchpoint = False
@@ -129,10 +177,12 @@ class GDBServer:
 
         return _make_packet(b"S05") # TODO is this the correct reply?
 
-    def questionmark(self, packet: GDBPacket) -> bytes:
+    @arguments("")
+    def questionmark(self) -> bytes:
         return _make_packet(b"S05") # TODO is this the correct reply?
     
-    def g(self, packet: GDBPacket) -> bytes:
+    @arguments("")
+    def g(self) -> bytes:
         register_data = bytearray()
 
         # zero register
@@ -149,9 +199,8 @@ class GDBServer:
 
         return _make_packet(register_data)
     
-    def G(self, packet: GDBPacket) -> bytes:
-        data = packet.args
-
+    @arguments("bytes")
+    def G(self, data: bytes) -> bytes:
         # general purpose registers (x1, x2, ...)
         for reg in range(1, 32):
             value = _hex2int(data[reg*16:reg*16+16])
@@ -163,38 +212,33 @@ class GDBServer:
 
         return _make_packet(b"OK")
     
-    def Z(self, packet: GDBPacket):
-        type, addr, kind = packet.args.split(b",", 2)
-        addr = int(addr, 16)
-
-        if type == b"0":
+    @arguments("hex,hex")
+    def Z(self, type: int, addr: int):
+        if type == 0:
             self.breakpoints.append(addr)
-        if type == b"2":
+        if type == 2:
             self.watchpoints_write.append(addr)
-        if type == b"3":
+        if type == 3:
             self.watchpoints_read.append(addr)
 
         return _make_packet(b"OK")
     
-    def z(self, packet: GDBPacket):
-        type, addr, kind = packet.args.split(b",", 2)
-        addr = int(addr, 16)
-        
-        if type == b"0":
+    @arguments("hex,hex")
+    def z(self, type: int, addr: int):
+        if type == 0:
             if addr in self.breakpoints:
                 self.breakpoints.remove(addr)
-        if type == b"2":
+        if type == 2:
             if addr in self.watchpoints_write:
                 self.watchpoints_write.remove(addr)
-        if type == b"3":
+        if type == 3:
             if addr in self.watchpoints_read:
                 self.watchpoints_read.remove(addr)
 
         return _make_packet(b"OK")
     
-    def p(self, packet: GDBPacket):
-        num = int(packet.args, 16)
-
+    @arguments("hex")
+    def p(self, num: int):
         if num == 33:
             value = self.machine.read_register("pc")
         else:
@@ -202,8 +246,9 @@ class GDBServer:
          
         return _make_packet(_int2hex(value))
     
-    def P(self, packet: GDBPacket):
-        num, value = packet.args.split(b"=", 1)
+    @arguments("bytes")
+    def P(self, data: bytes):
+        num, value = data.split(b"=", 1)
         num = int(num, 16)
         value = _hex2int(value)
 

@@ -53,7 +53,23 @@ class GDBServer:
     def __init__(self, machine):
         self.machine = machine
         self.breakpoints = []
+        self.watchpoints_write = []
+        self.watchpoints_read = []
         self.running = False
+        self.hit_watchpoint = False
+
+        def handle_mem_write(cpu, addr, size, value):
+            for w in self.watchpoints_write:
+                if w >= addr and w < addr + size:
+                    self.hit_watchpoint = True
+
+        def handle_mem_read(cpu, addr, size, value):
+            for w in self.watchpoints_read:
+                if w >= addr and w < addr + size:
+                    self.hit_watchpoint = True
+
+        machine.register_callback("memory_write", handle_mem_write)
+        machine.register_callback("memory_read", handle_mem_read)
         
     def handle(self, packet: bytes) -> bytes:
         packet = _parse_gdb_packet(packet)
@@ -103,10 +119,12 @@ class GDBServer:
             addr = int(packet.args, 16)
             self.machine.write_register("pc", addr)
 
+        self.hit_watchpoint = False
+
         while True:
             self.machine.step()
             addr = self.machine.read_register("pc")
-            if addr in self.breakpoints:
+            if addr in self.breakpoints or self.hit_watchpoint:
                 break
 
         return _make_packet(b"S05") # TODO is this the correct reply?
@@ -146,19 +164,31 @@ class GDBServer:
         return _make_packet(b"OK")
     
     def Z(self, packet: GDBPacket):
-        addr = packet.args.split(b",")[1]
+        type, addr, kind = packet.args.split(b",", 2)
         addr = int(addr, 16)
 
-        self.breakpoints.append(addr)
+        if type == b"0":
+            self.breakpoints.append(addr)
+        if type == b"2":
+            self.watchpoints_write.append(addr)
+        if type == b"3":
+            self.watchpoints_read.append(addr)
 
         return _make_packet(b"OK")
     
     def z(self, packet: GDBPacket):
-        addr = packet.args.split(b",")[1]
+        type, addr, kind = packet.args.split(b",", 2)
         addr = int(addr, 16)
         
-        if addr in self.breakpoints:
-            self.breakpoints.remove(addr)
+        if type == b"0":
+            if addr in self.breakpoints:
+                self.breakpoints.remove(addr)
+        if type == b"2":
+            if addr in self.watchpoints_write:
+                self.watchpoints_write.remove(addr)
+        if type == b"3":
+            if addr in self.watchpoints_read:
+                self.watchpoints_read.remove(addr)
 
         return _make_packet(b"OK")
     

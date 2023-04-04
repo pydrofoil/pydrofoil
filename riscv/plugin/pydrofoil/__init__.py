@@ -1,7 +1,7 @@
 from _pydrofoil import RISCV64 as BaseRISCV64
 from typing import Callable
 
-ALL_EVENTS = {"step"}
+ALL_EVENTS = {"step", "memory_read", "memory_write"}
 
 REGISTER_NAMES_API = ["zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
                       "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
@@ -24,12 +24,24 @@ class RISCV64(BaseRISCV64):
         '''
         self._callbacks = {}
 
+    def _handle_memory_callbacks(self, read_writes):
+        for rw in read_writes:
+            if rw[0] == "read":
+                callbacks = self._callbacks.get("memory_read", [])
+                for cb in callbacks:
+                    cb(self, rw[1], rw[2], rw[3])
+            elif rw[0] == "write":
+                callbacks = self._callbacks.get("memory_write", [])
+                for cb in callbacks:
+                    cb(self, rw[1], rw[2], rw[3])
+
     def step(self):
         '''
         Execute a single instruction at the current program counter. 
         If a `"step"` callback is registered, it is called afterwards.
         '''
-        super().step()
+        rws = super().step_monitor_mem()
+        self._handle_memory_callbacks(rws)
         for cb in self._callbacks.get("step", []):
             cb(self)
 
@@ -44,7 +56,8 @@ class RISCV64(BaseRISCV64):
         if limit == 0:
             limit = 2**63-1
         for _ in range(limit):
-            self.step()
+            rws = super().step_monitor_mem()
+            self._handle_memory_callbacks(rws)
 
     def register_callback(self, event: str, callback: Callable):
         '''

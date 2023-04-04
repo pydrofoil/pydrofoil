@@ -35,7 +35,13 @@ def test_get_command_s_attributes():
     assert command == "s"
 
 def test_handle_unsupported():
-    machine = "dummy"
+    class DummyMachine:
+        def __init__(self):
+            pass
+        
+        def register_callback(self, event, callback):
+            pass
+    machine = DummyMachine()
     server = GDBServer(machine)
     resp = server.handle(b"$_#5f")
     assert resp == b"+$#00"
@@ -48,6 +54,9 @@ def test_handle_m():
         def read_memory(self, addr, width):
             self.addrs.append(addr)
             return 1
+        
+        def register_callback(self, event, callback):
+            pass
 
     machine = DummyMachine()
     server = GDBServer(machine)
@@ -65,6 +74,9 @@ def test_handle_M():
             self.addrs.append(addr)
             self.values.append(value)
 
+        def register_callback(self, event, callback):
+            pass
+
     machine = DummyMachine()
     server = GDBServer(machine)
     resp = server.handle(b"$M10,5:0102030405#38")
@@ -79,6 +91,9 @@ def test_handle_s():
 
         def step(self):
             self.has_been_called = True
+
+        def register_callback(self, event, callback):
+            pass
 
     machine = DummyMachine()
     server = GDBServer(machine)
@@ -100,6 +115,9 @@ def test_handle_s_addr():
         def step(self):
             self.has_been_called = True
 
+        def register_callback(self, event, callback):
+            pass
+
     machine = DummyMachine()
     server = GDBServer(machine)
     resp = server.handle(b"$s10#d4")
@@ -109,7 +127,13 @@ def test_handle_s_addr():
     assert machine.addr == 16
 
 def test_real_gdb_packet():
-    server = GDBServer("dummy")
+    class DummyMachine:
+        def __init__(self):
+            pass
+        def register_callback(self, event, callback):
+            pass
+    machine = DummyMachine()
+    server = GDBServer(machine)
     resp = server.handle(b"+$qSupported:multiprocess+;swbreak+;hwbreak+;qRelocInsn+;fork-events+;vfork-events+;exec-events+;vContSupported+;QThreadEvents+;no-resumed+;memory-tagging+;xmlRegisters=i386#77")
     assert resp == b"+$#00"
 
@@ -120,6 +144,9 @@ def test_handle_g():
 
         def read_register(self, reg):
             return 123
+        
+        def register_callback(self, event, callback):
+            pass
 
     machine = DummyMachine()
     server = GDBServer(machine)
@@ -136,6 +163,9 @@ def test_handle_G():
         def write_register(self, reg, value):
             self.regs[reg] = value
 
+        def register_callback(self, event, callback):
+            pass
+
     machine = DummyMachine()
     server = GDBServer(machine)
     resp = server.handle(b"+$G00000000000000007b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000#81")
@@ -149,6 +179,9 @@ def test_handle_p():
 
         def read_register(self, reg):
             return 123
+        
+        def register_callback(self, event, callback):
+            pass
 
     machine = DummyMachine()
     server = GDBServer(machine)
@@ -163,11 +196,14 @@ def test_handle_P():
         def write_register(self, reg, value):
             assert reg == "x1" and value == 123
 
+        def register_callback(self, event, callback):
+            pass
+
     machine = DummyMachine()
     server = GDBServer(machine)
     server.handle(b"$P1=7b00000000000000#f7")
 
-def test_handle_Z():
+def test_handle_Z0():
     class DummyMachine:
         def __init__(self):
             self.pc = 0
@@ -177,6 +213,9 @@ def test_handle_Z():
 
         def step(self):
             self.pc += 1
+
+        def register_callback(self, event, callback):
+            pass
 
     machine = DummyMachine()
     server = GDBServer(machine)
@@ -188,7 +227,7 @@ def test_handle_Z():
     assert resp[2:-3] == b"S05"
     assert machine.pc == 100
 
-def test_handle_z():
+def test_handle_z0():
     class DummyMachine:
         def __init__(self):
             self.pc = 0
@@ -198,6 +237,9 @@ def test_handle_z():
 
         def step(self):
             self.pc += 1
+
+        def register_callback(self, event, callback):
+            pass
 
     machine = DummyMachine()
     server = GDBServer(machine)
@@ -230,12 +272,19 @@ def test_poll_socket():
         def step(self):
             self.pc += 1
 
+        def register_callback(self, event, callback):
+            pass
+
     class DummySocket:
         def __init__(self):
             self.msgs = []
+            self.did_send = False
 
         def recv(self, n):
-            return b"+$s#73+$s#73+$s#73+-"
+            if not self.did_send:
+                self.did_send = True
+                return b"+$s#73+$s#73+$s#73+-"
+            return b""
 
         def send(self, data):
             self.msgs.append(data)
@@ -244,8 +293,11 @@ def test_poll_socket():
     socket = DummySocket()
     server = GDBServer(machine)
     
+    server.running = True
     server.poll_socket(socket)
+    server.stop()
 
+    assert len(socket.msgs) == 3
     assert socket.msgs[0][2:-3] == b"S05"
     assert socket.msgs[1][2:-3] == b"S05"
     assert socket.msgs[2][2:-3] == b"S05"

@@ -62,3 +62,49 @@ def test_alt_register_names_write():
     # read via internal names (x1, x2, etc.)
     for i in range(32):
         assert cpu.read_register("x" + str(i)) == cpu.read_register(ALT_NAMES[i])
+
+def test_memory_read_callback():
+    cpu = pydrofoil.RISCV64()
+    ram_base = 0x80000000
+    has_been_called = False
+    def read_callback(cpu, addr, size, value):
+        nonlocal has_been_called
+        has_been_called = True
+        assert addr == ram_base
+        assert size == 1
+        assert value == 151
+    cpu.register_callback("memory_read", read_callback)
+    instr1 = 0b001010010111 # auipc x5, 0
+    instr2 = 0b00101000001010000011 # lb x5, 0(x5)
+    cpu.write_memory(ram_base, instr1)
+    cpu.write_memory(ram_base + 4, instr2)
+    cpu.write_register("pc", ram_base)
+    cpu.step()
+    cpu.step()
+    assert cpu.read_register("x5") & 0xff == 151
+    assert has_been_called
+
+def test_memory_write_callback():
+    cpu = pydrofoil.RISCV64()
+    ram_base = 0x80000000
+    has_been_called = False
+    def write_callback(cpu, addr, size, value):
+        nonlocal has_been_called
+        has_been_called = True
+        assert addr == ram_base + 4
+        assert size == 1
+        assert value == 7
+    cpu.register_callback("memory_write", write_callback)
+    instr1 = 0b11100000000000010010011 # addi x1, x0, 7
+    instr2 = 0b001010010111 # auipc x5, 0
+    instr3 = 0b0000100101000000000100011 # sb x1, 0(x5)
+    cpu.write_memory(ram_base, instr1)
+    cpu.write_memory(ram_base + 4, instr2)
+    cpu.write_memory(ram_base + 8, instr3)
+    cpu.write_register("pc", ram_base)
+    cpu.step()
+    cpu.step()
+    cpu.step()
+    assert cpu.read_register("x1") == 7
+    assert has_been_called
+    

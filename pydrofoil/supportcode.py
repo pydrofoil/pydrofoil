@@ -136,6 +136,9 @@ def sign_extend(machine, gbv, lint):
 def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)
 
+def neq_bits(machine, gvba, gvbb):
+    return not gvba.eq(gvbb)
+
 def xor_bits(machine, gvba, gvbb):
     return gvba.xor(gvbb)
 
@@ -169,6 +172,9 @@ def sail_unsigned(machine, gbv):
 
 def sail_signed(machine, gbv):
     return gbv.signed()
+
+def append(machine, bv1, bv2):
+    return bv1.append(bv2)
 
 def append_64(machine, bv, v):
     return bv.append_64(v)
@@ -280,6 +286,9 @@ def int_to_int64(machine, r):
 
 def int64_to_int(machine, i):
     return Integer.fromint(i)
+
+def string_to_int(machine, s):
+    return Integer.fromstr(s)
 
 # various
 

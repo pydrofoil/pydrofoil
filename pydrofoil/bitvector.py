@@ -43,6 +43,9 @@ class BitVector(object):
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
 
+    def append(self, other):
+        return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
+
     def append_64(self, ui):
         return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
 

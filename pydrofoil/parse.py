@@ -38,6 +38,7 @@ addtok('PERCENTENUM', r'%enum')
 addtok('PERCENTUNION', r'%union')
 addtok('PERCENTSTRUCT', r'%struct')
 addtok('PERCENTVEC', r'%vec')
+addtok('PERCENTFVEC', r'%fvec')
 addtok('PERCENTLIST', r'%list')
 
 addtok('BINBITVECTOR', r'0b[01]+')
@@ -251,6 +252,11 @@ class RefType(Type):
 
 class VecType(Type):
     def __init__(self, of):
+        self.of = of
+
+class FVecType(Type):
+    def __init__(self, number, of):
+        self.number = number
         self.of = of
 
 class Statement(BaseAst):
@@ -500,14 +506,14 @@ def operations(p):
 
 # operations
 
-@pg.production('operation : operationwithposition SOURCEPOS | end | goto ')
+@pg.production('operation : operationwithposition SOURCEPOS | end | goto | arbitrary ')
 def operation(p):
     if len(p) == 2:
         return p[0].add_sourcepos(p[1].value)
     else:
         return p[0]
 
-@pg.production('operationwithposition : localvardeclaration | op | templatedop | conditionaljump | assignment | exit | arbitrary')
+@pg.production('operationwithposition : localvardeclaration | op | templatedop | conditionaljump | assignment | exit')
 def operationwithposition(p):
     return p[0]
 
@@ -522,9 +528,9 @@ def localvardeclaration(p):
 def op(p):
     return Operation(p[0].value, p[2].value, p[4].args)
 
-@pg.production('templatedop : NAME EQUAL NAME COLON COLON LT expr GT LPAREN opargs RPAREN')
+@pg.production('templatedop : NAME EQUAL NAME LT type GT LPAREN opargs RPAREN')
 def op(p):
-    return TemplatedOperation(p[0].value, p[2].value, p[6], p[9].args)
+    return TemplatedOperation(p[0].value, p[2].value, p[4], p[7].args)
 
 @pg.production('opargs : expr | expr COMMA opargs')
 def opargs(p):
@@ -627,7 +633,7 @@ def arbitrary(p):
 def typ(p):
     return p[0]
 
-@pg.production('simpletype : namedtype | tupletype | enumtype | uniontype | structtype | reftype | vectype | listtype')
+@pg.production('simpletype : namedtype | tupletype | enumtype | uniontype | structtype | reftype | vectype | fvectype | listtype')
 def simpletype(p):
     return p[0]
 
@@ -673,6 +679,10 @@ def reftype(p):
 @pg.production('vectype : PERCENTVEC LPAREN simpletype RPAREN')
 def vectype(p):
     return VecType(p[2])
+
+@pg.production('fvectype : PERCENTFVEC LPAREN NUMBER COMMA simpletype RPAREN')
+def fvectype(p):
+    return FVecType(int(p[2].value), p[4])
 
 
 def print_conflicts():

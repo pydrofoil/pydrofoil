@@ -14,7 +14,7 @@ def ruint_mask(s, width):
         return s
     return "(%s) & r_uint(0x%x)" % (s, (1 << width) - 1)
 
-class __extend__(types.FixedBitVector):
+class __extend__(types.SmallFixedBitVector):
     def checkwidths(self, argtyps):
         for typ in argtyps:
             assert typ.width == self.width

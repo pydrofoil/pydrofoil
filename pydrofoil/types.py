@@ -43,6 +43,13 @@ class Vec(Type):
         self.typ = typ
 
 @unique
+class FVec(Type):
+    def __init__(self, number, typ):
+        assert isinstance(typ, Type)
+        self.number = number
+        self.typ = typ
+
+@unique
 class Function(Type):
     def __init__(self, argtype, restype):
         assert isinstance(argtype, Type)
@@ -65,15 +72,28 @@ class List(Type):
         self.typ = typ
 
 @unique
-class FixedBitVector(Type):
+class SmallFixedBitVector(Type):
     uninitialized_value = "r_uint(0)"
 
     def __init__(self, width):
         # size known at compile time
+        assert width <= 64
         self.width = width
 
     def __repr__(self):
-        return "FixedBitVector(%s)" % (self.width, )
+        return "SmallFixedBitVector(%s)" % (self.width, )
+
+@unique
+class BigFixedBitVector(Type):
+    uninitialized_value = "rbigint.fromint(0)"
+
+    def __init__(self, width):
+        # size known at compile time
+        assert width > 64
+        self.width = width
+
+    def __repr__(self):
+        return "BigFixedBitVector(%s)" % (self.width, )
 
 @unique
 class SmallBitVector(Type):

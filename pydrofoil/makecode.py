@@ -149,6 +149,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
     c = Codegen(promoted_registers)
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib import jit")
+        c.emit("from rpython.rlib.rbigint import rbigint")
         c.emit("from rpython.rlib import objectmodel")
         c.emit("from rpython.rlib.rarithmetic import r_uint, intmask")
         c.emit("import operator")
@@ -218,7 +219,7 @@ class __extend__(parse.Union):
                 with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                     # default field values
                     if type(rtyp) is types.Struct:
-                        for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
+                        for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                             codegen.emit("%s = %s" % (fieldname, fieldtyp.uninitialized_value))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
@@ -251,8 +252,8 @@ class __extend__(parse.Union):
                 codegen.emit("pass")
             elif type(rtyp) is types.Struct:
                 codegen.emit("# %s" % typ)
-                for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
-                    codegen.emit("self.%s = a.%s # %s" % (fieldname, fieldname, fieldtyp))
+                for fieldname, fieldtyp in sorted(sorted(rtyp.fieldtyps.iteritems())):
+                    codegen.emit("self.%s = a.%s" % (fieldname, fieldname))
             else:
                 codegen.emit("self.a = a # %s" % (typ, ))
 
@@ -265,7 +266,7 @@ class __extend__(parse.Union):
                 return
             elif type(rtyp) is types.Struct:
                 codegen.emit("# %s" % typ)
-                for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
+                for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                     codegen.emit("if %s: return False" % (
                         fieldtyp.make_op_code_special_neq(
                             None,
@@ -285,7 +286,7 @@ class __extend__(parse.Union):
                     codegen.emit("return ()")
                 elif type(rtyp) is types.Struct:
                     codegen.emit("res = %s" % rtyp.uninitialized_value)
-                    for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
+                    for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                         codegen.emit("res.%s = inst.%s" % (fieldname, fieldname))
                     codegen.emit("return res")
                 else:
@@ -293,7 +294,7 @@ class __extend__(parse.Union):
             with codegen.emit_indent("else:"):
                 codegen.emit("raise TypeError")
         if type(rtyp) is types.Struct:
-            for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
+            for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                 codegen.emit("@staticmethod")
                 with codegen.emit_indent("def convert_%s(inst):" % fieldname):
                     with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
@@ -348,6 +349,8 @@ class __extend__(parse.GlobalVal):
                     name = "int_to_int64"
                 elif name == "%i64->%i":
                     name = "int64_to_int"
+                elif name == "%string->%i":
+                    name = "string_to_int"
                 else:
                     import pdb; pdb.set_trace()
             if name == "not": name = "not_"
@@ -639,6 +642,7 @@ class __extend__(parse.Operation):
                 getattr(argtyps[0], "make_op_code_special_" + name[1:])(self, sargs, argtyps)))
             return
         elif name.startswith("$zcons"): # magic list cons stuff
+            import pdb; pdb.set_trace()
             restyp = codegen.gettyp(self.result)
             codegen.emit("%s = %s(%s, %s)" % (result, restyp.pyname, sargs[0], sargs[1]))
             return
@@ -729,12 +733,17 @@ class __extend__(parse.TemplatedOperation):
     def make_op_code(self, codegen):
         typ = self.args[0].gettyp(codegen)
         name = self.name
+        result = codegen.gettarget(self.result)
         if name.startswith("@"):
             op = getattr(typ, "make_op_code_templated_" + name[1:])(self, codegen)
-            result = codegen.gettarget(self.result)
             codegen.emit("%s = %s" % (result, op))
             return
+        elif name == '$zcons':
+            restyp = codegen.gettyp(self.result)
+            sargs = [arg.to_code(codegen) for arg in self.args]
+            codegen.emit("%s = %s(%s, %s)" % (result, restyp.pyname, sargs[0], sargs[1]))
         else:
+            import pdb; pdb.set_trace()
             codegen.emit("XXX")
 
 # ____________________________________________________________
@@ -768,9 +777,14 @@ class __extend__(parse.BitVectorConstant):
 
     def gettyp(self, codegen):
         if self.constant.startswith("0b"):
-            return types.FixedBitVector(len(self.constant) - 2)
-        assert self.constant.startswith("0x")
-        return types.FixedBitVector((len(self.constant) - 2) * 4)
+            size = len(self.constant) - 2
+        else:
+            assert self.constant.startswith("0x")
+            size = (len(self.constant) - 2) * 4
+        if size <= 64:
+            return types.SmallFixedBitVector(size)
+        else:
+            return types.BigFixedBitVector(size)
 
 class __extend__(parse.Unit):
     def to_code(self, codegen):
@@ -801,6 +815,9 @@ class __extend__(parse.StructConstruction):
 class __extend__(parse.FieldAccess):
     def to_code(self, codegen):
         obj = self.obj
+        if isinstance(self.obj, parse.StructConstruction):
+            index = self.obj.fieldnames.index(self.element)
+            return self.obj.fieldvalues[index].to_code(codegen)
         if isinstance(obj, parse.Cast):
             return "%s.convert_%s(%s)" % (codegen.getname(obj.variant), self.element, obj.expr.to_code(codegen))
         objtyp = obj.gettyp(codegen)
@@ -810,6 +827,9 @@ class __extend__(parse.FieldAccess):
         return res
 
     def gettyp(self, codegen):
+        if isinstance(self.obj, parse.StructConstruction):
+            index = self.obj.fieldnames.index(self.element)
+            return self.obj.fieldvalues[index].gettyp(codegen)
         objtyp = self.obj.gettyp(codegen)
         return objtyp.fieldtyps[self.element]
 
@@ -886,7 +906,11 @@ class __extend__(parse.NamedType):
         if name == "%bv":
             return types.GenericBitVector()
         if name.startswith("%bv"):
-            return types.FixedBitVector(int(name[3:]))
+            size = int(name[3:])
+            if size <= 64:
+                return types.SmallFixedBitVector(size)
+            else:
+                return types.BigFixedBitVector(size)
         if name == "%unit":
             return types.Unit()
         if name == "%i64":
@@ -932,6 +956,10 @@ class __extend__(parse.RefType):
 class __extend__(parse.VecType):
     def resolve_type(self, codegen):
         return types.Vec(self.of.resolve_type(codegen))
+
+class __extend__(parse.FVecType):
+    def resolve_type(self, codegen):
+        return types.FVec(self.number, self.of.resolve_type(codegen))
 
 class __extend__(parse.TupleType):
     def resolve_type(self, codegen):

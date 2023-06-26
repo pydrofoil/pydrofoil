@@ -302,7 +302,7 @@ def test_full_nand():
     assert machine._reg_zA == 0
     assert machine._reg_zPC == 11
     supportcodenand.load_rom(sumrom)
-    zmymain(out.Machine(), 2000, True)
+    zmymain(out.Machine(), rarithmetic.r_uint(2000), True)
     assert supportcodenand.my_read_mem(machine, 17) == 5050
 
     def main():

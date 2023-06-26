@@ -217,9 +217,9 @@ class __extend__(parse.Union):
                 self.pynames.append(pyname)
                 with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                     # default field values
-                    if type(rtyp) is types.Tuple:
-                        for fieldnum, fieldtyp in enumerate(rtyp.elements):
-                            codegen.emit("utup%s = %s" % (fieldnum, fieldtyp.uninitialized_value))
+                    if type(rtyp) is types.Struct:
+                        for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
+                            codegen.emit("%s = %s" % (fieldname, fieldtyp.uninitialized_value))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                     self.make_init(codegen, rtyp, typ, pyname)
@@ -249,10 +249,10 @@ class __extend__(parse.Union):
         with codegen.emit_indent("def __init__(self, a):"):
             if rtyp is types.Unit():
                 codegen.emit("pass")
-            elif type(rtyp) is types.Tuple:
+            elif type(rtyp) is types.Struct:
                 codegen.emit("# %s" % typ)
-                for fieldnum, fieldtyp in enumerate(rtyp.elements):
-                    codegen.emit("self.utup%s = a.ztup%s" % (fieldnum, fieldnum))
+                for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
+                    codegen.emit("self.%s = a.%s # %s" % (fieldname, fieldname, fieldtyp))
             else:
                 codegen.emit("self.a = a # %s" % (typ, ))
 
@@ -263,12 +263,14 @@ class __extend__(parse.Union):
             if rtyp is types.Unit():
                 codegen.emit("return True")
                 return
-            elif type(rtyp) is types.Tuple:
+            elif type(rtyp) is types.Struct:
                 codegen.emit("# %s" % typ)
-                for fieldnum, fieldtyp in enumerate(rtyp.elements):
-                    codegen.emit("if %s: return False # %s" % (
-                        fieldtyp.make_op_code_special_neq(None, ('self.utup%s' % fieldnum, 'other.utup%s' % fieldnum), (fieldtyp, fieldtyp)),
-                        typ.elements[fieldnum]))
+                for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
+                    codegen.emit("if %s: return False" % (
+                        fieldtyp.make_op_code_special_neq(
+                            None,
+                            ('self.%s' % fieldname, 'other.%s' % fieldname),
+                            (fieldtyp, fieldtyp))))
             else:
                 codegen.emit("if %s: return False # %s" % (
                     rtyp.make_op_code_special_neq(None, ('self.a', 'other.a'), (rtyp, rtyp)), typ))
@@ -281,21 +283,21 @@ class __extend__(parse.Union):
             with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
                 if rtyp is types.Unit():
                     codegen.emit("return ()")
-                elif type(rtyp) is types.Tuple:
+                elif type(rtyp) is types.Struct:
                     codegen.emit("res = %s" % rtyp.uninitialized_value)
-                    for fieldnum, fieldtyp in enumerate(rtyp.elements):
-                        codegen.emit("res.ztup%s = inst.utup%s" % (fieldnum, fieldnum))
+                    for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
+                        codegen.emit("res.%s = inst.%s" % (fieldname, fieldname))
                     codegen.emit("return res")
                 else:
                     codegen.emit("return inst.a")
             with codegen.emit_indent("else:"):
                 codegen.emit("raise TypeError")
-        if type(rtyp) is types.Tuple:
-            for fieldnum, fieldtyp in enumerate(rtyp.elements):
+        if type(rtyp) is types.Struct:
+            for fieldname, fieldtyp in rtyp.fieldtyps.iteritems():
                 codegen.emit("@staticmethod")
-                with codegen.emit_indent("def convert_ztup%s(inst):" % fieldnum):
+                with codegen.emit_indent("def convert_%s(inst):" % fieldname):
                     with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
-                        codegen.emit("return inst.utup%s" % (fieldnum, ))
+                        codegen.emit("return inst.%s" % (fieldname, ))
                     with codegen.emit_indent("else:"):
                         codegen.emit("raise TypeError")
 
@@ -809,9 +811,6 @@ class __extend__(parse.FieldAccess):
 
     def gettyp(self, codegen):
         objtyp = self.obj.gettyp(codegen)
-        if isinstance(objtyp, types.Tuple):
-            assert self.element.startswith("ztup")
-            return objtyp.elements[int(self.element[len('ztup'):])]
         return objtyp.fieldtyps[self.element]
 
 class __extend__(parse.Cast):

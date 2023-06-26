@@ -143,19 +143,59 @@ class Union_zinstr_zAINST(Union_zinstr):
             raise TypeError
 
 class Union_zinstr_zCINST(Union_zinstr):
-    a = Struct_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump(r_uint(0), -1, Struct_ztuplez3z5bool_z5bool_z5bool(False, False, False), -1)
+    ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = -1
+    ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 = r_uint(0)
+    ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = -1
+    ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 = Struct_ztuplez3z5bool_z5bool_z5bool(False, False, False)
     def __init__(self, a):
-        self.a = a # StructType(name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump')
+        # StructType(name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump')
+        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 # <pydrofoil.types.Enum object at 0x7f8b9c493b10>
+        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 # FixedBitVector(1)
+        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 # <pydrofoil.types.Enum object at 0x7f8b9c48cd10>
+        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 # <pydrofoil.types.Struct object at 0x7f8b9c493790>
     @objectmodel.always_inline
     def eq(self, other):
         if type(self) is not type(other): return False
-        if not (self.a.eq(other.a)): return False # StructType(name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump')
+        # StructType(name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump')
+        if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 == other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1): return False
+        if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 == other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0): return False
+        if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 == other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3): return False
+        if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2.eq(other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2)): return False
         return True
     @staticmethod
     @objectmodel.always_inline
     def convert(inst):
         if isinstance(inst, Union_zinstr_zCINST):
-            return inst.a
+            res = Struct_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump(r_uint(0), -1, Struct_ztuplez3z5bool_z5bool_z5bool(False, False, False), -1)
+            res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1
+            res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0
+            res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3
+            res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2
+            return res
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2
         else:
             raise TypeError
 
@@ -374,7 +414,6 @@ def model_init(machine):
 # Pragma(content=['zNone', 'zNonezIUinstrzIzKzK'], name='mangled')
 
 # Pragma(content=['zoption', 'zoptionzIUinstrzIzKzK'], name='mangled')
-
 
 
 
@@ -2254,37 +2293,19 @@ def func_zmain(machine, zgsz3120):
 
 
 def func_zinitializze_registers(machine, zgsz3121):
-    # zz45: NamedType('%i')
-    # Operation(args=[Number(number=16)], name='zz5i64zDzKz5i', result='zz45', sourcepos='`62')
-    zz45 = supportcode.int64_to_int(machine, 16)
-    # zz47: NamedType('%bv')
-    # Operation(args=[Var(name='zz45')], name='zundefined_bitvector', result='zz47', sourcepos='`64')
-    zz47 = supportcode.undefined_bitvector(machine, zz45)
-    # Assignment(result='zPC', sourcepos='`65', value=Var(name='zz47'))
-    machine._reg_zPC = zz47.touint()
-    # zz46: NamedType('%unit')
-    # Assignment(result='zz46', sourcepos='`67', value=Unit())
-    zz46 = ()
-    # zz42: NamedType('%i')
-    # Operation(args=[Number(number=16)], name='zz5i64zDzKz5i', result='zz42', sourcepos='`69')
-    zz42 = supportcode.int64_to_int(machine, 16)
-    # zz44: NamedType('%bv')
-    # Operation(args=[Var(name='zz42')], name='zundefined_bitvector', result='zz44', sourcepos='`71')
-    zz44 = supportcode.undefined_bitvector(machine, zz42)
-    # Assignment(result='zA', sourcepos='`72', value=Var(name='zz44'))
-    machine._reg_zA = zz44.touint()
-    # zz43: NamedType('%unit')
-    # Assignment(result='zz43', sourcepos='`74', value=Unit())
-    zz43 = ()
-    # zz40: NamedType('%i')
-    # Operation(args=[Number(number=16)], name='zz5i64zDzKz5i', result='zz40', sourcepos='`76')
-    zz40 = supportcode.int64_to_int(machine, 16)
-    # zz41: NamedType('%bv')
-    # Operation(args=[Var(name='zz40')], name='zundefined_bitvector', result='zz41', sourcepos='`78')
-    zz41 = supportcode.undefined_bitvector(machine, zz40)
-    # Assignment(result='zD', sourcepos='`79', value=Var(name='zz41'))
-    machine._reg_zD = zz41.touint()
-    # Assignment(result='return', sourcepos='`80', value=Unit())
+    # Assignment(result='zPC', sourcepos='`61', value=BitVectorConstant(constant='0x0000'))
+    machine._reg_zPC = r_uint(0x0000)
+    # zz41: NamedType('%unit')
+    # Assignment(result='zz41', sourcepos='`63', value=Unit())
+    zz41 = ()
+    # Assignment(result='zA', sourcepos='`64', value=BitVectorConstant(constant='0x0000'))
+    machine._reg_zA = r_uint(0x0000)
+    # zz40: NamedType('%unit')
+    # Assignment(result='zz40', sourcepos='`66', value=Unit())
+    zz40 = ()
+    # Assignment(result='zD', sourcepos='`67', value=BitVectorConstant(constant='0x0000'))
+    machine._reg_zD = r_uint(0x0000)
+    # Assignment(result='return', sourcepos='`68', value=Unit())
     return_ = ()
     # End()
     return return_

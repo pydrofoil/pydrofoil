@@ -87,7 +87,6 @@ make_dummy('string_drop')
 make_dummy('string_take')
 make_dummy('string_startswith')
 make_dummy('string_length')
-make_dummy('sub_bits')
 make_dummy('sub_nat')
 make_dummy('tmod_int')
 make_dummy('zeros')
@@ -116,8 +115,16 @@ def fast_signed(machine, op, n):
 def add_bits_int(machine, a, b):
     return a.add_int(b)
 
+@objectmodel.always_inline
+def add_bits(machine, a, b):
+    return a.add_bits(b)
+
 def sub_bits_int(machine, a, b):
     return a.sub_int(b)
+
+@objectmodel.always_inline
+def sub_bits(machine, a, b):
+    return a.sub_bits(b)
 
 def length(machine, gbv):
     return gbv.size_as_int()

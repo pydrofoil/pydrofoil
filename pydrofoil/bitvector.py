@@ -89,6 +89,16 @@ class SmallBitVector(BitVectorWithSize):
         # XXX can be better
         return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().add(i.tobigint())))
 
+    def add_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, SmallBitVector)
+        return self.make(self.val + other.val, True)
+
+    def sub_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, SmallBitVector)
+        return self.make(self.val - other.val, True)
+
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
             if i.val > 0:
@@ -222,6 +232,16 @@ class GenericBitVector(BitVectorWithSize):
 
     def add_int(self, i):
         return self.make(self._size_mask(self.rval.add(i.tobigint())))
+
+    def add_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, GenericBitVector)
+        return self.make(self._size_mask(self.rval.add(other.rval)))
+
+    def sub_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, GenericBitVector)
+        return self.make(self._size_mask(self.rval.sub(other.rval)))
 
     def sub_int(self, i):
         return self.make(self._size_mask(self.rval.sub(i.tobigint())))

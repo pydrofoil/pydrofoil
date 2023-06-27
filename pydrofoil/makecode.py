@@ -271,10 +271,10 @@ class __extend__(parse.Union):
                         fieldtyp.make_op_code_special_neq(
                             None,
                             ('self.%s' % fieldname, 'other.%s' % fieldname),
-                            (fieldtyp, fieldtyp))))
+                            (fieldtyp, fieldtyp), types.Bool())))
             else:
                 codegen.emit("if %s: return False # %s" % (
-                    rtyp.make_op_code_special_neq(None, ('self.a', 'other.a'), (rtyp, rtyp)), typ))
+                    rtyp.make_op_code_special_neq(None, ('self.a', 'other.a'), (rtyp, rtyp), types.Bool()), typ))
             codegen.emit("return True")
 
     def make_convert(self, codegen, rtyp, typ, pyname):
@@ -336,7 +336,7 @@ class __extend__(parse.Struct):
                 for arg, typ in zip(self.names, self.types):
                     rtyp = typ.resolve_type(codegen)
                     codegen.emit("if %s: return False # %s" % (
-                        rtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (rtyp, rtyp)), typ))
+                        rtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (rtyp, rtyp), types.Bool()), typ))
                 codegen.emit("return True")
         structtyp.uninitialized_value = "%s(%s)" % (self.pyname, ", ".join(uninit_arg))
 
@@ -634,16 +634,15 @@ class __extend__(parse.Operation):
         result = codegen.gettarget(self.result)
         sargs = [arg.to_code(codegen) for arg in self.args]
         argtyps = [arg.gettyp(codegen) for arg in self.args]
+        restyp = codegen.gettyp(self.result)
         if name in codegen.globalnames and codegen.globalnames[name].pyname == "supportcode.eq_anything":
             name = "@eq"
 
         if name.startswith("@"):
             codegen.emit("%s = %s" % (result,
-                getattr(argtyps[0], "make_op_code_special_" + name[1:])(self, sargs, argtyps)))
+                getattr(argtyps[0], "make_op_code_special_" + name[1:])(self, sargs, argtyps, restyp)))
             return
         elif name.startswith("$zcons"): # magic list cons stuff
-            import pdb; pdb.set_trace()
-            restyp = codegen.gettyp(self.result)
             codegen.emit("%s = %s(%s, %s)" % (result, restyp.pyname, sargs[0], sargs[1]))
             return
         elif name.startswith("$zinternal_vector_init"): # magic vector stuff
@@ -734,11 +733,7 @@ class __extend__(parse.TemplatedOperation):
         typ = self.args[0].gettyp(codegen)
         name = self.name
         result = codegen.gettarget(self.result)
-        if name.startswith("@"):
-            op = getattr(typ, "make_op_code_templated_" + name[1:])(self, codegen)
-            codegen.emit("%s = %s" % (result, op))
-            return
-        elif name == '$zcons':
+        if name == '$zcons':
             restyp = codegen.gettyp(self.result)
             sargs = [arg.to_code(codegen) for arg in self.args]
             codegen.emit("%s = %s(%s, %s)" % (result, restyp.pyname, sargs[0], sargs[1]))
@@ -879,7 +874,7 @@ class __extend__(parse.Comparison):
             sargs = [arg.to_code(codegen) for arg in self.args]
             argtyps = [arg.gettyp(codegen) for arg in self.args]
             if hasattr(argtyps[0], "make_op_code_special_" + op[1:]):
-                return getattr(argtyps[0], "make_op_code_special_" + op[1:])(self, sargs, argtyps)
+                return getattr(argtyps[0], "make_op_code_special_" + op[1:])(self, sargs, argtyps, types.Bool())
             print "didn't find", op, argtyps, sargs
             op = "XXX_cmp_" + op[1:]
         return "%s(%s)" % (op, ", ".join([arg.to_code(codegen) for arg in self.args]))
@@ -919,8 +914,6 @@ class __extend__(parse.NamedType):
             return types.Bit()
         if name == "%string":
             return types.String()
-        if name.startswith("%sbv"):
-            return types.SmallBitVector(int(name[len("%sbv"):]))
         xxx
 
 class __extend__(parse.EnumType):
@@ -972,7 +965,7 @@ class __extend__(parse.TupleType):
                     for index, fieldtyp in enumerate(self.elements):
                         rtyp = fieldtyp.resolve_type(codegen)
                         codegen.emit("if %s: return False # %s" % (
-                            rtyp.make_op_code_special_neq(None, ('self.utup%s' % index, 'other.utup%s' % index), (rtyp, rtyp)), fieldtyp))
+                            rtyp.make_op_code_special_neq(None, ('self.utup%s' % index, 'other.utup%s' % index), (rtyp, rtyp), types.Bool()), fieldtyp))
                     codegen.emit("return True")
             typ.pyname = pyname
         typ.uninitialized_value = "%s()" % (pyname, )

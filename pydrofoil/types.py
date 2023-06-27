@@ -95,16 +95,6 @@ class BigFixedBitVector(Type):
     def __repr__(self):
         return "BigFixedBitVector(%s)" % (self.width, )
 
-@unique
-class SmallBitVector(Type):
-    uninitialized_value = "None"
-
-    # small bitvector: length of at most width
-    def __init__(self, width):
-        self.width = width
-
-    def __repr__(self):
-        return "SmallBitVector(%s)" % (self.width, )
 
 @unique
 class GenericBitVector(Type):

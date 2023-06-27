@@ -11,6 +11,14 @@ class __extend__(pairtype(types.Type, types.Type)):
 class __extend__(pairtype(types.SmallFixedBitVector, types.GenericBitVector)):
     def convert((from_, to), ast, codegen):
         assert from_.width <= 64
+        if isinstance(ast, parse.BitVectorConstant):
+            name = "bitvectorconstant%s" % ast.constant
+            with codegen.cached_declaration(0, name) as pyname:
+                codegen.emit("%s = bitvector.from_ruint(%s, %s)" % (
+                    pyname, from_.width, ast.to_code(codegen)))
+                return pyname
+        if ast.is_constant(codegen):
+            import pdb; pdb.set_trace()
         return "bitvector.from_ruint(%s, %s)" % (from_.width, ast.to_code(codegen))
 
 class __extend__(pairtype(types.SmallFixedBitVector, types.SmallFixedBitVector)):

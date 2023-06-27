@@ -195,6 +195,7 @@ def update_fbits(fb, index, element):
 def vector_update_subrange(machine, bv, n, m, s):
     return bv.update_subrange(n.toint(), m.toint(), s)
 
+@objectmodel.always_inline
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n.toint(), m.toint())
 
@@ -281,7 +282,14 @@ def eq_bool(machine, a, b):
 def string_of_int(machine, r):
     return r.str()
 
+@objectmodel.specialize.arg_or_var(1)
 def int_to_int64(machine, r):
+    if objectmodel.is_annotation_constant(r):
+        return _int_to_int64_memo(r)
+    return r.toint()
+
+@objectmodel.specialize.memo()
+def _int_to_int64_memo(r):
     return r.toint()
 
 def int64_to_int(machine, i):

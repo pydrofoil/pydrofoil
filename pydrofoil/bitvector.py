@@ -2,16 +2,22 @@ import sys
 from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
-from rpython.rlib.objectmodel import always_inline, specialize
+from rpython.rlib.objectmodel import always_inline, specialize, is_annotation_constant
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 
 @always_inline
-@specialize.arg_or_var(0)
+@specialize.arg_or_var(0, 1)
 def from_ruint(size, val):
     if size <= 64:
+        if is_annotation_constant(size) and is_annotation_constant(val):
+            return _small_bit_vector_memo(size, val)
         return SmallBitVector(size, val, True)
     return GenericBitVector(size, rbigint.fromrarith_int(val), True)
+
+@specialize.memo()
+def _small_bit_vector_memo(size, val):
+    return SmallBitVector(size, val)
 
 @always_inline
 def from_bigint(size, rval):

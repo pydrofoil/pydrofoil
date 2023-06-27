@@ -29,6 +29,7 @@ class Codegen(object):
         self.declarationcache = {}
         self.gensym = {} # prefix -> number
         self.localnames = None
+        self.mostrecentlocalvalues = None
         self.add_global("false", "False", types.Bool())
         self.add_global("true", "True", types.Bool())
         self.add_global("bitzero", "r_uint(0)", types.Bit())
@@ -170,6 +171,10 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
 
 # ____________________________________________________________
 # declarations
+
+class __extend__(parse.BaseAst):
+    def is_constant(self, codegen):
+        return False
 
 class __extend__(parse.File):
     def make_code(self, codegen):
@@ -551,6 +556,7 @@ class __extend__(parse.Function):
                     self.emit_block_ops(block, codegen, entrycounts, blockpc, blocks)
 
     def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
+        self.mostrecentlocalvalues = {}
         for i, op in enumerate(block):
             if (isinstance(op, parse.LocalVarDeclaration) and
                     i + 1 < len(block) and
@@ -581,6 +587,7 @@ class __extend__(parse.Function):
                 op.make_op_code(codegen)
             if op.end_of_block:
                 return
+        self.mostrecentlocalvalues = None
 
 class __extend__(parse.Pragma):
     def make_code(self, codegen):
@@ -661,7 +668,15 @@ class __extend__(parse.Operation):
         info = codegen.getinfo(name)
         if isinstance(info.typ, types.Function):
             # pass machine, even to supportcode functions
-            codegen.emit("%s = %s(machine, %s)" % (result, op, args))
+            #if "int_to_int64" in op:
+            #    import pdb; pdb.set_trace()
+            if (op.startswith("supportcode.") and
+                    all(arg.is_constant(codegen) for arg in self.args) and
+                    can_constfold(op)):
+                folded_result = constfold(op, sargs, self, codegen)
+                codegen.emit("%s = %s" % (result, folded_result))
+            else:
+                codegen.emit("%s = %s(machine, %s)" % (result, op, args))
         elif isinstance(info.typ, types.Union):
             codegen.emit("%s = %s" % (result, info.ast.constructor(info, op, args, argtyps)))
         else:
@@ -760,6 +775,9 @@ class __extend__(parse.Var):
         return codegen.gettyp(self.name)
 
 class __extend__(parse.Number):
+    def is_constant(self, codegen):
+        return True
+
     def to_code(self, codegen):
         return str(self.number)
 
@@ -767,6 +785,9 @@ class __extend__(parse.Number):
         return types.MachineInt()
 
 class __extend__(parse.BitVectorConstant):
+    def is_constant(self, codegen):
+        return True
+
     def to_code(self, codegen):
         return "r_uint(%s)" % (self.constant, )
 
@@ -970,3 +991,17 @@ class __extend__(parse.TupleType):
             typ.pyname = pyname
         typ.uninitialized_value = "%s()" % (pyname, )
         return typ
+
+
+def can_constfold(op):
+    return op in {"supportcode.int64_to_int"}
+
+def constfold(op, sargs, ast, codegen):
+    if op == "supportcode.int64_to_int":
+        name = "smallintconst%s" % sargs[0]
+        name = name.replace("-", "_minus_")
+        with codegen.cached_declaration(sargs[0], name) as pyname:
+            codegen.emit("%s = bitvector.SmallInteger(%s)" % (pyname, sargs[0]))
+        return pyname
+    else:
+        assert 0

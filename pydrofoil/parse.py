@@ -323,13 +323,6 @@ class Assignment(StatementWithSourcePos):
         self.result = result
         self.value = value
 
-class TupleElementAssignment(StatementWithSourcePos):
-    def __init__(self, tup, index, value, sourcepos=None):
-        self.tup = tup
-        self.index = index
-        self.value = value
-        self.sourcepos = sourcepos
-
 class StructElementAssignment(StatementWithSourcePos):
     def __init__(self, obj, field, value, sourcepos=None):
         self.obj = obj
@@ -600,14 +593,12 @@ def condition(p):
 def op(p):
     return Goto(int(p[1].value))
 
-@pg.production('assignment : NAME EQUAL expr | NAME STAR EQUAL expr | NAME DOT NUMBER EQUAL expr | NAME DOT NAME EQUAL expr')
+@pg.production('assignment : NAME EQUAL expr | NAME STAR EQUAL expr | NAME DOT NAME EQUAL expr')
 def op(p):
     if len(p) == 3:
         return Assignment(p[0].value, p[2])
     if len(p) == 4:
         return RefAssignment(p[0].value, p[3])
-    elif p[2].gettokentype() == "NUMBER":
-        return TupleElementAssignment(p[0].value, int(p[2].value), p[4])
     else:
         assert p[2].gettokentype() == "NAME"
         return StructElementAssignment(p[0].value, p[2].value, p[4])

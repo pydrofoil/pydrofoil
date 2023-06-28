@@ -709,10 +709,6 @@ class __extend__(parse.Assignment):
         rhs = pair(othertyp, typ).convert(self.value, codegen)
         codegen.emit("%s = %s" % (result, rhs))
 
-class __extend__(parse.TupleElementAssignment):
-    def make_op_code(self, codegen):
-        codegen.emit("%s.ztup%s = %s" % (self.tup, self.index, self.value.to_code(codegen)))
-
 class __extend__(parse.StructElementAssignment):
     def make_op_code(self, codegen):
         typ = codegen.gettyp(self.obj).fieldtyps[self.field]

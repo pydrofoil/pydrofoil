@@ -77,7 +77,7 @@ class Visitor(object):
         if meth is not None:
             return meth(ast)
         return self.default_visit(ast)
-    
+
     def default_visit(self, ast):
         pass
 
@@ -262,6 +262,9 @@ class FVecType(Type):
 class Statement(BaseAst):
     end_of_block = False
 
+    def find_used_vars(self):
+        raise NotImplementedError
+
 class StatementWithSourcePos(Statement):
     sourcepos = None
     def add_sourcepos(self, sourcepos):
@@ -269,26 +272,50 @@ class StatementWithSourcePos(Statement):
         return self
 
 class LocalVarDeclaration(StatementWithSourcePos):
-    def __init__(self, name, typ, value=None, sourcepos=None):
+    def __init__(self, name, typ, value=None):
         self.name = name
         self.typ = typ
         self.value = value
-        self.sourcepos = sourcepos
+
+    def find_used_vars(self):
+        if self.value:
+            return self.value.find_used_vars()
+        return set()
+
+class Assignment(StatementWithSourcePos):
+    def __init__(self, result, value):
+        self.result = result
+        self.value = value
+
+    def find_used_vars(self):
+        return self.value.find_used_vars()
 
 class Operation(StatementWithSourcePos):
-    def __init__(self, result, name, args, sourcepos=None):
+    def __init__(self, result, name, args):
         self.result = result
         self.name = name
         self.args = args
-        self.sourcepos = sourcepos
+
+    def find_used_vars(self):
+        res = set()
+        for val in self.args:
+            res.update(val.find_used_vars())
+        return res
+
 
 class TemplatedOperation(StatementWithSourcePos):
-    def __init__(self, result, name, templateparam, args, sourcepos=None):
+    def __init__(self, result, name, templateparam, args):
         self.result = result
         self.name = name
         self.templateparam = templateparam
         self.args = args
-        self.sourcepos = sourcepos
+
+    def find_used_vars(self):
+        res = set()
+        for val in self.args:
+            res.update(val.find_used_vars())
+        return res
+
 
 class Goto(Statement):
     end_of_block = True
@@ -301,6 +328,10 @@ class ConditionalJump(StatementWithSourcePos):
         self.target = target
         self.sourcepos = sourcepos
 
+    def find_used_vars(self):
+        return self.condition.find_used_vars()
+
+
 class Condition(BaseAst):
     pass
 
@@ -308,20 +339,27 @@ class ExprCondition(Condition):
     def __init__(self, expr):
         self.expr = expr
 
+    def find_used_vars(self):
+        return self.expr.find_used_vars()
+
 class Comparison(Condition):
     def __init__(self, operation, args):
         self.operation = operation
         self.args = args
+
+    def find_used_vars(self):
+        res = set()
+        for val in self.args:
+            res.update(val.find_used_vars())
+        return res
 
 class UnionVariantCheck(Condition):
     def __init__(self, var, variant):
         self.var = var
         self.variant = variant
 
-class Assignment(StatementWithSourcePos):
-    def __init__(self, result, value):
-        self.result = result
-        self.value = value
+    def find_used_vars(self):
+        return {self.var}
 
 class StructElementAssignment(StatementWithSourcePos):
     def __init__(self, obj, field, value, sourcepos=None):
@@ -330,14 +368,27 @@ class StructElementAssignment(StatementWithSourcePos):
         self.value = value
         self.sourcepos = sourcepos
 
+    def find_used_vars(self):
+        res = self.obj.find_used_vars()
+        res.update(self.value.find_used_vars())
+        return res
+
 class RefAssignment(StatementWithSourcePos):
     def __init__(self, ref, value, sourcepos=None):
         self.ref = ref
         self.value = value
         self.sourcepos = sourcepos
 
+    def find_used_vars(self):
+        res = self.value.find_used_vars()
+        res.add(self.ref)
+        return res
+
 class End(Statement):
     end_of_block = True
+
+    def find_used_vars(self):
+        return set()
 
 class Exit(StatementWithSourcePos):
     end_of_block = True
@@ -346,54 +397,95 @@ class Exit(StatementWithSourcePos):
         self.kind = kind
         self.sourcepos = sourcepos
 
+    def find_used_vars(self):
+        return set()
+
 class Arbitrary(Statement):
     end_of_block = True
 
+    def find_used_vars(self):
+        return set()
+
 class Expression(BaseAst):
-    pass
+    def find_used_vars(self):
+        raise NotImplementedError
 
 class Var(Expression):
     def __init__(self, name):
         self.name = name
 
+    def find_used_vars(self):
+        return {self.name}
+
+
 class Number(Expression):
     def __init__(self, number):
         self.number = number
+
+    def find_used_vars(self):
+        return set()
 
 class BitVectorConstant(Expression):
     def __init__(self, constant):
         self.constant = constant
 
+    def find_used_vars(self):
+        return set()
+
 class FieldAccess(Expression):
     def __init__(self, obj, element):
-        self.obj = obj
+        self.obj = obj # expr
         self.element = element
+
+    def find_used_vars(self):
+        return self.obj.find_used_vars()
 
 class Cast(Expression):
     def __init__(self, expr, variant):
         self.expr = expr
         self.variant = variant
 
+    def find_used_vars(self):
+        return self.expr.find_used_vars()
+
 class RefOf(Expression):
     def __init__(self, expr):
         self.expr = expr
+
+    def find_used_vars(self):
+        return self.expr.find_used_vars()
 
 class String(Expression):
     def __init__(self, string):
         self.string = string
 
+    def find_used_vars(self):
+        return set()
+
 class Unit(Expression):
-    pass
+    def find_used_vars(self):
+        return set()
+
 
 class Undefined(Expression):
     def __init__(self, typ):
         self.typ = typ
+
+    def find_used_vars(self):
+        return set()
+
 
 class StructConstruction(Expression):
     def __init__(self, name, fieldnames, values):
         self.name = name
         self.fieldnames = fieldnames
         self.fieldvalues = values
+
+    def find_used_vars(self):
+        res = set()
+        for val in self.fieldvalues:
+            res.update(val.find_used_vars())
+        return res
 
 class StructField(BaseAst):
     def __init__(self, fieldname, fieldvalue):
@@ -678,7 +770,7 @@ def fvectype(p):
 
 def print_conflicts():
     if parser.lr_table.rr_conflicts:
-        print("rr conflicts")  
+        print("rr conflicts")
     for rule_num, token, conflict in parser.lr_table.rr_conflicts:
         print(rule_num, token, conflict)
 
@@ -686,7 +778,7 @@ def print_conflicts():
         print("sr conflicts")
     for rule_num, token, conflict in parser.lr_table.sr_conflicts:
         print(rule_num, token, conflict)
-        
+
 parser = pg.build()
 print_conflicts()
 

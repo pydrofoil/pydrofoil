@@ -1,0 +1,88 @@
+# This workflow will install Python dependencies, run tests and lint with a
+# single version of Python
+# For more information see:
+# https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Pydrofoil
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/checkout@v3
+      with:
+        repository: riscv/sail-riscv
+        path: sail-riscv
+
+    - name: Set up PyPy 2.7
+      uses: actions/setup-python@v4
+      with:
+        python-version: "pypy-2.7-v7.3.10"
+
+    - name: install dependencies and create virtualenv
+      run: |
+        make pypy_binary/bin/python
+        make pypy/rpython/bin/rpython
+
+    - name: Test with pytest
+      run: |
+        make pydrofoil-test
+
+    - name: Translate and run binary
+      run: |
+        make pydrofoil-riscv
+
+    - name: version
+      run: |
+        ./pydrofoil-riscv --version
+
+    - name: Run two RISC-V tests
+      run: |
+        ./pydrofoil-riscv riscv/input/rv64ui-p-addi.elf
+        ./pydrofoil-riscv --rv32 riscv/input/rv32ui-p-addi.elf
+
+    - name: Run all RISC-V tests
+      run: |
+        RISCVMODELCHECKOUT=sail-riscv make riscv-tests
+
+    - name: Boot Linux
+      run: |
+        ./pydrofoil-riscv riscv/input/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl -l 230000000
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v3
+      with:
+        name: pydrofoil-riscv-${{ matrix.os }}
+        path: ./pydrofoil-riscv
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: tests.xml-${{ matrix.os }}
+        path: pydrofoil-riscv-tests.xml
+
+    - name: Upload event payload
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: event.json-${{ matrix.os }}
+        path: ${{ github.event_path }}
+

@@ -1,2 +1,5 @@
 sphinx
 furo
+# For markdown
+myst-parser
+sphinx-copybutton

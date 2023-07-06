@@ -69,6 +69,27 @@ def test_elf_reader32():
     assert m.read(0x0000000080000000, 2) == 0x6f
 
 
+#
+
+def test_translation_dtb():
+    from riscv import supportcoderiscv
+    from rpython.translator.interactive import Translation
+
+    def main():
+        g = supportcoderiscv.Globals()
+        g._init_ranges()
+
+    t = Translation(main, [])
+    t.rtype() # check that it's rpython
+
+def test_compare_dtbs():
+    from riscv import supportcoderiscv
+    g = supportcoderiscv.Globals()
+    g._create_dtb()
+    with open("riscv/input/rv64-64mb.dtb", "rb") as f:
+        target = f.read()
+    assert target == g.dtb
+
 def test_opt_mem_read_risc(riscvmain):
     from rpython.translator.interactive import Translation
     from rpython.translator.backendopt.ssa import SSI_to_SSA

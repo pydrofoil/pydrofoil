@@ -2,6 +2,7 @@ from rpython.rlib import objectmodel
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import r_uint, intmask
 from pydrofoil import bitvector
+import pydrofoil.softfloat as softfloat
 
 @objectmodel.specialize.call_location()
 def make_dummy(name):
@@ -21,68 +22,10 @@ make_dummy('plat_enable_dirty_update')
 make_dummy('plat_enable_misaligned_access')
 make_dummy('plat_enable_pmp')
 make_dummy('platform_barrier')
-make_dummy('print_int')
 make_dummy('print_mem_access')
 make_dummy('print_platform')
 make_dummy('print_reg')
 make_dummy('print_string')
-make_dummy('softfloat_f16add')
-make_dummy('softfloat_f16div')
-make_dummy('softfloat_f16eq')
-make_dummy('softfloat_f16le')
-make_dummy('softfloat_f16lt')
-make_dummy('softfloat_f16mul')
-make_dummy('softfloat_f16muladd')
-make_dummy('softfloat_f16sqrt')
-make_dummy('softfloat_f16sub')
-make_dummy('softfloat_f16tof32')
-make_dummy('softfloat_f16tof64')
-make_dummy('softfloat_f16toi32')
-make_dummy('softfloat_f16toi64')
-make_dummy('softfloat_f16toui32')
-make_dummy('softfloat_f16toui64')
-make_dummy('softfloat_f32add')
-make_dummy('softfloat_f32div')
-make_dummy('softfloat_f32eq')
-make_dummy('softfloat_f32le')
-make_dummy('softfloat_f32lt')
-make_dummy('softfloat_f32mul')
-make_dummy('softfloat_f32muladd')
-make_dummy('softfloat_f32sqrt')
-make_dummy('softfloat_f32sub')
-make_dummy('softfloat_f32tof16')
-make_dummy('softfloat_f32tof64')
-make_dummy('softfloat_f32toi32')
-make_dummy('softfloat_f32toi64')
-make_dummy('softfloat_f32toui32')
-make_dummy('softfloat_f32toui64')
-make_dummy('softfloat_f64add')
-make_dummy('softfloat_f64div')
-make_dummy('softfloat_f64eq')
-make_dummy('softfloat_f64le')
-make_dummy('softfloat_f64lt')
-make_dummy('softfloat_f64mul')
-make_dummy('softfloat_f64muladd')
-make_dummy('softfloat_f64sqrt')
-make_dummy('softfloat_f64sub')
-make_dummy('softfloat_f64tof16')
-make_dummy('softfloat_f64tof32')
-make_dummy('softfloat_f64toi32')
-make_dummy('softfloat_f64toi64')
-make_dummy('softfloat_f64toui32')
-make_dummy('softfloat_f64toui64')
-make_dummy('softfloat_i32tof16')
-make_dummy('softfloat_i32tof32')
-make_dummy('softfloat_i32tof64')
-make_dummy('softfloat_i64tof16')
-make_dummy('softfloat_i64tof32')
-make_dummy('softfloat_i64tof64')
-make_dummy('softfloat_ui32tof16')
-make_dummy('softfloat_ui32tof32')
-make_dummy('softfloat_ui32tof64')
-make_dummy('softfloat_ui64tof16')
-make_dummy('softfloat_ui64tof32')
-make_dummy('softfloat_ui64tof64')
 make_dummy('string_drop')
 make_dummy('string_take')
 make_dummy('string_startswith')
@@ -90,7 +33,6 @@ make_dummy('string_length')
 make_dummy('sub_bits')
 make_dummy('sub_nat')
 make_dummy('tmod_int')
-make_dummy('vector_access')
 make_dummy('zeros')
 
 # generic helpers
@@ -337,7 +279,293 @@ def platform_write_mem_ea(machine, write_kind, addr_size, addr, n):
 
 def concat_str(machine, a, b):
     return a + b
+    
+# softfloat
 
+def softfloat_f16sqrt(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f16sqrt(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32sqrt(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f32sqrt(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64sqrt(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f64sqrt(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16tof32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f16tof32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16tof64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f16tof64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16toi32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f16toi32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16toi64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f16toi64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16toui32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f16toui32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16toui64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f16toui64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32tof16(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f32tof16(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32tof64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f32tof64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32toi32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f32toi32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32toi64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f32toi64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32toui32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f32toui32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32toui64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f32toui64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64tof16(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f64tof16(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64tof32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f64tof32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64toui64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f64toui64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64toi32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f64toi32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64toi64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f64toi64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64toui32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.f64toui32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_i32tof16(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.i32tof16(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_i32tof32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.i32tof32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_i32tof64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.i32tof64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_i64tof16(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.i64tof16(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_i64tof32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.i64tof32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_i64tof64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.i64tof64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_ui32tof16(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.ui32tof16(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_ui32tof32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.ui32tof32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_ui32tof64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.ui32tof64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_ui64tof16(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.ui64tof16(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_ui64tof32(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.ui64tof32(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_ui64tof64(machine, rm, v1):
+    machine._reg_zfloat_result = softfloat.ui64tof64(rm, v1)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16add(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16add(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16sub(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16sub(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16mul(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16mul(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16div(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16div(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32add(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32add(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32sub(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32sub(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32mul(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32mul(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32div(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32div(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64add(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64add(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64sub(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64sub(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64mul(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64mul(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64div(machine, rm, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64div(rm, v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16eq(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16eq(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16le(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16le(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16lt(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16lt(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32eq(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32eq(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32le(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32le(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32lt(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32lt(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64eq(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64eq(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64le(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64le(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64lt(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64lt(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16muladd(machine, rm, v1, v2, v3):
+    machine._reg_zfloat_result = softfloat.f16muladd(rm, v1, v2, v3)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32muladd(machine, rm, v1, v2, v3):
+    machine._reg_zfloat_result = softfloat.f32muladd(rm, v1, v2, v3)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64muladd(machine, rm, v1, v2, v3):
+    machine._reg_zfloat_result = softfloat.f64muladd(rm, v1, v2, v3)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
 
 # argument handling
 
@@ -359,6 +587,17 @@ def parse_args(argv, shortname, longname="", want_arg=True):
 
 
 class RegistersBase(object):
+    _immutable_fields_ = []
+
     have_exception = False
     throw_location = None
     current_exception = None
+
+    def __init__(self):
+        pass
+
+class ObjectBase(object):
+    _attrs_ = []
+
+class LetsBase(object):
+    _attrs_ = []

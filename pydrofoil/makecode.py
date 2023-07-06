@@ -160,7 +160,7 @@ def parse_and_make_code(s, support_code, promoted_registers=frozenset(), inline_
         c.emit("import operator")
         c.emit(support_code)
         c.emit("from pydrofoil import bitvector")
-        c.emit("class Lets(object): pass")
+        c.emit("class Lets(supportcode.LetsBase): pass")
         c.emit("class Machine(supportcode.RegistersBase):")
         c.emit("    def __init__(self): self.l = Lets(); model_init(self)")
         c.emit("UninitInt = bitvector.int_fromint(-0xfefee)")
@@ -193,7 +193,7 @@ class __extend__(parse.Enum):
         name = "Enum_" + self.name
         self.pyname = name
         with codegen.emit_code_type("declarations"):
-            with codegen.emit_indent("class %s(object):" % name):
+            with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
                 for index, name in enumerate(self.names, start=codegen.last_enum):
                     codegen.add_global(name, "%s.%s" % (self.pyname, name), types.Enum(self), self)
                     codegen.emit("%s = %s" % (name, index))
@@ -209,7 +209,7 @@ class __extend__(parse.Union):
         for typ in self.types:
             typ.resolve_type(codegen) # pre-declare the types
         with codegen.emit_code_type("declarations"):
-            with codegen.emit_indent("class %s(object):" % name):
+            with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
                 codegen.emit("@objectmodel.always_inline")
                 with codegen.emit_indent("def eq(self, other):"):
                     codegen.emit("return False")
@@ -380,7 +380,7 @@ class __extend__(parse.Struct):
         codegen.add_named_type(self.name, self.pyname, structtyp, self)
         for arg, typ in zip(self.names, self.types):
             structtyp.fieldtyps[arg] = typ.resolve_type(codegen) # also pre-declares the types
-        with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(object):" % name):
+        with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
             for arg, typ in zip(self.names, self.types):
                 fieldtyp = structtyp.fieldtyps[arg]
                 if fieldtyp is types.Int():
@@ -1079,7 +1079,7 @@ class __extend__(parse.ListType):
     def resolve_type(self, codegen):
         typ = types.List(self.typ.resolve_type(codegen))
         with codegen.cached_declaration(typ, "List") as pyname:
-            with codegen.emit_indent("class %s(object): # %s" % (pyname, self)):
+            with codegen.emit_indent("class %s(supportcode.ObjectBase): # %s" % (pyname, self)):
                 codegen.emit("_immutable_fields_ = ['head', 'tail']")
                 codegen.emit("def __init__(self, head, tail): self.head, self.tail = head, tail")
             typ.pyname = pyname
@@ -1101,7 +1101,7 @@ class __extend__(parse.TupleType):
     def resolve_type(self, codegen):
         typ = types.Tuple(tuple([e.resolve_type(codegen) for e in self.elements]))
         with codegen.cached_declaration(typ, "Tuple") as pyname:
-            with codegen.emit_indent("class %s(object): # %s" % (pyname, self)):
+            with codegen.emit_indent("class %s(supportcode.ObjectBase): # %s" % (pyname, self)):
                 codegen.emit("@objectmodel.always_inline")
                 with codegen.emit_indent("def eq(self, other):"):
                     codegen.emit("assert isinstance(other, %s)" % (pyname, ))

@@ -1,5 +1,5 @@
-Fast RISC-V Sail emulation using PyPy/RPython's JIT compiler
-==
+# Fast RISC-V Sail emulation using PyPy/RPython's JIT compiler
+
 
 [![CI status](https://github.com/pydrofoil/pydrofoil/actions/workflows/python-app.yml/badge.svg)](https://github.com/pydrofoil/pydrofoil/actions/workflows/python-app.yml)
 [![Documentation Status](https://readthedocs.org/projects/pydrofoil/badge/?version=latest)](https://docs.pydrofoil.org/en/latest/?badge=latest)
@@ -11,3 +11,5 @@ compilation) from RISC-V guest instructions into host machine instructions.
 It's built on top of the [RPython meta-jit
 compiler](https://www3.hhu.de/stups/downloads/pdf/BoCuFiRi09_246.pdf) and
 reuses all its optimizations, backends, etc.
+
+See https://docs.pydrofoil.org for the complete documentation

@@ -487,21 +487,29 @@ class ElfSectionHeader(object):
         if self.is_64bit:
             format = ElfSectionHeader.FORMAT64
             shdr_list = unpack(format, data)
+            self.name = shdr_list[0]
+            self.type = shdr_list[1]
+            self.flags = shdr_list[2]
+            self.addr = shdr_list[3]
+            self.offset = shdr_list[4]
+            self.size = shdr_list[5]
+            self.link = shdr_list[6]
+            self.info = shdr_list[7]
+            self.addralign = shdr_list[8]
+            self.entsize = shdr_list[9]
         else:
-            if objectmodel.we_are_translated():
-                assert 0, "a bit broken for now"
             format = ElfSectionHeader.FORMAT
             shdr_list = unpack(format, data)
-        self.name = shdr_list[0]
-        self.type = shdr_list[1]
-        self.flags = shdr_list[2]
-        self.addr = shdr_list[3]
-        self.offset = shdr_list[4]
-        self.size = shdr_list[5]
-        self.link = shdr_list[6]
-        self.info = shdr_list[7]
-        self.addralign = shdr_list[8]
-        self.entsize = shdr_list[9]
+            self.name = shdr_list[0]
+            self.type = shdr_list[1]
+            self.flags = r_uint(shdr_list[2])
+            self.addr = r_uint(shdr_list[3])
+            self.offset = r_uint(shdr_list[4])
+            self.size = r_uint(shdr_list[5])
+            self.link = shdr_list[6]
+            self.info = shdr_list[7]
+            self.addralign = r_uint(shdr_list[8])
+            self.entsize = r_uint(shdr_list[9])
 
     # -----------------------------------------------------------------------
     # to_bytes
@@ -605,22 +613,20 @@ class ElfSymTabEntry(object):
     def from_bytes(self, data, is_64bit=False):
         if is_64bit:
             sym_list = unpack(self.FORMAT64, data)
-            self.name = sym_list[0]
-            self.info = sym_list[1]
-            self.other = sym_list[2]
-            self.shndx = sym_list[3]
-            self.value = sym_list[4]
-            self.size = sym_list[5]
+            self.name = sym_list[0]          # I
+            self.info = sym_list[1]          # B
+            self.other = sym_list[2]         # B
+            self.shndx = sym_list[3]         # H
+            self.value = sym_list[4]         # Q
+            self.size = sym_list[5]          # Q
         else:
-            if objectmodel.we_are_translated():
-                assert 0, "a bit broken for now"
             sym_list = unpack(self.FORMAT, data)
-            self.name = sym_list[0]
-            self.value = sym_list[1]
-            self.size = sym_list[2]
-            self.info = sym_list[3]
-            self.other = sym_list[4]
-            self.shndx = sym_list[5]
+            self.name = sym_list[0]          # I
+            self.value = r_uint(sym_list[1]) # I
+            self.size = r_uint(sym_list[2])  # I
+            self.info = sym_list[3]          # B
+            self.other = sym_list[4]         # B
+            self.shndx = sym_list[5]         # H
 
     def __str__(self):
         return """

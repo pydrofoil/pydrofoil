@@ -1,5 +1,7 @@
 # Minimal makefile for Sphinx documentation
 #
+# Note the docs at https://docs.pydrofoil.org are built and uploaded
+# via the .readthedocs.yaml file in the repo root
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.

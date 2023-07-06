@@ -1,7 +1,7 @@
 from rpython.rlib.nonconst import NonConstant
 from rpython.rlib.objectmodel import we_are_translated, always_inline
 from rpython.rlib.rarithmetic import r_uint, intmask
-from rpython.rlib import jit
+from rpython.rlib import jit, debug as rdebug
 from rpython.rlib import rmmap
 from rpython.rtyper.lltypesystem import rffi, lltype
 
@@ -169,8 +169,14 @@ class FlatMemory(MemBase):
 
     def _invalidate(self, mem_offset):
         self.version = Version()
-        print "invalidating", mem_offset
         self.status[mem_offset] = MEM_STATUS_MUTABLE
+        self._debug_print_invalidating(mem_offset)
+
+    @jit.dont_look_inside
+    def _debug_print_invalidating(self, mem_offset):
+        rdebug.debug_start("pydrofoil-mem")
+        rdebug.debug_print("invalidating", mem_offset)
+        rdebug.debug_stop("pydrofoil-mem")
 
     @jit.not_in_trace
     def mark_word_immutable(self, addr):

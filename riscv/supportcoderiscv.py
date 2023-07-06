@@ -772,7 +772,7 @@ def get_main(outriscv, rv64):
                     continue
                 # run a Sail step
                 prev_pc = self._reg_zPC
-                stepped = self.step(Integer.fromint(step_no))
+                stepped = self.step(bitvector.int_fromint(step_no))
                 if self.have_exception:
                     print "ended with exception!"
                     print self.current_exception

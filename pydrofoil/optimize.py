@@ -14,11 +14,15 @@ def identify_replacements(blocks):
             continue
         [(useblock, useindex)] = varuses
         [(defblock, defindex)] = vardefs
+        if var not in decls:
+            continue
         declblock, declindex = decls[var]
         if not (declblock is defblock is useblock):
             continue
         defop = useblock[defindex]
         useop = useblock[useindex]
+        if isinstance(defop, parse.Operation) and defop.name.startswith(('@', '$')):
+            continue
         if any(len(defs[argvar]) != 1 for argvar in defop.find_used_vars()):
             continue
         replacements[var] = (useblock, declindex, defindex, useindex)
@@ -32,7 +36,7 @@ def do_replacements(replacements):
         defop = block[defindex]
         useop = block[useindex]
         if isinstance(defop, parse.Operation):
-            expr = parse.OperationExpr(defop.name, defop.args)
+            expr = parse.OperationExpr(defop.name, defop.args, declop.typ)
         else:
             assert isinstance(defop, parse.Assignment)
             expr = parse.CastExpr(defop.value, declop.typ)
@@ -55,11 +59,8 @@ def do_replacements(replacements):
         block[:] = newblock
 
 
-def optimize_block(block, codegen, localvars):
-    for i, op in enumerate(block):
-        if isinstance(op, parse.LocalVarDeclaration):
-            typ = op.typ.resolve_type(codegen)
-            
+def optimize_blocks(blocks, codegen):
+    do_replacements(identify_replacements(blocks.values()))
 
 def find_decl_defs_uses(blocks):
     defs = defaultdict(list)

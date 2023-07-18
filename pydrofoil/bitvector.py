@@ -7,11 +7,11 @@ from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 
 @always_inline
-@specialize.arg_or_var(0, 1)
+#@specialize.arg_or_var(0, 1)
 def from_ruint(size, val):
     if size <= 64:
-        if is_annotation_constant(size) and is_annotation_constant(val):
-            return _small_bit_vector_memo(size, val)
+#        if is_annotation_constant(size) and is_annotation_constant(val):
+#            return _small_bit_vector_memo(size, val)
         return SmallBitVector(size, val, True)
     return GenericBitVector(size, rbigint.fromrarith_int(val), True)
 

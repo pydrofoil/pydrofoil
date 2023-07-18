@@ -381,6 +381,7 @@ class __extend__(parse.Register):
 
 class __extend__(parse.Function):
     def make_code(self, codegen):
+        from pydrofoil.optimize import optimize_blocks
         pyname = "func_" + self.name
         if codegen.globalnames[self.name].pyname is not None:
             print "duplicate!", self.name, codegen.globalnames[self.name].pyname
@@ -388,6 +389,7 @@ class __extend__(parse.Function):
         codegen.update_global_pyname(self.name, pyname)
         self.pyname = pyname
         blocks = self._prepare_blocks()
+        optimize_blocks(blocks, codegen)
         entrycounts = self._compute_entrycounts(blocks)
         if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
             print "making method!", self.name
@@ -670,8 +672,6 @@ class __extend__(parse.Operation):
         info = codegen.getinfo(name)
         if isinstance(info.typ, types.Function):
             # pass machine, even to supportcode functions
-            #if "int_to_int64" in op:
-            #    import pdb; pdb.set_trace()
             if (op.startswith("supportcode.") and
                     all(arg.is_constant(codegen) for arg in self.args) and
                     can_constfold(op)):
@@ -874,6 +874,47 @@ class __extend__(parse.String):
 
     def gettyp(self, codegen):
         return types.String()
+
+class __extend__(parse.OperationExpr):
+    def gettyp(self, codegen):
+        return self.typ.resolve_type(codegen)
+
+    def to_code(self, codegen):
+        name = self.name
+        sargs = [arg.to_code(codegen) for arg in self.args]
+        argtyps = [arg.gettyp(codegen) for arg in self.args]
+        if name in codegen.globalnames and codegen.globalnames[name].pyname == "supportcode.eq_anything":
+            import pdb; pdb.set_trace()
+            name = "@eq"
+        if not sargs:
+            args = '()'
+        else:
+            args = ", ".join(sargs)
+        op = codegen.getname(name)
+        info = codegen.getinfo(name)
+        if isinstance(info.typ, types.Function):
+            # pass machine, even to supportcode functions
+            if (op.startswith("supportcode.") and
+                    all(arg.is_constant(codegen) for arg in self.args) and
+                    can_constfold(op)):
+                folded_result = constfold(op, sargs, self, codegen)
+                return folded_result
+            else:
+                return "%s(machine, %s)" % (op, args)
+        elif isinstance(info.typ, types.Union):
+            return info.ast.constructor(info, op, args, argtyps)
+        else:
+            # constructors etc don't get machine passed (yet)
+            return "%s(%s)" % (op, args)
+
+class __extend__(parse.CastExpr):
+    def gettyp(self, codegen):
+        return self.typ.resolve_type(codegen)
+
+    def to_code(self, codegen):
+        typ = self.gettyp(codegen)
+        othertyp = self.expr.gettyp(codegen)
+        return pair(othertyp, typ).convert(self.expr, codegen)
 
 # ____________________________________________________________
 # conditions

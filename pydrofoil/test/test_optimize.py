@@ -44,7 +44,7 @@ def test_find_used_vars_condition():
     s = parse.Comparison("@eq", [v, v2])
     assert s.find_used_vars() == {"abc", "def"}
 
-    u = parse.UnionVariantCheck("abc", "X")
+    u = parse.UnionVariantCheck(v, "X")
     assert u.find_used_vars() == {"abc"}
 
 # __________________________________________________
@@ -98,10 +98,11 @@ def test_do_replacements():
                     args=[CastExpr(expr=OperationExpr(
                         args=[
                             CastExpr(expr=Var(name='bv32'), typ=NamedType('%bv')),
-                            OperationExpr(args=[Number(number=6)], name='zz5i64zDzKz5i'),
-                            OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i')],
-                        name='zsubrange_bits'), typ=NamedType('%bv7'))],
-                    name='zencdec_uop_backwards_matches')],
+                            OperationExpr(args=[Number(number=6)], name='zz5i64zDzKz5i', typ=NamedType('%i')),
+                            OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))],
+                        name='zsubrange_bits', typ=NamedType('%bv')), typ=NamedType('%bv7'))],
+                    name='zencdec_uop_backwards_matches',
+                    typ=NamedType('%bool'))],
             operation='@not'),
         sourcepos=None,
         target=17)

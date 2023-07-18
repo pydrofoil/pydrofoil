@@ -275,10 +275,11 @@ class StatementWithSourcePos(Statement):
         return self
 
 class LocalVarDeclaration(StatementWithSourcePos):
-    def __init__(self, name, typ, value=None):
+    def __init__(self, name, typ, value=None, sourcepos=None):
         self.name = name
         self.typ = typ
         self.value = value
+        self.sourcepos = sourcepos
 
     def find_used_vars(self):
         if self.value:
@@ -300,10 +301,11 @@ class Assignment(StatementWithSourcePos):
         return Assignment(self.result, self.value.replace_var(var, expr))
 
 class Operation(StatementWithSourcePos):
-    def __init__(self, result, name, args):
+    def __init__(self, result, name, args, sourcepos=None):
         self.result = result
         self.name = name
         self.args = args
+        self.sourcepos = sourcepos
 
     def find_used_vars(self):
         res = set()
@@ -338,6 +340,9 @@ class Goto(Statement):
     def __init__(self, target):
         self.target = target
 
+    def find_used_vars(self):
+        return set()
+
 class ConditionalJump(StatementWithSourcePos):
     def __init__(self, condition, target, sourcepos=None):
         self.condition = condition
@@ -362,7 +367,7 @@ class ExprCondition(Condition):
         return self.expr.find_used_vars()
 
     def replace_var(self, var, expr):
-        xxx
+        return ExprCondition(self.expr.replace_var(var, expr))
 
 class Comparison(Condition):
     def __init__(self, operation, args):
@@ -385,7 +390,7 @@ class UnionVariantCheck(Condition):
         self.variant = variant
 
     def find_used_vars(self):
-        return {self.var}
+        return self.var.find_used_vars()
 
     def replace_var(self, var, expr):
         xxx
@@ -510,7 +515,7 @@ class Cast(Expression):
         return self.expr.find_used_vars()
 
     def replace_var(self, var, expr):
-        xxx
+        return Cast(self.expr.replace_var(var, expr), self.variant)
 
 class RefOf(Expression):
     def __init__(self, expr):
@@ -564,7 +569,8 @@ class StructConstruction(Expression):
         return res
 
     def replace_var(self, var, expr):
-        xxx
+        fieldvalues = [val.replace_var(var, expr) for val in self.fieldvalues]
+        return StructConstruction(self.name, self.fieldnames, fieldvalues)
 
 class StructField(BaseAst):
     def __init__(self, fieldname, fieldvalue):
@@ -574,9 +580,10 @@ class StructField(BaseAst):
 # some ASTs only used during optimization
 
 class OperationExpr(Expression):
-    def __init__(self, name, args):
+    def __init__(self, name, args, typ):
         self.name = name
         self.args = args
+        self.typ = typ
 
     def find_used_vars(self):
         res = set()
@@ -586,7 +593,7 @@ class OperationExpr(Expression):
 
     def replace_var(self, var, expr):
         newargs = [arg.replace_var(var, expr) for arg in self.args]
-        return OperationExpr(self.name, newargs)
+        return OperationExpr(self.name, newargs, self.typ)
 
 class CastExpr(Expression):
     def __init__(self, expr, typ):

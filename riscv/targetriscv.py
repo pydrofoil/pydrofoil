@@ -19,8 +19,8 @@ def _make_code(rv64=True):
     ## XXX horrible hack, they should be fixed in the model!
     assert res.count("def func_zread_ram(machine, zrk") == 1
     res = res.replace("def func_zread_ram(machine, zrk", "def func_zread_ram(machine, executable_flag, zrk")
-    assert res.count("func_zread_ram(machine, zz") == 1
-    res = res.replace("func_zread_ram(machine, zz", "func_zread_ram(machine, (type(zt) is Union_zAccessTypezIuzK_zExecutezIuzK), zz")
+    assert res.count("func_zread_ram(machine, U") == 1
+    res = res.replace("func_zread_ram(machine, U", "func_zread_ram(machine, (type(zt) is Union_zAccessTypezIuzK_zExecutezIuzK), U")
     assert res.count("platform_read_mem") == 1
     res = res.replace("platform_read_mem(machine, ", "platform_read_mem(machine, executable_flag, ")
 

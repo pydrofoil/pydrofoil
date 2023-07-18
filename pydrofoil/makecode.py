@@ -713,10 +713,10 @@ class __extend__(parse.Assignment):
 
 class __extend__(parse.StructElementAssignment):
     def make_op_code(self, codegen):
-        typ = codegen.gettyp(self.obj).fieldtyps[self.field]
+        typ = self.obj.gettyp(codegen).fieldtyps[self.field]
         othertyp = self.value.gettyp(codegen)
         rhs = pair(othertyp, typ).convert(self.value, codegen)
-        codegen.emit("%s.%s = %s" % (self.obj, self.field, rhs))
+        codegen.emit("%s.%s = %s" % (self.obj.to_code(codegen), self.field, rhs))
 
 class __extend__(parse.RefAssignment):
     def make_op_code(self, codegen):

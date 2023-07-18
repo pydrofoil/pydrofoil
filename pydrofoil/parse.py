@@ -408,7 +408,12 @@ class StructElementAssignment(StatementWithSourcePos):
         return res
 
     def replace_var(self, var, expr):
-        xxx
+        return StructElementAssignment(
+            self.obj.replace_var(var, expr),
+            self.field,
+            self.value.replace_var(var, expr),
+            self.sourcepos)
+
 
 class RefAssignment(StatementWithSourcePos):
     def __init__(self, ref, value, sourcepos=None):
@@ -504,7 +509,7 @@ class FieldAccess(Expression):
         return self.obj.find_used_vars()
 
     def replace_var(self, var, expr):
-        xxx
+        return FieldAccess(self.obj.replace_var(var, expr), self.element)
 
 class Cast(Expression):
     def __init__(self, expr, variant):
@@ -525,7 +530,7 @@ class RefOf(Expression):
         return self.expr.find_used_vars()
 
     def replace_var(self, var, expr):
-        xxx
+        return RefOf(self.expr.replace_var(var, expr))
 
 class String(Expression):
     def __init__(self, string):
@@ -535,14 +540,14 @@ class String(Expression):
         return set()
 
     def replace_var(self, var, expr):
-        xxx
+        return self
 
 class Unit(Expression):
     def find_used_vars(self):
         return set()
 
     def replace_var(self, var, expr):
-        xxx
+        return self
 
 
 class Undefined(Expression):
@@ -553,7 +558,7 @@ class Undefined(Expression):
         return set()
 
     def replace_var(self, var, expr):
-        xxx
+        return self
 
 
 class StructConstruction(Expression):
@@ -807,7 +812,7 @@ def op(p):
         return RefAssignment(p[0].value, p[3])
     else:
         assert p[2].gettokentype() == "NAME"
-        return StructElementAssignment(p[0].value, p[2].value, p[4])
+        return StructElementAssignment(Var(p[0].value), p[2].value, p[4])
 
 
 @pg.production('end : END')

@@ -1,4 +1,5 @@
 from rpython.rlib import jit
+from rpython.rlib.rbigint import rbigint
 from rpython.rlib import objectmodel
 from rpython.rlib.rarithmetic import r_uint, intmask
 import operator
@@ -23,7 +24,7 @@ class Tuple_2(supportcode.ObjectBase): # TupleType(elements=[NamedType('%i64')])
     @objectmodel.always_inline
     def eq(self, other):
         assert isinstance(other, Tuple_2)
-        if (self.utup0 != other.utup0): return False # NamedType('%i64')
+        if not ((self.utup0 == other.utup0)): return False # NamedType('%i64')
         return True
 
 class Enum_zjump(supportcode.ObjectBase):
@@ -143,41 +144,35 @@ class Union_zinstr_zAINST(Union_zinstr):
             raise TypeError
 
 class Union_zinstr_zCINST(Union_zinstr):
-    ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = -1
     ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 = r_uint(0)
-    ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = -1
+    ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = -1
     ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 = Struct_ztuplez3z5bool_z5bool_z5bool(False, False, False)
+    ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = -1
     def __init__(self, a):
         # StructType(name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump')
-        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 # <pydrofoil.types.Enum object at 0x7f8b9c493b10>
-        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 # FixedBitVector(1)
-        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 # <pydrofoil.types.Enum object at 0x7f8b9c48cd10>
-        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 # <pydrofoil.types.Struct object at 0x7f8b9c493790>
+        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0
+        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1
+        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2
+        self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = a.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3
     @objectmodel.always_inline
     def eq(self, other):
         if type(self) is not type(other): return False
         # StructType(name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump')
-        if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 == other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1): return False
         if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 == other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0): return False
-        if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 == other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3): return False
+        if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 == other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1): return False
         if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2.eq(other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2)): return False
+        if not (self.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 == other.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3): return False
         return True
     @staticmethod
     @objectmodel.always_inline
     def convert(inst):
         if isinstance(inst, Union_zinstr_zCINST):
             res = Struct_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump(r_uint(0), -1, Struct_ztuplez3z5bool_z5bool_z5bool(False, False, False), -1)
-            res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1
             res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0
-            res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3
+            res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1
             res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2
+            res.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3
             return res
-        else:
-            raise TypeError
-    @staticmethod
-    def convert_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1(inst):
-        if isinstance(inst, Union_zinstr_zCINST):
-            return inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1
         else:
             raise TypeError
     @staticmethod
@@ -187,15 +182,21 @@ class Union_zinstr_zCINST(Union_zinstr):
         else:
             raise TypeError
     @staticmethod
-    def convert_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3(inst):
+    def convert_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1(inst):
         if isinstance(inst, Union_zinstr_zCINST):
-            return inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3
+            return inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1
         else:
             raise TypeError
     @staticmethod
     def convert_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2(inst):
         if isinstance(inst, Union_zinstr_zCINST):
             return inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2
+        else:
+            raise TypeError
+    @staticmethod
+    def convert_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3(inst):
+        if isinstance(inst, Union_zinstr_zCINST):
+            return inst.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3
         else:
             raise TypeError
 
@@ -299,6 +300,7 @@ class Tuple_10(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv1')]
         assert isinstance(other, Tuple_10)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv1')
         return True
+bitvectorconstant0b1_1 = bitvector.from_ruint(1, r_uint(0b1))
 
 class Tuple_11(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv16'), NamedType('%bv16')])
     @objectmodel.always_inline
@@ -337,6 +339,24 @@ class Tuple_14(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv6')]
         assert isinstance(other, Tuple_14)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv6')
         return True
+bitvectorconstant0b101010_1 = bitvector.from_ruint(6, r_uint(0b101010))
+bitvectorconstant0b111111_1 = bitvector.from_ruint(6, r_uint(0b111111))
+bitvectorconstant0b111010_1 = bitvector.from_ruint(6, r_uint(0b111010))
+bitvectorconstant0b001100_1 = bitvector.from_ruint(6, r_uint(0b001100))
+bitvectorconstant0b110000_1 = bitvector.from_ruint(6, r_uint(0b110000))
+bitvectorconstant0b001101_1 = bitvector.from_ruint(6, r_uint(0b001101))
+bitvectorconstant0b110001_1 = bitvector.from_ruint(6, r_uint(0b110001))
+bitvectorconstant0b001111_1 = bitvector.from_ruint(6, r_uint(0b001111))
+bitvectorconstant0b110011_1 = bitvector.from_ruint(6, r_uint(0b110011))
+bitvectorconstant0b011111_1 = bitvector.from_ruint(6, r_uint(0b011111))
+bitvectorconstant0b110111_1 = bitvector.from_ruint(6, r_uint(0b110111))
+bitvectorconstant0b001110_1 = bitvector.from_ruint(6, r_uint(0b001110))
+bitvectorconstant0b110010_1 = bitvector.from_ruint(6, r_uint(0b110010))
+bitvectorconstant0b000010_1 = bitvector.from_ruint(6, r_uint(0b000010))
+bitvectorconstant0b010011_1 = bitvector.from_ruint(6, r_uint(0b010011))
+bitvectorconstant0b000111_1 = bitvector.from_ruint(6, r_uint(0b000111))
+bitvectorconstant0b000000_1 = bitvector.from_ruint(6, r_uint(0b000000))
+bitvectorconstant0b010101_1 = bitvector.from_ruint(6, r_uint(0b010101))
 
 class Tuple_15(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv3')])
     @objectmodel.always_inline
@@ -344,6 +364,14 @@ class Tuple_15(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv3')]
         assert isinstance(other, Tuple_15)
         if not (self.utup0 == other.utup0): return False # NamedType('%bv3')
         return True
+bitvectorconstant0b000_1 = bitvector.from_ruint(3, r_uint(0b000))
+bitvectorconstant0b001_1 = bitvector.from_ruint(3, r_uint(0b001))
+bitvectorconstant0b010_1 = bitvector.from_ruint(3, r_uint(0b010))
+bitvectorconstant0b011_1 = bitvector.from_ruint(3, r_uint(0b011))
+bitvectorconstant0b100_1 = bitvector.from_ruint(3, r_uint(0b100))
+bitvectorconstant0b101_1 = bitvector.from_ruint(3, r_uint(0b101))
+bitvectorconstant0b110_1 = bitvector.from_ruint(3, r_uint(0b110))
+bitvectorconstant0b111_1 = bitvector.from_ruint(3, r_uint(0b111))
 
 class Tuple_16(supportcode.ObjectBase): # TupleType(elements=[UnionType(name='zinstr')])
     @objectmodel.always_inline
@@ -351,6 +379,19 @@ class Tuple_16(supportcode.ObjectBase): # TupleType(elements=[UnionType(name='zi
         assert isinstance(other, Tuple_16)
         if not (self.utup0.eq(other.utup0)): return False # UnionType(name='zinstr')
         return True
+smallintconst2_1 = bitvector.SmallInteger(2)
+smallintconst0_1 = bitvector.SmallInteger(0)
+smallintconst1_1 = bitvector.SmallInteger(1)
+smallintconst15_1 = bitvector.SmallInteger(15)
+bitvectorconstant0b0_1 = bitvector.from_ruint(1, r_uint(0b0))
+smallintconst14_1 = bitvector.SmallInteger(14)
+smallintconst16_1 = bitvector.SmallInteger(16)
+smallintconst13_1 = bitvector.SmallInteger(13)
+smallintconst12_1 = bitvector.SmallInteger(12)
+smallintconst11_1 = bitvector.SmallInteger(11)
+smallintconst6_1 = bitvector.SmallInteger(6)
+smallintconst5_1 = bitvector.SmallInteger(5)
+smallintconst3_1 = bitvector.SmallInteger(3)
 
 class Tuple_17(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op')])
     @objectmodel.always_inline
@@ -359,6 +400,8 @@ class Tuple_17(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv1'),
         if not (self.utup0 == other.utup0): return False # NamedType('%bv1')
         if not (self.utup1 == other.utup1): return False # EnumType(name='zarithmetic_op')
         return True
+bitvectorconstant0x0001_1 = bitvector.from_ruint(16, r_uint(0x0001))
+bitvectorconstant0x0000_1 = bitvector.from_ruint(16, r_uint(0x0000))
 
 class Tuple_18(supportcode.ObjectBase): # TupleType(elements=[StructType(name='ztuplez3z5bool_z5bool_z5bool'), NamedType('%bv16')])
     @objectmodel.always_inline
@@ -390,6 +433,7 @@ class Tuple_21(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv64')
         if not (self.utup0 == other.utup0): return False # NamedType('%bv64')
         if not (self.utup1 == other.utup1): return False # NamedType('%bool')
         return True
+bitvectorconstant0x0000000000000001_1 = bitvector.from_ruint(64, r_uint(0x0000000000000001))
 
 
 def model_init(machine):
@@ -456,18 +500,7 @@ def func_zbits1_to_bool(machine, zb):
             # zz41: NamedType('%bv1')
             # Assignment(result='zz41', sourcepos='`1 14:2-14:5', value=Var(name='zb'))
             zz41 = zb
-            # LocalVarDeclaration(name='zz42', sourcepos='`1 13:27-16:1', typ=NamedType('%bool'), value=None)
-            # zz42: NamedType('%bool')
-            zz42 = False
-            # zz43: NamedType('%bv')
-            # Assignment(result='zz43', sourcepos='`1 14:2-14:5', value=Var(name='zz41'))
-            zz43 = bitvector.from_ruint(1, zz41)
-            # zz44: NamedType('%bv')
-            # Assignment(result='zz44', sourcepos='`1 14:2-14:5', value=BitVectorConstant(constant='0b1'))
-            zz44 = bitvector.from_ruint(1, r_uint(0b1))
-            # Operation(args=[Var(name='zz43'), Var(name='zz44')], name='zeq_bits', result='zz42', sourcepos='`1 14:2-14:5')
-            zz42 = supportcode.eq_bits(machine, zz43, zz44)
-            if not zz42:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(1, zz41), bitvectorconstant0b1_1):
                 # inline pc=11
                 pc = 14
                 continue
@@ -506,18 +539,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz469: NamedType('%bv6')
             # Assignment(result='zz469', sourcepos='`1 56:19-56:27', value=Var(name='zargz3'))
             zz469 = zargz3
-            # LocalVarDeclaration(name='zz470', sourcepos='`2', typ=NamedType('%bool'), value=None)
-            # zz470: NamedType('%bool')
-            zz470 = False
-            # zz471: NamedType('%bv')
-            # Assignment(result='zz471', sourcepos='`1 56:19-56:27', value=Var(name='zz469'))
-            zz471 = bitvector.from_ruint(6, zz469)
-            # zz472: NamedType('%bv')
-            # Assignment(result='zz472', sourcepos='`1 56:19-56:27', value=BitVectorConstant(constant='0b101010'))
-            zz472 = bitvector.from_ruint(6, r_uint(0b101010))
-            # Operation(args=[Var(name='zz471'), Var(name='zz472')], name='zeq_bits', result='zz470', sourcepos='`1 56:19-56:27')
-            zz470 = supportcode.eq_bits(machine, zz471, zz472)
-            if not zz470:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz469), bitvectorconstant0b101010_1):
                 # inline pc=11
                 pc = 14
                 continue
@@ -530,18 +552,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz465: NamedType('%bv6')
             # Assignment(result='zz465', sourcepos='`1 57:19-57:27', value=Var(name='zargz3'))
             zz465 = zargz3
-            # LocalVarDeclaration(name='zz466', sourcepos='`4', typ=NamedType('%bool'), value=None)
-            # zz466: NamedType('%bool')
-            zz466 = False
-            # zz467: NamedType('%bv')
-            # Assignment(result='zz467', sourcepos='`1 57:19-57:27', value=Var(name='zz465'))
-            zz467 = bitvector.from_ruint(6, zz465)
-            # zz468: NamedType('%bv')
-            # Assignment(result='zz468', sourcepos='`1 57:19-57:27', value=BitVectorConstant(constant='0b111111'))
-            zz468 = bitvector.from_ruint(6, r_uint(0b111111))
-            # Operation(args=[Var(name='zz467'), Var(name='zz468')], name='zeq_bits', result='zz466', sourcepos='`1 57:19-57:27')
-            zz466 = supportcode.eq_bits(machine, zz467, zz468)
-            if not zz466:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz465), bitvectorconstant0b111111_1):
                 # inline pc=24
                 pc = 27
                 continue
@@ -554,18 +565,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz461: NamedType('%bv6')
             # Assignment(result='zz461', sourcepos='`1 58:19-58:27', value=Var(name='zargz3'))
             zz461 = zargz3
-            # LocalVarDeclaration(name='zz462', sourcepos='`6', typ=NamedType('%bool'), value=None)
-            # zz462: NamedType('%bool')
-            zz462 = False
-            # zz463: NamedType('%bv')
-            # Assignment(result='zz463', sourcepos='`1 58:19-58:27', value=Var(name='zz461'))
-            zz463 = bitvector.from_ruint(6, zz461)
-            # zz464: NamedType('%bv')
-            # Assignment(result='zz464', sourcepos='`1 58:19-58:27', value=BitVectorConstant(constant='0b111010'))
-            zz464 = bitvector.from_ruint(6, r_uint(0b111010))
-            # Operation(args=[Var(name='zz463'), Var(name='zz464')], name='zeq_bits', result='zz462', sourcepos='`1 58:19-58:27')
-            zz462 = supportcode.eq_bits(machine, zz463, zz464)
-            if not zz462:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz461), bitvectorconstant0b111010_1):
                 # inline pc=37
                 pc = 40
                 continue
@@ -578,18 +578,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz457: NamedType('%bv6')
             # Assignment(result='zz457', sourcepos='`1 59:19-59:27', value=Var(name='zargz3'))
             zz457 = zargz3
-            # LocalVarDeclaration(name='zz458', sourcepos='`8', typ=NamedType('%bool'), value=None)
-            # zz458: NamedType('%bool')
-            zz458 = False
-            # zz459: NamedType('%bv')
-            # Assignment(result='zz459', sourcepos='`1 59:19-59:27', value=Var(name='zz457'))
-            zz459 = bitvector.from_ruint(6, zz457)
-            # zz460: NamedType('%bv')
-            # Assignment(result='zz460', sourcepos='`1 59:19-59:27', value=BitVectorConstant(constant='0b001100'))
-            zz460 = bitvector.from_ruint(6, r_uint(0b001100))
-            # Operation(args=[Var(name='zz459'), Var(name='zz460')], name='zeq_bits', result='zz458', sourcepos='`1 59:19-59:27')
-            zz458 = supportcode.eq_bits(machine, zz459, zz460)
-            if not zz458:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz457), bitvectorconstant0b001100_1):
                 # inline pc=50
                 pc = 53
                 continue
@@ -602,18 +591,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz453: NamedType('%bv6')
             # Assignment(result='zz453', sourcepos='`1 60:19-60:27', value=Var(name='zargz3'))
             zz453 = zargz3
-            # LocalVarDeclaration(name='zz454', sourcepos='`10', typ=NamedType('%bool'), value=None)
-            # zz454: NamedType('%bool')
-            zz454 = False
-            # zz455: NamedType('%bv')
-            # Assignment(result='zz455', sourcepos='`1 60:19-60:27', value=Var(name='zz453'))
-            zz455 = bitvector.from_ruint(6, zz453)
-            # zz456: NamedType('%bv')
-            # Assignment(result='zz456', sourcepos='`1 60:19-60:27', value=BitVectorConstant(constant='0b110000'))
-            zz456 = bitvector.from_ruint(6, r_uint(0b110000))
-            # Operation(args=[Var(name='zz455'), Var(name='zz456')], name='zeq_bits', result='zz454', sourcepos='`1 60:19-60:27')
-            zz454 = supportcode.eq_bits(machine, zz455, zz456)
-            if not zz454:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz453), bitvectorconstant0b110000_1):
                 # inline pc=63
                 pc = 66
                 continue
@@ -626,18 +604,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz449: NamedType('%bv6')
             # Assignment(result='zz449', sourcepos='`1 61:19-61:27', value=Var(name='zargz3'))
             zz449 = zargz3
-            # LocalVarDeclaration(name='zz450', sourcepos='`12', typ=NamedType('%bool'), value=None)
-            # zz450: NamedType('%bool')
-            zz450 = False
-            # zz451: NamedType('%bv')
-            # Assignment(result='zz451', sourcepos='`1 61:19-61:27', value=Var(name='zz449'))
-            zz451 = bitvector.from_ruint(6, zz449)
-            # zz452: NamedType('%bv')
-            # Assignment(result='zz452', sourcepos='`1 61:19-61:27', value=BitVectorConstant(constant='0b001101'))
-            zz452 = bitvector.from_ruint(6, r_uint(0b001101))
-            # Operation(args=[Var(name='zz451'), Var(name='zz452')], name='zeq_bits', result='zz450', sourcepos='`1 61:19-61:27')
-            zz450 = supportcode.eq_bits(machine, zz451, zz452)
-            if not zz450:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz449), bitvectorconstant0b001101_1):
                 # inline pc=76
                 pc = 79
                 continue
@@ -650,18 +617,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz445: NamedType('%bv6')
             # Assignment(result='zz445', sourcepos='`1 62:19-62:27', value=Var(name='zargz3'))
             zz445 = zargz3
-            # LocalVarDeclaration(name='zz446', sourcepos='`14', typ=NamedType('%bool'), value=None)
-            # zz446: NamedType('%bool')
-            zz446 = False
-            # zz447: NamedType('%bv')
-            # Assignment(result='zz447', sourcepos='`1 62:19-62:27', value=Var(name='zz445'))
-            zz447 = bitvector.from_ruint(6, zz445)
-            # zz448: NamedType('%bv')
-            # Assignment(result='zz448', sourcepos='`1 62:19-62:27', value=BitVectorConstant(constant='0b110001'))
-            zz448 = bitvector.from_ruint(6, r_uint(0b110001))
-            # Operation(args=[Var(name='zz447'), Var(name='zz448')], name='zeq_bits', result='zz446', sourcepos='`1 62:19-62:27')
-            zz446 = supportcode.eq_bits(machine, zz447, zz448)
-            if not zz446:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz445), bitvectorconstant0b110001_1):
                 # inline pc=89
                 pc = 92
                 continue
@@ -674,18 +630,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz441: NamedType('%bv6')
             # Assignment(result='zz441', sourcepos='`1 63:19-63:27', value=Var(name='zargz3'))
             zz441 = zargz3
-            # LocalVarDeclaration(name='zz442', sourcepos='`16', typ=NamedType('%bool'), value=None)
-            # zz442: NamedType('%bool')
-            zz442 = False
-            # zz443: NamedType('%bv')
-            # Assignment(result='zz443', sourcepos='`1 63:19-63:27', value=Var(name='zz441'))
-            zz443 = bitvector.from_ruint(6, zz441)
-            # zz444: NamedType('%bv')
-            # Assignment(result='zz444', sourcepos='`1 63:19-63:27', value=BitVectorConstant(constant='0b001111'))
-            zz444 = bitvector.from_ruint(6, r_uint(0b001111))
-            # Operation(args=[Var(name='zz443'), Var(name='zz444')], name='zeq_bits', result='zz442', sourcepos='`1 63:19-63:27')
-            zz442 = supportcode.eq_bits(machine, zz443, zz444)
-            if not zz442:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz441), bitvectorconstant0b001111_1):
                 # inline pc=102
                 pc = 105
                 continue
@@ -698,18 +643,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz437: NamedType('%bv6')
             # Assignment(result='zz437', sourcepos='`1 64:19-64:27', value=Var(name='zargz3'))
             zz437 = zargz3
-            # LocalVarDeclaration(name='zz438', sourcepos='`18', typ=NamedType('%bool'), value=None)
-            # zz438: NamedType('%bool')
-            zz438 = False
-            # zz439: NamedType('%bv')
-            # Assignment(result='zz439', sourcepos='`1 64:19-64:27', value=Var(name='zz437'))
-            zz439 = bitvector.from_ruint(6, zz437)
-            # zz440: NamedType('%bv')
-            # Assignment(result='zz440', sourcepos='`1 64:19-64:27', value=BitVectorConstant(constant='0b110011'))
-            zz440 = bitvector.from_ruint(6, r_uint(0b110011))
-            # Operation(args=[Var(name='zz439'), Var(name='zz440')], name='zeq_bits', result='zz438', sourcepos='`1 64:19-64:27')
-            zz438 = supportcode.eq_bits(machine, zz439, zz440)
-            if not zz438:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz437), bitvectorconstant0b110011_1):
                 # inline pc=115
                 pc = 118
                 continue
@@ -722,18 +656,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz433: NamedType('%bv6')
             # Assignment(result='zz433', sourcepos='`1 65:19-65:27', value=Var(name='zargz3'))
             zz433 = zargz3
-            # LocalVarDeclaration(name='zz434', sourcepos='`20', typ=NamedType('%bool'), value=None)
-            # zz434: NamedType('%bool')
-            zz434 = False
-            # zz435: NamedType('%bv')
-            # Assignment(result='zz435', sourcepos='`1 65:19-65:27', value=Var(name='zz433'))
-            zz435 = bitvector.from_ruint(6, zz433)
-            # zz436: NamedType('%bv')
-            # Assignment(result='zz436', sourcepos='`1 65:19-65:27', value=BitVectorConstant(constant='0b011111'))
-            zz436 = bitvector.from_ruint(6, r_uint(0b011111))
-            # Operation(args=[Var(name='zz435'), Var(name='zz436')], name='zeq_bits', result='zz434', sourcepos='`1 65:19-65:27')
-            zz434 = supportcode.eq_bits(machine, zz435, zz436)
-            if not zz434:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz433), bitvectorconstant0b011111_1):
                 # inline pc=128
                 pc = 131
                 continue
@@ -746,18 +669,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz429: NamedType('%bv6')
             # Assignment(result='zz429', sourcepos='`1 66:19-66:27', value=Var(name='zargz3'))
             zz429 = zargz3
-            # LocalVarDeclaration(name='zz430', sourcepos='`22', typ=NamedType('%bool'), value=None)
-            # zz430: NamedType('%bool')
-            zz430 = False
-            # zz431: NamedType('%bv')
-            # Assignment(result='zz431', sourcepos='`1 66:19-66:27', value=Var(name='zz429'))
-            zz431 = bitvector.from_ruint(6, zz429)
-            # zz432: NamedType('%bv')
-            # Assignment(result='zz432', sourcepos='`1 66:19-66:27', value=BitVectorConstant(constant='0b110111'))
-            zz432 = bitvector.from_ruint(6, r_uint(0b110111))
-            # Operation(args=[Var(name='zz431'), Var(name='zz432')], name='zeq_bits', result='zz430', sourcepos='`1 66:19-66:27')
-            zz430 = supportcode.eq_bits(machine, zz431, zz432)
-            if not zz430:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz429), bitvectorconstant0b110111_1):
                 # inline pc=141
                 pc = 144
                 continue
@@ -770,18 +682,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz425: NamedType('%bv6')
             # Assignment(result='zz425', sourcepos='`1 67:19-67:27', value=Var(name='zargz3'))
             zz425 = zargz3
-            # LocalVarDeclaration(name='zz426', sourcepos='`24', typ=NamedType('%bool'), value=None)
-            # zz426: NamedType('%bool')
-            zz426 = False
-            # zz427: NamedType('%bv')
-            # Assignment(result='zz427', sourcepos='`1 67:19-67:27', value=Var(name='zz425'))
-            zz427 = bitvector.from_ruint(6, zz425)
-            # zz428: NamedType('%bv')
-            # Assignment(result='zz428', sourcepos='`1 67:19-67:27', value=BitVectorConstant(constant='0b001110'))
-            zz428 = bitvector.from_ruint(6, r_uint(0b001110))
-            # Operation(args=[Var(name='zz427'), Var(name='zz428')], name='zeq_bits', result='zz426', sourcepos='`1 67:19-67:27')
-            zz426 = supportcode.eq_bits(machine, zz427, zz428)
-            if not zz426:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz425), bitvectorconstant0b001110_1):
                 # inline pc=154
                 pc = 157
                 continue
@@ -794,18 +695,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz421: NamedType('%bv6')
             # Assignment(result='zz421', sourcepos='`1 68:19-68:27', value=Var(name='zargz3'))
             zz421 = zargz3
-            # LocalVarDeclaration(name='zz422', sourcepos='`26', typ=NamedType('%bool'), value=None)
-            # zz422: NamedType('%bool')
-            zz422 = False
-            # zz423: NamedType('%bv')
-            # Assignment(result='zz423', sourcepos='`1 68:19-68:27', value=Var(name='zz421'))
-            zz423 = bitvector.from_ruint(6, zz421)
-            # zz424: NamedType('%bv')
-            # Assignment(result='zz424', sourcepos='`1 68:19-68:27', value=BitVectorConstant(constant='0b110010'))
-            zz424 = bitvector.from_ruint(6, r_uint(0b110010))
-            # Operation(args=[Var(name='zz423'), Var(name='zz424')], name='zeq_bits', result='zz422', sourcepos='`1 68:19-68:27')
-            zz422 = supportcode.eq_bits(machine, zz423, zz424)
-            if not zz422:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz421), bitvectorconstant0b110010_1):
                 # inline pc=167
                 pc = 170
                 continue
@@ -818,18 +708,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz417: NamedType('%bv6')
             # Assignment(result='zz417', sourcepos='`1 69:19-69:27', value=Var(name='zargz3'))
             zz417 = zargz3
-            # LocalVarDeclaration(name='zz418', sourcepos='`28', typ=NamedType('%bool'), value=None)
-            # zz418: NamedType('%bool')
-            zz418 = False
-            # zz419: NamedType('%bv')
-            # Assignment(result='zz419', sourcepos='`1 69:19-69:27', value=Var(name='zz417'))
-            zz419 = bitvector.from_ruint(6, zz417)
-            # zz420: NamedType('%bv')
-            # Assignment(result='zz420', sourcepos='`1 69:19-69:27', value=BitVectorConstant(constant='0b000010'))
-            zz420 = bitvector.from_ruint(6, r_uint(0b000010))
-            # Operation(args=[Var(name='zz419'), Var(name='zz420')], name='zeq_bits', result='zz418', sourcepos='`1 69:19-69:27')
-            zz418 = supportcode.eq_bits(machine, zz419, zz420)
-            if not zz418:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz417), bitvectorconstant0b000010_1):
                 # inline pc=180
                 pc = 183
                 continue
@@ -842,18 +721,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz413: NamedType('%bv6')
             # Assignment(result='zz413', sourcepos='`1 70:19-70:27', value=Var(name='zargz3'))
             zz413 = zargz3
-            # LocalVarDeclaration(name='zz414', sourcepos='`30', typ=NamedType('%bool'), value=None)
-            # zz414: NamedType('%bool')
-            zz414 = False
-            # zz415: NamedType('%bv')
-            # Assignment(result='zz415', sourcepos='`1 70:19-70:27', value=Var(name='zz413'))
-            zz415 = bitvector.from_ruint(6, zz413)
-            # zz416: NamedType('%bv')
-            # Assignment(result='zz416', sourcepos='`1 70:19-70:27', value=BitVectorConstant(constant='0b010011'))
-            zz416 = bitvector.from_ruint(6, r_uint(0b010011))
-            # Operation(args=[Var(name='zz415'), Var(name='zz416')], name='zeq_bits', result='zz414', sourcepos='`1 70:19-70:27')
-            zz414 = supportcode.eq_bits(machine, zz415, zz416)
-            if not zz414:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz413), bitvectorconstant0b010011_1):
                 # inline pc=193
                 pc = 196
                 continue
@@ -866,18 +734,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz49: NamedType('%bv6')
             # Assignment(result='zz49', sourcepos='`1 71:19-71:27', value=Var(name='zargz3'))
             zz49 = zargz3
-            # LocalVarDeclaration(name='zz410', sourcepos='`32', typ=NamedType('%bool'), value=None)
-            # zz410: NamedType('%bool')
-            zz410 = False
-            # zz411: NamedType('%bv')
-            # Assignment(result='zz411', sourcepos='`1 71:19-71:27', value=Var(name='zz49'))
-            zz411 = bitvector.from_ruint(6, zz49)
-            # zz412: NamedType('%bv')
-            # Assignment(result='zz412', sourcepos='`1 71:19-71:27', value=BitVectorConstant(constant='0b000111'))
-            zz412 = bitvector.from_ruint(6, r_uint(0b000111))
-            # Operation(args=[Var(name='zz411'), Var(name='zz412')], name='zeq_bits', result='zz410', sourcepos='`1 71:19-71:27')
-            zz410 = supportcode.eq_bits(machine, zz411, zz412)
-            if not zz410:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz49), bitvectorconstant0b000111_1):
                 # inline pc=206
                 pc = 209
                 continue
@@ -890,18 +747,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz45: NamedType('%bv6')
             # Assignment(result='zz45', sourcepos='`1 72:19-72:27', value=Var(name='zargz3'))
             zz45 = zargz3
-            # LocalVarDeclaration(name='zz46', sourcepos='`34', typ=NamedType('%bool'), value=None)
-            # zz46: NamedType('%bool')
-            zz46 = False
-            # zz47: NamedType('%bv')
-            # Assignment(result='zz47', sourcepos='`1 72:19-72:27', value=Var(name='zz45'))
-            zz47 = bitvector.from_ruint(6, zz45)
-            # zz48: NamedType('%bv')
-            # Assignment(result='zz48', sourcepos='`1 72:19-72:27', value=BitVectorConstant(constant='0b000000'))
-            zz48 = bitvector.from_ruint(6, r_uint(0b000000))
-            # Operation(args=[Var(name='zz47'), Var(name='zz48')], name='zeq_bits', result='zz46', sourcepos='`1 72:19-72:27')
-            zz46 = supportcode.eq_bits(machine, zz47, zz48)
-            if not zz46:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz45), bitvectorconstant0b000000_1):
                 # inline pc=219
                 pc = 222
                 continue
@@ -914,18 +760,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz41: NamedType('%bv6')
             # Assignment(result='zz41', sourcepos='`1 73:19-73:27', value=Var(name='zargz3'))
             zz41 = zargz3
-            # LocalVarDeclaration(name='zz42', sourcepos='`36', typ=NamedType('%bool'), value=None)
-            # zz42: NamedType('%bool')
-            zz42 = False
-            # zz43: NamedType('%bv')
-            # Assignment(result='zz43', sourcepos='`1 73:19-73:27', value=Var(name='zz41'))
-            zz43 = bitvector.from_ruint(6, zz41)
-            # zz44: NamedType('%bv')
-            # Assignment(result='zz44', sourcepos='`1 73:19-73:27', value=BitVectorConstant(constant='0b010101'))
-            zz44 = bitvector.from_ruint(6, r_uint(0b010101))
-            # Operation(args=[Var(name='zz43'), Var(name='zz44')], name='zeq_bits', result='zz42', sourcepos='`1 73:19-73:27')
-            zz42 = supportcode.eq_bits(machine, zz43, zz44)
-            if not zz42:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(6, zz41), bitvectorconstant0b010101_1):
                 # inline pc=232
                 pc = 235
                 continue
@@ -956,18 +791,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             # zz429: NamedType('%bv3')
             # Assignment(result='zz429', sourcepos='`1 79:13-79:18', value=Var(name='zargz3'))
             zz429 = zargz3
-            # LocalVarDeclaration(name='zz430', sourcepos='`41', typ=NamedType('%bool'), value=None)
-            # zz430: NamedType('%bool')
-            zz430 = False
-            # zz431: NamedType('%bv')
-            # Assignment(result='zz431', sourcepos='`1 79:13-79:18', value=Var(name='zz429'))
-            zz431 = bitvector.from_ruint(3, zz429)
-            # zz432: NamedType('%bv')
-            # Assignment(result='zz432', sourcepos='`1 79:13-79:18', value=BitVectorConstant(constant='0b000'))
-            zz432 = bitvector.from_ruint(3, r_uint(0b000))
-            # Operation(args=[Var(name='zz431'), Var(name='zz432')], name='zeq_bits', result='zz430', sourcepos='`1 79:13-79:18')
-            zz430 = supportcode.eq_bits(machine, zz431, zz432)
-            if not zz430:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(3, zz429), bitvectorconstant0b000_1):
                 # inline pc=11
                 pc = 14
                 continue
@@ -980,18 +804,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             # zz425: NamedType('%bv3')
             # Assignment(result='zz425', sourcepos='`1 80:13-80:18', value=Var(name='zargz3'))
             zz425 = zargz3
-            # LocalVarDeclaration(name='zz426', sourcepos='`43', typ=NamedType('%bool'), value=None)
-            # zz426: NamedType('%bool')
-            zz426 = False
-            # zz427: NamedType('%bv')
-            # Assignment(result='zz427', sourcepos='`1 80:13-80:18', value=Var(name='zz425'))
-            zz427 = bitvector.from_ruint(3, zz425)
-            # zz428: NamedType('%bv')
-            # Assignment(result='zz428', sourcepos='`1 80:13-80:18', value=BitVectorConstant(constant='0b001'))
-            zz428 = bitvector.from_ruint(3, r_uint(0b001))
-            # Operation(args=[Var(name='zz427'), Var(name='zz428')], name='zeq_bits', result='zz426', sourcepos='`1 80:13-80:18')
-            zz426 = supportcode.eq_bits(machine, zz427, zz428)
-            if not zz426:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(3, zz425), bitvectorconstant0b001_1):
                 # inline pc=24
                 pc = 27
                 continue
@@ -1004,18 +817,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             # zz421: NamedType('%bv3')
             # Assignment(result='zz421', sourcepos='`1 81:13-81:18', value=Var(name='zargz3'))
             zz421 = zargz3
-            # LocalVarDeclaration(name='zz422', sourcepos='`45', typ=NamedType('%bool'), value=None)
-            # zz422: NamedType('%bool')
-            zz422 = False
-            # zz423: NamedType('%bv')
-            # Assignment(result='zz423', sourcepos='`1 81:13-81:18', value=Var(name='zz421'))
-            zz423 = bitvector.from_ruint(3, zz421)
-            # zz424: NamedType('%bv')
-            # Assignment(result='zz424', sourcepos='`1 81:13-81:18', value=BitVectorConstant(constant='0b010'))
-            zz424 = bitvector.from_ruint(3, r_uint(0b010))
-            # Operation(args=[Var(name='zz423'), Var(name='zz424')], name='zeq_bits', result='zz422', sourcepos='`1 81:13-81:18')
-            zz422 = supportcode.eq_bits(machine, zz423, zz424)
-            if not zz422:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(3, zz421), bitvectorconstant0b010_1):
                 # inline pc=37
                 pc = 40
                 continue
@@ -1028,18 +830,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             # zz417: NamedType('%bv3')
             # Assignment(result='zz417', sourcepos='`1 82:13-82:18', value=Var(name='zargz3'))
             zz417 = zargz3
-            # LocalVarDeclaration(name='zz418', sourcepos='`47', typ=NamedType('%bool'), value=None)
-            # zz418: NamedType('%bool')
-            zz418 = False
-            # zz419: NamedType('%bv')
-            # Assignment(result='zz419', sourcepos='`1 82:13-82:18', value=Var(name='zz417'))
-            zz419 = bitvector.from_ruint(3, zz417)
-            # zz420: NamedType('%bv')
-            # Assignment(result='zz420', sourcepos='`1 82:13-82:18', value=BitVectorConstant(constant='0b011'))
-            zz420 = bitvector.from_ruint(3, r_uint(0b011))
-            # Operation(args=[Var(name='zz419'), Var(name='zz420')], name='zeq_bits', result='zz418', sourcepos='`1 82:13-82:18')
-            zz418 = supportcode.eq_bits(machine, zz419, zz420)
-            if not zz418:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(3, zz417), bitvectorconstant0b011_1):
                 # inline pc=50
                 pc = 53
                 continue
@@ -1052,18 +843,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             # zz413: NamedType('%bv3')
             # Assignment(result='zz413', sourcepos='`1 83:13-83:18', value=Var(name='zargz3'))
             zz413 = zargz3
-            # LocalVarDeclaration(name='zz414', sourcepos='`49', typ=NamedType('%bool'), value=None)
-            # zz414: NamedType('%bool')
-            zz414 = False
-            # zz415: NamedType('%bv')
-            # Assignment(result='zz415', sourcepos='`1 83:13-83:18', value=Var(name='zz413'))
-            zz415 = bitvector.from_ruint(3, zz413)
-            # zz416: NamedType('%bv')
-            # Assignment(result='zz416', sourcepos='`1 83:13-83:18', value=BitVectorConstant(constant='0b100'))
-            zz416 = bitvector.from_ruint(3, r_uint(0b100))
-            # Operation(args=[Var(name='zz415'), Var(name='zz416')], name='zeq_bits', result='zz414', sourcepos='`1 83:13-83:18')
-            zz414 = supportcode.eq_bits(machine, zz415, zz416)
-            if not zz414:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(3, zz413), bitvectorconstant0b100_1):
                 # inline pc=63
                 pc = 66
                 continue
@@ -1076,18 +856,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             # zz49: NamedType('%bv3')
             # Assignment(result='zz49', sourcepos='`1 84:13-84:18', value=Var(name='zargz3'))
             zz49 = zargz3
-            # LocalVarDeclaration(name='zz410', sourcepos='`51', typ=NamedType('%bool'), value=None)
-            # zz410: NamedType('%bool')
-            zz410 = False
-            # zz411: NamedType('%bv')
-            # Assignment(result='zz411', sourcepos='`1 84:13-84:18', value=Var(name='zz49'))
-            zz411 = bitvector.from_ruint(3, zz49)
-            # zz412: NamedType('%bv')
-            # Assignment(result='zz412', sourcepos='`1 84:13-84:18', value=BitVectorConstant(constant='0b101'))
-            zz412 = bitvector.from_ruint(3, r_uint(0b101))
-            # Operation(args=[Var(name='zz411'), Var(name='zz412')], name='zeq_bits', result='zz410', sourcepos='`1 84:13-84:18')
-            zz410 = supportcode.eq_bits(machine, zz411, zz412)
-            if not zz410:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(3, zz49), bitvectorconstant0b101_1):
                 # inline pc=76
                 pc = 79
                 continue
@@ -1100,18 +869,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             # zz45: NamedType('%bv3')
             # Assignment(result='zz45', sourcepos='`1 85:13-85:18', value=Var(name='zargz3'))
             zz45 = zargz3
-            # LocalVarDeclaration(name='zz46', sourcepos='`53', typ=NamedType('%bool'), value=None)
-            # zz46: NamedType('%bool')
-            zz46 = False
-            # zz47: NamedType('%bv')
-            # Assignment(result='zz47', sourcepos='`1 85:13-85:18', value=Var(name='zz45'))
-            zz47 = bitvector.from_ruint(3, zz45)
-            # zz48: NamedType('%bv')
-            # Assignment(result='zz48', sourcepos='`1 85:13-85:18', value=BitVectorConstant(constant='0b110'))
-            zz48 = bitvector.from_ruint(3, r_uint(0b110))
-            # Operation(args=[Var(name='zz47'), Var(name='zz48')], name='zeq_bits', result='zz46', sourcepos='`1 85:13-85:18')
-            zz46 = supportcode.eq_bits(machine, zz47, zz48)
-            if not zz46:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(3, zz45), bitvectorconstant0b110_1):
                 # inline pc=89
                 pc = 92
                 continue
@@ -1124,18 +882,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             # zz41: NamedType('%bv3')
             # Assignment(result='zz41', sourcepos='`1 86:13-86:18', value=Var(name='zargz3'))
             zz41 = zargz3
-            # LocalVarDeclaration(name='zz42', sourcepos='`55', typ=NamedType('%bool'), value=None)
-            # zz42: NamedType('%bool')
-            zz42 = False
-            # zz43: NamedType('%bv')
-            # Assignment(result='zz43', sourcepos='`1 86:13-86:18', value=Var(name='zz41'))
-            zz43 = bitvector.from_ruint(3, zz41)
-            # zz44: NamedType('%bv')
-            # Assignment(result='zz44', sourcepos='`1 86:13-86:18', value=BitVectorConstant(constant='0b111'))
-            zz44 = bitvector.from_ruint(3, r_uint(0b111))
-            # Operation(args=[Var(name='zz43'), Var(name='zz44')], name='zeq_bits', result='zz42', sourcepos='`1 86:13-86:18')
-            zz42 = supportcode.eq_bits(machine, zz43, zz44)
-            if not zz42:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(3, zz41), bitvectorconstant0b111_1):
                 # inline pc=102
                 pc = 105
                 continue
@@ -1170,10 +917,10 @@ def func_zdecode_destination(machine, zb):
     zz42 = r_uint(0)
     # zz421: NamedType('%i')
     # Operation(args=[Number(number=2)], name='zz5i64zDzKz5i', result='zz421', sourcepos='`1 112:8-112:9')
-    zz421 = supportcode.int64_to_int(machine, 2)
+    zz421 = smallintconst2_1
     # zz422: NamedType('%i')
     # Operation(args=[Number(number=2)], name='zz5i64zDzKz5i', result='zz422', sourcepos='`1 112:8-112:9')
-    zz422 = supportcode.int64_to_int(machine, 2)
+    zz422 = smallintconst2_1
     # zz423: NamedType('%bv')
     # Assignment(result='zz423', sourcepos='`1 112:8-112:9', value=Var(name='zz41'))
     zz423 = bitvector.from_ruint(3, zz41)
@@ -1187,10 +934,10 @@ def func_zdecode_destination(machine, zb):
     zz43 = r_uint(0)
     # zz417: NamedType('%i')
     # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz417', sourcepos='`1 112:36-112:37')
-    zz417 = supportcode.int64_to_int(machine, 0)
+    zz417 = smallintconst0_1
     # zz418: NamedType('%i')
     # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz418', sourcepos='`1 112:36-112:37')
-    zz418 = supportcode.int64_to_int(machine, 0)
+    zz418 = smallintconst0_1
     # zz419: NamedType('%bv')
     # Assignment(result='zz419', sourcepos='`1 112:36-112:37', value=Var(name='zz41'))
     zz419 = bitvector.from_ruint(3, zz41)
@@ -1204,10 +951,10 @@ def func_zdecode_destination(machine, zb):
     zz44 = r_uint(0)
     # zz413: NamedType('%i')
     # Operation(args=[Number(number=1)], name='zz5i64zDzKz5i', result='zz413', sourcepos='`1 112:22-112:23')
-    zz413 = supportcode.int64_to_int(machine, 1)
+    zz413 = smallintconst1_1
     # zz414: NamedType('%i')
     # Operation(args=[Number(number=1)], name='zz5i64zDzKz5i', result='zz414', sourcepos='`1 112:22-112:23')
-    zz414 = supportcode.int64_to_int(machine, 1)
+    zz414 = smallintconst1_1
     # zz415: NamedType('%bv')
     # Assignment(result='zz415', sourcepos='`1 112:22-112:23', value=Var(name='zz41'))
     zz415 = bitvector.from_ruint(3, zz41)
@@ -1221,10 +968,10 @@ def func_zdecode_destination(machine, zb):
     zz45 = r_uint(0)
     # zz49: NamedType('%i')
     # Operation(args=[Number(number=2)], name='zz5i64zDzKz5i', result='zz49', sourcepos='`1 112:8-112:9')
-    zz49 = supportcode.int64_to_int(machine, 2)
+    zz49 = smallintconst2_1
     # zz410: NamedType('%i')
     # Operation(args=[Number(number=2)], name='zz5i64zDzKz5i', result='zz410', sourcepos='`1 112:8-112:9')
-    zz410 = supportcode.int64_to_int(machine, 2)
+    zz410 = smallintconst2_1
     # zz411: NamedType('%bv')
     # Assignment(result='zz411', sourcepos='`1 112:8-112:9', value=Var(name='zz41'))
     zz411 = bitvector.from_ruint(3, zz41)
@@ -1261,206 +1008,27 @@ def func_zdecode(machine, zmergez3var):
             # zz435: NamedType('%bv16')
             # Assignment(result='zz435', sourcepos='`1 99:23-99:41', value=Var(name='zmergez3var'))
             zz435 = zmergez3var
-            # LocalVarDeclaration(name='zz436', sourcepos='`1 99:23-99:41', typ=NamedType('%bv1'), value=None)
-            # zz436: NamedType('%bv1')
-            zz436 = r_uint(0)
-            # zz450: NamedType('%i')
-            # Operation(args=[Number(number=15)], name='zz5i64zDzKz5i', result='zz450', sourcepos='`1 99:23-99:41')
-            zz450 = supportcode.int64_to_int(machine, 15)
-            # zz451: NamedType('%i')
-            # Operation(args=[Number(number=15)], name='zz5i64zDzKz5i', result='zz451', sourcepos='`1 99:23-99:41')
-            zz451 = supportcode.int64_to_int(machine, 15)
-            # zz452: NamedType('%bv')
-            # Assignment(result='zz452', sourcepos='`1 99:23-99:41', value=Var(name='zz435'))
-            zz452 = bitvector.from_ruint(16, zz435)
-            # zz453: NamedType('%bv')
-            # Operation(args=[Var(name='zz452'), Var(name='zz450'), Var(name='zz451')], name='zsubrange_bits', result='zz453', sourcepos='`1 99:23-99:41')
-            zz453 = supportcode.vector_subrange(machine, zz452, zz450, zz451)
-            # Assignment(result='zz436', sourcepos='`1 99:23-99:41', value=Var(name='zz453'))
-            zz436 = zz453.touint()
-            # LocalVarDeclaration(name='zz437', sourcepos='`1 99:16-100:39', typ=NamedType('%bool'), value=None)
-            # zz437: NamedType('%bool')
-            zz437 = False
-            # zz448: NamedType('%bv')
-            # Assignment(result='zz448', sourcepos='`1 99:23-99:41', value=Var(name='zz436'))
-            zz448 = bitvector.from_ruint(1, zz436)
-            # zz449: NamedType('%bv')
-            # Assignment(result='zz449', sourcepos='`1 99:23-99:41', value=BitVectorConstant(constant='0b0'))
-            zz449 = bitvector.from_ruint(1, r_uint(0b0))
-            # Operation(args=[Var(name='zz448'), Var(name='zz449')], name='zeq_bits', result='zz437', sourcepos='`1 99:23-99:41')
-            zz437 = supportcode.eq_bits(machine, zz448, zz449)
-            if not zz437:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(1, supportcode.vector_subrange(machine, bitvector.from_ruint(16, zz435), smallintconst15_1, smallintconst15_1).touint()), bitvectorconstant0b0_1):
                 # inline pc=21
                 pc = 44
                 continue
             pc = 22
         if pc == 22:
-            # LocalVarDeclaration(name='zz438', sourcepos='`1 100:3-100:39', typ=NamedType('%bv15'), value=None)
-            # zz438: NamedType('%bv15')
-            zz438 = r_uint(0)
-            # zz444: NamedType('%i')
-            # Operation(args=[Number(number=14)], name='zz5i64zDzKz5i', result='zz444', sourcepos='`1 99:29-99:30')
-            zz444 = supportcode.int64_to_int(machine, 14)
-            # zz445: NamedType('%i')
-            # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz445', sourcepos='`1 99:29-99:30')
-            zz445 = supportcode.int64_to_int(machine, 0)
-            # zz446: NamedType('%bv')
-            # Assignment(result='zz446', sourcepos='`1 99:29-99:30', value=Var(name='zz435'))
-            zz446 = bitvector.from_ruint(16, zz435)
-            # zz447: NamedType('%bv')
-            # Operation(args=[Var(name='zz446'), Var(name='zz444'), Var(name='zz445')], name='zsubrange_bits', result='zz447', sourcepos='`1 99:29-99:30')
-            zz447 = supportcode.vector_subrange(machine, zz446, zz444, zz445)
-            # Assignment(result='zz438', sourcepos='`1 99:29-99:30', value=Var(name='zz447'))
-            zz438 = zz447.touint()
-            # LocalVarDeclaration(name='zz439', sourcepos='`1 100:3-100:39', typ=UnionType(name='zinstr'), value=None)
-            # zz439: UnionType(name='zinstr')
-            zz439 = Union_zinstr.singleton
-            # LocalVarDeclaration(name='zz440', sourcepos='`1 100:8-100:38', typ=NamedType('%bv16'), value=None)
-            # zz440: NamedType('%bv16')
-            zz440 = r_uint(0)
-            # zz441: NamedType('%i')
-            # Operation(args=[Number(number=16)], name='zz5i64zDzKz5i', result='zz441', sourcepos='`1 100:14-100:37')
-            zz441 = supportcode.int64_to_int(machine, 16)
-            # zz442: NamedType('%bv')
-            # Assignment(result='zz442', sourcepos='`1 100:14-100:37', value=Var(name='zz438'))
-            zz442 = bitvector.from_ruint(15, zz438)
-            # zz443: NamedType('%bv')
-            # Operation(args=[Var(name='zz442'), Var(name='zz441')], name='zsail_zzero_extend', result='zz443', sourcepos='`1 100:14-100:37')
-            zz443 = supportcode.zero_extend(machine, zz442, zz441)
-            # Assignment(result='zz440', sourcepos='`1 100:14-100:37', value=Var(name='zz443'))
-            zz440 = zz443.touint()
-            # Operation(args=[Var(name='zz440')], name='zAINST', result='zz439', sourcepos='`1 100:8-100:38')
-            zz439 = Union_zinstr_zAINST(zz440)
-            # Operation(args=[Var(name='zz439')], name='zSomezIUinstrzIzKzK', result='zz40', sourcepos='`1 100:3-100:39')
-            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(zz439)
+            # Operation(args=[OperationExpr(args=[CastExpr(expr=OperationExpr(args=[CastExpr(expr=CastExpr(expr=OperationExpr(args=[CastExpr(expr=Var(name='zz435'), typ=NamedType('%bv')), OperationExpr(args=[Number(number=14)], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zsubrange_bits', typ=NamedType('%bv')), typ=NamedType('%bv15')), typ=NamedType('%bv')), OperationExpr(args=[Number(number=16)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zsail_zzero_extend', typ=NamedType('%bv')), typ=NamedType('%bv16'))], name='zAINST', typ=UnionType(name='zinstr'))], name='zSomezIUinstrzIzKzK', result='zz40', sourcepos=None)
+            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(Union_zinstr_zAINST(supportcode.zero_extend(machine, bitvector.from_ruint(15, supportcode.vector_subrange(machine, bitvector.from_ruint(16, zz435), smallintconst14_1, smallintconst0_1).touint()), smallintconst16_1).touint()))
             pc = 118
         if pc == 44:
             # zz41: NamedType('%bv16')
             # Assignment(result='zz41', sourcepos='`1 118:23-118:90', value=Var(name='zmergez3var'))
             zz41 = zmergez3var
-            # LocalVarDeclaration(name='zz42', sourcepos='`1 118:23-118:90', typ=NamedType('%bv3'), value=None)
-            # zz42: NamedType('%bv3')
-            zz42 = r_uint(0)
-            # zz431: NamedType('%i')
-            # Operation(args=[Number(number=15)], name='zz5i64zDzKz5i', result='zz431', sourcepos='`1 118:23-118:90')
-            zz431 = supportcode.int64_to_int(machine, 15)
-            # zz432: NamedType('%i')
-            # Operation(args=[Number(number=13)], name='zz5i64zDzKz5i', result='zz432', sourcepos='`1 118:23-118:90')
-            zz432 = supportcode.int64_to_int(machine, 13)
-            # zz433: NamedType('%bv')
-            # Assignment(result='zz433', sourcepos='`1 118:23-118:90', value=Var(name='zz41'))
-            zz433 = bitvector.from_ruint(16, zz41)
-            # zz434: NamedType('%bv')
-            # Operation(args=[Var(name='zz433'), Var(name='zz431'), Var(name='zz432')], name='zsubrange_bits', result='zz434', sourcepos='`1 118:23-118:90')
-            zz434 = supportcode.vector_subrange(machine, zz433, zz431, zz432)
-            # Assignment(result='zz42', sourcepos='`1 118:23-118:90', value=Var(name='zz434'))
-            zz42 = zz434.touint()
-            # LocalVarDeclaration(name='zz43', sourcepos='`1 99:16-100:39', typ=NamedType('%bool'), value=None)
-            # zz43: NamedType('%bool')
-            zz43 = False
-            # zz429: NamedType('%bv')
-            # Assignment(result='zz429', sourcepos='`1 118:23-118:90', value=Var(name='zz42'))
-            zz429 = bitvector.from_ruint(3, zz42)
-            # zz430: NamedType('%bv')
-            # Assignment(result='zz430', sourcepos='`1 118:23-118:90', value=BitVectorConstant(constant='0b111'))
-            zz430 = bitvector.from_ruint(3, r_uint(0b111))
-            # Operation(args=[Var(name='zz429'), Var(name='zz430')], name='zeq_bits', result='zz43', sourcepos='`1 118:23-118:90')
-            zz43 = supportcode.eq_bits(machine, zz429, zz430)
-            if not zz43:
+            if not supportcode.eq_bits(machine, bitvector.from_ruint(3, supportcode.vector_subrange(machine, bitvector.from_ruint(16, zz41), smallintconst15_1, smallintconst13_1).touint()), bitvectorconstant0b111_1):
                 # inline pc=64
                 pc = 117
                 continue
             pc = 65
         if pc == 65:
-            # LocalVarDeclaration(name='zz44', sourcepos='`1 119:4-119:82', typ=NamedType('%bv3'), value=None)
-            # zz44: NamedType('%bv3')
-            zz44 = r_uint(0)
-            # zz425: NamedType('%i')
-            # Operation(args=[Number(number=2)], name='zz5i64zDzKz5i', result='zz425', sourcepos='`1 118:76-118:80')
-            zz425 = supportcode.int64_to_int(machine, 2)
-            # zz426: NamedType('%i')
-            # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz426', sourcepos='`1 118:76-118:80')
-            zz426 = supportcode.int64_to_int(machine, 0)
-            # zz427: NamedType('%bv')
-            # Assignment(result='zz427', sourcepos='`1 118:76-118:80', value=Var(name='zz41'))
-            zz427 = bitvector.from_ruint(16, zz41)
-            # zz428: NamedType('%bv')
-            # Operation(args=[Var(name='zz427'), Var(name='zz425'), Var(name='zz426')], name='zsubrange_bits', result='zz428', sourcepos='`1 118:76-118:80')
-            zz428 = supportcode.vector_subrange(machine, zz427, zz425, zz426)
-            # Assignment(result='zz44', sourcepos='`1 118:76-118:80', value=Var(name='zz428'))
-            zz44 = zz428.touint()
-            # LocalVarDeclaration(name='zz45', sourcepos='`1 118:59-118:63', typ=NamedType('%bv3'), value=None)
-            # zz45: NamedType('%bv3')
-            zz45 = r_uint(0)
-            # zz421: NamedType('%i')
-            # Operation(args=[Number(number=5)], name='zz5i64zDzKz5i', result='zz421', sourcepos='`1 118:59-118:63')
-            zz421 = supportcode.int64_to_int(machine, 5)
-            # zz422: NamedType('%i')
-            # Operation(args=[Number(number=3)], name='zz5i64zDzKz5i', result='zz422', sourcepos='`1 118:59-118:63')
-            zz422 = supportcode.int64_to_int(machine, 3)
-            # zz423: NamedType('%bv')
-            # Assignment(result='zz423', sourcepos='`1 118:59-118:63', value=Var(name='zz41'))
-            zz423 = bitvector.from_ruint(16, zz41)
-            # zz424: NamedType('%bv')
-            # Operation(args=[Var(name='zz423'), Var(name='zz421'), Var(name='zz422')], name='zsubrange_bits', result='zz424', sourcepos='`1 118:59-118:63')
-            zz424 = supportcode.vector_subrange(machine, zz423, zz421, zz422)
-            # Assignment(result='zz45', sourcepos='`1 118:59-118:63', value=Var(name='zz424'))
-            zz45 = zz424.touint()
-            # LocalVarDeclaration(name='zz46', sourcepos='`1 118:45-118:46', typ=NamedType('%bv6'), value=None)
-            # zz46: NamedType('%bv6')
-            zz46 = r_uint(0)
-            # zz417: NamedType('%i')
-            # Operation(args=[Number(number=11)], name='zz5i64zDzKz5i', result='zz417', sourcepos='`1 118:45-118:46')
-            zz417 = supportcode.int64_to_int(machine, 11)
-            # zz418: NamedType('%i')
-            # Operation(args=[Number(number=6)], name='zz5i64zDzKz5i', result='zz418', sourcepos='`1 118:45-118:46')
-            zz418 = supportcode.int64_to_int(machine, 6)
-            # zz419: NamedType('%bv')
-            # Assignment(result='zz419', sourcepos='`1 118:45-118:46', value=Var(name='zz41'))
-            zz419 = bitvector.from_ruint(16, zz41)
-            # zz420: NamedType('%bv')
-            # Operation(args=[Var(name='zz419'), Var(name='zz417'), Var(name='zz418')], name='zsubrange_bits', result='zz420', sourcepos='`1 118:45-118:46')
-            zz420 = supportcode.vector_subrange(machine, zz419, zz417, zz418)
-            # Assignment(result='zz46', sourcepos='`1 118:45-118:46', value=Var(name='zz420'))
-            zz46 = zz420.touint()
-            # LocalVarDeclaration(name='zz47', sourcepos='`1 118:31-118:32', typ=NamedType('%bv1'), value=None)
-            # zz47: NamedType('%bv1')
-            zz47 = r_uint(0)
-            # zz413: NamedType('%i')
-            # Operation(args=[Number(number=12)], name='zz5i64zDzKz5i', result='zz413', sourcepos='`1 118:31-118:32')
-            zz413 = supportcode.int64_to_int(machine, 12)
-            # zz414: NamedType('%i')
-            # Operation(args=[Number(number=12)], name='zz5i64zDzKz5i', result='zz414', sourcepos='`1 118:31-118:32')
-            zz414 = supportcode.int64_to_int(machine, 12)
-            # zz415: NamedType('%bv')
-            # Assignment(result='zz415', sourcepos='`1 118:31-118:32', value=Var(name='zz41'))
-            zz415 = bitvector.from_ruint(16, zz41)
-            # zz416: NamedType('%bv')
-            # Operation(args=[Var(name='zz415'), Var(name='zz413'), Var(name='zz414')], name='zsubrange_bits', result='zz416', sourcepos='`1 118:31-118:32')
-            zz416 = supportcode.vector_subrange(machine, zz415, zz413, zz414)
-            # Assignment(result='zz47', sourcepos='`1 118:31-118:32', value=Var(name='zz416'))
-            zz47 = zz416.touint()
-            # LocalVarDeclaration(name='zz48', sourcepos='`1 119:4-119:82', typ=UnionType(name='zinstr'), value=None)
-            # zz48: UnionType(name='zinstr')
-            zz48 = Union_zinstr.singleton
-            # LocalVarDeclaration(name='zz49', sourcepos='`1 119:9-119:81', typ=StructType(name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump'), value=None)
-            # zz49: StructType(name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump')
-            zz49 = Struct_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump(r_uint(0), -1, Struct_ztuplez3z5bool_z5bool_z5bool(False, False, False), -1)
-            # zz410: EnumType(name='zarithmetic_op')
-            # Operation(args=[Var(name='zz46')], name='zdecode_compute_backwards', result='zz410', sourcepos='`1 119:18-119:35')
-            zz410 = func_zdecode_compute_backwards(machine, zz46)
-            # zz411: StructType(name='ztuplez3z5bool_z5bool_z5bool')
-            # Operation(args=[Var(name='zz45')], name='zdecode_destination', result='zz411', sourcepos='`1 119:37-119:61')
-            zz411 = func_zdecode_destination(machine, zz45)
-            # zz412: EnumType(name='zjump')
-            # Operation(args=[Var(name='zz44')], name='zdecode_jump_backwards', result='zz412', sourcepos='`1 119:63-119:80')
-            zz412 = func_zdecode_jump_backwards(machine, zz44)
-            # Assignment(result='zz49', sourcepos='`1 119:9-119:81', value=StructConstruction(fieldnames=['ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3'], fieldvalues=[Var(name='zz47'), Var(name='zz410'), Var(name='zz411'), Var(name='zz412')], name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump'))
-            zz49 = Struct_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump(zz47, zz410, zz411, zz412)
-            # Operation(args=[Var(name='zz49')], name='zCINST', result='zz48', sourcepos='`1 119:9-119:81')
-            zz48 = Union_zinstr_zCINST(zz49)
-            # Operation(args=[Var(name='zz48')], name='zSomezIUinstrzIzKzK', result='zz40', sourcepos='`1 119:4-119:82')
-            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(zz48)
+            # Operation(args=[OperationExpr(args=[CastExpr(expr=StructConstruction(fieldnames=['ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3'], fieldvalues=[CastExpr(expr=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), OperationExpr(args=[Number(number=12)], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=12)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zsubrange_bits', typ=NamedType('%bv')), typ=NamedType('%bv1')), OperationExpr(args=[CastExpr(expr=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), OperationExpr(args=[Number(number=11)], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=6)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zsubrange_bits', typ=NamedType('%bv')), typ=NamedType('%bv6'))], name='zdecode_compute_backwards', typ=EnumType(name='zarithmetic_op')), OperationExpr(args=[CastExpr(expr=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), OperationExpr(args=[Number(number=5)], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=3)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zsubrange_bits', typ=NamedType('%bv')), typ=NamedType('%bv3'))], name='zdecode_destination', typ=StructType(name='ztuplez3z5bool_z5bool_z5bool')), OperationExpr(args=[CastExpr(expr=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), OperationExpr(args=[Number(number=2)], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zsubrange_bits', typ=NamedType('%bv')), typ=NamedType('%bv3'))], name='zdecode_jump_backwards', typ=EnumType(name='zjump'))], name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump'), typ=StructType(name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump'))], name='zCINST', typ=UnionType(name='zinstr'))], name='zSomezIUinstrzIzKzK', result='zz40', sourcepos=None)
+            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(Union_zinstr_zCINST(Struct_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump(supportcode.vector_subrange(machine, bitvector.from_ruint(16, zz41), smallintconst12_1, smallintconst12_1).touint(), func_zdecode_compute_backwards(machine, supportcode.vector_subrange(machine, bitvector.from_ruint(16, zz41), smallintconst11_1, smallintconst6_1).touint()), func_zdecode_destination(machine, supportcode.vector_subrange(machine, bitvector.from_ruint(16, zz41), smallintconst5_1, smallintconst3_1).touint()), func_zdecode_jump_backwards(machine, supportcode.vector_subrange(machine, bitvector.from_ruint(16, zz41), smallintconst2_1, smallintconst0_1).touint()))))
             pc = 118
         if pc == 117:
             # Operation(args=[Unit()], name='zNonezIUinstrzIzKzK', result='zz40', sourcepos='`1 121:27-121:33')
@@ -1482,18 +1050,10 @@ def func_zcompute_value(machine, za, zop):
             # LocalVarDeclaration(name='zz40', sourcepos='`1 124:2-146:8', typ=NamedType('%bv16'), value=None)
             # zz40: NamedType('%bv16')
             zz40 = r_uint(0)
-            # LocalVarDeclaration(name='zz441', sourcepos='`1 124:10-124:45', typ=NamedType('%bool'), value=None)
-            # zz441: NamedType('%bool')
-            zz441 = False
             # zz442: NamedType('%bv')
             # Assignment(result='zz442', sourcepos='`1 124:13-124:21', value=Var(name='za'))
             zz442 = bitvector.from_ruint(1, za)
-            # zz443: NamedType('%bv')
-            # Assignment(result='zz443', sourcepos='`1 124:13-124:21', value=BitVectorConstant(constant='0b0'))
-            zz443 = bitvector.from_ruint(1, r_uint(0b0))
-            # Operation(args=[Var(name='zz442'), Var(name='zz443')], name='zeq_bits', result='zz441', sourcepos='`1 124:13-124:21')
-            zz441 = supportcode.eq_bits(machine, zz442, zz443)
-            if zz441:
+            if supportcode.eq_bits(machine, zz442, bitvectorconstant0b0_1):
                 # inline pc=10
                 # Assignment(result='zz40', sourcepos='`1 124:27-124:28', value=Var(name='zA'))
                 zz40 = machine._reg_zA
@@ -1551,167 +1111,83 @@ def func_zcompute_value(machine, za, zop):
                                                                                     # Exit(kind='match', sourcepos='`1 126:26-145:3')
                                                                                     raise TypeError
                                                                                     continue
-                                                                                # zz44: NamedType('%bv')
-                                                                                # Assignment(result='zz44', sourcepos='`1 144:16-144:21', value=Var(name='zz41'))
-                                                                                zz44 = bitvector.from_ruint(16, zz41)
                                                                                 # zz45: NamedType('%bv')
                                                                                 # Assignment(result='zz45', sourcepos='`1 144:16-144:21', value=Var(name='zz40'))
                                                                                 zz45 = bitvector.from_ruint(16, zz40)
-                                                                                # zz46: NamedType('%bv')
-                                                                                # Operation(args=[Var(name='zz44'), Var(name='zz45')], name='zor_vec', result='zz46', sourcepos='`1 144:16-144:21')
-                                                                                zz46 = supportcode.or_bits(machine, zz44, zz45)
-                                                                                # Assignment(result='zz43', sourcepos='`1 144:16-144:21', value=Var(name='zz46'))
-                                                                                zz43 = zz46.touint()
+                                                                                # Assignment(result='zz43', value=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), Var(name='zz45')], name='zor_vec', typ=NamedType('%bv')))
+                                                                                zz43 = supportcode.or_bits(machine, bitvector.from_ruint(16, zz41), zz45).touint()
                                                                                 pc = 144
                                                                                 continue
-                                                                            # zz47: NamedType('%bv')
-                                                                            # Assignment(result='zz47', sourcepos='`1 143:17-143:22', value=Var(name='zz41'))
-                                                                            zz47 = bitvector.from_ruint(16, zz41)
                                                                             # zz48: NamedType('%bv')
                                                                             # Assignment(result='zz48', sourcepos='`1 143:17-143:22', value=Var(name='zz40'))
                                                                             zz48 = bitvector.from_ruint(16, zz40)
-                                                                            # zz49: NamedType('%bv')
-                                                                            # Operation(args=[Var(name='zz47'), Var(name='zz48')], name='zand_vec', result='zz49', sourcepos='`1 143:17-143:22')
-                                                                            zz49 = supportcode.and_bits(machine, zz47, zz48)
-                                                                            # Assignment(result='zz43', sourcepos='`1 143:17-143:22', value=Var(name='zz49'))
-                                                                            zz43 = zz49.touint()
+                                                                            # Assignment(result='zz43', value=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), Var(name='zz48')], name='zand_vec', typ=NamedType('%bv')))
+                                                                            zz43 = supportcode.and_bits(machine, bitvector.from_ruint(16, zz41), zz48).touint()
                                                                             pc = 144
                                                                             continue
                                                                         # zz410: NamedType('%bv')
                                                                         # Assignment(result='zz410', sourcepos='`1 142:17-142:22', value=Var(name='zz40'))
                                                                         zz410 = bitvector.from_ruint(16, zz40)
-                                                                        # zz411: NamedType('%bv')
-                                                                        # Assignment(result='zz411', sourcepos='`1 142:17-142:22', value=Var(name='zz41'))
-                                                                        zz411 = bitvector.from_ruint(16, zz41)
-                                                                        # zz412: NamedType('%bv')
-                                                                        # Operation(args=[Var(name='zz410'), Var(name='zz411')], name='zsub_vec', result='zz412', sourcepos='`1 142:17-142:22')
-                                                                        zz412 = supportcode.sub_bits(machine, zz410, zz411)
-                                                                        # Assignment(result='zz43', sourcepos='`1 142:17-142:22', value=Var(name='zz412'))
-                                                                        zz43 = zz412.touint()
+                                                                        # Assignment(result='zz43', value=OperationExpr(args=[Var(name='zz410'), CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv'))], name='zsub_vec', typ=NamedType('%bv')))
+                                                                        zz43 = supportcode.sub_bits(machine, zz410, bitvector.from_ruint(16, zz41)).touint()
                                                                         pc = 144
                                                                         continue
-                                                                    # zz413: NamedType('%bv')
-                                                                    # Assignment(result='zz413', sourcepos='`1 141:17-141:22', value=Var(name='zz41'))
-                                                                    zz413 = bitvector.from_ruint(16, zz41)
                                                                     # zz414: NamedType('%bv')
                                                                     # Assignment(result='zz414', sourcepos='`1 141:17-141:22', value=Var(name='zz40'))
                                                                     zz414 = bitvector.from_ruint(16, zz40)
-                                                                    # zz415: NamedType('%bv')
-                                                                    # Operation(args=[Var(name='zz413'), Var(name='zz414')], name='zsub_vec', result='zz415', sourcepos='`1 141:17-141:22')
-                                                                    zz415 = supportcode.sub_bits(machine, zz413, zz414)
-                                                                    # Assignment(result='zz43', sourcepos='`1 141:17-141:22', value=Var(name='zz415'))
-                                                                    zz43 = zz415.touint()
+                                                                    # Assignment(result='zz43', value=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), Var(name='zz414')], name='zsub_vec', typ=NamedType('%bv')))
+                                                                    zz43 = supportcode.sub_bits(machine, bitvector.from_ruint(16, zz41), zz414).touint()
                                                                     pc = 144
                                                                     continue
-                                                                # zz416: NamedType('%bv')
-                                                                # Assignment(result='zz416', sourcepos='`1 140:17-140:22', value=Var(name='zz41'))
-                                                                zz416 = bitvector.from_ruint(16, zz41)
                                                                 # zz417: NamedType('%bv')
                                                                 # Assignment(result='zz417', sourcepos='`1 140:17-140:22', value=Var(name='zz40'))
                                                                 zz417 = bitvector.from_ruint(16, zz40)
-                                                                # zz418: NamedType('%bv')
-                                                                # Operation(args=[Var(name='zz416'), Var(name='zz417')], name='zadd_bits', result='zz418', sourcepos='`1 140:17-140:22')
-                                                                zz418 = supportcode.add_bits(machine, zz416, zz417)
-                                                                # Assignment(result='zz43', sourcepos='`1 140:17-140:22', value=Var(name='zz418'))
-                                                                zz43 = zz418.touint()
+                                                                # Assignment(result='zz43', value=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), Var(name='zz417')], name='zadd_bits', typ=NamedType('%bv')))
+                                                                zz43 = supportcode.add_bits(machine, bitvector.from_ruint(16, zz41), zz417).touint()
                                                                 pc = 144
                                                                 continue
                                                             # zz419: NamedType('%bv')
                                                             # Assignment(result='zz419', sourcepos='`1 139:17-139:27', value=Var(name='zz40'))
                                                             zz419 = bitvector.from_ruint(16, zz40)
-                                                            # zz420: NamedType('%bv')
-                                                            # Assignment(result='zz420', sourcepos='`1 139:17-139:27', value=BitVectorConstant(constant='0x0001'))
-                                                            zz420 = bitvector.from_ruint(16, r_uint(0x0001))
-                                                            # zz421: NamedType('%bv')
-                                                            # Operation(args=[Var(name='zz419'), Var(name='zz420')], name='zsub_vec', result='zz421', sourcepos='`1 139:17-139:27')
-                                                            zz421 = supportcode.sub_bits(machine, zz419, zz420)
-                                                            # Assignment(result='zz43', sourcepos='`1 139:17-139:27', value=Var(name='zz421'))
-                                                            zz43 = zz421.touint()
+                                                            # Assignment(result='zz43', value=OperationExpr(args=[Var(name='zz419'), CastExpr(expr=BitVectorConstant(constant='0x0001'), typ=NamedType('%bv'))], name='zsub_vec', typ=NamedType('%bv')))
+                                                            zz43 = supportcode.sub_bits(machine, zz419, bitvectorconstant0x0001_1).touint()
                                                             pc = 144
                                                             continue
-                                                        # zz422: NamedType('%bv')
-                                                        # Assignment(result='zz422', sourcepos='`1 138:17-138:27', value=Var(name='zz41'))
-                                                        zz422 = bitvector.from_ruint(16, zz41)
-                                                        # zz423: NamedType('%bv')
-                                                        # Assignment(result='zz423', sourcepos='`1 138:17-138:27', value=BitVectorConstant(constant='0x0001'))
-                                                        zz423 = bitvector.from_ruint(16, r_uint(0x0001))
-                                                        # zz424: NamedType('%bv')
-                                                        # Operation(args=[Var(name='zz422'), Var(name='zz423')], name='zsub_vec', result='zz424', sourcepos='`1 138:17-138:27')
-                                                        zz424 = supportcode.sub_bits(machine, zz422, zz423)
-                                                        # Assignment(result='zz43', sourcepos='`1 138:17-138:27', value=Var(name='zz424'))
-                                                        zz43 = zz424.touint()
+                                                        # Assignment(result='zz43', value=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), CastExpr(expr=BitVectorConstant(constant='0x0001'), typ=NamedType('%bv'))], name='zsub_vec', typ=NamedType('%bv')))
+                                                        zz43 = supportcode.sub_bits(machine, bitvector.from_ruint(16, zz41), bitvectorconstant0x0001_1).touint()
                                                         pc = 144
                                                         continue
                                                     # zz425: NamedType('%bv')
                                                     # Assignment(result='zz425', sourcepos='`1 137:17-137:27', value=Var(name='zz40'))
                                                     zz425 = bitvector.from_ruint(16, zz40)
-                                                    # zz426: NamedType('%bv')
-                                                    # Assignment(result='zz426', sourcepos='`1 137:17-137:27', value=BitVectorConstant(constant='0x0001'))
-                                                    zz426 = bitvector.from_ruint(16, r_uint(0x0001))
-                                                    # zz427: NamedType('%bv')
-                                                    # Operation(args=[Var(name='zz425'), Var(name='zz426')], name='zadd_bits', result='zz427', sourcepos='`1 137:17-137:27')
-                                                    zz427 = supportcode.add_bits(machine, zz425, zz426)
-                                                    # Assignment(result='zz43', sourcepos='`1 137:17-137:27', value=Var(name='zz427'))
-                                                    zz43 = zz427.touint()
+                                                    # Assignment(result='zz43', value=OperationExpr(args=[Var(name='zz425'), CastExpr(expr=BitVectorConstant(constant='0x0001'), typ=NamedType('%bv'))], name='zadd_bits', typ=NamedType('%bv')))
+                                                    zz43 = supportcode.add_bits(machine, zz425, bitvectorconstant0x0001_1).touint()
                                                     pc = 144
                                                     continue
-                                                # zz428: NamedType('%bv')
-                                                # Assignment(result='zz428', sourcepos='`1 136:17-136:27', value=Var(name='zz41'))
-                                                zz428 = bitvector.from_ruint(16, zz41)
-                                                # zz429: NamedType('%bv')
-                                                # Assignment(result='zz429', sourcepos='`1 136:17-136:27', value=BitVectorConstant(constant='0x0001'))
-                                                zz429 = bitvector.from_ruint(16, r_uint(0x0001))
-                                                # zz430: NamedType('%bv')
-                                                # Operation(args=[Var(name='zz428'), Var(name='zz429')], name='zadd_bits', result='zz430', sourcepos='`1 136:17-136:27')
-                                                zz430 = supportcode.add_bits(machine, zz428, zz429)
-                                                # Assignment(result='zz43', sourcepos='`1 136:17-136:27', value=Var(name='zz430'))
-                                                zz43 = zz430.touint()
+                                                # Assignment(result='zz43', value=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv')), CastExpr(expr=BitVectorConstant(constant='0x0001'), typ=NamedType('%bv'))], name='zadd_bits', typ=NamedType('%bv')))
+                                                zz43 = supportcode.add_bits(machine, bitvector.from_ruint(16, zz41), bitvectorconstant0x0001_1).touint()
                                                 pc = 144
                                                 continue
-                                            # zz431: NamedType('%bv')
-                                            # Assignment(result='zz431', sourcepos='`1 135:15-135:23', value=BitVectorConstant(constant='0x0000'))
-                                            zz431 = bitvector.from_ruint(16, r_uint(0x0000))
                                             # zz432: NamedType('%bv')
                                             # Assignment(result='zz432', sourcepos='`1 135:15-135:23', value=Var(name='zz40'))
                                             zz432 = bitvector.from_ruint(16, zz40)
-                                            # zz433: NamedType('%bv')
-                                            # Operation(args=[Var(name='zz431'), Var(name='zz432')], name='zsub_vec', result='zz433', sourcepos='`1 135:15-135:23')
-                                            zz433 = supportcode.sub_bits(machine, zz431, zz432)
-                                            # Assignment(result='zz43', sourcepos='`1 135:15-135:23', value=Var(name='zz433'))
-                                            zz43 = zz433.touint()
+                                            # Assignment(result='zz43', value=OperationExpr(args=[CastExpr(expr=BitVectorConstant(constant='0x0000'), typ=NamedType('%bv')), Var(name='zz432')], name='zsub_vec', typ=NamedType('%bv')))
+                                            zz43 = supportcode.sub_bits(machine, bitvectorconstant0x0000_1, zz432).touint()
                                             pc = 144
                                             continue
-                                        # zz434: NamedType('%bv')
-                                        # Assignment(result='zz434', sourcepos='`1 134:15-134:23', value=BitVectorConstant(constant='0x0000'))
-                                        zz434 = bitvector.from_ruint(16, r_uint(0x0000))
-                                        # zz435: NamedType('%bv')
-                                        # Assignment(result='zz435', sourcepos='`1 134:15-134:23', value=Var(name='zz41'))
-                                        zz435 = bitvector.from_ruint(16, zz41)
-                                        # zz436: NamedType('%bv')
-                                        # Operation(args=[Var(name='zz434'), Var(name='zz435')], name='zsub_vec', result='zz436', sourcepos='`1 134:15-134:23')
-                                        zz436 = supportcode.sub_bits(machine, zz434, zz435)
-                                        # Assignment(result='zz43', sourcepos='`1 134:15-134:23', value=Var(name='zz436'))
-                                        zz43 = zz436.touint()
+                                        # Assignment(result='zz43', value=OperationExpr(args=[CastExpr(expr=BitVectorConstant(constant='0x0000'), typ=NamedType('%bv')), CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv'))], name='zsub_vec', typ=NamedType('%bv')))
+                                        zz43 = supportcode.sub_bits(machine, bitvectorconstant0x0000_1, bitvector.from_ruint(16, zz41)).touint()
                                         pc = 144
                                         continue
                                     # zz437: NamedType('%bv')
                                     # Assignment(result='zz437', sourcepos='`1 133:15-133:25', value=Var(name='zz40'))
                                     zz437 = bitvector.from_ruint(16, zz40)
-                                    # zz438: NamedType('%bv')
-                                    # Operation(args=[Var(name='zz437')], name='znot_vec', result='zz438', sourcepos='`1 133:15-133:25')
-                                    zz438 = supportcode.not_bits(machine, zz437)
-                                    # Assignment(result='zz43', sourcepos='`1 133:15-133:25', value=Var(name='zz438'))
-                                    zz43 = zz438.touint()
+                                    # Assignment(result='zz43', value=OperationExpr(args=[Var(name='zz437')], name='znot_vec', typ=NamedType('%bv')))
+                                    zz43 = supportcode.not_bits(machine, zz437).touint()
                                     pc = 144
                                     continue
-                                # zz439: NamedType('%bv')
-                                # Assignment(result='zz439', sourcepos='`1 132:15-132:25', value=Var(name='zz41'))
-                                zz439 = bitvector.from_ruint(16, zz41)
-                                # zz440: NamedType('%bv')
-                                # Operation(args=[Var(name='zz439')], name='znot_vec', result='zz440', sourcepos='`1 132:15-132:25')
-                                zz440 = supportcode.not_bits(machine, zz439)
-                                # Assignment(result='zz43', sourcepos='`1 132:15-132:25', value=Var(name='zz440'))
-                                zz43 = zz440.touint()
+                                # Assignment(result='zz43', value=OperationExpr(args=[CastExpr(expr=Var(name='zz41'), typ=NamedType('%bv'))], name='znot_vec', typ=NamedType('%bv')))
+                                zz43 = supportcode.not_bits(machine, bitvector.from_ruint(16, zz41)).touint()
                                 pc = 144
                                 continue
                             # Assignment(result='zz43', sourcepos='`1 131:11-131:12', value=Var(name='zz40'))
@@ -1836,130 +1312,46 @@ def func_zmaybe_jump(machine, zvalue, zj):
                                         zz44 = True
                                         pc = 87
                                         continue
-                                    # LocalVarDeclaration(name='zz45', sourcepos='`1 163:15-163:33', typ=NamedType('%i64'), value=None)
-                                    # zz45: NamedType('%i64')
-                                    zz45 = -0xfefe
                                     # zz48: NamedType('%bv')
                                     # Assignment(result='zz48', sourcepos='`1 163:15-163:28', value=Var(name='zvalue'))
                                     zz48 = bitvector.from_ruint(16, zvalue)
-                                    # zz49: NamedType('%i')
-                                    # Operation(args=[Var(name='zz48')], name='zsigned', result='zz49', sourcepos='`1 163:15-163:28')
-                                    zz49 = supportcode.sail_signed(machine, zz48)
-                                    # Operation(args=[Var(name='zz49')], name='zz5izDzKz5i64', result='zz45', sourcepos='`1 163:15-163:28')
-                                    zz45 = supportcode.int_to_int64(machine, zz49)
-                                    # zz46: NamedType('%i')
-                                    # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz46', sourcepos='`1 163:15-163:33')
-                                    zz46 = supportcode.int64_to_int(machine, 0)
-                                    # zz47: NamedType('%i')
-                                    # Operation(args=[Var(name='zz45')], name='zz5i64zDzKz5i', result='zz47', sourcepos='`1 163:15-163:33')
-                                    zz47 = supportcode.int64_to_int(machine, zz45)
-                                    # Operation(args=[Var(name='zz47'), Var(name='zz46')], name='zlteq_int', result='zz44', sourcepos='`1 163:15-163:33')
-                                    zz44 = supportcode.lteq(machine, zz47, zz46)
+                                    # Operation(args=[OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz48')], name='zsigned', typ=NamedType('%i'))], name='zz5izDzKz5i64', typ=NamedType('%i64'))], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zlteq_int', result='zz44', sourcepos=None)
+                                    zz44 = supportcode.lteq(machine, supportcode.int64_to_int(machine, supportcode.int_to_int64(machine, supportcode.sail_signed(machine, zz48))), smallintconst0_1)
                                     pc = 87
                                     continue
-                                # LocalVarDeclaration(name='zz410', sourcepos='`1 162:15-162:33', typ=NamedType('%i64'), value=None)
-                                # zz410: NamedType('%i64')
-                                zz410 = -0xfefe
                                 # zz413: NamedType('%bv')
                                 # Assignment(result='zz413', sourcepos='`1 162:15-162:28', value=Var(name='zvalue'))
                                 zz413 = bitvector.from_ruint(16, zvalue)
-                                # zz414: NamedType('%i')
-                                # Operation(args=[Var(name='zz413')], name='zsigned', result='zz414', sourcepos='`1 162:15-162:28')
-                                zz414 = supportcode.sail_signed(machine, zz413)
-                                # Operation(args=[Var(name='zz414')], name='zz5izDzKz5i64', result='zz410', sourcepos='`1 162:15-162:28')
-                                zz410 = supportcode.int_to_int64(machine, zz414)
-                                # zz411: NamedType('%i')
-                                # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz411', sourcepos='`1 162:15-162:33')
-                                zz411 = supportcode.int64_to_int(machine, 0)
-                                # zz412: NamedType('%i')
-                                # Operation(args=[Var(name='zz410')], name='zz5i64zDzKz5i', result='zz412', sourcepos='`1 162:15-162:33')
-                                zz412 = supportcode.int64_to_int(machine, zz410)
-                                # Operation(args=[Var(name='zz412'), Var(name='zz411')], name='zneq_int', result='zz44', sourcepos='`1 162:15-162:33')
-                                zz44 = func_zneq_int(machine, zz412, zz411)
+                                # Operation(args=[OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz413')], name='zsigned', typ=NamedType('%i'))], name='zz5izDzKz5i64', typ=NamedType('%i64'))], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zneq_int', result='zz44', sourcepos=None)
+                                zz44 = func_zneq_int(machine, supportcode.int64_to_int(machine, supportcode.int_to_int64(machine, supportcode.sail_signed(machine, zz413))), smallintconst0_1)
                                 pc = 87
                                 continue
-                            # LocalVarDeclaration(name='zz415', sourcepos='`1 161:15-161:32', typ=NamedType('%i64'), value=None)
-                            # zz415: NamedType('%i64')
-                            zz415 = -0xfefe
                             # zz418: NamedType('%bv')
                             # Assignment(result='zz418', sourcepos='`1 161:15-161:28', value=Var(name='zvalue'))
                             zz418 = bitvector.from_ruint(16, zvalue)
-                            # zz419: NamedType('%i')
-                            # Operation(args=[Var(name='zz418')], name='zsigned', result='zz419', sourcepos='`1 161:15-161:28')
-                            zz419 = supportcode.sail_signed(machine, zz418)
-                            # Operation(args=[Var(name='zz419')], name='zz5izDzKz5i64', result='zz415', sourcepos='`1 161:15-161:28')
-                            zz415 = supportcode.int_to_int64(machine, zz419)
-                            # zz416: NamedType('%i')
-                            # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz416', sourcepos='`1 161:15-161:32')
-                            zz416 = supportcode.int64_to_int(machine, 0)
-                            # zz417: NamedType('%i')
-                            # Operation(args=[Var(name='zz415')], name='zz5i64zDzKz5i', result='zz417', sourcepos='`1 161:15-161:32')
-                            zz417 = supportcode.int64_to_int(machine, zz415)
-                            # Operation(args=[Var(name='zz417'), Var(name='zz416')], name='zlt_int', result='zz44', sourcepos='`1 161:15-161:32')
-                            zz44 = supportcode.lt(machine, zz417, zz416)
+                            # Operation(args=[OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz418')], name='zsigned', typ=NamedType('%i'))], name='zz5izDzKz5i64', typ=NamedType('%i64'))], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zlt_int', result='zz44', sourcepos=None)
+                            zz44 = supportcode.lt(machine, supportcode.int64_to_int(machine, supportcode.int_to_int64(machine, supportcode.sail_signed(machine, zz418))), smallintconst0_1)
                             pc = 87
                             continue
-                        # LocalVarDeclaration(name='zz420', sourcepos='`1 160:15-160:33', typ=NamedType('%i64'), value=None)
-                        # zz420: NamedType('%i64')
-                        zz420 = -0xfefe
                         # zz423: NamedType('%bv')
                         # Assignment(result='zz423', sourcepos='`1 160:15-160:28', value=Var(name='zvalue'))
                         zz423 = bitvector.from_ruint(16, zvalue)
-                        # zz424: NamedType('%i')
-                        # Operation(args=[Var(name='zz423')], name='zsigned', result='zz424', sourcepos='`1 160:15-160:28')
-                        zz424 = supportcode.sail_signed(machine, zz423)
-                        # Operation(args=[Var(name='zz424')], name='zz5izDzKz5i64', result='zz420', sourcepos='`1 160:15-160:28')
-                        zz420 = supportcode.int_to_int64(machine, zz424)
-                        # zz421: NamedType('%i')
-                        # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz421', sourcepos='`1 160:15-160:33')
-                        zz421 = supportcode.int64_to_int(machine, 0)
-                        # zz422: NamedType('%i')
-                        # Operation(args=[Var(name='zz420')], name='zz5i64zDzKz5i', result='zz422', sourcepos='`1 160:15-160:33')
-                        zz422 = supportcode.int64_to_int(machine, zz420)
-                        # Operation(args=[Var(name='zz422'), Var(name='zz421')], name='zgteq_int', result='zz44', sourcepos='`1 160:15-160:33')
-                        zz44 = supportcode.gteq(machine, zz422, zz421)
+                        # Operation(args=[OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz423')], name='zsigned', typ=NamedType('%i'))], name='zz5izDzKz5i64', typ=NamedType('%i64'))], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zgteq_int', result='zz44', sourcepos=None)
+                        zz44 = supportcode.gteq(machine, supportcode.int64_to_int(machine, supportcode.int_to_int64(machine, supportcode.sail_signed(machine, zz423))), smallintconst0_1)
                         pc = 87
                         continue
-                    # LocalVarDeclaration(name='zz425', sourcepos='`1 159:15-159:33', typ=NamedType('%i64'), value=None)
-                    # zz425: NamedType('%i64')
-                    zz425 = -0xfefe
                     # zz428: NamedType('%bv')
                     # Assignment(result='zz428', sourcepos='`1 159:15-159:28', value=Var(name='zvalue'))
                     zz428 = bitvector.from_ruint(16, zvalue)
-                    # zz429: NamedType('%i')
-                    # Operation(args=[Var(name='zz428')], name='zsigned', result='zz429', sourcepos='`1 159:15-159:28')
-                    zz429 = supportcode.sail_signed(machine, zz428)
-                    # Operation(args=[Var(name='zz429')], name='zz5izDzKz5i64', result='zz425', sourcepos='`1 159:15-159:28')
-                    zz425 = supportcode.int_to_int64(machine, zz429)
-                    # zz426: NamedType('%i')
-                    # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz426', sourcepos='`1 159:15-159:33')
-                    zz426 = supportcode.int64_to_int(machine, 0)
-                    # zz427: NamedType('%i')
-                    # Operation(args=[Var(name='zz425')], name='zz5i64zDzKz5i', result='zz427', sourcepos='`1 159:15-159:33')
-                    zz427 = supportcode.int64_to_int(machine, zz425)
-                    # Operation(args=[Var(name='zz427'), Var(name='zz426')], name='zeq_int', result='zz44', sourcepos='`1 159:15-159:33')
-                    zz44 = supportcode.eq_int(machine, zz427, zz426)
+                    # Operation(args=[OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz428')], name='zsigned', typ=NamedType('%i'))], name='zz5izDzKz5i64', typ=NamedType('%i64'))], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zeq_int', result='zz44', sourcepos=None)
+                    zz44 = supportcode.eq_int(machine, supportcode.int64_to_int(machine, supportcode.int_to_int64(machine, supportcode.sail_signed(machine, zz428))), smallintconst0_1)
                     pc = 87
                     continue
-                # LocalVarDeclaration(name='zz430', sourcepos='`1 158:15-158:32', typ=NamedType('%i64'), value=None)
-                # zz430: NamedType('%i64')
-                zz430 = -0xfefe
                 # zz433: NamedType('%bv')
                 # Assignment(result='zz433', sourcepos='`1 158:15-158:28', value=Var(name='zvalue'))
                 zz433 = bitvector.from_ruint(16, zvalue)
-                # zz434: NamedType('%i')
-                # Operation(args=[Var(name='zz433')], name='zsigned', result='zz434', sourcepos='`1 158:15-158:28')
-                zz434 = supportcode.sail_signed(machine, zz433)
-                # Operation(args=[Var(name='zz434')], name='zz5izDzKz5i64', result='zz430', sourcepos='`1 158:15-158:28')
-                zz430 = supportcode.int_to_int64(machine, zz434)
-                # zz431: NamedType('%i')
-                # Operation(args=[Number(number=0)], name='zz5i64zDzKz5i', result='zz431', sourcepos='`1 158:15-158:32')
-                zz431 = supportcode.int64_to_int(machine, 0)
-                # zz432: NamedType('%i')
-                # Operation(args=[Var(name='zz430')], name='zz5i64zDzKz5i', result='zz432', sourcepos='`1 158:15-158:32')
-                zz432 = supportcode.int64_to_int(machine, zz430)
-                # Operation(args=[Var(name='zz432'), Var(name='zz431')], name='zgt_int', result='zz44', sourcepos='`1 158:15-158:32')
-                zz44 = supportcode.gt(machine, zz432, zz431)
+                # Operation(args=[OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz433')], name='zsigned', typ=NamedType('%i'))], name='zz5izDzKz5i64', typ=NamedType('%i64'))], name='zz5i64zDzKz5i', typ=NamedType('%i')), OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zgt_int', result='zz44', sourcepos=None)
+                zz44 = supportcode.gt(machine, supportcode.int64_to_int(machine, supportcode.int_to_int64(machine, supportcode.sail_signed(machine, zz433))), smallintconst0_1)
                 pc = 87
                 continue
             # Assignment(result='zz44', sourcepos='`1 157:15-157:20', value=Var(name='false'))
@@ -1976,17 +1368,11 @@ def func_zmaybe_jump(machine, zvalue, zj):
                 return_ = ()
                 pc = 100
                 continue
-            # zz41: NamedType('%i')
-            # Operation(args=[Number(number=1)], name='zz5i64zDzKz5i', result='zz41', sourcepos='`1 166:38-166:44')
-            zz41 = supportcode.int64_to_int(machine, 1)
             # zz42: NamedType('%bv')
             # Assignment(result='zz42', sourcepos='`1 166:38-166:44', value=Var(name='zPC'))
             zz42 = bitvector.from_ruint(16, machine._reg_zPC)
-            # zz43: NamedType('%bv')
-            # Operation(args=[Var(name='zz42'), Var(name='zz41')], name='zadd_bits_int', result='zz43', sourcepos='`1 166:38-166:44')
-            zz43 = supportcode.add_bits_int(machine, zz42, zz41)
-            # Assignment(result='zPC', sourcepos='`1 166:38-166:44', value=Var(name='zz43'))
-            machine._reg_zPC = zz43.touint()
+            # Assignment(result='zPC', value=OperationExpr(args=[Var(name='zz42'), OperationExpr(args=[Number(number=1)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zadd_bits_int', typ=NamedType('%bv')))
+            machine._reg_zPC = supportcode.add_bits_int(machine, zz42, smallintconst1_1).touint()
             # Assignment(result='return', sourcepos='`1 166:33-166:44', value=Unit())
             return_ = ()
             pc = 100
@@ -2014,17 +1400,8 @@ def zexecute_zAINST(zmergez3var, machine, ):
             # zz411: NamedType('%unit')
             # Assignment(result='zz411', sourcepos='`1 103:2-103:7', value=Unit())
             zz411 = ()
-            # zz48: NamedType('%i')
-            # Operation(args=[Number(number=1)], name='zz5i64zDzKz5i', result='zz48', sourcepos='`1 103:14-103:20')
-            zz48 = supportcode.int64_to_int(machine, 1)
-            # zz49: NamedType('%bv')
-            # Assignment(result='zz49', sourcepos='`1 103:14-103:20', value=Var(name='zPC'))
-            zz49 = bitvector.from_ruint(16, machine._reg_zPC)
-            # zz410: NamedType('%bv')
-            # Operation(args=[Var(name='zz49'), Var(name='zz48')], name='zadd_bits_int', result='zz410', sourcepos='`1 103:14-103:20')
-            zz410 = supportcode.add_bits_int(machine, zz49, zz48)
-            # Assignment(result='zPC', sourcepos='`1 103:14-103:20', value=Var(name='zz410'))
-            machine._reg_zPC = zz410.touint()
+            # Assignment(result='zPC', value=OperationExpr(args=[CastExpr(expr=Var(name='zPC'), typ=NamedType('%bv')), OperationExpr(args=[Number(number=1)], name='zz5i64zDzKz5i', typ=NamedType('%i'))], name='zadd_bits_int', typ=NamedType('%bv')))
+            machine._reg_zPC = supportcode.add_bits_int(machine, bitvector.from_ruint(16, machine._reg_zPC), smallintconst1_1).touint()
             # Assignment(result='zz40', sourcepos='`1 103:9-103:20', value=Unit())
             zz40 = ()
             pc = 32
@@ -2112,12 +1489,9 @@ def func_zfetch_decode_execute(machine, zgsz3106):
                 zz43 = ()
                 pc = 20
                 continue
-            # zz45: UnionType(name='zinstr')
-            # Assignment(result='zz45', sourcepos='`1 183:13-183:18', value=Cast(expr=Var(name='zz41'), variant='zSomezIUinstrzIzKzK'))
-            zz45 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK.convert(zz41)
             # zz46: NamedType('%unit')
-            # Operation(args=[Var(name='zz45')], name='zexecute', result='zz46', sourcepos='`1 183:25-183:39')
-            zz46 = func_zexecute(machine, zz45)
+            # Operation(args=[CastExpr(expr=Cast(expr=Var(name='zz41'), variant='zSomezIUinstrzIzKzK'), typ=UnionType(name='zinstr'))], name='zexecute', result='zz46', sourcepos=None)
+            zz46 = func_zexecute(machine, Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK.convert(zz41))
             # Assignment(result='zz42', sourcepos='`1 183:48-183:52', value=Var(name='true'))
             zz42 = True
             # Assignment(result='zz43', sourcepos='`1 183:41-183:52', value=Unit())
@@ -2180,48 +1554,18 @@ def func_zrun(machine, zlimit, zdebug):
             zz418 = ()
             pc = 16
         if pc == 16:
-            # zz47: NamedType('%bool')
-            # Operation(args=[Unit()], name='zfetch_decode_execute', result='zz47', sourcepos='`1 199:11-199:33')
-            zz47 = func_zfetch_decode_execute(machine, ())
             # LocalVarDeclaration(name='zz48', sourcepos='`1 199:8-203:9', typ=NamedType('%unit'), value=None)
             # zz48: NamedType('%unit')
             zz48 = ()
-            if zz47:
+            if func_zfetch_decode_execute(machine, ()):
                 # inline pc=22
-                # LocalVarDeclaration(name='zz49', sourcepos='`1 200:12-202:13', typ=NamedType('%bool'), value=None)
-                # zz49: NamedType('%bool')
-                zz49 = False
-                # LocalVarDeclaration(name='zz410', sourcepos='`1 200:15-200:50', typ=NamedType('%i64'), value=None)
-                # zz410: NamedType('%i64')
-                zz410 = -0xfefe
                 # zz416: NamedType('%bv')
                 # Assignment(result='zz416', sourcepos='`1 200:15-200:34', value=Var(name='zz40'))
                 zz416 = bitvector.from_ruint(64, zz40)
-                # zz417: NamedType('%i')
-                # Operation(args=[Var(name='zz416')], name='zsigned', result='zz417', sourcepos='`1 200:15-200:34')
-                zz417 = supportcode.sail_signed(machine, zz416)
-                # Operation(args=[Var(name='zz417')], name='zz5izDzKz5i64', result='zz410', sourcepos='`1 200:15-200:34')
-                zz410 = supportcode.int_to_int64(machine, zz417)
-                # LocalVarDeclaration(name='zz411', sourcepos='`1 200:15-200:50', typ=NamedType('%i64'), value=None)
-                # zz411: NamedType('%i64')
-                zz411 = -0xfefe
                 # zz414: NamedType('%bv')
                 # Assignment(result='zz414', sourcepos='`1 200:37-200:50', value=Var(name='zlimit'))
                 zz414 = bitvector.from_ruint(64, zlimit)
-                # zz415: NamedType('%i')
-                # Operation(args=[Var(name='zz414')], name='zsigned', result='zz415', sourcepos='`1 200:37-200:50')
-                zz415 = supportcode.sail_signed(machine, zz414)
-                # Operation(args=[Var(name='zz415')], name='zz5izDzKz5i64', result='zz411', sourcepos='`1 200:37-200:50')
-                zz411 = supportcode.int_to_int64(machine, zz415)
-                # zz412: NamedType('%i')
-                # Operation(args=[Var(name='zz410')], name='zz5i64zDzKz5i', result='zz412', sourcepos='`1 200:15-200:50')
-                zz412 = supportcode.int64_to_int(machine, zz410)
-                # zz413: NamedType('%i')
-                # Operation(args=[Var(name='zz411')], name='zz5i64zDzKz5i', result='zz413', sourcepos='`1 200:15-200:50')
-                zz413 = supportcode.int64_to_int(machine, zz411)
-                # Operation(args=[Var(name='zz412'), Var(name='zz413')], name='zlt_int', result='zz49', sourcepos='`1 200:15-200:50')
-                zz49 = supportcode.lt(machine, zz412, zz413)
-                if zz49:
+                if supportcode.lt(machine, supportcode.int64_to_int(machine, supportcode.int_to_int64(machine, supportcode.sail_signed(machine, zz416))), supportcode.int64_to_int(machine, supportcode.int_to_int64(machine, supportcode.sail_signed(machine, zz414)))):
                     # inline pc=43
                     # Assignment(result='zz41', sourcepos='`1 201:23-201:27', value=Var(name='true'))
                     zz41 = True
@@ -2240,18 +1584,11 @@ def func_zrun(machine, zlimit, zdebug):
             # zz44: NamedType('%bv')
             # Assignment(result='zz44', sourcepos='`1 204:22-204:54', value=Var(name='zz40'))
             zz44 = bitvector.from_ruint(64, zz40)
-            # zz45: NamedType('%bv')
-            # Assignment(result='zz45', sourcepos='`1 204:22-204:54', value=BitVectorConstant(constant='0x0000000000000001'))
-            zz45 = bitvector.from_ruint(64, r_uint(0x0000000000000001))
-            # zz46: NamedType('%bv')
-            # Operation(args=[Var(name='zz44'), Var(name='zz45')], name='zadd_bits', result='zz46', sourcepos='`1 204:22-204:54')
-            zz46 = supportcode.add_bits(machine, zz44, zz45)
-            # Assignment(result='zz40', sourcepos='`1 204:22-204:54', value=Var(name='zz46'))
-            zz40 = zz46.touint()
+            # Assignment(result='zz40', value=OperationExpr(args=[Var(name='zz44'), CastExpr(expr=BitVectorConstant(constant='0x0000000000000001'), typ=NamedType('%bv'))], name='zadd_bits', typ=NamedType('%bv')))
+            zz40 = supportcode.add_bits(machine, zz44, bitvectorconstant0x0000000000000001_1).touint()
             # Assignment(result='zz43', sourcepos='`1 204:8-204:54', value=Unit())
             zz43 = ()
             pc = 6
-            continue
 
 
 

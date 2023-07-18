@@ -602,6 +602,8 @@ class OperationExpr(Expression):
 
 class CastExpr(Expression):
     def __init__(self, expr, typ):
+        while isinstance(expr, CastExpr): # remove double cast
+            expr = expr.expr
         self.expr = expr
         self.typ = typ
 
@@ -609,7 +611,8 @@ class CastExpr(Expression):
         return self.expr.find_used_vars()
 
     def replace_var(self, var, expr):
-        return CastExpr(self.expr.replace_var(var, expr), self.typ)
+        expr = self.expr.replace_var(var, expr)
+        return CastExpr(expr, self.typ)
 
 # ____________________________________________________________
 # parser

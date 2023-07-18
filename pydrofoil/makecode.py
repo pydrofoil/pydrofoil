@@ -400,7 +400,7 @@ class __extend__(parse.Function):
         with self._scope(codegen, pyname):
             if entrycounts == {0: 1}:
                 assert self.body[-1].end_of_block
-                self.emit_block_ops(self.body, codegen)
+                self.emit_block_ops(blocks[0], codegen)
             else:
                 self._emit_blocks(blocks, codegen, entrycounts, )
         codegen.emit()

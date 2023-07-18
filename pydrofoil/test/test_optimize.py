@@ -1,7 +1,7 @@
 from pydrofoil import parse
 from pydrofoil.parse import *
 from pydrofoil.optimize import (find_decl_defs_uses, identify_replacements,
-        do_replacements)
+        do_replacements, specialize_ops)
 
 def test_find_used_vars_exprs():
     v = parse.Var("abc")
@@ -68,6 +68,21 @@ ConditionalJump(condition=Comparison(args=[Var(name='cond')], operation='@not'),
 End()
     ]
 
+targetjumpop = ConditionalJump(
+        condition=Comparison(
+            args=[OperationExpr(
+                    args=[CastExpr(expr=OperationExpr(
+                        args=[
+                            CastExpr(expr=Var(name='bv32'), typ=NamedType('%bv')),
+                            OperationExpr(args=[Number(number=6)], name='zz5i64zDzKz5i', typ=NamedType('%i')),
+                            OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))],
+                        name='zsubrange_bits', typ=NamedType('%bv')), typ=NamedType('%bv7'))],
+                    name='zencdec_uop_backwards_matches',
+                    typ=NamedType('%bool'))],
+            operation='@not'),
+        sourcepos=None,
+        target=17)
+
 def test_find_defs_uses():
     block = vector_subrange_example
     decls, defs, uses = find_decl_defs_uses([block])
@@ -92,17 +107,33 @@ def test_do_replacements():
     block = vector_subrange_example[:]
     replacements = identify_replacements([block])
     do_replacements(replacements)
-    assert block[2] == ConditionalJump(
-        condition=Comparison(
-            args=[OperationExpr(
-                    args=[CastExpr(expr=OperationExpr(
-                        args=[
-                            CastExpr(expr=Var(name='bv32'), typ=NamedType('%bv')),
-                            OperationExpr(args=[Number(number=6)], name='zz5i64zDzKz5i', typ=NamedType('%i')),
-                            OperationExpr(args=[Number(number=0)], name='zz5i64zDzKz5i', typ=NamedType('%i'))],
-                        name='zsubrange_bits', typ=NamedType('%bv')), typ=NamedType('%bv7'))],
-                    name='zencdec_uop_backwards_matches',
-                    typ=NamedType('%bool'))],
-            operation='@not'),
-        sourcepos=None,
-        target=17)
+    assert block[2] == targetjumpop
+
+def test_specialize_ops():
+    lv = LocalVarDeclaration(
+        name='zz40',
+        sourcepos='`12 526:2-529:3',
+        typ=NamedType(name='%bv64'),
+        value=None
+    )
+    op = Assignment(
+        result='return',
+        value=OperationExpr(
+            args=[
+                CastExpr(expr=Var(name='zz40'), typ=NamedType('%bv')),
+                OperationExpr(
+                    args=[Number(number=31)],
+                    name='zz5i64zDzKz5i',
+                    typ=NamedType('%i')),
+                OperationExpr(
+                    args=[Number(number=0)],
+                    name='zz5i64zDzKz5i',
+                    typ=NamedType('%i'))
+            ],
+            name='zsubrange_bits',
+            typ=NamedType('%bv')
+        )
+    )
+    block = [lv, op]
+    specialize_ops({0: block})
+    assert block == [None]

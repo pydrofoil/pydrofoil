@@ -78,4 +78,12 @@ def find_decl_defs_uses(blocks):
                 decls[op.name] = (block, i)
     return decls, defs, uses
 
-            
+def specialize_ops(blocks):
+    localtypes = {}
+    # find local var types
+    for num, block in blocks.iteritems():
+        for op in block:
+            if isinstance(op, parse.LocalVarDeclaration):
+                localtypes[op.name] = op
+    import pdb; pdb.set_trace()
+

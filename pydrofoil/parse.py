@@ -290,15 +290,20 @@ class LocalVarDeclaration(StatementWithSourcePos):
         xxx
 
 class Assignment(StatementWithSourcePos):
-    def __init__(self, result, value):
+    def __init__(self, result, value, sourcepos=None):
         self.result = result
         self.value = value
+        self.sourcepos = sourcepos
 
     def find_used_vars(self):
         return self.value.find_used_vars()
 
     def replace_var(self, var, expr):
-        return Assignment(self.result, self.value.replace_var(var, expr))
+        return Assignment(
+            self.result,
+            self.value.replace_var(var, expr),
+            self.sourcepos
+        )
 
 class Operation(StatementWithSourcePos):
     def __init__(self, result, name, args, sourcepos=None):

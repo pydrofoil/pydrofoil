@@ -223,6 +223,28 @@ class OptVisitor(parse.Visitor):
             "@vector_update_subrange_o_i_i_o", [arg0, arg1, arg2, arg3], expr.typ
         )
 
+    def optimize_zbitvector_access(self, expr):
+        if "zz49220" in str(expr):
+            import pdb
+
+            pdb.set_trace()
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector):
+            return
+        if (
+            not isinstance(arg1, parse.OperationExpr)
+            or arg1.name != self.int64_to_int_name
+        ):
+            return
+
+        (arg1,) = arg1.args
+        if not isinstance(arg1, parse.Number):
+            return
+        return parse.OperationExpr("@vector_access_bv_i", [arg0.expr, arg1], expr.typ)
+
     def optimize_zeq_bits(self, expr):
         arg0, arg1 = expr.args
         if not isinstance(arg0, parse.CastExpr):
@@ -248,7 +270,6 @@ class OptVisitor(parse.Visitor):
             return
         res = parse.OperationExpr("@neq_bits_bv_bv", [arg0.expr, arg1.expr], expr.typ)
         return res
-
 
     def optimize_zbitvector_concat(self, expr):
         arg0, arg1 = expr.args
@@ -392,7 +413,9 @@ class OptVisitor(parse.Visitor):
         arg1 = arg1.expr
         return parse.CastExpr(
             parse.OperationExpr(
-                "@add_bits_bv_bv", [arg0, arg1], parse.NamedType("%bv" + str(typ0.width))
+                "@add_bits_bv_bv",
+                [arg0, arg1],
+                parse.NamedType("%bv" + str(typ0.width)),
             ),
             expr.typ,
         )
@@ -411,7 +434,9 @@ class OptVisitor(parse.Visitor):
         arg1 = arg1.expr
         return parse.CastExpr(
             parse.OperationExpr(
-                "@sub_bits_bv_bv", [arg0, arg1], parse.NamedType("%bv" + str(typ0.width))
+                "@sub_bits_bv_bv",
+                [arg0, arg1],
+                parse.NamedType("%bv" + str(typ0.width)),
             ),
             expr.typ,
         )

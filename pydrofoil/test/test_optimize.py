@@ -827,10 +827,37 @@ def test_add_bits():
                     ),
                     Var(name="zoffset"),
                 ],
-                name="@adds_bit_bv_bv",
+                name="@add_bits_bv_bv",
                 typ=NamedType("%bv64"),
             )
         ],
         name="zExt_DataAddr_OKzIuzK",
         typ=UnionType(name="zExt_DataAddr_CheckzIuzK"),
     )
+
+
+def test_vector_access():
+    lv1 = LocalVarDeclaration(
+        name="zv",
+        typ=NamedType(name="%bv64"),
+        value=None,
+    )
+    op = OperationExpr(
+        args=[
+            CastExpr(expr=Var(name="zv"), typ=NamedType("%bv")),
+            OperationExpr(
+                args=[Number(number=2)], name="zz5i64zDzKz5i", typ=NamedType("%i")
+            ),
+        ],
+        name="zbitvector_access",
+        typ=NamedType("%bit"),
+    )
+    block = [lv1, op]
+    specialize_ops({0: block}, None)
+    assert block[1] == OperationExpr(
+        args=[Var(name="zv"), Number(number=2)],
+        name="@vector_access_bv_i",
+        typ=NamedType("%bit"),
+    )
+
+

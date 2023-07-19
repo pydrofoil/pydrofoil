@@ -165,6 +165,11 @@ def vector_update(machine, bv, index, element):
 def vector_access(machine, bv, index):
     return bv.read_bit(index.toint())
 
+def vector_access_bv_i(bv, index):
+    if index == 0:
+        return bv & r_uint(1)
+    return r_uint(1) & safe_rshift(None, bv, r_uint(index))
+
 def update_fbits(fb, index, element):
     assert 0 <= index < 64
     if element:

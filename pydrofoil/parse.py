@@ -572,10 +572,10 @@ class Undefined(Expression):
 
 
 class StructConstruction(Expression):
-    def __init__(self, name, fieldnames, values):
+    def __init__(self, name, fieldnames, fieldvalues):
         self.name = name
         self.fieldnames = fieldnames
-        self.fieldvalues = values
+        self.fieldvalues = fieldvalues
 
     def find_used_vars(self):
         res = set()

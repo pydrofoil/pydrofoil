@@ -492,3 +492,45 @@ def test_int_to_int64_and_back():
     block = [op]
     specialize_ops({0: block}, None)
     assert block[0] == Number(8)
+
+
+def test_structconstruction_fieldread():
+    lv = LocalVarDeclaration(
+        name="var",
+        typ=NamedType(name="%bv21"),
+        value=None,
+    )
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=FieldAccess(
+                    element="ztuplez3z5bv4_z5bv40",
+                    obj=StructConstruction(
+                        fieldnames=["ztuplez3z5bv4_z5bv40", "ztuplez3z5bv4_z5bv41"],
+                        fieldvalues=[Var(name="var"), Var(name="zz44751")],
+                        name="ztuplez3z5bv4_z5bv4",
+                    ),
+                ),
+                typ=NamedType("%bv"),
+            ),
+            OperationExpr(
+                args=[Number(number=1)], name="zz5i64zDzKz5i", typ=NamedType("%i")
+            ),
+            OperationExpr(
+                args=[Number(number=0)], name="zz5i64zDzKz5i", typ=NamedType("%i")
+            ),
+        ],
+        name="zsubrange_bits",
+        typ=NamedType("%bv"),
+    )
+
+    block = [lv, op]
+    specialize_ops({0: block}, None)
+    assert block[1] == CastExpr(
+        expr=OperationExpr(
+            args=[Var(name="var"), Number(number=1), Number(number=0)],
+            name="@slice_fixed_bv_i_i",
+            typ=NamedType("%bv2"),
+        ),
+        typ=NamedType("%bv"),
+    )

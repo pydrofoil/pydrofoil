@@ -129,6 +129,12 @@ class OptVisitor(parse.Visitor):
         while isinstance(expr.value, parse.CastExpr):
             expr.value = expr.value.expr
 
+    def visit_FieldAccess(self, expr):
+        if not isinstance(expr.obj, parse.StructConstruction):
+            return
+        index = expr.obj.fieldnames.index(expr.element)
+        return expr.obj.fieldvalues[index]
+
     def _gettyp(self, expr):
         try:
             if not isinstance(expr, parse.Var):

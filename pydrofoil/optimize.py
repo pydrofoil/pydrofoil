@@ -85,5 +85,33 @@ def specialize_ops(blocks):
         for op in block:
             if isinstance(op, parse.LocalVarDeclaration):
                 localtypes[op.name] = op
+    v = OptVisitor(localtypes)
+    for num, block in blocks.iteritems():
+        for op in block:
+            op.mutating_visit(v)
+
     import pdb; pdb.set_trace()
 
+class OptVisitor(parse.Visitor):
+    def __init__(self, localtypes):
+        self.localtypes = localtypes
+
+    def visit_OperationExpr(self, expr):
+        if expr.name != "zsubrange_bits":
+            return
+        arg0, arg1, arg2 = expr.args
+        assert expr.typ.name == "%bv"
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        assert arg0.typ.name == "%bv"
+        arg0 = arg0.expr
+        if not isinstance(arg0, parse.Var):
+            xxx
+        if not arg0.name in self.localtypes:
+            xxx
+        decl = self.localtypes[arg0.name]
+        typname = decl.typ.name
+        assert typname.startswith("%bv")
+        size = int(typname[len("%bv")])
+
+        import pdb; pdb.set_trace()

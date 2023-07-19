@@ -54,6 +54,22 @@ def test_sign_extend():
         assert supportcode.sign_extend(machine, c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111110
         assert supportcode.sign_extend(machine, c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
+def test_zero_extend():
+    for c in gbv, bv:
+        assert supportcode.zero_extend(machine, c(1, 0b0), Integer.fromint(2)).size() == 2
+        assert supportcode.zero_extend(machine, c(2, 0b00), Integer.fromint(100)).size() == 100
+        assert supportcode.zero_extend(machine, c(1, 0b0), Integer.fromint(2)).toint() == 0
+        assert supportcode.zero_extend(machine, c(1, 0b1), Integer.fromint(2)).toint() == 0b01
+        assert supportcode.zero_extend(machine, c(2, 0b00), Integer.fromint(4)).toint() == 0
+        assert supportcode.zero_extend(machine, c(2, 0b01), Integer.fromint(4)).toint() == 1
+        assert supportcode.zero_extend(machine, c(2, 0b10), Integer.fromint(4)).toint() == 0b0010
+        assert supportcode.zero_extend(machine, c(2, 0b11), Integer.fromint(4)).toint() == 0b0011
+
+        assert supportcode.zero_extend(machine, c(2, 0b00), Integer.fromint(100)).tobigint().tolong() == 0
+        assert supportcode.zero_extend(machine, c(2, 0b01), Integer.fromint(100)).tobigint().tolong() == 1
+        assert supportcode.zero_extend(machine, c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010
+        assert supportcode.zero_extend(machine, c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
+
 
 def test_unsigned():
     for c in gbv, bv:

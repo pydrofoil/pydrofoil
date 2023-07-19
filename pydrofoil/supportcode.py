@@ -43,9 +43,6 @@ def raise_type_error():
 
 # bit vectors
 
-def zero_extend(machine, a, b):
-    return a
-
 def fast_signed(machine, op, n):
     if n == 64:
         return intmask(op)
@@ -73,9 +70,15 @@ def sub_bits(machine, a, b):
 def length(machine, gbv):
     return gbv.size_as_int()
 
+@objectmodel.always_inline
 def sign_extend(machine, gbv, lint):
     size = lint.toint()
     return gbv.sign_extend(size)
+
+@objectmodel.always_inline
+def zero_extend(machine, gbv, lint):
+    size = lint.toint()
+    return gbv.zero_extend(size)
 
 def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)

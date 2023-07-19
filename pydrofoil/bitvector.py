@@ -156,6 +156,15 @@ class SmallBitVector(BitVectorWithSize):
         return SmallBitVector(width, self.val >> m, True)
 
     @always_inline
+    def zero_extend(self, i):
+        if i == self.size():
+            return self
+        assert i > self.size()
+        if i > 64:
+            return GenericBitVector(i, rbigint.fromrarith_int(self.val))
+        return SmallBitVector(i, self.val)
+
+    @always_inline
     def sign_extend(self, i):
         if i == self.size():
             return self
@@ -291,6 +300,12 @@ class GenericBitVector(BitVectorWithSize):
             res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
             return SmallBitVector(width, r_uint(res))
         return from_bigint(width, self.rval.rshift(m))
+
+    def zero_extend(self, i):
+        if i == self.size():
+            return self
+        assert i > self.size()
+        return GenericBitVector(i, self.rval)
 
     def sign_extend(self, i):
         if i == self.size():

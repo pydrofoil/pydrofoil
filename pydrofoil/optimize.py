@@ -192,3 +192,28 @@ class OptVisitor(parse.Visitor):
             return
         res = parse.OperationExpr("@eq_bits_bv_bv", [arg0.expr, arg1.expr], expr.typ)
         return res
+
+    def optimize_zbitvector_concat(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        if not isinstance(arg1, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        typ1 = self._gettyp(arg1.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector) or not isinstance(
+            typ1, types.SmallFixedBitVector
+        ):
+            return
+        reswidth = typ0.width + typ1.width
+        if reswidth > 64:
+            return
+        res = parse.CastExpr(
+            parse.OperationExpr(
+                "@bitvector_concat_bv_bv",
+                [arg0.expr, parse.Number(typ1.width), arg1.expr],
+                parse.NamedType("%bv" + str(reswidth)),
+            ),
+            expr.typ,
+        )
+        return res

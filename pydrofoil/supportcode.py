@@ -126,6 +126,9 @@ def sail_signed(machine, gbv):
 def append(machine, bv1, bv2):
     return bv1.append(bv2)
 
+def bitvector_concat_bv_bv(bv1, width, bv2):
+    return (bv1 << width) | bv2
+
 def append_64(machine, bv, v):
     return bv.append_64(v)
 

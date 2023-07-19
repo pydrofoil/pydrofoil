@@ -117,6 +117,8 @@ class OptVisitor(parse.Visitor):
     def visit_CastExpr(self, cast):
         if isinstance(cast.expr, parse.CastExpr):
             return parse.CastExpr(cast.expr.expr, cast.typ)
+        if isinstance(cast.expr, parse.OperationExpr) and cast.expr.typ == cast.typ:
+            return cast.expr
 
     def visit_OperationExpr(self, expr):
         meth = getattr(self, "optimize_%s" % expr.name, None)
@@ -194,6 +196,29 @@ class OptVisitor(parse.Visitor):
             expr.typ,
         )
         return res
+
+    def optimize_zupdate_subrange_bits(self, expr):
+        arg0, arg1, arg2, arg3 = expr.args
+        if (
+            not isinstance(arg1, parse.OperationExpr)
+            or arg1.name != self.int64_to_int_name
+        ):
+            return
+        if (
+            not isinstance(arg2, parse.OperationExpr)
+            or arg2.name != self.int64_to_int_name
+        ):
+            return
+        (arg1,) = arg1.args
+        if not isinstance(arg1, parse.Number):
+            return
+        (arg2,) = arg2.args
+        if not isinstance(arg2, parse.Number):
+            return
+        width = arg1.number - arg2.number + 1
+        return parse.OperationExpr(
+            "@vector_update_subrange_o_i_i_o", [arg0, arg1, arg2, arg3], expr.typ
+        )
 
     def optimize_zeq_bits(self, expr):
         arg0, arg1 = expr.args

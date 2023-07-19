@@ -165,6 +165,9 @@ def update_fbits(fb, index, element):
 def vector_update_subrange(machine, bv, n, m, s):
     return bv.update_subrange(n.toint(), m.toint(), s)
 
+def vector_update_subrange_o_i_i_o(bv, n, m, s):
+    return bv.update_subrange(n, m, s)
+
 @objectmodel.always_inline
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n.toint(), m.toint())

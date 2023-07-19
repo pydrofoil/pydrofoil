@@ -719,3 +719,61 @@ def test_signed():
             typ=NamedType("%i64"),
         ),
     )
+
+
+def test_vector_update_subrange():
+    op = Assignment(
+        result="zmtimecmp",
+        sourcepos="`26 311:15-311:83",
+        value=OperationExpr(
+            args=[
+                Var(name="zz462"),
+                OperationExpr(
+                    args=[Number(number=63)], name="zz5i64zDzKz5i", typ=NamedType("%i")
+                ),
+                OperationExpr(
+                    args=[Number(number=32)], name="zz5i64zDzKz5i", typ=NamedType("%i")
+                ),
+                CastExpr(
+                    expr=OperationExpr(
+                        args=[
+                            Var(name="zdata"),
+                            OperationExpr(
+                                args=[Number(number=32)],
+                                name="zz5i64zDzKz5i",
+                                typ=NamedType("%i"),
+                            ),
+                        ],
+                        name="zsail_zzero_extend",
+                        typ=NamedType("%bv"),
+                    ),
+                    typ=NamedType("%bv"),
+                ),
+            ],
+            name="zupdate_subrange_bits",
+            typ=NamedType("%bv"),
+        ),
+    )
+    block = [op]
+    specialize_ops({0: block}, None)
+    assert block[0].value == OperationExpr(
+        args=[
+            Var(name="zz462"),
+            Number(number=63),
+            Number(number=32),
+            OperationExpr(
+                args=[
+                    Var(name="zdata"),
+                    OperationExpr(
+                        args=[Number(number=32)],
+                        name="zz5i64zDzKz5i",
+                        typ=NamedType("%i"),
+                    ),
+                ],
+                name="zsail_zzero_extend",
+                typ=NamedType("%bv"),
+            ),
+        ],
+        name="@vector_update_subrange_o_i_i_o",
+        typ=NamedType("%bv"),
+    )

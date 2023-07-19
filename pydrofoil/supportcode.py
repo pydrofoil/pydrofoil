@@ -96,6 +96,9 @@ def eq_bits_bv_bv(bva, bvb):
 def neq_bits(machine, gvba, gvbb):
     return not gvba.eq(gvbb)
 
+def neq_bits_bv_bv(bva, bvb):
+    return bva != bvb
+
 def xor_bits(machine, gvba, gvbb):
     return gvba.xor(gvbb)
 

@@ -1,5 +1,6 @@
-from pydrofoil import parse
+from pydrofoil import parse, makecode, types
 from collections import defaultdict
+
 
 # optimize operation ASTs before generating code
 
@@ -88,8 +89,9 @@ def specialize_ops(blocks, codegen):
                 localtypes[op.name] = op
     v = OptVisitor(localtypes, "zz5i64zDzKz5i")
     for num, block in blocks.iteritems():
-        for op in block:
-            op.visit(v)
+        for i, op in enumerate(block):
+            for i in range(10): # XXX terrible
+                op.visit(v)
 
 
 class OptVisitor(parse.Visitor):
@@ -97,9 +99,28 @@ class OptVisitor(parse.Visitor):
         self.localtypes = localtypes
         self.int64_to_int_name = int64_to_int_name
 
+    def visit_CastExpr(self, cast):
+        if isinstance(cast.expr, parse.CastExpr):
+            return parse.CastExpr(cast.expr.expr, cast.typ)
+
     def visit_OperationExpr(self, expr):
-        if expr.name != "zsubrange_bits":
-            return
+        meth = getattr(self, "optimize_%s" % expr.name, None)
+        if not meth:
+            return None
+        return meth(expr)
+
+    def _gettyp(self, expr):
+        try:
+            if not isinstance(expr, parse.Var):
+                return expr.gettyp(None)
+            if not expr.name in self.localtypes:
+                xxx
+            decl = self.localtypes[expr.name]
+            return decl.typ.resolve_type(None)
+        except AttributeError:
+            return None
+
+    def optimize_zsubrange_bits(self, expr):
         arg0, arg1, arg2 = expr.args
         assert expr.typ.name == "%bv"
 
@@ -107,15 +128,8 @@ class OptVisitor(parse.Visitor):
             return
         assert arg0.typ.name == "%bv"
         arg0 = arg0.expr
-        if not isinstance(arg0, parse.Var):
-            return # xxx later
-        if not arg0.name in self.localtypes:
-            xxx
-        decl = self.localtypes[arg0.name]
-        typname = decl.typ.name
-        assert typname.startswith("%bv")
-        size = int(typname[len("%bv"):])
-        if size > 64:
+        typ = self._gettyp(arg0)
+        if not isinstance(typ, types.SmallFixedBitVector):
             return
 
         if not isinstance(arg1, parse.OperationExpr) and arg1.name == self.int64_to_int_name:
@@ -138,8 +152,21 @@ class OptVisitor(parse.Visitor):
             ),
             expr.typ
         )
-        print "______________________________"
-        print "optimize", expr
-        print "to", res
         return res
 
+    def optimize_zeq_bits(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        if not isinstance(arg1, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        typ1 = self._gettyp(arg1.expr)
+        if typ0 != typ1 or not isinstance(typ0, types.SmallFixedBitVector):
+            return
+        res = parse.OperationExpr(
+            "@eq_bits_bv_bv",
+            [arg0.expr, arg1.expr],
+            expr.typ
+        )
+        return res

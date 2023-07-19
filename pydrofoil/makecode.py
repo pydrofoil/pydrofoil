@@ -36,6 +36,7 @@ class Codegen(object):
         self.add_global("bitone", "r_uint(1)", types.Bit())
         self.add_global("$zupdate_fbits", "supportcode.update_fbits")
         self.add_global("@slice_fixed_bv_i_i", "supportcode.slice_fixed_bv_i_i")
+        self.add_global("@eq_bits_bv_bv", "supportcode.eq_bits_bv_bv")
         self.add_global("have_exception", "machine.have_exception", types.Bool())
         self.add_global("throw_location", "machine.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")

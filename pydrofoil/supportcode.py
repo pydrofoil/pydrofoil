@@ -83,6 +83,9 @@ def zero_extend(machine, gbv, lint):
 def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)
 
+def eq_bits_bv_bv(bva, bvb):
+    return bva == bvb
+
 def neq_bits(machine, gvba, gvbb):
     return not gvba.eq(gvbb)
 

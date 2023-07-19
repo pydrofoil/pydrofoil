@@ -5,8 +5,8 @@ from collections import defaultdict
 # optimize operation ASTs before generating code
 
 
-def identify_replacements(blocks):
-    decls, defs, uses = find_decl_defs_uses(blocks)
+def identify_replacements(blocks, predefined=None):
+    decls, defs, uses = find_decl_defs_uses(blocks, predefined)
     replacements = {}
     for var, varuses in uses.iteritems():
         if len(varuses) != 1:
@@ -20,6 +20,8 @@ def identify_replacements(blocks):
             continue
         declblock, declindex = decls[var]
         if not (declblock is defblock is useblock):
+            continue
+        if defindex is None or useindex is None:
             continue
         defop = useblock[defindex]
         useop = useblock[useindex]
@@ -62,16 +64,21 @@ def do_replacements(replacements):
         block[:] = newblock
 
 
-def optimize_blocks(blocks, codegen):
-    do_replacements(identify_replacements(blocks.values()))
-    specialize_ops(blocks, codegen)
+def optimize_blocks(blocks, codegen, predefined=None):
+    do_replacements(identify_replacements(blocks, predefined))
+    specialize_ops(blocks, codegen, predefined)
 
 
-def find_decl_defs_uses(blocks):
+def find_decl_defs_uses(blocks, predefined=None):
     defs = defaultdict(list)
     uses = defaultdict(list)
     decls = {}
-    for block in blocks:
+    if predefined:
+        for var, typ in predefined.iteritems():
+            decls[var] = (blocks[0], None)
+            if var != "return_":
+                defs[var].append((blocks[0], None))
+    for _, block in sorted(blocks.items()):
         for i, op in enumerate(block):
             used_vars = op.find_used_vars()
             for var in used_vars:
@@ -84,13 +91,15 @@ def find_decl_defs_uses(blocks):
     return decls, defs, uses
 
 
-def specialize_ops(blocks, codegen):
-    localtypes = {}
+def specialize_ops(blocks, codegen, predefined=None):
+    if predefined is None:
+        predefined = {}
+    localtypes = predefined.copy()
     # find local var types
     for num, block in blocks.iteritems():
         for op in block:
             if isinstance(op, parse.LocalVarDeclaration):
-                localtypes[op.name] = op
+                localtypes[op.name] = op.typ
     v = OptVisitor(localtypes, "zz5i64zDzKz5i")
     for num, block in blocks.iteritems():
         for i, op in enumerate(block):
@@ -118,7 +127,7 @@ class OptVisitor(parse.Visitor):
     def visit_Operation(self, expr):
         if expr.result not in self.localtypes:
             return None
-        typ = self.localtypes[expr.result].typ
+        typ = self.localtypes[expr.result]
         if expr.name == "$zinternal_vector_update":
             return
         return parse.Assignment(
@@ -141,8 +150,8 @@ class OptVisitor(parse.Visitor):
                 return expr.gettyp(None)
             if not expr.name in self.localtypes:
                 xxx
-            decl = self.localtypes[expr.name]
-            return decl.typ.resolve_type(None)
+            typ = self.localtypes[expr.name]
+            return typ.resolve_type(None)
         except AttributeError:
             return None
 
@@ -323,6 +332,23 @@ class OptVisitor(parse.Visitor):
                 "@not_vec_bv",
                 [arg0, parse.Number(typ0.width)],
                 parse.NamedType("%bv" + str(typ0.width)),
+            ),
+            expr.typ,
+        )
+
+    def optimize_zsigned(self, expr):
+        (arg0,) = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector):
+            return
+        arg0 = arg0.expr
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@signed_bv",
+                [arg0, parse.Number(typ0.width)],
+                parse.NamedType("%i64"),
             ),
             expr.typ,
         )

@@ -1,3 +1,5 @@
+import pytest
+
 from pydrofoil import parse
 from pydrofoil.parse import *
 from pydrofoil.optimize import (
@@ -125,7 +127,7 @@ targetjumpop = ConditionalJump(
 
 def test_find_defs_uses():
     block = vector_subrange_example
-    decls, defs, uses = find_decl_defs_uses([block])
+    decls, defs, uses = find_decl_defs_uses({0: block})
     assert uses["bv32"] == [(block, 8)]
     assert uses["subrange_result_bv7"] == [(block, 13)]
     assert defs["num6"] == [(block, 4)]
@@ -140,15 +142,68 @@ def test_find_defs_uses():
 
 
 def test_identify_replacements():
-    replacements = identify_replacements([vector_subrange_example])
+    replacements = identify_replacements({0: vector_subrange_example})
     assert replacements["bvusedonce"] == (vector_subrange_example, 7, 8, 10)
 
 
 def test_do_replacements():
     block = vector_subrange_example[:]
-    replacements = identify_replacements([block])
+    replacements = identify_replacements({0: block})
     do_replacements(replacements)
     assert block[2] == targetjumpop
+
+
+def test_replacements_arguments():
+    predefined = {
+        "zx": NamedType("%bv"),
+        "zy": NamedType("%bv"),
+        "return": NamedType("%bool"),
+    }
+    blocks = {
+        0: [
+            LocalVarDeclaration(
+                name="zz40",
+                sourcepos="`3 227:32-227:53",
+                typ=NamedType("%i"),
+                value=None,
+            ),
+            Operation(
+                args=[Var(name="zx")],
+                name="zsigned",
+                result="zz40",
+                sourcepos="`1 227:32-227:41",
+            ),
+            LocalVarDeclaration(
+                name="zz41",
+                sourcepos="`1 227:32-227:53",
+                typ=NamedType("%i"),
+                value=None,
+            ),
+            Operation(
+                args=[Var(name="zy")],
+                name="zsigned",
+                result="zz41",
+                sourcepos="`1 227:44-227:53",
+            ),
+            Operation(
+                args=[Var(name="zz40"), Var(name="zz41")],
+                name="zlt_int",
+                result="return",
+                sourcepos="`1 227:32-227:53",
+            ),
+            End(),
+        ]
+    }
+    do_replacements(identify_replacements(blocks, predefined))
+    assert blocks[0][0] == Operation(
+        args=[
+            OperationExpr(args=[Var(name="zx")], name="zsigned", typ=NamedType("%i")),
+            OperationExpr(args=[Var(name="zy")], name="zsigned", typ=NamedType("%i")),
+        ],
+        name="zlt_int",
+        result="return",
+        sourcepos=None,
+    )
 
 
 def test_specialize_ops():
@@ -457,7 +512,7 @@ def test_int64_to_int_and_back():
                 args=[
                     OperationExpr(
                         args=[CastExpr(expr=Var(name="zz44"), typ=NamedType("%bv"))],
-                        name="zunsigned",
+                        name="foo",
                         typ=NamedType("%i"),
                     )
                 ],
@@ -472,7 +527,7 @@ def test_int64_to_int_and_back():
     specialize_ops({0: block}, None)
     assert block[0] == OperationExpr(
         args=[CastExpr(expr=Var(name="zz44"), typ=NamedType("%bv"))],
-        name="zunsigned",
+        name="foo",
         typ=NamedType("%i"),
     )
 
@@ -609,4 +664,58 @@ def test_and_not_bits():
             typ=NamedType("%bv21"),
         ),
         typ=NamedType("%bv"),
+    )
+
+
+@pytest.mark.skip("broken, fix with better types")
+def test_fieldaccess_bug():
+    op = Assignment(
+        result="return",
+        sourcepos="`11 1:34-1:48",
+        value=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=FieldAccess(element="zbits", obj=Var(name="zv")),
+                    typ=NamedType("%bv"),
+                ),
+                OperationExpr(
+                    args=[Number(number=8)], name="zz5i64zDzKz5i", typ=NamedType("%i")
+                ),
+                OperationExpr(
+                    args=[Number(number=8)], name="zz5i64zDzKz5i", typ=NamedType("%i")
+                ),
+            ],
+            name="zsubrange_bits",
+            typ=NamedType("%bv"),
+        ),
+    )
+    block = [op]
+    specialize_ops({0: block}, None)
+
+
+def test_signed():
+    lv1 = LocalVarDeclaration(
+        name="var1",
+        typ=NamedType(name="%bv64"),
+        value=None,
+    )
+    op = Assignment(
+        result="zz40",
+        sourcepos=None,
+        value=OperationExpr(
+            args=[CastExpr(expr=Var(name="var1"), typ=NamedType("%bv"))],
+            name="zsigned",
+            typ=NamedType("%i"),
+        ),
+    )
+    block = [lv1, op]
+    specialize_ops({0: block}, None)
+    assert block[1] == Assignment(
+        result="zz40",
+        sourcepos=None,
+        value=OperationExpr(
+            args=[Var(name="var1"), Number(number=64)],
+            name="@signed_bv",
+            typ=NamedType("%i64"),
+        ),
     )

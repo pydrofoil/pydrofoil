@@ -43,6 +43,7 @@ class Codegen(object):
         self.add_global("@and_vec_bv_bv", "supportcode.and_vec_bv_bv")
         self.add_global("@not_vec_bv", "supportcode.not_vec_bv")
         self.add_global("@bitvector_concat_bv_bv", "supportcode.bitvector_concat_bv_bv")
+        self.add_global("@signed_bv", "supportcode.signed_bv")
         self.add_global("have_exception", "machine.have_exception", types.Bool())
         self.add_global("throw_location", "machine.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
@@ -397,7 +398,11 @@ class __extend__(parse.Function):
         codegen.update_global_pyname(self.name, pyname)
         self.pyname = pyname
         blocks = self._prepare_blocks()
-        optimize_blocks(blocks, codegen)
+
+        typ = codegen.globalnames[self.name].ast.typ
+        predefined = {arg: typ.argtype.elements[i] for i, arg in enumerate(self.args)}
+        predefined["return"] = typ.restype
+        optimize_blocks(blocks, codegen, predefined)
         entrycounts = self._compute_entrycounts(blocks)
         if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
             print "making method!", self.name
@@ -730,7 +735,7 @@ class __extend__(parse.StructElementAssignment):
 class __extend__(parse.RefAssignment):
     def make_op_code(self, codegen):
         # XXX think long and hard about refs!
-        codegen.emit("%s.copy_into(%s)" % (self.value.to_code(codegen), self.ref))
+        codegen.emit("%s.copy_into(%s)" % (self.value.to_code(codegen), self.ref.to_code(codegen)))
 
 class __extend__(parse.End):
     def make_op_code(self, codegen):

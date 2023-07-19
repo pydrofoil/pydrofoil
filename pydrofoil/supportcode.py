@@ -43,7 +43,7 @@ def raise_type_error():
 
 # bit vectors
 
-def fast_signed(machine, op, n):
+def signed_bv(machine, op, n):
     if n == 64:
         return intmask(op)
     assert n > 0

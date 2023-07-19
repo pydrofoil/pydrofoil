@@ -437,7 +437,7 @@ class RefAssignment(StatementWithSourcePos):
         return res
 
     def replace_var(self, var, expr):
-        xxx
+        return RefAssignment(self.ref.replace_var(var, expr), self.value, self.sourcepos)
 
 class End(Statement):
     end_of_block = True
@@ -822,7 +822,7 @@ def op(p):
     if len(p) == 3:
         return Assignment(p[0].value, p[2])
     if len(p) == 4:
-        return RefAssignment(p[0].value, p[3])
+        return RefAssignment(Var(p[0].value), p[3])
     else:
         assert p[2].gettokentype() == "NAME"
         return StructElementAssignment(Var(p[0].value), p[2].value, p[4])

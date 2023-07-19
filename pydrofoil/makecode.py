@@ -886,9 +886,20 @@ class __extend__(parse.OperationExpr):
         name = self.name
         sargs = [arg.to_code(codegen) for arg in self.args]
         argtyps = [arg.gettyp(codegen) for arg in self.args]
+        restyp = self.gettyp(codegen)
         if name in codegen.globalnames and codegen.globalnames[name].pyname == "supportcode.eq_anything":
-            import pdb; pdb.set_trace()
             name = "@eq"
+
+        if name.startswith("@"):
+            meth = getattr(argtyps[0], "make_op_code_special_" + name[1:], None)
+            if meth:
+                return meth(self, sargs, argtyps, restyp)
+        elif name.startswith("$zcons"): # magic list cons stuff
+            return "%s(%s, %s)" % (restyp.pyname, sargs[0], sargs[1])
+        elif name.startswith("$zinternal_vector_init"): # magic vector stuff
+            oftyp = restyp.typ
+            return "[%s] * %s" % (oftyp.uninitialized_value, sargs[0])
+
         if not sargs:
             args = '()'
         else:

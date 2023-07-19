@@ -4,6 +4,7 @@ from collections import defaultdict
 
 # optimize operation ASTs before generating code
 
+
 def identify_replacements(blocks):
     decls, defs, uses = find_decl_defs_uses(blocks)
     replacements = {}
@@ -22,12 +23,13 @@ def identify_replacements(blocks):
             continue
         defop = useblock[defindex]
         useop = useblock[useindex]
-        if isinstance(defop, parse.Operation) and defop.name.startswith(('@', '$')):
+        if isinstance(defop, parse.Operation) and defop.name.startswith(("@", "$")):
             continue
         if any(len(defs[argvar]) != 1 for argvar in defop.find_used_vars()):
             continue
         replacements[var] = (useblock, declindex, defindex, useindex)
     return replacements
+
 
 def do_replacements(replacements):
     repl_list = list(replacements.items())
@@ -64,6 +66,7 @@ def optimize_blocks(blocks, codegen):
     do_replacements(identify_replacements(blocks.values()))
     specialize_ops(blocks, codegen)
 
+
 def find_decl_defs_uses(blocks):
     defs = defaultdict(list)
     uses = defaultdict(list)
@@ -80,6 +83,7 @@ def find_decl_defs_uses(blocks):
                 decls[op.name] = (block, i)
     return decls, defs, uses
 
+
 def specialize_ops(blocks, codegen):
     localtypes = {}
     # find local var types
@@ -90,8 +94,10 @@ def specialize_ops(blocks, codegen):
     v = OptVisitor(localtypes, "zz5i64zDzKz5i")
     for num, block in blocks.iteritems():
         for i, op in enumerate(block):
-            for i in range(10): # XXX terrible
-                op.visit(v)
+            for _ in range(10):  # XXX terrible
+                res = op.visit(v)
+                if res is not None:
+                    block[i] = op = res
 
 
 class OptVisitor(parse.Visitor):
@@ -108,6 +114,20 @@ class OptVisitor(parse.Visitor):
         if not meth:
             return None
         return meth(expr)
+
+    def visit_Operation(self, expr):
+        if expr.result not in self.localtypes:
+            return None
+        typ = self.localtypes[expr.result].typ
+        if expr.name == "$zinternal_vector_update":
+            return
+        return parse.Assignment(
+            expr.result, parse.OperationExpr(expr.name, expr.args, typ), expr.sourcepos
+        )
+
+    def visit_Assignment(self, expr):
+        while isinstance(expr.value, parse.CastExpr):
+            expr.value = expr.value.expr
 
     def _gettyp(self, expr):
         try:
@@ -132,14 +152,20 @@ class OptVisitor(parse.Visitor):
         if not isinstance(typ, types.SmallFixedBitVector):
             return
 
-        if not isinstance(arg1, parse.OperationExpr) and arg1.name == self.int64_to_int_name:
+        if (
+            not isinstance(arg1, parse.OperationExpr)
+            and arg1.name == self.int64_to_int_name
+        ):
             return
-        if not isinstance(arg2, parse.OperationExpr) and arg2.name == self.int64_to_int_name:
+        if (
+            not isinstance(arg2, parse.OperationExpr)
+            and arg2.name == self.int64_to_int_name
+        ):
             return
-        arg1, = arg1.args
+        (arg1,) = arg1.args
         if not isinstance(arg1, parse.Number):
             return
-        arg2, = arg2.args
+        (arg2,) = arg2.args
         if not isinstance(arg2, parse.Number):
             return
         width = arg1.number - arg2.number + 1
@@ -148,9 +174,9 @@ class OptVisitor(parse.Visitor):
             parse.OperationExpr(
                 "@slice_fixed_bv_i_i",
                 [arg0, arg1, arg2],
-                parse.NamedType("%bv" + str(width))
+                parse.NamedType("%bv" + str(width)),
             ),
-            expr.typ
+            expr.typ,
         )
         return res
 
@@ -164,9 +190,5 @@ class OptVisitor(parse.Visitor):
         typ1 = self._gettyp(arg1.expr)
         if typ0 != typ1 or not isinstance(typ0, types.SmallFixedBitVector):
             return
-        res = parse.OperationExpr(
-            "@eq_bits_bv_bv",
-            [arg0.expr, arg1.expr],
-            expr.typ
-        )
+        res = parse.OperationExpr("@eq_bits_bv_bv", [arg0.expr, arg1.expr], expr.typ)
         return res

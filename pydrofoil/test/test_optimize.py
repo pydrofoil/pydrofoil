@@ -176,13 +176,10 @@ def test_specialize_ops():
     )
     block = [lv, op]
     specialize_ops({0: block}, None)
-    assert block[1].value == CastExpr(
-        expr=OperationExpr(
-            args=[Var(name="zz40"), Number(number=31), Number(number=0)],
-            name="@slice_fixed_bv_i_i",
-            typ=NamedType("%bv32"),
-        ),
-        typ=NamedType("%bv"),
+    assert block[1].value == OperationExpr(
+        args=[Var(name="zz40"), Number(number=31), Number(number=0)],
+        name="@slice_fixed_bv_i_i",
+        typ=NamedType("%bv32"),
     )
 
 
@@ -238,4 +235,48 @@ def test_specialize_eq_bits():
         ),
         sourcepos="`36 272:65-272:112",
         target=697,
+    )
+
+
+def test_optimize_operation():
+    lv = LocalVarDeclaration(
+        name="zz410260",
+        typ=NamedType(name="%bool"),
+        value=None,
+    )
+    op = Operation(
+        args=[
+            CastExpr(
+                expr=OperationExpr(
+                    args=[Var(name="zz410258"), Number(number=6), Number(number=0)],
+                    name="@slice_fixed_bv_i_i",
+                    typ=NamedType("%bv7"),
+                ),
+                typ=NamedType("%bv"),
+            ),
+            CastExpr(
+                expr=BitVectorConstant(constant="0b0010011"), typ=NamedType("%bv")
+            ),
+        ],
+        name="zeq_bits",
+        result="zz410260",
+        sourcepos=None,
+    )
+    block = [lv, op]
+    specialize_ops({0: block}, None)
+    assert block[1] == Assignment(
+        result="zz410260",
+        sourcepos=None,
+        value=OperationExpr(
+            args=[
+                OperationExpr(
+                    args=[Var(name="zz410258"), Number(number=6), Number(number=0)],
+                    name="@slice_fixed_bv_i_i",
+                    typ=NamedType("%bv7"),
+                ),
+                BitVectorConstant(constant="0b0010011"),
+            ],
+            name="@eq_bits_bv_bv",
+            typ=NamedType("%bool"),
+        ),
     )

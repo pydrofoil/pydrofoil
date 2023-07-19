@@ -413,3 +413,38 @@ def test_optimize_append():
         name="@bitvector_concat_bv_bv",
         typ=NamedType("%bv21"),
     )
+
+
+def test_eq_int():
+    op = ConditionalJump(
+        condition=Comparison(
+            args=[
+                OperationExpr(
+                    args=[
+                        OperationExpr(
+                            args=[Var(name="zz4127")],
+                            name="zz5i64zDzKz5i",
+                            typ=NamedType("%i"),
+                        ),
+                        OperationExpr(
+                            args=[Number(number=0)],
+                            name="zz5i64zDzKz5i",
+                            typ=NamedType("%i"),
+                        ),
+                    ],
+                    name="zeq_int",
+                    typ=NamedType("%bool"),
+                )
+            ],
+            operation="@not",
+        ),
+        sourcepos="`9 116:4-150:5",
+        target=12,
+    )
+    block = [op]
+    specialize_ops({0: block}, None)
+    assert block[0].condition.args[0] == OperationExpr(
+        args=[Var(name="zz4127"), Number(number=0)],
+        name="@eq_int_i_i",
+        typ=NamedType("%bool"),
+    )

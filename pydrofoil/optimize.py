@@ -217,3 +217,19 @@ class OptVisitor(parse.Visitor):
             expr.typ,
         )
         return res
+
+    def optimize_zeq_int(self, expr):
+        arg0, arg1 = expr.args
+        if (
+            not isinstance(arg0, parse.OperationExpr)
+            or arg0.name != self.int64_to_int_name
+        ):
+            return
+        if (
+            not isinstance(arg1, parse.OperationExpr)
+            or arg1.name != self.int64_to_int_name
+        ):
+            return
+        (arg0,) = arg0.args
+        (arg1,) = arg1.args
+        return parse.OperationExpr("@eq_int_i_i", [arg0, arg1], expr.typ)

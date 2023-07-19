@@ -174,6 +174,9 @@ def eq_int(machine, a, b):
     assert isinstance(a, Integer)
     return a.eq(b)
 
+def eq_int_i_i(a, b):
+    return a == b
+
 def eq_bit(machine, a, b):
     return a == b
 

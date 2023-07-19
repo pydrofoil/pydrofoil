@@ -224,10 +224,6 @@ class OptVisitor(parse.Visitor):
         )
 
     def optimize_zbitvector_access(self, expr):
-        if "zz49220" in str(expr):
-            import pdb
-
-            pdb.set_trace()
         arg0, arg1 = expr.args
         if not isinstance(arg0, parse.CastExpr):
             return

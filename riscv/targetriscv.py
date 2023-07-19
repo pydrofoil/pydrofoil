@@ -25,8 +25,9 @@ def _make_code(rv64=True):
     res = res.replace("platform_read_mem(machine, ", "platform_read_mem(machine, executable_flag, ")
 
     ## another one of them:
-    #assert res.count("return_ = Union_zExt_DataAddr_CheckzIuzK_zExt_DataAddr_OKzIuzK(zaddr_lz30") == 1
-    #res = res.replace("return_ = Union_zExt_DataAddr_Check_zExt_DataAddr_OK(zaddr_lz30", "supportcode.promote_addr_region(machine, zaddr_lz30, zwidth, zoffset, (type(zacc) is Union_zAccessType_zExecute)); return_ = Union_zExt_DataAddr_Check_zExt_DataAddr_OK(zaddr_lz30")
+    target = "return_ = Union_zExt_DataAddr_CheckzIuzK_zExt_DataAddr_OKzIuzK(supportcode.add_bits_bv_bv(func_zrX_bits(machine, zbase), zoffset))"
+    assert res.count(target) == 1
+    res = res.replace(target, "zaddr_lz30 = supportcode.add_bits_bv_bv(func_zrX_bits(machine, zbase), zoffset); supportcode.promote_addr_region(machine, zaddr_lz30, zwidth, zoffset, (type(zacc) is Union_zAccessTypezIuzK_zExecutezIuzK)); return_ = Union_zExt_DataAddr_CheckzIuzK_zExt_DataAddr_OKzIuzK(zaddr_lz30)")
     with open(outriscvpys[rv64], "w") as f:
         f.write(res)
     if rv64:

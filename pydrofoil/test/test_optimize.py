@@ -448,3 +448,30 @@ def test_eq_int():
         name="@eq_int_i_i",
         typ=NamedType("%bool"),
     )
+
+
+def test_int64_to_int_and_back():
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    OperationExpr(
+                        args=[CastExpr(expr=Var(name="zz44"), typ=NamedType("%bv"))],
+                        name="zunsigned",
+                        typ=NamedType("%i"),
+                    )
+                ],
+                name="zz5izDzKz5i64",
+                typ=NamedType("%i64"),
+            )
+        ],
+        name="zz5i64zDzKz5i",
+        typ=NamedType("%i"),
+    )
+    block = [op]
+    specialize_ops({0: block}, None)
+    assert block[0] == OperationExpr(
+        args=[CastExpr(expr=Var(name="zz44"), typ=NamedType("%bv"))],
+        name="zunsigned",
+        typ=NamedType("%i"),
+    )

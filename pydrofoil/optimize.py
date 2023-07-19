@@ -154,12 +154,12 @@ class OptVisitor(parse.Visitor):
 
         if (
             not isinstance(arg1, parse.OperationExpr)
-            and arg1.name == self.int64_to_int_name
+            or arg1.name != self.int64_to_int_name
         ):
             return
         if (
             not isinstance(arg2, parse.OperationExpr)
-            and arg2.name == self.int64_to_int_name
+            or arg2.name != self.int64_to_int_name
         ):
             return
         (arg1,) = arg1.args
@@ -233,3 +233,10 @@ class OptVisitor(parse.Visitor):
         (arg0,) = arg0.args
         (arg1,) = arg1.args
         return parse.OperationExpr("@eq_int_i_i", [arg0, arg1], expr.typ)
+
+    def optimize_zz5i64zDzKz5i(self, expr):  # int64_to_int
+        # int_to_int64
+        (arg0,) = expr.args
+        if not isinstance(arg0, parse.OperationExpr) or arg0.name != "zz5izDzKz5i64":
+            return
+        return arg0.args[0]

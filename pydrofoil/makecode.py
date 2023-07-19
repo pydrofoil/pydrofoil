@@ -566,6 +566,7 @@ class __extend__(parse.Function):
                     op.name == block[i + 1].result):
                 op.make_op_code(codegen, False)
             elif isinstance(op, parse.ConditionalJump):
+                codegen.emit("# %s" % (op, ))
                 with codegen.emit_indent("if %s:" % (op.condition.to_code(codegen))):
                     if entrycounts[op.target] == 1:
                         # can inline!

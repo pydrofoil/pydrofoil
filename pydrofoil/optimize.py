@@ -240,3 +240,9 @@ class OptVisitor(parse.Visitor):
         if not isinstance(arg0, parse.OperationExpr) or arg0.name != "zz5izDzKz5i64":
             return
         return arg0.args[0]
+
+    def optimize_zz5izDzKz5i64(self, expr):
+        (arg0,) = expr.args
+        if not isinstance(arg0, parse.OperationExpr) or arg0.name != "zz5i64zDzKz5i":
+            return
+        return arg0.args[0]

@@ -475,3 +475,20 @@ def test_int64_to_int_and_back():
         name="zunsigned",
         typ=NamedType("%i"),
     )
+
+
+def test_int_to_int64_and_back():
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[Number(number=8)],
+                name="zz5i64zDzKz5i",
+                typ=NamedType("%i"),
+            )
+        ],
+        name="zz5izDzKz5i64",
+        typ=NamedType("%i64"),
+    )
+    block = [op]
+    specialize_ops({0: block}, None)
+    assert block[0] == Number(8)

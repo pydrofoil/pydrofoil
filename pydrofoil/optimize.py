@@ -252,3 +252,77 @@ class OptVisitor(parse.Visitor):
         if not isinstance(arg0, parse.OperationExpr) or arg0.name != "zz5i64zDzKz5i":
             return
         return arg0.args[0]
+
+    def optimize_zxor_vec(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        if not isinstance(arg1, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        typ1 = self._gettyp(arg1.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
+            return
+        arg0 = arg0.expr
+        arg1 = arg1.expr
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@xor_vec_bv_bv", [arg0, arg1], parse.NamedType("%bv" + str(typ0.width))
+            ),
+            expr.typ,
+        )
+
+    def optimize_zand_vec(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        if not isinstance(arg1, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        typ1 = self._gettyp(arg1.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
+            return
+        arg0 = arg0.expr
+        arg1 = arg1.expr
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@and_vec_bv_bv", [arg0, arg1], parse.NamedType("%bv" + str(typ0.width))
+            ),
+            expr.typ,
+        )
+
+    def optimize_zor_vec(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        if not isinstance(arg1, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        typ1 = self._gettyp(arg1.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
+            return
+        arg0 = arg0.expr
+        arg1 = arg1.expr
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@or_vec_bv_bv", [arg0, arg1], parse.NamedType("%bv" + str(typ0.width))
+            ),
+            expr.typ,
+        )
+
+    def optimize_znot_vec(self, expr):
+        (arg0,) = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector):
+            return
+        arg0 = arg0.expr
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@not_vec_bv",
+                [arg0, parse.Number(typ0.width)],
+                parse.NamedType("%bv" + str(typ0.width)),
+            ),
+            expr.typ,
+        )

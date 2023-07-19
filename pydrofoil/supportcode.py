@@ -92,14 +92,31 @@ def neq_bits(machine, gvba, gvbb):
 def xor_bits(machine, gvba, gvbb):
     return gvba.xor(gvbb)
 
+def xor_vec_bv_bv(bva, bvb):
+    return bva ^ bvb
+
 def and_bits(machine, gvba, gvbb):
     return gvba.and_(gvbb)
+
+def and_vec_bv_bv(bva, bvb):
+    return bva & bvb
 
 def or_bits(machine, gvba, gvbb):
     return gvba.or_(gvbb)
 
+def or_vec_bv_bv(bva, bvb):
+    return bva | bvb
+
 def not_bits(machine, gvba):
     return gvba.invert()
+
+def not_vec_bv(bva, width):
+    res = ~bva
+    if width == 64:
+        return res
+    assert width < 64
+    mask = (r_uint(1) << width) - 1
+    return res & mask
 
 def print_bits(machine, s, b):
     print s + b.string_of_bits()

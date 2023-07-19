@@ -534,3 +534,79 @@ def test_structconstruction_fieldread():
         ),
         typ=NamedType("%bv"),
     )
+
+
+def test_xor_bits():
+    lv1 = LocalVarDeclaration(
+        name="var1",
+        typ=NamedType(name="%bv21"),
+        value=None,
+    )
+    lv2 = LocalVarDeclaration(
+        name="var2",
+        typ=NamedType(name="%bv21"),
+        value=None,
+    )
+    op = OperationExpr(
+        args=[
+            CastExpr(expr=Var(name="var1"), typ=NamedType("%bv")),
+            CastExpr(expr=Var(name="var2"), typ=NamedType("%bv")),
+        ],
+        name="zxor_vec",
+        typ=NamedType("%bv"),
+    )
+    block = [lv1, lv2, op]
+    specialize_ops({0: block}, None)
+    assert block[2] == CastExpr(
+        expr=OperationExpr(
+            args=[Var(name="var1"), Var(name="var2")],
+            name="@xor_vec_bv_bv",
+            typ=NamedType("%bv21"),
+        ),
+        typ=NamedType("%bv"),
+    )
+
+
+def test_and_not_bits():
+    lv1 = LocalVarDeclaration(
+        name="var1",
+        typ=NamedType(name="%bv21"),
+        value=None,
+    )
+    lv2 = LocalVarDeclaration(
+        name="var2",
+        typ=NamedType(name="%bv21"),
+        value=None,
+    )
+    op = OperationExpr(
+        args=[
+            CastExpr(expr=Var(name="var1"), typ=NamedType("%bv")),
+            CastExpr(
+                expr=OperationExpr(
+                    args=[CastExpr(expr=Var(name="var2"), typ=NamedType("%bv"))],
+                    name="znot_vec",
+                    typ=NamedType("%bv"),
+                ),
+                typ=NamedType("%bv"),
+            ),
+        ],
+        name="zand_vec",
+        typ=NamedType("%bv"),
+    )
+    block = [lv1, lv2, op]
+    specialize_ops({0: block}, None)
+    assert block[2] == CastExpr(
+        expr=OperationExpr(
+            args=[
+                Var(name="var1"),
+                OperationExpr(
+                    args=[Var(name="var2"), Number(21)],
+                    name="@not_vec_bv",
+                    typ=NamedType("%bv21"),
+                ),
+            ],
+            name="@and_vec_bv_bv",
+            typ=NamedType("%bv21"),
+        ),
+        typ=NamedType("%bv"),
+    )

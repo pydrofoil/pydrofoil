@@ -329,11 +329,12 @@ class Operation(StatementWithSourcePos):
 
 
 class TemplatedOperation(StatementWithSourcePos):
-    def __init__(self, result, name, templateparam, args):
+    def __init__(self, result, name, templateparam, args, sourcepos=None):
         self.result = result
         self.name = name
         self.templateparam = templateparam
         self.args = args
+        self.sourcepos = sourcepos
 
     def find_used_vars(self):
         res = set()
@@ -342,7 +343,10 @@ class TemplatedOperation(StatementWithSourcePos):
         return res
 
     def replace_var(self, var, expr):
-        xxx
+        newargs = [arg.replace_var(var, expr) for arg in self.args]
+        return TemplatedOperation(self.result, self.name,
+                self.templateparam, newargs,
+                self.sourcepos)
 
 
 class Goto(Statement):

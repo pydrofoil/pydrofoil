@@ -914,8 +914,11 @@ class __extend__(parse.CastExpr):
 
     def to_code(self, codegen):
         typ = self.gettyp(codegen)
-        othertyp = self.expr.gettyp(codegen)
-        return pair(othertyp, typ).convert(self.expr, codegen)
+        expr = self.expr
+        while isinstance(expr, parse.CastExpr):
+            expr = expr.expr
+        othertyp = expr.gettyp(codegen)
+        return pair(othertyp, typ).convert(expr, codegen)
 
 # ____________________________________________________________
 # conditions

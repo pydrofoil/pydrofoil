@@ -45,6 +45,8 @@ class Codegen(object):
         self.add_global("@bitvector_concat_bv_bv", "supportcode.bitvector_concat_bv_bv")
         self.add_global("@signed_bv", "supportcode.signed_bv")
         self.add_global("@vector_update_subrange_o_i_i_o", "supportcode.vector_update_subrange_o_i_i_o")
+        self.add_global("@add_bits_bv_bv", "supportcode.add_bits_bv_bv")
+        self.add_global("@sub_bits_bv_bv", "supportcode.sub_bits_bv_bv")
         self.add_global("have_exception", "machine.have_exception", types.Bool())
         self.add_global("throw_location", "machine.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")

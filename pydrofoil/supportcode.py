@@ -60,12 +60,19 @@ def add_bits_int(machine, a, b):
 def add_bits(machine, a, b):
     return a.add_bits(b)
 
+def add_bits_bv_bv(a, b):
+    return a + b
+
 def sub_bits_int(machine, a, b):
     return a.sub_int(b)
 
 @objectmodel.always_inline
 def sub_bits(machine, a, b):
     return a.sub_bits(b)
+
+def sub_bits_bv_bv(a, b):
+    return a - b
+
 
 def length(machine, gbv):
     return gbv.size_as_int()

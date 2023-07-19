@@ -364,6 +364,44 @@ class OptVisitor(parse.Visitor):
             expr.typ,
         )
 
+    def optimize_zadd_bits(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        if not isinstance(arg1, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        typ1 = self._gettyp(arg1.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
+            return
+        arg0 = arg0.expr
+        arg1 = arg1.expr
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@add_bits_bv_bv", [arg0, arg1], parse.NamedType("%bv" + str(typ0.width))
+            ),
+            expr.typ,
+        )
+
+    def optimize_zsub_vec(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        if not isinstance(arg1, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        typ1 = self._gettyp(arg1.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
+            return
+        arg0 = arg0.expr
+        arg1 = arg1.expr
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@sub_bits_bv_bv", [arg0, arg1], parse.NamedType("%bv" + str(typ0.width))
+            ),
+            expr.typ,
+        )
+
     def optimize_zsigned(self, expr):
         (arg0,) = expr.args
         if not isinstance(arg0, parse.CastExpr):

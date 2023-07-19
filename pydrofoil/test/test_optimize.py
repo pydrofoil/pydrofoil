@@ -777,3 +777,60 @@ def test_vector_update_subrange():
         name="@vector_update_subrange_o_i_i_o",
         typ=NamedType("%bv"),
     )
+
+
+def test_add_bits():
+    lv1 = LocalVarDeclaration(
+        name="zbase",
+        typ=NamedType(name="%bv5"),
+        value=None,
+    )
+    lv2 = LocalVarDeclaration(
+        name="zoffset",
+        typ=NamedType(name="%bv64"),
+        value=None,
+    )
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=OperationExpr(
+                    args=[
+                        CastExpr(
+                            expr=OperationExpr(
+                                args=[Var(name="zbase")],
+                                name="zrX_bits",
+                                typ=NamedType("%bv64"),
+                            ),
+                            typ=NamedType("%bv"),
+                        ),
+                        CastExpr(expr=Var(name="zoffset"), typ=NamedType("%bv")),
+                    ],
+                    name="zadd_bits",
+                    typ=NamedType("%bv"),
+                ),
+                typ=NamedType("%bv64"),
+            )
+        ],
+        name="zExt_DataAddr_OKzIuzK",
+        typ=UnionType(name="zExt_DataAddr_CheckzIuzK"),
+    )
+    block = [lv1, lv2, op]
+    specialize_ops({0: block}, None)
+    assert block[2] == OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    OperationExpr(
+                        args=[Var(name="zbase")],
+                        name="zrX_bits",
+                        typ=NamedType("%bv64"),
+                    ),
+                    Var(name="zoffset"),
+                ],
+                name="@adds_bit_bv_bv",
+                typ=NamedType("%bv64"),
+            )
+        ],
+        name="zExt_DataAddr_OKzIuzK",
+        typ=UnionType(name="zExt_DataAddr_CheckzIuzK"),
+    )

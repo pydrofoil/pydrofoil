@@ -133,11 +133,13 @@ class BaseAst(BaseBox):
                 newvalue = value.visit(visitor)
                 if newvalue is not None:
                     setattr(self, key, newvalue)
+                    visitor.changed = True
             elif isinstance(value, list) and value and isinstance(value[0], BaseAst):
                 for i, item in enumerate(value):
                     newitem = item.visit(visitor)
                     if newitem is not None:
                         value[i] = newitem
+                        visitor.changed = True
 
 class File(BaseAst):
     def __init__(self, declarations, sourcepos=None):

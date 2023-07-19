@@ -601,8 +601,6 @@ class __extend__(parse.Function):
                 codegen.emit("return %s" % (codegen.gettyp(self.name).restype.uninitialized_value, ))
             else:
                 codegen.emit("# %s" % (op, ))
-                if isinstance(op, parse.Operation) and "zsubrange_bits" in op.name and "encdec" in self.pyname:
-                    import pdb; pdb.set_trace()
                 op.make_op_code(codegen)
             if op.end_of_block:
                 return

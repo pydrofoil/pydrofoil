@@ -103,10 +103,13 @@ def specialize_ops(blocks, codegen, predefined=None):
     v = OptVisitor(localtypes, "zz5i64zDzKz5i")
     for num, block in blocks.iteritems():
         for i, op in enumerate(block):
-            for _ in range(10):  # XXX terrible
+            while 1:
+                v.changed = False
                 res = op.visit(v)
                 if res is not None:
                     block[i] = op = res
+                elif not v.changed:
+                    break
 
 
 class OptVisitor(parse.Visitor):

@@ -61,6 +61,7 @@ def do_replacements(replacements):
 
 def optimize_blocks(blocks, codegen):
     do_replacements(identify_replacements(blocks.values()))
+    specialize_ops(blocks, codegen)
 
 def find_decl_defs_uses(blocks):
     defs = defaultdict(list)
@@ -78,40 +79,67 @@ def find_decl_defs_uses(blocks):
                 decls[op.name] = (block, i)
     return decls, defs, uses
 
-def specialize_ops(blocks):
+def specialize_ops(blocks, codegen):
     localtypes = {}
     # find local var types
     for num, block in blocks.iteritems():
         for op in block:
             if isinstance(op, parse.LocalVarDeclaration):
                 localtypes[op.name] = op
-    v = OptVisitor(localtypes)
+    v = OptVisitor(localtypes, "zz5i64zDzKz5i")
     for num, block in blocks.iteritems():
         for op in block:
-            op.mutating_visit(v)
+            op.visit(v)
 
-    import pdb; pdb.set_trace()
 
 class OptVisitor(parse.Visitor):
-    def __init__(self, localtypes):
+    def __init__(self, localtypes, int64_to_int_name):
         self.localtypes = localtypes
+        self.int64_to_int_name = int64_to_int_name
 
     def visit_OperationExpr(self, expr):
         if expr.name != "zsubrange_bits":
             return
         arg0, arg1, arg2 = expr.args
         assert expr.typ.name == "%bv"
+
         if not isinstance(arg0, parse.CastExpr):
             return
         assert arg0.typ.name == "%bv"
         arg0 = arg0.expr
         if not isinstance(arg0, parse.Var):
-            xxx
+            return # xxx later
         if not arg0.name in self.localtypes:
             xxx
         decl = self.localtypes[arg0.name]
         typname = decl.typ.name
         assert typname.startswith("%bv")
-        size = int(typname[len("%bv")])
+        size = int(typname[len("%bv"):])
+        if size > 64:
+            return
 
-        import pdb; pdb.set_trace()
+        if not isinstance(arg1, parse.OperationExpr) and arg1.name == self.int64_to_int_name:
+            return
+        if not isinstance(arg2, parse.OperationExpr) and arg2.name == self.int64_to_int_name:
+            return
+        arg1, = arg1.args
+        if not isinstance(arg1, parse.Number):
+            return
+        arg2, = arg2.args
+        if not isinstance(arg2, parse.Number):
+            return
+        width = arg1.number - arg2.number + 1
+
+        res = parse.CastExpr(
+            parse.OperationExpr(
+                "@slice_fixed_bv_i_i",
+                [arg0, arg1, arg2],
+                parse.NamedType("%bv" + str(width))
+            ),
+            expr.typ
+        )
+        print "______________________________"
+        print "optimize", expr
+        print "to", res
+        return res
+

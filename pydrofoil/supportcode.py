@@ -146,6 +146,15 @@ def vector_update_subrange(machine, bv, n, m, s):
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n.toint(), m.toint())
 
+@objectmodel.always_inline
+def slice_fixed_bv_i_i(v, n, m):
+    res = safe_rshift(None, v, m)
+    width = n - m + 1
+    if width == 64:
+        return res
+    mask = (r_uint(1) << width) - 1
+    return res & mask
+
 def string_of_bits(machine, gbv):
     return gbv.string_of_bits()
 

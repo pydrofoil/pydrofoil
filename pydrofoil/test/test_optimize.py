@@ -135,5 +135,8 @@ def test_specialize_ops():
         )
     )
     block = [lv, op]
-    specialize_ops({0: block})
-    assert block == [None]
+    specialize_ops({0: block}, None)
+    assert block[1].value == CastExpr(
+            expr=OperationExpr(
+                args=[Var(name='zz40'), Number(number=31), Number(number=0)], name='@slice_fixed_bv_i_i', typ=NamedType('%bv32')),
+            typ=NamedType('%bv'))

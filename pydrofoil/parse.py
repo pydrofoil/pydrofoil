@@ -125,16 +125,9 @@ class BaseAst(BaseBox):
             dotgen.emit_edge(str(id(self)), str(id(target)), label)
 
     def visit(self, visitor):
-        visitor.visit(self)
-        for key, value in self.__dict__.items():
-            if isinstance(value, BaseAst):
-                value.visit(visitor)
-            elif isinstance(value, list) and value and isinstance(value[0], BaseAst):
-                for item in value:
-                    item.visit(visitor)
-
-    def mutating_visit(self, visitor):
-        visitor.visit(self)
+        result = visitor.visit(self)
+        if result is not None:
+            return result
         for key, value in self.__dict__.items():
             if isinstance(value, BaseAst):
                 newvalue = value.visit(visitor)

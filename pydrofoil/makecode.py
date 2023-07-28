@@ -29,7 +29,6 @@ class Codegen(object):
         self.declarationcache = {}
         self.gensym = {} # prefix -> number
         self.localnames = None
-        self.mostrecentlocalvalues = None
         self.add_global("false", "False", types.Bool())
         self.add_global("true", "True", types.Bool())
         self.add_global("bitzero", "r_uint(0)", types.Bit())
@@ -53,7 +52,6 @@ class Codegen(object):
         self.add_global("throw_location", "machine.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("NULL", "None")
-        self.declared_types = set()
         self.promoted_registers = promoted_registers
 
     def add_global(self, name, pyname, typ=None, ast=None):
@@ -576,7 +574,6 @@ class __extend__(parse.Function):
                     self.emit_block_ops(block, codegen, entrycounts, blockpc, blocks)
 
     def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
-        self.mostrecentlocalvalues = {}
         for i, op in enumerate(block):
             if (isinstance(op, parse.LocalVarDeclaration) and
                     i + 1 < len(block) and
@@ -608,7 +605,6 @@ class __extend__(parse.Function):
                 op.make_op_code(codegen)
             if op.end_of_block:
                 return
-        self.mostrecentlocalvalues = None
 
 class __extend__(parse.Pragma):
     def make_code(self, codegen):

@@ -1,9 +1,9 @@
+import sys
+from contextlib import contextmanager
 from rpython.tool.pairtype import pair
 
 from pydrofoil import parse, types, binaryop, operations
-from contextlib import contextmanager
 
-import sys
 
 assert sys.maxint == 2 ** 63 - 1, "only 64 bit platforms are supported!"
 
@@ -158,7 +158,9 @@ class Codegen(object):
 
 
 def parse_and_make_code(s, support_code, promoted_registers=set()):
+    from pydrofoil.infer import infer
     ast = parse.parser.parse(parse.lexer.lex(s))
+    context = infer(ast)
     c = Codegen(promoted_registers)
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib import jit")
@@ -359,6 +361,7 @@ class __extend__(parse.Struct):
 
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
+        typ = self.typ.resolve_type(codegen)
         if self.definition is not None:
             name = eval(self.definition)
             if "->" in name:
@@ -371,11 +374,10 @@ class __extend__(parse.GlobalVal):
                 else:
                     import pdb; pdb.set_trace()
             if name == "not": name = "not_"
-            typ = self.typ.resolve_type(codegen)
             funcname = "supportcode.%s" % (name, )
             codegen.add_global(self.name, funcname, typ, self)
         else:
-            codegen.add_global(self.name, None,  self.typ.resolve_type(codegen), self)
+            codegen.add_global(self.name, None,  typ, self)
 
 class __extend__(parse.Register):
     def make_code(self, codegen):

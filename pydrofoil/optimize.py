@@ -105,7 +105,7 @@ def specialize_ops(blocks, codegen, predefined=None):
         for i, op in enumerate(block):
             while 1:
                 v.changed = False
-                res = op.visit(v)
+                res = op.walkabout(v)
                 if res is not None:
                     block[i] = op = res
                 elif not v.changed:

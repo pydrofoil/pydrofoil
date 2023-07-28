@@ -95,7 +95,7 @@ class BaseAst(BaseBox):
         return self.__dict__ != other.__dict__
 
     def __repr__(self):
-        return "%s(%s)" % (type(self).__name__, ", ".join(sorted("%s=%r" % (key, value) for key, value in self.__dict__.items())))
+        return "%s(%s)" % (type(self).__name__, ", ".join(sorted("%s=%r" % (key, value) for key, value in self.__dict__.items() if key != "resolved_type")))
 
     def view(self):
         from rpython.translator.tool.make_dot import DotGen
@@ -124,19 +124,19 @@ class BaseAst(BaseBox):
         for target, label in arcs:
             dotgen.emit_edge(str(id(self)), str(id(target)), label)
 
-    def visit(self, visitor):
+    def walkabout(self, visitor):
         result = visitor.visit(self)
         if result is not None:
             return result
         for key, value in self.__dict__.items():
             if isinstance(value, BaseAst):
-                newvalue = value.visit(visitor)
+                newvalue = value.walkabout(visitor)
                 if newvalue is not None:
                     setattr(self, key, newvalue)
                     visitor.changed = True
             elif isinstance(value, list) and value and isinstance(value[0], BaseAst):
                 for i, item in enumerate(value):
-                    newitem = item.visit(visitor)
+                    newitem = item.walkabout(visitor)
                     if newitem is not None:
                         value[i] = newitem
                         visitor.changed = True
@@ -166,17 +166,23 @@ class Struct(Declaration):
         self.types = types
 
 class GlobalVal(Declaration):
+    resolved_type = None
+
     def __init__(self, name, definition, typ, sourcepos=None):
         self.name = name
         self.definition = definition
         self.typ = typ
 
 class Register(Declaration):
+    resolved_type = None
+
     def __init__(self, name, typ):
         self.name = name
         self.typ = typ
 
 class Let(Declaration):
+    resolved_type = None
+
     def __init__(self, name, typ, body):
         self.name = name
         self.typ = typ
@@ -313,6 +319,8 @@ class Assignment(StatementWithSourcePos):
         )
 
 class Operation(StatementWithSourcePos):
+    resolved_type = None
+
     def __init__(self, result, name, args, sourcepos=None):
         self.result = result
         self.name = name
@@ -477,6 +485,8 @@ class Arbitrary(Statement):
         xxx
 
 class Expression(BaseAst):
+    resolved_type = None
+
     def find_used_vars(self):
         raise NotImplementedError
 

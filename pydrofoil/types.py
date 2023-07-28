@@ -72,6 +72,13 @@ class List(Type):
         self.typ = typ
 
 @unique
+class NullType(Type):
+    uninitialized_value = "None"
+
+    def __init__(self):
+        pass
+
+@unique
 class SmallFixedBitVector(Type):
     uninitialized_value = "r_uint(0)"
 

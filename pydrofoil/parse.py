@@ -762,7 +762,7 @@ def opargs(p):
     else:
         return Operation(None, None, [p[0]] + p[2].args)
 
-@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | expr DOT NAME | LPAREN RPAREN | expr AS NAME | AMPERSAND expr | STRUCT structconstruction')
+@pg.production('expr : NAME | STRING | NUMBER | BINBITVECTOR | HEXBITVECTOR | UNDEFINED COLON type | expr DOT NAME | LPAREN RPAREN | expr AS NAME | AMPERSAND NAME | STRUCT structconstruction')
 def expr(p):
     if len(p) == 1:
         if p[0].gettokentype() == "NAME":
@@ -779,7 +779,7 @@ def expr(p):
         if p[0].gettokentype() == "LPAREN":
             return Unit()
         elif p[0].gettokentype() == "AMPERSAND":
-            return RefOf(p[1])
+            return RefOf(Var(p[1].value))
         elif p[0].gettokentype() == "STRUCT":
             return p[1]
     elif len(p) == 3:
@@ -885,7 +885,7 @@ def uniontype(p):
 def structtype(p):
     return StructType(p[1].value)
 
-@pg.production('listtype : PERCENTLIST type')
+@pg.production('listtype : PERCENTLIST simpletype')
 def listtype(p):
     return ListType(p[1])
 

@@ -124,19 +124,19 @@ class BaseAst(BaseBox):
         for target, label in arcs:
             dotgen.emit_edge(str(id(self)), str(id(target)), label)
 
-    def walkabout(self, visitor):
+    def mutate_with(self, visitor):
         result = visitor.visit(self)
         if result is not None:
             return result
         for key, value in self.__dict__.items():
             if isinstance(value, BaseAst):
-                newvalue = value.walkabout(visitor)
+                newvalue = value.mutate_with(visitor)
                 if newvalue is not None:
                     setattr(self, key, newvalue)
                     visitor.changed = True
             elif isinstance(value, list) and value and isinstance(value[0], BaseAst):
                 for i, item in enumerate(value):
-                    newitem = item.walkabout(visitor)
+                    newitem = item.mutate_with(visitor)
                     if newitem is not None:
                         value[i] = newitem
                         visitor.changed = True
@@ -611,10 +611,12 @@ class StructField(BaseAst):
 # some ASTs only used during optimization
 
 class OperationExpr(Expression):
-    def __init__(self, name, args, typ):
+    def __init__(self, name, args, resolved_type):
+        from pydrofoil import types
+        assert isinstance(resolved_type, types.Type)
         self.name = name
         self.args = args
-        self.typ = typ
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         res = set()
@@ -624,21 +626,23 @@ class OperationExpr(Expression):
 
     def replace_var(self, var, expr):
         newargs = [arg.replace_var(var, expr) for arg in self.args]
-        return OperationExpr(self.name, newargs, self.typ)
+        return OperationExpr(self.name, newargs, self.resolved_type)
 
 class CastExpr(Expression):
-    def __init__(self, expr, typ):
+    def __init__(self, expr, resolved_type):
+        from pydrofoil import types
+        assert isinstance(resolved_type, types.Type)
         while isinstance(expr, CastExpr): # remove double cast
             expr = expr.expr
         self.expr = expr
-        self.typ = typ
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return self.expr.find_used_vars()
 
     def replace_var(self, var, expr):
         expr = self.expr.replace_var(var, expr)
-        return CastExpr(expr, self.typ)
+        return CastExpr(expr, self.resolved_type)
 
 # ____________________________________________________________
 # parser

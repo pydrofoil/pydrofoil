@@ -13,6 +13,7 @@ class TypingContext(object):
         self.add_global_name("bitone", types.Bit())
         self.add_global_name("have_exception", types.Bool())
         self.add_global_name("NULL", types.NullType())
+        self.add_global_name("throw_location", types.String())
 
     def add_named_type(self, name, typ):
         assert isinstance(typ, types.Type)
@@ -110,6 +111,7 @@ class TypeAttachingVisitor(parse.Visitor):
 
     def visit_Assignment(self, ast):
         self.visit(ast.value)
+        ast.resolved_type = self.context.gettyp(ast.result)
 
     def visit_Operation(self, ast):
         for arg in ast.args:

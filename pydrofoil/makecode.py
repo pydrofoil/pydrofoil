@@ -895,7 +895,7 @@ class __extend__(parse.String):
 
 class __extend__(parse.OperationExpr):
     def gettyp(self, codegen):
-        return self.typ.resolve_type(codegen)
+        return self.resolved_type
 
     def to_code(self, codegen):
         name = self.name
@@ -938,7 +938,7 @@ class __extend__(parse.OperationExpr):
 
 class __extend__(parse.CastExpr):
     def gettyp(self, codegen):
-        return self.typ.resolve_type(codegen)
+        return self.resolved_type
 
     def to_code(self, codegen):
         typ = self.gettyp(codegen)

@@ -228,6 +228,12 @@ class SmallBitVector(BitVectorWithSize):
     def tobigint(self):
         return rbigint.fromrarith_int(self.val)
 
+    def append(self, other):
+        ressize = self.size() + other.size()
+        if ressize > 64 or not isinstance(other, SmallBitVector):
+            return BitVector.append(self, other)
+        return from_ruint(ressize, (self.val << other.size()) | other.val)
+
 
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']

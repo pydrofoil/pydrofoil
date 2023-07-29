@@ -119,10 +119,6 @@ def copy_ops(op, functionast, targetblocks):
     expr = targetop.value
     for argname, argexpr in zip(functionast.args, op.args):
         expr = expr.replace_var(argname, argexpr)
-    print "INLINING =========================================="
-    print functionast.name
-    print "before", op
-    print "after", expr
     return [parse.Assignment(op.result, expr, op.sourcepos, op.resolved_type)]
 
 

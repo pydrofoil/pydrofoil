@@ -660,48 +660,10 @@ class __extend__(parse.LocalVarDeclaration):
 class __extend__(parse.Operation):
     def make_op_code(self, codegen):
         name = self.name
+        assert name == "$zinternal_vector_update"
         result = codegen.gettarget(self.result)
         sargs = [arg.to_code(codegen) for arg in self.args]
-        argtyps = [arg.gettyp(codegen) for arg in self.args]
-        restyp = codegen.gettyp(self.result)
-        if name in codegen.globalnames and codegen.globalnames[name].pyname == "supportcode.eq_anything":
-            name = "@eq"
-
-        if name.startswith("@"):
-            codegen.emit("%s = %s" % (result,
-                getattr(argtyps[0], "make_op_code_special_" + name[1:])(self, sargs, argtyps, restyp)))
-            return
-        elif name.startswith("$zcons"): # magic list cons stuff
-            codegen.emit("%s = %s(%s, %s)" % (result, restyp.pyname, sargs[0], sargs[1]))
-            return
-        elif name.startswith("$zinternal_vector_init"): # magic vector stuff
-            oftyp = codegen.localnames[self.result].typ.typ
-            codegen.emit("%s = [%s] * %s" % (result, oftyp.uninitialized_value, sargs[0]))
-            return
-        elif name.startswith("$zinternal_vector_update"):
-            codegen.emit("%s = supportcode.vector_update_inplace(machine, %s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
-            return
-
-        if not sargs:
-            args = '()'
-        else:
-            args = ", ".join(sargs)
-        op = codegen.getname(name)
-        info = codegen.getinfo(name)
-        if isinstance(info.typ, types.Function):
-            # pass machine, even to supportcode functions
-            if (op.startswith("supportcode.") and
-                    all(arg.is_constant(codegen) for arg in self.args) and
-                    can_constfold(op)):
-                folded_result = constfold(op, sargs, self, codegen)
-                codegen.emit("%s = %s" % (result, folded_result))
-            else:
-                codegen.emit("%s = %s(machine, %s)" % (result, op, args))
-        elif isinstance(info.typ, types.Union):
-            codegen.emit("%s = %s" % (result, info.ast.constructor(info, op, args, argtyps)))
-        else:
-            # constructors etc don't get machine passed (yet)
-            codegen.emit("%s = %s(%s)" % (result, op, args))
+        codegen.emit("%s = supportcode.vector_update_inplace(machine, %s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
 
 class __extend__(parse.ConditionalJump):
     def make_op_code(self, codegen):

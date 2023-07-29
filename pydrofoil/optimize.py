@@ -67,7 +67,7 @@ def do_replacements(replacements):
 
 def optimize_blocks(blocks, codegen, predefined=None):
     do_replacements(identify_replacements(blocks, predefined))
-    specialize_ops(blocks, codegen, predefined)
+    specialize_ops(blocks, codegen)
 
 
 def find_decl_defs_uses(blocks, predefined=None):
@@ -92,16 +92,8 @@ def find_decl_defs_uses(blocks, predefined=None):
     return decls, defs, uses
 
 
-def specialize_ops(blocks, codegen, predefined=None):
-    if predefined is None:
-        predefined = {}
-    localtypes = predefined.copy()
-    # find local var types
-    for num, block in blocks.iteritems():
-        for op in block:
-            if isinstance(op, parse.LocalVarDeclaration):
-                localtypes[op.name] = op.typ
-    v = OptVisitor(localtypes, "zz5i64zDzKz5i")
+def specialize_ops(blocks, codegen):
+    v = OptVisitor("zz5i64zDzKz5i")
     for num, block in blocks.iteritems():
         for i, op in enumerate(block):
             while 1:
@@ -114,8 +106,7 @@ def specialize_ops(blocks, codegen, predefined=None):
 
 
 class OptVisitor(parse.Visitor):
-    def __init__(self, localtypes, int64_to_int_name):
-        self.localtypes = localtypes
+    def __init__(self, int64_to_int_name):
         self.int64_to_int_name = int64_to_int_name
 
     def visit_CastExpr(self, cast):
@@ -125,22 +116,20 @@ class OptVisitor(parse.Visitor):
             return cast.expr
 
     def visit_OperationExpr(self, expr):
-        if expr.resolved_type is None:
-            import pdb; pdb.set_trace()
-            return None
+        assert expr.resolved_type is not None
         meth = getattr(self, "optimize_%s" % expr.name, None)
         if not meth:
             return None
         return meth(expr)
 
     def visit_Operation(self, operation):
-        if operation.resolved_type is None:
-            return
+        assert operation.resolved_type is not None
         if operation.name == "$zinternal_vector_update":
             return
         expr = parse.OperationExpr(operation.name, operation.args, operation.resolved_type)
         return parse.Assignment(
-            operation.result, expr, operation.sourcepos
+            operation.result, expr, operation.sourcepos,
+            operation.resolved_type,
         )
 
     def visit_Assignment(self, expr):

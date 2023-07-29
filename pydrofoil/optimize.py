@@ -120,8 +120,8 @@ class OptVisitor(parse.Visitor):
 
     def visit_CastExpr(self, cast):
         if isinstance(cast.expr, parse.CastExpr):
-            return parse.CastExpr(cast.expr.expr, cast.typ)
-        if isinstance(cast.expr, parse.OperationExpr) and cast.expr.typ == cast.typ:
+            return parse.CastExpr(cast.expr.expr, cast.resolved_type)
+        if isinstance(cast.expr, parse.OperationExpr) and cast.expr.resolved_type is cast.resolved_type:
             return cast.expr
 
     def visit_OperationExpr(self, expr):
@@ -160,11 +160,11 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zsubrange_bits(self, expr):
         arg0, arg1, arg2 = expr.args
-        assert expr.typ.name == "%bv"
+        assert expr.resolved_type is types.GenericBitVector()
 
         if not isinstance(arg0, parse.CastExpr):
             return
-        assert arg0.typ.name == "%bv"
+        assert arg0.resolved_type is types.GenericBitVector()
         arg0 = arg0.expr
         typ = self._gettyp(arg0)
         if not isinstance(typ, types.SmallFixedBitVector):

@@ -203,13 +203,16 @@ class TypeAttachingVisitor(parse.Visitor):
         return types.String()
 
     def visit_BitVectorConstant(self, ast):
-        return ast.gettyp(None)
+        ast.resolved_type = res = ast.gettyp(None)
+        return res
 
     def visit_Number(self, ast):
-        return ast.gettyp(None)
+        ast.resolved_type = res = ast.gettyp(None)
+        return res
 
     def visit_Unit(self, ast):
-        return ast.gettyp(None)
+        ast.resolved_type = res = ast.gettyp(None)
+        return res
 
     # types
 

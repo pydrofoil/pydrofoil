@@ -95,7 +95,7 @@ class BaseAst(BaseBox):
         return self.__dict__ != other.__dict__
 
     def __repr__(self):
-        return "%s(%s)" % (type(self).__name__, ", ".join(sorted("%s=%r" % (key, value) for key, value in self.__dict__.items() if key != "resolved_type")))
+        return "%s(%s)" % (type(self).__name__, ", ".join(sorted("%s=%r" % (key, value) for key, value in self.__dict__.items())))
 
     def view(self):
         from rpython.translator.tool.make_dot import DotGen
@@ -303,10 +303,11 @@ class LocalVarDeclaration(StatementWithSourcePos):
         xxx
 
 class Assignment(StatementWithSourcePos):
-    def __init__(self, result, value, sourcepos=None):
+    def __init__(self, result, value, sourcepos=None, resolved_type=None):
         self.result = result
         self.value = value
         self.sourcepos = sourcepos
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return self.value.find_used_vars()
@@ -315,17 +316,17 @@ class Assignment(StatementWithSourcePos):
         return Assignment(
             self.result,
             self.value.replace_var(var, expr),
-            self.sourcepos
+            self.sourcepos,
+            self.resolved_type,
         )
 
 class Operation(StatementWithSourcePos):
-    resolved_type = None
-
-    def __init__(self, result, name, args, sourcepos=None):
+    def __init__(self, result, name, args, sourcepos=None, resolved_type=None):
         self.result = result
         self.name = name
         self.args = args
         self.sourcepos = sourcepos
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         res = set()
@@ -335,16 +336,17 @@ class Operation(StatementWithSourcePos):
 
     def replace_var(self, var, expr):
         newargs = [arg.replace_var(var, expr) for arg in self.args]
-        return Operation(self.result, self.name, newargs)
+        return Operation(self.result, self.name, newargs, self.sourcepos, self.resolved_type)
 
 
 class TemplatedOperation(StatementWithSourcePos):
-    def __init__(self, result, name, templateparam, args, sourcepos=None):
+    def __init__(self, result, name, templateparam, args, sourcepos=None, resolved_type=None):
         self.result = result
         self.name = name
         self.templateparam = templateparam
         self.args = args
         self.sourcepos = sourcepos
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         res = set()
@@ -356,7 +358,8 @@ class TemplatedOperation(StatementWithSourcePos):
         newargs = [arg.replace_var(var, expr) for arg in self.args]
         return TemplatedOperation(self.result, self.name,
                 self.templateparam, newargs,
-                self.sourcepos)
+                self.sourcepos,
+                self.resolved_type)
 
 
 class Goto(Statement):
@@ -527,26 +530,36 @@ class BitVectorConstant(Expression):
         return self
 
 class FieldAccess(Expression):
-    def __init__(self, obj, element):
+    def __init__(self, obj, element, resolved_type=None):
         self.obj = obj # expr
         self.element = element
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return self.obj.find_used_vars()
 
     def replace_var(self, var, expr):
-        return FieldAccess(self.obj.replace_var(var, expr), self.element)
+        return FieldAccess(
+            self.obj.replace_var(var, expr),
+            self.element,
+            self.resolved_type,
+        )
 
 class Cast(Expression):
-    def __init__(self, expr, variant):
+    def __init__(self, expr, variant, resolved_type=None):
         self.expr = expr
         self.variant = variant
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return self.expr.find_used_vars()
 
     def replace_var(self, var, expr):
-        return Cast(self.expr.replace_var(var, expr), self.variant)
+        return Cast(
+            self.expr.replace_var(var, expr),
+            self.variant,
+            self.resolved_type,
+        )
 
 class RefOf(Expression):
     def __init__(self, expr):

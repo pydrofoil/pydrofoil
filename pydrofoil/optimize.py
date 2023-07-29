@@ -66,6 +66,7 @@ def do_replacements(replacements):
 
 
 def optimize_blocks(blocks, codegen, predefined=None):
+    inline(blocks, codegen.inlinable_functions)
     do_replacements(identify_replacements(blocks, predefined))
     specialize_ops(blocks, codegen)
 
@@ -90,6 +91,39 @@ def find_decl_defs_uses(blocks, predefined=None):
                 assert op.name not in decls
                 decls[op.name] = (block, i)
     return decls, defs, uses
+
+def inline(blocks, inlinable_functions):
+    for num, block in blocks.iteritems():
+        index = 0
+        while index < len(block):
+            op = block[index]
+            if isinstance(op, parse.Operation) and op.name in inlinable_functions:
+                functionast, targetblocks = inlinable_functions[op.name]
+                newops = copy_ops(op, functionast, targetblocks)
+                if newops is not None:
+                    block[index:index + 1] = newops
+                    index = 0
+                    continue
+            index += 1
+
+def copy_ops(op, functionast, targetblocks):
+    assert len(targetblocks) == 1
+    block = targetblocks[0]
+    if len(block) != 2:
+        return None
+    targetop, endop = block
+    if not isinstance(endop, parse.End):
+        return
+    if not isinstance(targetop, parse.Assignment) or targetop.result != "return":
+        return None
+    expr = targetop.value
+    for argname, argexpr in zip(functionast.args, op.args):
+        expr = expr.replace_var(argname, argexpr)
+    print "INLINING =========================================="
+    print functionast.name
+    print "before", op
+    print "after", expr
+    return [parse.Assignment(op.result, expr, op.sourcepos, op.resolved_type)]
 
 
 def specialize_ops(blocks, codegen):

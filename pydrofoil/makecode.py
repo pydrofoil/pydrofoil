@@ -53,6 +53,7 @@ class Codegen(object):
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("NULL", "None")
         self.promoted_registers = promoted_registers
+        self.inlinable_functions = {}
 
     def add_global(self, name, pyname, typ=None, ast=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -403,11 +404,13 @@ class __extend__(parse.Function):
         codegen.update_global_pyname(self.name, pyname)
         self.pyname = pyname
         blocks = self._prepare_blocks()
-
+        inlinable = len(blocks) == 1 and len(blocks[0]) <= 10
         typ = codegen.globalnames[self.name].ast.typ
         predefined = {arg: typ.argtype.elements[i] for i, arg in enumerate(self.args)}
         predefined["return"] = typ.restype
         optimize_blocks(blocks, codegen, predefined)
+        if inlinable:
+            codegen.inlinable_functions[self.name] = self, blocks
         entrycounts = self._compute_entrycounts(blocks)
         if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
             print "making method!", self.name
@@ -432,6 +435,8 @@ class __extend__(parse.Function):
             first = "def %s(%s, machine, %s):" % (pyname, self.args[0], ", ".join(self.args[1:]))
         typ = codegen.globalnames[self.name].typ
         with codegen.enter_scope(self), codegen.emit_indent(first):
+            if self.name in codegen.inlinable_functions:
+                codegen.emit("# inlinable")
             codegen.add_local('return', 'return_', typ.restype, self)
             for i, arg in enumerate(self.args):
                 codegen.add_local(arg, arg, typ.argtype.elements[i], self)

@@ -43,6 +43,14 @@ def raise_type_error():
 
 # bit vectors
 
+@objectmodel.always_inline
+def _mask(width, val):
+    if width == 64:
+        return val
+    assert width < 64
+    mask = (r_uint(1) << width) - 1
+    return val & mask
+
 def signed_bv(op, n):
     if n == 64:
         return intmask(op)
@@ -60,8 +68,8 @@ def add_bits_int(machine, a, b):
 def add_bits(machine, a, b):
     return a.add_bits(b)
 
-def add_bits_bv_bv(a, b):
-    return a + b
+def add_bits_bv_bv(a, b, width):
+    return _mask(width, a + b)
 
 def sub_bits_int(machine, a, b):
     return a.sub_int(b)
@@ -70,9 +78,8 @@ def sub_bits_int(machine, a, b):
 def sub_bits(machine, a, b):
     return a.sub_bits(b)
 
-def sub_bits_bv_bv(a, b):
-    return a - b
-
+def sub_bits_bv_bv(a, b, width):
+    return _mask(width, a - b)
 
 def length(machine, gbv):
     return gbv.size_as_int()
@@ -121,12 +128,7 @@ def not_bits(machine, gvba):
     return gvba.invert()
 
 def not_vec_bv(bva, width):
-    res = ~bva
-    if width == 64:
-        return res
-    assert width < 64
-    mask = (r_uint(1) << width) - 1
-    return res & mask
+    return _mask(width, ~bva)
 
 def print_bits(machine, s, b):
     print s + b.string_of_bits()
@@ -191,10 +193,7 @@ def vector_subrange(machine, bv, n, m):
 def slice_fixed_bv_i_i(v, n, m):
     res = safe_rshift(None, v, m)
     width = n - m + 1
-    if width == 64:
-        return res
-    mask = (r_uint(1) << width) - 1
-    return res & mask
+    return _mask(width, res)
 
 def string_of_bits(machine, gbv):
     return gbv.string_of_bits()

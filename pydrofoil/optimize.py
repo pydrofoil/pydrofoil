@@ -427,7 +427,7 @@ class OptVisitor(parse.Visitor):
         return parse.CastExpr(
             parse.OperationExpr(
                 "@add_bits_bv_bv",
-                [arg0, arg1],
+                [arg0, arg1, parse.Number(typ0.width)],
                 typ0
             ),
             expr.resolved_type,
@@ -448,7 +448,7 @@ class OptVisitor(parse.Visitor):
         return parse.CastExpr(
             parse.OperationExpr(
                 "@sub_bits_bv_bv",
-                [arg0, arg1],
+                [arg0, arg1, parse.Number(typ0.width)],
                 typ0
             ),
             expr.resolved_type,

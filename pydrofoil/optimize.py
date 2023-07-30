@@ -187,6 +187,7 @@ class OptVisitor(parse.Visitor):
         arg0 = arg0.expr
         typ = self._gettyp(arg0)
         if not isinstance(typ, types.SmallFixedBitVector):
+            assert typ is types.GenericBitVector() or isinstance(typ, types.BigFixedBitVector)
             return
 
         if (
@@ -235,7 +236,6 @@ class OptVisitor(parse.Visitor):
         (arg2,) = arg2.args
         if not isinstance(arg2, parse.Number):
             return
-        width = arg1.number - arg2.number + 1
         return parse.OperationExpr(
             "@vector_update_subrange_o_i_i_o", [arg0, arg1, arg2, arg3], expr.resolved_type,
         )

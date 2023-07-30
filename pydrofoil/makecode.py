@@ -404,7 +404,7 @@ class __extend__(parse.Function):
         codegen.update_global_pyname(self.name, pyname)
         self.pyname = pyname
         blocks = self._prepare_blocks()
-        inlinable = len(blocks) == 1 and len(blocks[0]) <= 10
+        inlinable = len(blocks) == 1 and len(blocks[0]) <= 40
         typ = codegen.globalnames[self.name].ast.typ
         predefined = {arg: typ.argtype.elements[i] for i, arg in enumerate(self.args)}
         predefined["return"] = typ.restype

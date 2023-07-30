@@ -190,7 +190,8 @@ class TypeAttachingVisitor(parse.Visitor):
             index = ast.obj.fieldnames.index(ast.element)
             restyp = self.visit(ast.obj.fieldvalues[index])
         else:
-            restyp = self.visit(ast.obj)
+            typ = self.visit(ast.obj)
+            restyp = typ.fieldtyps[ast.element]
         ast.resolved_type = restyp
         return restyp
 

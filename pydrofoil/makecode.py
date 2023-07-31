@@ -44,6 +44,8 @@ class Codegen(object):
         self.add_global("@not_vec_bv", "supportcode.not_vec_bv")
         self.add_global("@bitvector_concat_bv_bv", "supportcode.bitvector_concat_bv_bv")
         self.add_global("@signed_bv", "supportcode.signed_bv")
+        self.add_global("@unsigned_bv_wrapped_res", "supportcode.unsigned_bv_wrapped_res")
+        self.add_global("@unsigned_bv", "supportcode.unsigned_bv")
         self.add_global("@vector_update_subrange_o_i_i_o", "supportcode.vector_update_subrange_o_i_i_o")
         self.add_global("@vector_access_bv_i", "supportcode.vector_access_bv_i")
         self.add_global("@add_bits_bv_bv", "supportcode.add_bits_bv_bv")

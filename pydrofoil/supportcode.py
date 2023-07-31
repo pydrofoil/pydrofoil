@@ -61,6 +61,16 @@ def signed_bv(op, n):
     return intmask((op ^ m) - m)
 
 @objectmodel.always_inline
+def unsigned_bv_wrapped_res(op, n):
+    return bitvector.Integer.from_ruint(op)
+
+@objectmodel.always_inline
+def unsigned_bv(op, n):
+    if n == 64 and (op & (r_uint(1) << 63)):
+        raise ValueError
+    return intmask(op)
+
+@objectmodel.always_inline
 def add_bits_int(machine, a, b):
     return a.add_int(b)
 

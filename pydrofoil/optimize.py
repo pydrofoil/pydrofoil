@@ -333,10 +333,16 @@ class OptVisitor(parse.Visitor):
         return arg0.args[0]
 
     def optimize_zz5izDzKz5i64(self, expr):
+        # int_to_int64
         (arg0,) = expr.args
-        if not isinstance(arg0, parse.OperationExpr) or arg0.name != "zz5i64zDzKz5i":
+
+        if not isinstance(arg0, parse.OperationExpr):
             return
-        return arg0.args[0]
+        if arg0.name == "zz5i64zDzKz5i":
+            return arg0.args[0]
+        if arg0.name == "@unsigned_bv_wrapped_res":
+            return parse.OperationExpr("@unsigned_bv", arg0.args, expr.resolved_type)
+        return None
 
     def optimize_zxor_vec(self, expr):
         arg0, arg1 = expr.args
@@ -468,5 +474,19 @@ class OptVisitor(parse.Visitor):
                 [arg0, parse.Number(typ0.width)],
                 types.MachineInt()
             ),
+            expr.resolved_type,
+        )
+
+    def optimize_zunsigned(self, expr):
+        (arg0,) = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        typ0 = self._gettyp(arg0.expr)
+        if not isinstance(typ0, types.SmallFixedBitVector):
+            return
+        arg0 = arg0.expr
+        return parse.OperationExpr(
+            "@unsigned_bv_wrapped_res",
+            [arg0, parse.Number(typ0.width)],
             expr.resolved_type,
         )

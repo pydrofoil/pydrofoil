@@ -353,6 +353,7 @@ class OptVisitor(parse.Visitor):
         typ0 = self._gettyp(arg0.expr)
         typ1 = self._gettyp(arg1.expr)
         if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
+            # XXX support for different bit widths
             return
         arg0 = arg0.expr
         arg1 = arg1.expr
@@ -488,5 +489,31 @@ class OptVisitor(parse.Visitor):
         return parse.OperationExpr(
             "@unsigned_bv_wrapped_res",
             [arg0, parse.Number(typ0.width)],
+            expr.resolved_type,
+        )
+
+    def optimize_zsail_zzero_extend(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        assert arg0.resolved_type is types.GenericBitVector()
+        arg0 = arg0.expr
+        typ0 = self._gettyp(arg0)
+        if not isinstance(typ0, types.SmallFixedBitVector) or typ0.width > 64:
+            return
+        if (
+            not isinstance(arg1, parse.OperationExpr)
+            or arg1.name != self.int64_to_int_name
+        ):
+            return
+        (arg1,) = arg1.args
+        if not isinstance(arg1, parse.Number):
+            return
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@zero_extend_bv_i_i",
+                [arg0, parse.Number(typ0.width), arg1],
+                types.SmallFixedBitVector(arg1.number),
+            ),
             expr.resolved_type,
         )

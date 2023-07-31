@@ -104,6 +104,10 @@ def zero_extend(machine, gbv, lint):
     size = lint.toint()
     return gbv.zero_extend(size)
 
+@objectmodel.always_inline
+def zero_extend_bv_i_i(bv, width, targetwidth):
+    return bv # XXX correct?
+
 def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)
 

@@ -193,27 +193,27 @@ class OptVisitor(parse.Visitor):
         arg = arg.expr
         return arg, typ
 
+    def _extract_machineint(self, arg):
+        if (
+            not isinstance(arg, parse.OperationExpr)
+            or arg.name != self.int64_to_int_name
+        ):
+            raise NoMatchException
+        return arg.args[0]
+
+    def _extract_number(self, arg):
+        num = self._extract_machineint(arg)
+        if not isinstance(num, parse.Number):
+            raise NoMatchException
+        return num
+
     def optimize_zsubrange_bits(self, expr):
         arg0, arg1, arg2 = expr.args
         assert expr.resolved_type is types.GenericBitVector()
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
-        if (
-            not isinstance(arg1, parse.OperationExpr)
-            or arg1.name != self.int64_to_int_name
-        ):
-            return
-        if (
-            not isinstance(arg2, parse.OperationExpr)
-            or arg2.name != self.int64_to_int_name
-        ):
-            return
-        (arg1,) = arg1.args
-        if not isinstance(arg1, parse.Number):
-            return
-        (arg2,) = arg2.args
-        if not isinstance(arg2, parse.Number):
-            return
+        arg1 = self._extract_number(arg1)
+        arg2 = self._extract_number(arg2)
         width = arg1.number - arg2.number + 1
 
         res = parse.CastExpr(
@@ -228,22 +228,8 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zupdate_subrange_bits(self, expr):
         arg0, arg1, arg2, arg3 = expr.args
-        if (
-            not isinstance(arg1, parse.OperationExpr)
-            or arg1.name != self.int64_to_int_name
-        ):
-            return
-        if (
-            not isinstance(arg2, parse.OperationExpr)
-            or arg2.name != self.int64_to_int_name
-        ):
-            return
-        (arg1,) = arg1.args
-        if not isinstance(arg1, parse.Number):
-            return
-        (arg2,) = arg2.args
-        if not isinstance(arg2, parse.Number):
-            return
+        arg1 = self._extract_number(arg1)
+        arg2 = self._extract_number(arg2)
         return parse.OperationExpr(
             "@vector_update_subrange_o_i_i_o", [arg0, arg1, arg2, arg3], expr.resolved_type,
         )
@@ -251,13 +237,7 @@ class OptVisitor(parse.Visitor):
     def optimize_zbitvector_access(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        if (
-            not isinstance(arg1, parse.OperationExpr)
-            or arg1.name != self.int64_to_int_name
-        ):
-            return
-
-        (arg1,) = arg1.args
+        arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr("@vector_access_bv_i", [arg0, arg1], expr.resolved_type)
 
     def optimize_zeq_bits(self, expr):
@@ -297,18 +277,8 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zeq_int(self, expr):
         arg0, arg1 = expr.args
-        if (
-            not isinstance(arg0, parse.OperationExpr)
-            or arg0.name != self.int64_to_int_name
-        ):
-            return
-        if (
-            not isinstance(arg1, parse.OperationExpr)
-            or arg1.name != self.int64_to_int_name
-        ):
-            return
-        (arg0,) = arg0.args
-        (arg1,) = arg1.args
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr("@eq_int_i_i", [arg0, arg1], expr.resolved_type)
 
     def optimize_zz5i64zDzKz5i(self, expr):  # int64_to_int
@@ -436,14 +406,7 @@ class OptVisitor(parse.Visitor):
     def optimize_zsail_zzero_extend(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        if (
-            not isinstance(arg1, parse.OperationExpr)
-            or arg1.name != self.int64_to_int_name
-        ):
-            return
-        (arg1,) = arg1.args
-        if not isinstance(arg1, parse.Number):
-            return
+        arg1 = self._extract_number(arg1)
         return parse.CastExpr(
             parse.OperationExpr(
                 "@zero_extend_bv_i_i",
@@ -455,18 +418,8 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zadd_atom(self, expr):
         arg0, arg1 = expr.args
-        if (
-            not isinstance(arg0, parse.OperationExpr)
-            or arg0.name != self.int64_to_int_name
-        ):
-            return
-        arg0, = arg0.args
-        if (
-            not isinstance(arg1, parse.OperationExpr)
-            or arg1.name != self.int64_to_int_name
-        ):
-            return
-        arg1, = arg1.args
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
             "@add_i_i_wrapped_res",
             [arg0, arg1],
@@ -475,18 +428,8 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zsub_atom(self, expr):
         arg0, arg1 = expr.args
-        if (
-            not isinstance(arg0, parse.OperationExpr)
-            or arg0.name != self.int64_to_int_name
-        ):
-            return
-        arg0, = arg0.args
-        if (
-            not isinstance(arg1, parse.OperationExpr)
-            or arg1.name != self.int64_to_int_name
-        ):
-            return
-        arg1, = arg1.args
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
             "@sub_i_i_wrapped_res",
             [arg0, arg1],
@@ -496,16 +439,7 @@ class OptVisitor(parse.Visitor):
     def optimize_zadd_bits_int(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-
-        if (
-            not isinstance(arg1, parse.OperationExpr)
-            or arg1.name != self.int64_to_int_name
-        ):
-            return
-        arg1, = arg1.args
-
-        if isinstance(arg1, parse.Number) and arg1.number < 0:
-            import pdb; pdb.set_trace()
+        arg1 = self._extract_machineint(arg1)
 
         return parse.CastExpr(
             parse.OperationExpr(

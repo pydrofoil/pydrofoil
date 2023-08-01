@@ -557,3 +557,57 @@ class OptVisitor(parse.Visitor):
             [arg0, arg1],
             expr.resolved_type,
         )
+
+    def optimize_zadd_bits_int(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        assert arg0.resolved_type is types.GenericBitVector()
+        arg0 = arg0.expr
+        typ0 = self._gettyp(arg0)
+        if not isinstance(typ0, types.SmallFixedBitVector) or typ0.width > 64:
+            return
+
+        if (
+            not isinstance(arg1, parse.OperationExpr)
+            or arg1.name != self.int64_to_int_name
+        ):
+            return
+        arg1, = arg1.args
+
+        if isinstance(arg1, parse.Number) and arg1.number < 0:
+            import pdb; pdb.set_trace()
+
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@add_bits_int_bv_i",
+                [arg0, parse.Number(typ0.width), arg1],
+                typ0,
+            ),
+            expr.resolved_type,
+        )
+
+    def optimize_zshiftl(self, expr):
+        arg0, arg1 = expr.args
+        if not isinstance(arg0, parse.CastExpr):
+            return
+        assert arg0.resolved_type is types.GenericBitVector()
+        arg0 = arg0.expr
+        typ0 = self._gettyp(arg0)
+        if not isinstance(typ0, types.SmallFixedBitVector) or typ0.width > 64:
+            return
+
+        arg1 = parse.OperationExpr(
+            "zz5izDzKz5i64",
+            [arg1],
+            types.MachineInt()
+        )
+
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@shiftl_bv_i",
+                [arg0, parse.Number(typ0.width), arg1],
+                typ0,
+            ),
+            expr.resolved_type,
+        )

@@ -75,6 +75,15 @@ def add_bits_int(machine, a, b):
     return a.add_int(b)
 
 @objectmodel.always_inline
+def add_bits_int_bv_i(a, width, b):
+    if b >= 0:
+        return _mask(width, a + r_uint(b))
+    return _add_bits_int_bv_i_slow(a, width, b)
+
+def _add_bits_int_bv_i_slow(a, width, b):
+    return bitvector.from_ruint(width, a).add_int(bitvector.SmallInteger.fromint(b))
+
+@objectmodel.always_inline
 def add_bits(machine, a, b):
     return a.add_bits(b)
 
@@ -150,6 +159,9 @@ def print_bits(machine, s, b):
 
 def shiftl(machine, gbv, i):
     return gbv.lshift(i.toint())
+
+def shiftl_bv_i(a, width, i):
+    return _mask(width, a << i)
 
 def shiftr(machine, gbv, i):
     return gbv.rshift(i.toint())

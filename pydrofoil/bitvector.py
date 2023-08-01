@@ -462,20 +462,14 @@ class SmallInteger(Integer):
 
     def add(self, other):
         if isinstance(other, SmallInteger):
-            try:
-                return SmallInteger(ovfcheck(self.val + other.val))
-            except OverflowError:
-                return BigInteger(self.tobigint().int_add(other.val))
+            return SmallInteger.add_i_i(self.val, other.val)
         else:
             assert isinstance(other, BigInteger)
             return BigInteger(other.rval.int_add(self.val))
 
     def sub(self, other):
         if isinstance(other, SmallInteger):
-            try:
-                return SmallInteger(ovfcheck(self.val - other.val))
-            except OverflowError:
-                pass
+            return SmallInteger.sub_i_i(self.val, other.val)
         return BigInteger((other.tobigint().int_sub(self.val)).neg()) # XXX can do better
 
     def mul(self, other):
@@ -505,6 +499,20 @@ class SmallInteger(Integer):
             if not (self.val == -2**63 and other.val == -1):
                 return SmallInteger(int_c_mod(self.val, other.val))
         return BigInteger(self.tobigint()).tmod(other)
+
+    @staticmethod
+    def add_i_i(a, b):
+        try:
+            return SmallInteger(ovfcheck(a + b))
+        except OverflowError:
+            return BigInteger(rbigint.fromrarith_int(a).int_add(b))
+
+    @staticmethod
+    def sub_i_i(a, b):
+        try:
+            return SmallInteger(ovfcheck(a - b))
+        except OverflowError:
+            return BigInteger(rbigint.fromrarith_int(b).int_sub(a).neg())
 
 
 class BigInteger(Integer):

@@ -517,3 +517,43 @@ class OptVisitor(parse.Visitor):
             ),
             expr.resolved_type,
         )
+
+    def optimize_zadd_atom(self, expr):
+        arg0, arg1 = expr.args
+        if (
+            not isinstance(arg0, parse.OperationExpr)
+            or arg0.name != self.int64_to_int_name
+        ):
+            return
+        arg0, = arg0.args
+        if (
+            not isinstance(arg1, parse.OperationExpr)
+            or arg1.name != self.int64_to_int_name
+        ):
+            return
+        arg1, = arg1.args
+        return parse.OperationExpr(
+            "@add_i_i_wrapped_res",
+            [arg0, arg1],
+            expr.resolved_type,
+        )
+
+    def optimize_zsub_atom(self, expr):
+        arg0, arg1 = expr.args
+        if (
+            not isinstance(arg0, parse.OperationExpr)
+            or arg0.name != self.int64_to_int_name
+        ):
+            return
+        arg0, = arg0.args
+        if (
+            not isinstance(arg1, parse.OperationExpr)
+            or arg1.name != self.int64_to_int_name
+        ):
+            return
+        arg1, = arg1.args
+        return parse.OperationExpr(
+            "@add_i_i_wrapped_res",
+            [arg0, arg1],
+            expr.resolved_type,
+        )

@@ -38,6 +38,8 @@ class Codegen(object):
         self.add_global("@eq_bits_bv_bv", "supportcode.eq_bits_bv_bv")
         self.add_global("@neq_bits_bv_bv", "supportcode.neq_bits_bv_bv")
         self.add_global("@eq_int_i_i", "supportcode.eq_int_i_i")
+        self.add_global("@add_i_i_wrapped_res", "supportcode.add_i_i_wrapped_res")
+        self.add_global("@sub_i_i_wrapped_res", "supportcode.sub_i_i_wrapped_res")
         self.add_global("@xor_vec_bv_bv", "supportcode.xor_vec_bv_bv")
         self.add_global("@or_vec_bv_bv", "supportcode.or_vec_bv_bv")
         self.add_global("@and_vec_bv_bv", "supportcode.and_vec_bv_bv")

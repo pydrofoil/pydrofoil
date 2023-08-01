@@ -1,6 +1,6 @@
 from rpython.rlib import objectmodel
 from rpython.rlib.rbigint import rbigint
-from rpython.rlib.rarithmetic import r_uint, intmask
+from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer
 import pydrofoil.softfloat as softfloat
@@ -243,8 +243,14 @@ def gteq(machine, ia, ib):
 def add_int(machine, ia, ib):
     return ia.add(ib)
 
+def add_i_i_wrapped_res(a, b):
+    return bitvector.SmallInteger.add_i_i(a, b)
+
 def sub_int(machine, ia, ib):
     return ia.sub(ib)
+
+def sub_i_i_wrapped_res(a, b):
+    return bitvector.SmallInteger.sub_i_i(a, b)
 
 def mult_int(machine, ia, ib):
     return ia.mul(ib)

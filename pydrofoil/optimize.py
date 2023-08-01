@@ -134,6 +134,9 @@ def specialize_ops(blocks, codegen):
                 elif not v.changed:
                     break
 
+class NoMatchException(Exception):
+    pass
+
 
 class OptVisitor(parse.Visitor):
     def __init__(self, int64_to_int_name):
@@ -150,7 +153,10 @@ class OptVisitor(parse.Visitor):
         meth = getattr(self, "optimize_%s" % expr.name, None)
         if not meth:
             return None
-        return meth(expr)
+        try:
+            return meth(expr)
+        except NoMatchException:
+            return None
 
     def visit_Operation(self, operation):
         assert operation.resolved_type is not None
@@ -177,18 +183,20 @@ class OptVisitor(parse.Visitor):
             import pdb; pdb.set_trace()
         return expr.resolved_type
 
+    def _extract_smallfixedbitvector(self, arg):
+        if not isinstance(arg, parse.CastExpr):
+            raise NoMatchException
+        typ = self._gettyp(arg.expr)
+        if not isinstance(typ, types.SmallFixedBitVector):
+            assert typ is types.GenericBitVector() or isinstance(typ, types.BigFixedBitVector)
+            raise NoMatchException
+        arg = arg.expr
+        return arg, typ
+
     def optimize_zsubrange_bits(self, expr):
         arg0, arg1, arg2 = expr.args
         assert expr.resolved_type is types.GenericBitVector()
-
-        if not isinstance(arg0, parse.CastExpr):
-            return
-        assert arg0.resolved_type is types.GenericBitVector()
-        arg0 = arg0.expr
-        typ = self._gettyp(arg0)
-        if not isinstance(typ, types.SmallFixedBitVector):
-            assert typ is types.GenericBitVector() or isinstance(typ, types.BigFixedBitVector)
-            return
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         if (
             not isinstance(arg1, parse.OperationExpr)
@@ -242,11 +250,7 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zbitvector_access(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector):
-            return
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         if (
             not isinstance(arg1, parse.OperationExpr)
             or arg1.name != self.int64_to_int_name
@@ -254,55 +258,37 @@ class OptVisitor(parse.Visitor):
             return
 
         (arg1,) = arg1.args
-        if not isinstance(arg1, parse.Number):
-            return
-        return parse.OperationExpr("@vector_access_bv_i", [arg0.expr, arg1], expr.resolved_type)
+        return parse.OperationExpr("@vector_access_bv_i", [arg0, arg1], expr.resolved_type)
 
     def optimize_zeq_bits(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
+        if typ0 is not typ1:
             return
-        if not isinstance(arg1, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        typ1 = self._gettyp(arg1.expr)
-        if typ0 != typ1 or not isinstance(typ0, types.SmallFixedBitVector):
-            return
-        res = parse.OperationExpr("@eq_bits_bv_bv", [arg0.expr, arg1.expr], expr.resolved_type)
+        res = parse.OperationExpr("@eq_bits_bv_bv", [arg0, arg1], expr.resolved_type)
         return res
 
     def optimize_zneq_bits(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
+        if typ0 is not typ1:
             return
-        if not isinstance(arg1, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        typ1 = self._gettyp(arg1.expr)
-        if typ0 != typ1 or not isinstance(typ0, types.SmallFixedBitVector):
-            return
-        res = parse.OperationExpr("@neq_bits_bv_bv", [arg0.expr, arg1.expr], expr.resolved_type)
+        res = parse.OperationExpr("@neq_bits_bv_bv", [arg0, arg1], expr.resolved_type)
         return res
 
     def optimize_zbitvector_concat(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
-            return
-        if not isinstance(arg1, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        typ1 = self._gettyp(arg1.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector) or not isinstance(
-            typ1, types.SmallFixedBitVector
-        ):
-            return
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
         reswidth = typ0.width + typ1.width
         if reswidth > 64:
             return
         res = parse.CastExpr(
             parse.OperationExpr(
                 "@bitvector_concat_bv_bv",
-                [arg0.expr, parse.Number(typ1.width), arg1.expr],
+                [arg0, parse.Number(typ1.width), arg1],
                 types.SmallFixedBitVector(reswidth),
             ),
             expr.resolved_type,
@@ -346,17 +332,10 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zxor_vec(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
+        if typ0 is not typ1:
             return
-        if not isinstance(arg1, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        typ1 = self._gettyp(arg1.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
-            # XXX support for different bit widths
-            return
-        arg0 = arg0.expr
-        arg1 = arg1.expr
         return parse.CastExpr(
             parse.OperationExpr(
                 "@xor_vec_bv_bv", [arg0, arg1], typ0
@@ -366,16 +345,10 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zand_vec(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
+        if typ0 is not typ1:
             return
-        if not isinstance(arg1, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        typ1 = self._gettyp(arg1.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
-            return
-        arg0 = arg0.expr
-        arg1 = arg1.expr
         return parse.CastExpr(
             parse.OperationExpr(
                 "@and_vec_bv_bv", [arg0, arg1], typ0
@@ -385,16 +358,10 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zor_vec(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
+        if typ0 is not typ1:
             return
-        if not isinstance(arg1, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        typ1 = self._gettyp(arg1.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
-            return
-        arg0 = arg0.expr
-        arg1 = arg1.expr
         return parse.CastExpr(
             parse.OperationExpr(
                 "@or_vec_bv_bv", [arg0, arg1], typ0
@@ -404,12 +371,8 @@ class OptVisitor(parse.Visitor):
 
     def optimize_znot_vec(self, expr):
         (arg0,) = expr.args
-        if not isinstance(arg0, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector):
-            return
-        arg0 = arg0.expr
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+
         return parse.CastExpr(
             parse.OperationExpr(
                 "@not_vec_bv",
@@ -421,16 +384,10 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zadd_bits(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
+        if typ0 is not typ1:
             return
-        if not isinstance(arg1, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        typ1 = self._gettyp(arg1.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
-            return
-        arg0 = arg0.expr
-        arg1 = arg1.expr
         return parse.CastExpr(
             parse.OperationExpr(
                 "@add_bits_bv_bv",
@@ -442,16 +399,10 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zsub_vec(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
+        if typ0 is not typ1:
             return
-        if not isinstance(arg1, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        typ1 = self._gettyp(arg1.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector) or typ0 is not typ1:
-            return
-        arg0 = arg0.expr
-        arg1 = arg1.expr
         return parse.CastExpr(
             parse.OperationExpr(
                 "@sub_bits_bv_bv",
@@ -463,12 +414,7 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zsigned(self, expr):
         (arg0,) = expr.args
-        if not isinstance(arg0, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector):
-            return
-        arg0 = arg0.expr
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         return parse.CastExpr(
             parse.OperationExpr(
                 "@signed_bv",
@@ -480,12 +426,7 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zunsigned(self, expr):
         (arg0,) = expr.args
-        if not isinstance(arg0, parse.CastExpr):
-            return
-        typ0 = self._gettyp(arg0.expr)
-        if not isinstance(typ0, types.SmallFixedBitVector):
-            return
-        arg0 = arg0.expr
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         return parse.OperationExpr(
             "@unsigned_bv_wrapped_res",
             [arg0, parse.Number(typ0.width)],
@@ -494,13 +435,7 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zsail_zzero_extend(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
-            return
-        assert arg0.resolved_type is types.GenericBitVector()
-        arg0 = arg0.expr
-        typ0 = self._gettyp(arg0)
-        if not isinstance(typ0, types.SmallFixedBitVector) or typ0.width > 64:
-            return
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         if (
             not isinstance(arg1, parse.OperationExpr)
             or arg1.name != self.int64_to_int_name
@@ -553,20 +488,14 @@ class OptVisitor(parse.Visitor):
             return
         arg1, = arg1.args
         return parse.OperationExpr(
-            "@add_i_i_wrapped_res",
+            "@sub_i_i_wrapped_res",
             [arg0, arg1],
             expr.resolved_type,
         )
 
     def optimize_zadd_bits_int(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
-            return
-        assert arg0.resolved_type is types.GenericBitVector()
-        arg0 = arg0.expr
-        typ0 = self._gettyp(arg0)
-        if not isinstance(typ0, types.SmallFixedBitVector) or typ0.width > 64:
-            return
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         if (
             not isinstance(arg1, parse.OperationExpr)
@@ -589,13 +518,7 @@ class OptVisitor(parse.Visitor):
 
     def optimize_zshiftl(self, expr):
         arg0, arg1 = expr.args
-        if not isinstance(arg0, parse.CastExpr):
-            return
-        assert arg0.resolved_type is types.GenericBitVector()
-        arg0 = arg0.expr
-        typ0 = self._gettyp(arg0)
-        if not isinstance(typ0, types.SmallFixedBitVector) or typ0.width > 64:
-            return
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         arg1 = parse.OperationExpr(
             "zz5izDzKz5i64",

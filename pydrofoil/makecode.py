@@ -25,6 +25,7 @@ class Codegen(object):
         self.level = 0
         self.last_enum = 0
         self.globalnames = {}
+        self.builtin_names = {}
         self.namedtypes = {}
         self.declarationcache = {}
         self.gensym = {} # prefix -> number
@@ -384,6 +385,7 @@ class __extend__(parse.GlobalVal):
             if name == "not": name = "not_"
             funcname = "supportcode.%s" % (name, )
             codegen.add_global(self.name, funcname, typ, self)
+            codegen.builtin_names[self.name] = name
         else:
             codegen.add_global(self.name, None,  typ, self)
 

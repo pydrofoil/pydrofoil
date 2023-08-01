@@ -123,7 +123,7 @@ def copy_ops(op, functionast, targetblocks):
 
 
 def specialize_ops(blocks, codegen):
-    v = OptVisitor("zz5i64zDzKz5i")
+    v = OptVisitor(codegen)
     for num, block in blocks.iteritems():
         for i, op in enumerate(block):
             while 1:
@@ -139,8 +139,8 @@ class NoMatchException(Exception):
 
 
 class OptVisitor(parse.Visitor):
-    def __init__(self, int64_to_int_name):
-        self.int64_to_int_name = int64_to_int_name
+    def __init__(self, codegen):
+        self.codegen = codegen
 
     def visit_CastExpr(self, cast):
         if isinstance(cast.expr, parse.CastExpr):
@@ -148,9 +148,17 @@ class OptVisitor(parse.Visitor):
         if isinstance(cast.expr, parse.OperationExpr) and cast.expr.resolved_type is cast.resolved_type:
             return cast.expr
 
-    def visit_OperationExpr(self, expr):
+    def _builtinname(self, name):
+        return self.codegen.builtin_names.get(name, name)
+
+    def visit_OperationExpr(self, expr, seen=set()):
         assert expr.resolved_type is not None
-        meth = getattr(self, "optimize_%s" % expr.name, None)
+        name = self._builtinname(expr.name)
+        if hasattr(self, "optimize_%s" % (expr.name, )) and not hasattr(self, "optimize_%s" % name):
+            if expr.name not in seen:
+                seen.add(expr.name)
+                import pdb; pdb.set_trace()
+        meth = getattr(self, "optimize_%s" % name, None)
         if not meth:
             return None
         try:
@@ -196,7 +204,7 @@ class OptVisitor(parse.Visitor):
     def _extract_machineint(self, arg):
         if (
             not isinstance(arg, parse.OperationExpr)
-            or arg.name != self.int64_to_int_name
+            or self._builtinname(arg.name) != "int64_to_int"
         ):
             raise NoMatchException
         return arg.args[0]
@@ -207,7 +215,7 @@ class OptVisitor(parse.Visitor):
             raise NoMatchException
         return num
 
-    def optimize_zsubrange_bits(self, expr):
+    def optimize_vector_subrange(self, expr):
         arg0, arg1, arg2 = expr.args
         assert expr.resolved_type is types.GenericBitVector()
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
@@ -226,7 +234,7 @@ class OptVisitor(parse.Visitor):
         )
         return res
 
-    def optimize_zupdate_subrange_bits(self, expr):
+    def optimize_vector_update_subrange(self, expr):
         arg0, arg1, arg2, arg3 = expr.args
         arg1 = self._extract_number(arg1)
         arg2 = self._extract_number(arg2)
@@ -234,13 +242,13 @@ class OptVisitor(parse.Visitor):
             "@vector_update_subrange_o_i_i_o", [arg0, arg1, arg2, arg3], expr.resolved_type,
         )
 
-    def optimize_zbitvector_access(self, expr):
+    def optimize_vector_access(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr("@vector_access_bv_i", [arg0, arg1], expr.resolved_type)
 
-    def optimize_zeq_bits(self, expr):
+    def optimize_eq_bits(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
@@ -249,7 +257,7 @@ class OptVisitor(parse.Visitor):
         res = parse.OperationExpr("@eq_bits_bv_bv", [arg0, arg1], expr.resolved_type)
         return res
 
-    def optimize_zneq_bits(self, expr):
+    def optimize_neq_bits(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
@@ -258,7 +266,7 @@ class OptVisitor(parse.Visitor):
         res = parse.OperationExpr("@neq_bits_bv_bv", [arg0, arg1], expr.resolved_type)
         return res
 
-    def optimize_zbitvector_concat(self, expr):
+    def optimize_append(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
@@ -275,32 +283,30 @@ class OptVisitor(parse.Visitor):
         )
         return res
 
-    def optimize_zeq_int(self, expr):
+    def optimize_eq_int(self, expr):
         arg0, arg1 = expr.args
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr("@eq_int_i_i", [arg0, arg1], expr.resolved_type)
 
-    def optimize_zz5i64zDzKz5i(self, expr):  # int64_to_int
-        # int_to_int64
+    def optimize_int64_to_int(self, expr):
         (arg0,) = expr.args
-        if not isinstance(arg0, parse.OperationExpr) or arg0.name != "zz5izDzKz5i64":
+        if not isinstance(arg0, parse.OperationExpr) or self._builtinname(arg0.name) != "int_to_int64":
             return
         return arg0.args[0]
 
-    def optimize_zz5izDzKz5i64(self, expr):
-        # int_to_int64
+    def optimize_int_to_int64(self, expr):
         (arg0,) = expr.args
 
         if not isinstance(arg0, parse.OperationExpr):
             return
-        if arg0.name == "zz5i64zDzKz5i":
+        if self._builtinname(arg0.name) == "int64_to_int":
             return arg0.args[0]
         if arg0.name == "@unsigned_bv_wrapped_res":
             return parse.OperationExpr("@unsigned_bv", arg0.args, expr.resolved_type)
         return None
 
-    def optimize_zxor_vec(self, expr):
+    def optimize_xor_bits(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
@@ -313,7 +319,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zand_vec(self, expr):
+    def optimize_and_bits(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
@@ -326,7 +332,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zor_vec(self, expr):
+    def optimize_or_bits(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
@@ -339,7 +345,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_znot_vec(self, expr):
+    def optimize_not_bits(self, expr):
         (arg0,) = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
@@ -352,7 +358,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zadd_bits(self, expr):
+    def optimize_add_bits(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
@@ -367,7 +373,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zsub_vec(self, expr):
+    def optimize_sub_bits(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
@@ -382,7 +388,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zsigned(self, expr):
+    def optimize_sail_signed(self, expr):
         (arg0,) = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         return parse.CastExpr(
@@ -394,7 +400,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zunsigned(self, expr):
+    def optimize_sail_unsigned(self, expr):
         (arg0,) = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         return parse.OperationExpr(
@@ -403,7 +409,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zsail_zzero_extend(self, expr):
+    def optimize_zero_extend(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1 = self._extract_number(arg1)
@@ -416,7 +422,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zadd_atom(self, expr):
+    def optimize_add_int(self, expr):
         arg0, arg1 = expr.args
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
@@ -426,7 +432,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zsub_atom(self, expr):
+    def optimize_sub_int(self, expr):
         arg0, arg1 = expr.args
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
@@ -436,7 +442,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zadd_bits_int(self, expr):
+    def optimize_add_bits_int(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1 = self._extract_machineint(arg1)
@@ -450,7 +456,7 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_zshiftl(self, expr):
+    def optimize_shiftl(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 

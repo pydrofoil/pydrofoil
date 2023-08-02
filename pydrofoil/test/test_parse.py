@@ -318,3 +318,11 @@ def test_parse_full():
         print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
         assert 0
 
+
+def test_struct_element_assignment_nested():
+    res = parser.parse(lexer.lex("""
+fn zExceptionSyndrome(zexceptype) {
+  zz40.zpaddress.zpaspace = z__UNKNOWN_PASpace(()) `7 1009:25-1009:44;
+  end;
+}
+"""))

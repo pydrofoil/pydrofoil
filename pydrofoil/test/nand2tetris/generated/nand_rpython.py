@@ -352,7 +352,6 @@ class Tuple_16(supportcode.ObjectBase): # TupleType(elements=[UnionType(name='zi
         assert isinstance(other, Tuple_16)
         if not (self.utup0.eq(other.utup0)): return False # UnionType(name='zinstr')
         return True
-smallintconst16_1 = bitvector.SmallInteger(16)
 
 class Tuple_17(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv1'), EnumType(name='zarithmetic_op')])
     @objectmodel.always_inline
@@ -843,8 +842,8 @@ def func_zdecode(machine, zmergez3var):
                 continue
             pc = 22
         if pc == 22:
-            # Assignment(resolved_type=Union(<zoptionzIUinstrzIzKzK>), result='zz40', sourcepos='`1 100:3-100:39', value=OperationExpr(args=[OperationExpr(args=[CastExpr(expr=OperationExpr(args=[CastExpr(expr=OperationExpr(args=[Var(name='zz435', resolved_type=SmallFixedBitVector(16)), Number(number=14, resolved_type=MachineInt()), Number(number=0, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(15)), resolved_type=GenericBitVector()), OperationExpr(args=[Number(number=16, resolved_type=MachineInt())], name='zz5i64zDzKz5i', resolved_type=Int())], name='zsail_zzero_extend', resolved_type=GenericBitVector()), resolved_type=SmallFixedBitVector(16))], name='zAINST', resolved_type=Union(<zinstr>))], name='zSomezIUinstrzIzKzK', resolved_type=Union(<zoptionzIUinstrzIzKzK>)))
-            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(Union_zinstr_zAINST(supportcode.zero_extend(machine, bitvector.from_ruint(15, supportcode.slice_fixed_bv_i_i(zz435, 14, 0)), smallintconst16_1).touint()))
+            # Assignment(resolved_type=Union(<zoptionzIUinstrzIzKzK>), result='zz40', sourcepos='`1 100:3-100:39', value=OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz435', resolved_type=SmallFixedBitVector(16)), Number(number=14, resolved_type=MachineInt()), Number(number=0, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(15)), Number(number=15), Number(number=16, resolved_type=MachineInt())], name='@zero_extend_bv_i_i', resolved_type=SmallFixedBitVector(16))], name='zAINST', resolved_type=Union(<zinstr>))], name='zSomezIUinstrzIzKzK', resolved_type=Union(<zoptionzIUinstrzIzKzK>)))
+            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(Union_zinstr_zAINST(supportcode.zero_extend_bv_i_i(supportcode.slice_fixed_bv_i_i(zz435, 14, 0), 15, 16)))
             pc = 118
         if pc == 44:
             # zz41: NamedType('%bv16')
@@ -1234,8 +1233,8 @@ def zexecute_zAINST(zmergez3var, machine, ):
             # zz411: NamedType('%unit')
             # Assignment(resolved_type=Unit(), result='zz411', sourcepos='`1 103:2-103:7', value=Unit(resolved_type=Unit()))
             zz411 = ()
-            # Assignment(resolved_type=SmallFixedBitVector(16), result='zPC', sourcepos='`1 103:14-103:20', value=OperationExpr(args=[CastExpr(expr=Var(name='zPC', resolved_type=SmallFixedBitVector(16)), resolved_type=GenericBitVector()), OperationExpr(args=[Number(number=1, resolved_type=MachineInt())], name='zz5i64zDzKz5i', resolved_type=Int())], name='zadd_bits_int', resolved_type=GenericBitVector()))
-            machine._reg_zPC = supportcode.add_bits_int(machine, bitvector.from_ruint(16, machine._reg_zPC), smallintconst1_1).touint()
+            # Assignment(resolved_type=SmallFixedBitVector(16), result='zPC', sourcepos='`1 103:14-103:20', value=OperationExpr(args=[Var(name='zPC', resolved_type=SmallFixedBitVector(16)), Number(number=16), Number(number=1, resolved_type=MachineInt())], name='@add_bits_int_bv_i', resolved_type=SmallFixedBitVector(16)))
+            machine._reg_zPC = supportcode.add_bits_int_bv_i(machine._reg_zPC, 16, 1)
             # Assignment(resolved_type=Unit(), result='zz40', sourcepos='`1 103:9-103:20', value=Unit(resolved_type=Unit()))
             zz40 = ()
             pc = 32

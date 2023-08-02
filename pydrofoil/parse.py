@@ -302,6 +302,22 @@ class LocalVarDeclaration(StatementWithSourcePos):
     def replace_var(self, var, expr):
         xxx
 
+class GeneralAssignment(StatementWithSourcePos):
+    def __init__(self, lhs, rhs, sourcepos=None, resolved_type=None):
+        self.lhs = lhs
+        self.rhs = rhs
+        self.sourcepos = sourcepos
+        self.resolved_type = resolved_type
+
+    def find_used_vars(self):
+        import pdb; pdb.set_trace()
+        return self.rhs.find_used_vars()
+
+    def replace_var(self, var, expr):
+        import pdb; pdb.set_trace()
+        return GeneralAssignment(self.lhs, self.rhs, self.sourcepos, self.resolved_type)
+
+
 class Assignment(StatementWithSourcePos):
     def __init__(self, result, value, sourcepos=None, resolved_type=None):
         self.result = result
@@ -423,9 +439,9 @@ class UnionVariantCheck(Condition):
         xxx
 
 class StructElementAssignment(StatementWithSourcePos):
-    def __init__(self, obj, field, value, sourcepos=None):
+    def __init__(self, obj, fields, value, sourcepos=None):
         self.obj = obj
-        self.field = field
+        self.fields = fields
         self.value = value
         self.sourcepos = sourcepos
 
@@ -437,7 +453,7 @@ class StructElementAssignment(StatementWithSourcePos):
     def replace_var(self, var, expr):
         return StructElementAssignment(
             self.obj.replace_var(var, expr),
-            self.field,
+            self.fields,
             self.value.replace_var(var, expr),
             self.sourcepos)
 
@@ -763,8 +779,57 @@ def operation(p):
     else:
         return p[0]
 
-@pg.production('operationwithposition : localvardeclaration | op | templatedop | conditionaljump | assignment | exit')
+@pg.production('operationwithposition : localvardeclaration | conditionaljump | generalassign | exit')
 def operationwithposition(p):
+    return p[0]
+
+@pg.production("generalassign : lhs EQUAL rhs")
+def generalassign(p):
+    lhs, _, rhs = p
+    if isinstance(lhs, Var):
+        if isinstance(rhs, Operation):
+            return Operation(lhs.name, rhs.name, rhs.args, rhs.sourcepos)
+        if isinstance(rhs, TemplatedOperation):
+            return TemplatedOperation(lhs.name, rhs.name, rhs.templateparam, rhs.args, rhs.sourcepos)
+        if isinstance(rhs, Expression):
+            return Assignment(lhs.name, rhs)
+    if isinstance(lhs, StructElementAssignment):
+        if lhs.obj is None:
+            import pdb; pdb.set_trace()
+        if isinstance(rhs, Expression):
+            return StructElementAssignment(lhs.obj, lhs.fields, rhs, lhs.sourcepos)
+    if isinstance(lhs, RefAssignment):
+        if isinstance(rhs, Expression):
+            return RefAssignment(lhs.ref, rhs)
+    return GeneralAssignment(lhs, rhs)
+
+@pg.production("lhs : NAME | NAME STAR | NAME DOT morenames")
+def lhs(p):
+    if len(p) == 1:
+        return Var(p[0].value)
+    elif len(p) == 2:
+        return RefAssignment(Var(p[0].value), None)
+    else:
+        return StructElementAssignment(Var(p[0].value), p[2].fields, None)
+
+def assignment(p):
+    if len(p) == 3:
+        return Assignment(p[0].value, p[2])
+    if len(p) == 4:
+        return RefAssignment(Var(p[0].value), p[3])
+    else:
+        assert p[1].gettokentype() == "DOT"
+        return StructElementAssignment(Var(p[0].value), p[2].fields, p[4])
+
+@pg.production('morenames : NAME | NAME DOT morenames')
+def morenames(p):
+    if len(p) == 1:
+        return StructElementAssignment(None, [p[0].value], None)
+    return StructElementAssignment(None, [p[0].value] + p[2].fields, None)
+
+
+@pg.production("rhs : oprhs | templatedoprhs | expr")
+def rhs(p):
     return p[0]
 
 @pg.production('localvardeclaration : NAME COLON type | NAME COLON type EQUAL expr')
@@ -774,13 +839,13 @@ def localvardeclaration(p):
     return LocalVarDeclaration(p[0].value, p[2], p[4])
 
 
-@pg.production('op : NAME EQUAL NAME LPAREN opargs RPAREN')
-def op(p):
-    return Operation(p[0].value, p[2].value, p[4].args)
+@pg.production('oprhs : NAME LPAREN opargs RPAREN')
+def oprhs(p):
+    return Operation(None, p[0].value, p[2].args)
 
-@pg.production('templatedop : NAME EQUAL NAME LT type GT LPAREN opargs RPAREN')
-def op(p):
-    return TemplatedOperation(p[0].value, p[2].value, p[4], p[7].args)
+@pg.production('templatedoprhs : NAME LT type GT LPAREN opargs RPAREN')
+def templatedoprhs(p):
+    return TemplatedOperation(None, p[0].value, p[2], p[5].args)
 
 @pg.production('opargs : expr | expr COMMA opargs')
 def opargs(p):
@@ -847,19 +912,8 @@ def condition(p):
     return UnionVariantCheck(p[0], p[2].value)
 
 @pg.production('goto : GOTO NUMBER')
-def op(p):
+def goto(p):
     return Goto(int(p[1].value))
-
-@pg.production('assignment : NAME EQUAL expr | NAME STAR EQUAL expr | NAME DOT NAME EQUAL expr')
-def op(p):
-    if len(p) == 3:
-        return Assignment(p[0].value, p[2])
-    if len(p) == 4:
-        return RefAssignment(Var(p[0].value), p[3])
-    else:
-        assert p[2].gettokentype() == "NAME"
-        return StructElementAssignment(Var(p[0].value), p[2].value, p[4])
-
 
 @pg.production('end : END')
 def end(p):

@@ -215,6 +215,18 @@ class Function(Declaration):
             else:
                 dotgen.emit_edge(str(id(op)), str(id(self.body[index + 1])))
 
+class OpLinkedList(BaseAst):
+    def __init__(self, curr, next):
+        self.op = curr
+        self.next = next
+
+    def collect(self):
+        res = []
+        while self is not None:
+            res.append(self.op)
+            self = self.next
+        return res
+
 class Pragma(Declaration):
     def __init__(self, name, content):
         self.name = name
@@ -709,6 +721,7 @@ def globalval(p):
 @pg.production('function : FN NAME LPAREN args RPAREN LBRACE operations RBRACE')
 def function(p):
     return Function(p[1].value, p[3].args, p[6].body)
+    return Function(p[1].value, p[3].args, p[6].collect())
 
 @pg.production('args : NAME | NAME COMMA args')
 def args(p):
@@ -723,7 +736,7 @@ def register(p):
 
 @pg.production('let : LET LPAREN NAME COLON type RPAREN LBRACE operations RBRACE')
 def let(p):
-    return Let(p[2].value, p[4], p[7].body)
+    return Let(p[2].value, p[4], p[7].collect())
 
 @pg.production('pragma : HASH NAME pragmacontent')
 def pragma(p):
@@ -750,9 +763,9 @@ def filescontent(p):
 @pg.production('operations : operation SEMICOLON | operation SEMICOLON operations')
 def operations(p):
     if len(p) == 2:
-        return Function(None, None, [p[0]])
+        return OpLinkedList(p[0], None)
     else:
-        return Function(None, None, [p[0]] + p[2].body)
+        return OpLinkedList(p[0], p[2])
 
 # operations
 

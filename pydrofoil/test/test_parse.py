@@ -326,3 +326,15 @@ fn zExceptionSyndrome(zexceptype) {
   end;
 }
 """))
+
+def test_uint64c():
+
+    res = parser.parse(lexer.lex("""
+fn zAESSubBytes(zop) {
+  zz4100 : %bv = UINT64_C(0) `7 147407:41-147407:112;
+  zz45 : %unit `7 147409:4-147411:5;
+  zz45 = () `7 147409:4-147411:5;
+  return = zz41 `11868;
+  end;
+}
+"""))

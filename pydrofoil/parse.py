@@ -845,7 +845,7 @@ def morenames(p):
 def rhs(p):
     return p[0]
 
-@pg.production('localvardeclaration : NAME COLON type | NAME COLON type EQUAL expr')
+@pg.production('localvardeclaration : NAME COLON type | NAME COLON type EQUAL expr | NAME COLON type EQUAL uint64c')
 def localvardeclaration(p):
     if len(p) == 3:
         return LocalVarDeclaration(p[0].value, p[2])
@@ -895,6 +895,12 @@ def expr(p):
         elif p[1].gettokentype() == "AS":
             return Cast(p[0], p[2].value)
     assert 0
+
+@pg.production('uint64c : NAME LPAREN NUMBER RPAREN')
+def uint64c(p):
+    from pydrofoil import types
+    assert p[0].value == "UINT64_C"
+    return OperationExpr(p[0].value, [p[2]], types.GenericBitVector())
 
 @pg.production('structconstruction : NAME LBRACE structconstructioncontent RBRACE')
 def structconstruction(p):

@@ -155,6 +155,22 @@ class TypeAttachingVisitor(parse.Visitor):
     def visit_Arbitrary(self, ast):
         pass
 
+    def visit_GeneralAssignment(self, ast):
+        lhs = ast.lhs # refassignment, structelementassignment with None as value
+        if isinstance(lhs, parse.StructElementAssignment):
+            self.visit(lhs.obj)
+            curr = lhs.obj.resolved_type
+            for field in lhs.fields:
+                index = curr.ast.names.index(field)
+                curr = self.visit(curr.ast.types[index])
+            lhs.resolved_type = curr
+        else:
+            import pdb; pdb.set_trace()
+        rhs = ast.rhs # Operation or TemplatedOperation (with None results)
+        for arg in rhs.args:
+            self.visit(arg)
+        rhs.resolved_type = lhs.resolved_type # what about casts?
+
     # conditions
 
     def visit_Comparison(self, ast):

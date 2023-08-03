@@ -737,9 +737,12 @@ def globalval(p):
     else:
         return GlobalVal(p[1].value, p[3].value, p[5])
 
+counter = 0
 @pg.production('function : FN NAME LPAREN args RPAREN LBRACE operations RBRACE')
 def function(p):
-    return Function(p[1].value, p[3].args, p[6].body)
+    global counter
+    print "FUNCTION", counter, p[1].value
+    counter += 1
     return Function(p[1].value, p[3].args, p[6].collect())
 
 @pg.production('args : NAME | NAME COMMA args')
@@ -903,7 +906,7 @@ def expr(p):
 def uint64c(p):
     from pydrofoil import types
     assert p[0].value == "UINT64_C"
-    return OperationExpr(p[0].value, [p[2]], types.GenericBitVector())
+    return OperationExpr(p[0].value, [Number(int(p[2].value))], types.GenericBitVector())
 
 @pg.production('structconstruction : NAME LBRACE structconstructioncontent RBRACE')
 def structconstruction(p):

@@ -59,6 +59,7 @@ class Codegen(object):
         self.add_global("have_exception", "machine.have_exception", types.Bool())
         self.add_global("throw_location", "machine.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
+        self.add_global("UINT64_C", "supportcode.uint64c")
         self.add_global("NULL", "None")
         self.promoted_registers = promoted_registers
         self.inlinable_functions = {}
@@ -78,9 +79,6 @@ class Codegen(object):
 
     def get_named_type(self, name):
         return self.namedtypes[name].typ
-
-    def update_global_pyname(self, name, pyname):
-        self.globalnames[name].pyname = pyname
 
     def add_local(self, name, pyname, typ, ast):
         assert isinstance(typ, types.Type)
@@ -201,8 +199,17 @@ class __extend__(parse.BaseAst):
 
 class __extend__(parse.File):
     def make_code(self, codegen):
-        for decl in self.declarations:
-            decl.make_code(codegen)
+        import traceback
+        failure_count = 0
+        for index, decl in enumerate(self.declarations):
+            try:
+                decl.make_code(codegen)
+            except Exception as e:
+                import pdb; pdb.xpm()
+                print failure_count, "COULDN'T GENERATE CODE FOR", index, getattr(decl, "name", decl)
+                print(traceback.format_exc())
+                failure_count += 1
+                codegen.level = 0
             codegen.emit()
 
 class __extend__(parse.Declaration):
@@ -370,7 +377,7 @@ class __extend__(parse.Struct):
 
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
-        typ = self.typ.resolve_type(codegen)
+        typ = self.typ.resolve_type(codegen) # XXX should use self.resolve_type?
         if self.definition is not None:
             name = eval(self.definition)
             if "->" in name:
@@ -389,7 +396,9 @@ class __extend__(parse.GlobalVal):
             codegen.add_global(self.name, funcname, typ, self)
             codegen.builtin_names[self.name] = name
         else:
-            codegen.add_global(self.name, None,  typ, self)
+            # a sail function, invent the name now
+            pyname = "func_" + self.name
+            codegen.add_global(self.name, pyname,  typ, self)
 
 class __extend__(parse.Register):
     def make_code(self, codegen):
@@ -408,11 +417,11 @@ class __extend__(parse.Register):
 class __extend__(parse.Function):
     def make_code(self, codegen):
         from pydrofoil.optimize import optimize_blocks
-        pyname = "func_" + self.name
-        if codegen.globalnames[self.name].pyname is not None:
-            print "duplicate!", self.name, codegen.globalnames[self.name].pyname
-            return
-        codegen.update_global_pyname(self.name, pyname)
+        pyname = codegen.getname(self.name)
+        assert pyname.startswith("func_")
+        #if codegen.globalnames[self.name].pyname is not None:
+        #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
+        #    return
         self.pyname = pyname
         blocks = self._prepare_blocks()
         inlinable = len(blocks) == 1 and len(blocks[0]) <= 40

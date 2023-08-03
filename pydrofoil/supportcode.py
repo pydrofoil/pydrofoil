@@ -190,8 +190,12 @@ def append_64(machine, bv, v):
 def vector_update(machine, bv, index, element):
     return bv.update_bit(index.toint(), element)
 
-def vector_access(machine, bv, index):
-    return bv.read_bit(index.toint())
+@objectmodel.specialize.argtype(1)
+def vector_access(machine, vec, index):
+    if isinstance(vec, list):
+        import pdb; pdb.set_trace()
+        return vec[index.toint()]
+    return vec.read_bit(index.toint())
 
 def vector_access_bv_i(bv, index):
     if index == 0:
@@ -227,6 +231,8 @@ def string_of_bits(machine, gbv):
 def decimal_string_of_bits(machine, sbits):
     return str(sbits)
 
+def uint64c(machine, num):
+    return bitvector.fromint(64, num)
 
 # integers
 

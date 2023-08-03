@@ -92,6 +92,7 @@ def find_decl_defs_uses(blocks, predefined=None):
                 decls[op.name] = (block, i)
     return decls, defs, uses
 
+
 def inline(blocks, inlinable_functions):
     for num, block in blocks.iteritems():
         index = 0
@@ -101,10 +102,11 @@ def inline(blocks, inlinable_functions):
                 functionast, targetblocks = inlinable_functions[op.name]
                 newops = copy_ops(op, functionast, targetblocks)
                 if newops is not None:
-                    block[index:index + 1] = newops
+                    block[index : index + 1] = newops
                     index = 0
                     continue
             index += 1
+
 
 def copy_ops(op, functionast, targetblocks):
     assert len(targetblocks) == 1
@@ -134,6 +136,7 @@ def specialize_ops(blocks, codegen):
                 elif not v.changed:
                     break
 
+
 class NoMatchException(Exception):
     pass
 
@@ -145,7 +148,10 @@ class OptVisitor(parse.Visitor):
     def visit_CastExpr(self, cast):
         if isinstance(cast.expr, parse.CastExpr):
             return parse.CastExpr(cast.expr.expr, cast.resolved_type)
-        if isinstance(cast.expr, parse.OperationExpr) and cast.expr.resolved_type is cast.resolved_type:
+        if (
+            isinstance(cast.expr, parse.OperationExpr)
+            and cast.expr.resolved_type is cast.resolved_type
+        ):
             return cast.expr
 
     def _builtinname(self, name):
@@ -154,10 +160,14 @@ class OptVisitor(parse.Visitor):
     def visit_OperationExpr(self, expr, seen=set()):
         assert expr.resolved_type is not None
         name = self._builtinname(expr.name)
-        if hasattr(self, "optimize_%s" % (expr.name, )) and not hasattr(self, "optimize_%s" % name):
+        if hasattr(self, "optimize_%s" % (expr.name,)) and not hasattr(
+            self, "optimize_%s" % name
+        ):
             if expr.name not in seen:
                 seen.add(expr.name)
-                import pdb; pdb.set_trace()
+                import pdb
+
+                pdb.set_trace()
         meth = getattr(self, "optimize_%s" % name, None)
         if not meth:
             return None
@@ -170,9 +180,13 @@ class OptVisitor(parse.Visitor):
         assert operation.resolved_type is not None
         if operation.name == "$zinternal_vector_update":
             return
-        expr = parse.OperationExpr(operation.name, operation.args, operation.resolved_type)
+        expr = parse.OperationExpr(
+            operation.name, operation.args, operation.resolved_type
+        )
         return parse.Assignment(
-            operation.result, expr, operation.sourcepos,
+            operation.result,
+            expr,
+            operation.sourcepos,
             operation.resolved_type,
         )
 
@@ -186,15 +200,12 @@ class OptVisitor(parse.Visitor):
         index = expr.obj.fieldnames.index(expr.element)
         return expr.obj.fieldvalues[index]
 
-    #def visit_StructElementAssignment(self, assign):
+    # def visit_StructElementAssignment(self, assign):
     #    if assign.resolved_type != assign.value.resolved_type:
     #        value = parse.CastExpr(assign.value, assign.resolved_type)
     #        return parse.StructElementAssignment(assign.obj, assign.fields, value, assign.resolved_type, assign.sourcepos)
 
     def visit_GeneralAssignment(self, assign):
-        import pdb
-
-        pdb.set_trace()
         lhs = assign.lhs
         rhs = assign.rhs
         if isinstance(rhs, parse.Operation):
@@ -216,7 +227,9 @@ class OptVisitor(parse.Visitor):
             raise NoMatchException
         typ = self._gettyp(arg.expr)
         if not isinstance(typ, types.SmallFixedBitVector):
-            assert typ is types.GenericBitVector() or isinstance(typ, types.BigFixedBitVector)
+            assert typ is types.GenericBitVector() or isinstance(
+                typ, types.BigFixedBitVector
+            )
             raise NoMatchException
         arg = arg.expr
         return arg, typ
@@ -259,14 +272,20 @@ class OptVisitor(parse.Visitor):
         arg1 = self._extract_number(arg1)
         arg2 = self._extract_number(arg2)
         return parse.OperationExpr(
-            "@vector_update_subrange_o_i_i_o", [arg0, arg1, arg2, arg3], expr.resolved_type,
+            "@vector_update_subrange_o_i_i_o",
+            [arg0, arg1, arg2, arg3],
+            expr.resolved_type,
         )
 
     def optimize_vector_access(self, expr):
         arg0, arg1 = expr.args
+        if isinstance(arg0.resolved_type, types.Vec):
+            return
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1 = self._extract_machineint(arg1)
-        return parse.OperationExpr("@vector_access_bv_i", [arg0, arg1], expr.resolved_type)
+        return parse.OperationExpr(
+            "@vector_access_bv_i", [arg0, arg1], expr.resolved_type
+        )
 
     def optimize_eq_bits(self, expr):
         arg0, arg1 = expr.args
@@ -311,7 +330,10 @@ class OptVisitor(parse.Visitor):
 
     def optimize_int64_to_int(self, expr):
         (arg0,) = expr.args
-        if not isinstance(arg0, parse.OperationExpr) or self._builtinname(arg0.name) != "int_to_int64":
+        if (
+            not isinstance(arg0, parse.OperationExpr)
+            or self._builtinname(arg0.name) != "int_to_int64"
+        ):
             return
         return arg0.args[0]
 
@@ -333,9 +355,7 @@ class OptVisitor(parse.Visitor):
         if typ0 is not typ1:
             return
         return parse.CastExpr(
-            parse.OperationExpr(
-                "@xor_vec_bv_bv", [arg0, arg1], typ0
-            ),
+            parse.OperationExpr("@xor_vec_bv_bv", [arg0, arg1], typ0),
             expr.resolved_type,
         )
 
@@ -346,9 +366,7 @@ class OptVisitor(parse.Visitor):
         if typ0 is not typ1:
             return
         return parse.CastExpr(
-            parse.OperationExpr(
-                "@and_vec_bv_bv", [arg0, arg1], typ0
-            ),
+            parse.OperationExpr("@and_vec_bv_bv", [arg0, arg1], typ0),
             expr.resolved_type,
         )
 
@@ -359,9 +377,7 @@ class OptVisitor(parse.Visitor):
         if typ0 is not typ1:
             return
         return parse.CastExpr(
-            parse.OperationExpr(
-                "@or_vec_bv_bv", [arg0, arg1], typ0
-            ),
+            parse.OperationExpr("@or_vec_bv_bv", [arg0, arg1], typ0),
             expr.resolved_type,
         )
 
@@ -370,11 +386,7 @@ class OptVisitor(parse.Visitor):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         return parse.CastExpr(
-            parse.OperationExpr(
-                "@not_vec_bv",
-                [arg0, parse.Number(typ0.width)],
-                typ0
-            ),
+            parse.OperationExpr("@not_vec_bv", [arg0, parse.Number(typ0.width)], typ0),
             expr.resolved_type,
         )
 
@@ -386,9 +398,7 @@ class OptVisitor(parse.Visitor):
             return
         return parse.CastExpr(
             parse.OperationExpr(
-                "@add_bits_bv_bv",
-                [arg0, arg1, parse.Number(typ0.width)],
-                typ0
+                "@add_bits_bv_bv", [arg0, arg1, parse.Number(typ0.width)], typ0
             ),
             expr.resolved_type,
         )
@@ -401,9 +411,7 @@ class OptVisitor(parse.Visitor):
             return
         return parse.CastExpr(
             parse.OperationExpr(
-                "@sub_bits_bv_bv",
-                [arg0, arg1, parse.Number(typ0.width)],
-                typ0
+                "@sub_bits_bv_bv", [arg0, arg1, parse.Number(typ0.width)], typ0
             ),
             expr.resolved_type,
         )
@@ -413,9 +421,7 @@ class OptVisitor(parse.Visitor):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         return parse.CastExpr(
             parse.OperationExpr(
-                "@signed_bv",
-                [arg0, parse.Number(typ0.width)],
-                types.MachineInt()
+                "@signed_bv", [arg0, parse.Number(typ0.width)], types.MachineInt()
             ),
             expr.resolved_type,
         )
@@ -480,11 +486,7 @@ class OptVisitor(parse.Visitor):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
-        arg1 = parse.OperationExpr(
-            "zz5izDzKz5i64",
-            [arg1],
-            types.MachineInt()
-        )
+        arg1 = parse.OperationExpr("zz5izDzKz5i64", [arg1], types.MachineInt())
 
         return parse.CastExpr(
             parse.OperationExpr(

@@ -1,6 +1,6 @@
 import pytest
 
-from pydrofoil import parse
+from pydrofoil import parse, types
 from pydrofoil.parse import *
 from pydrofoil.optimize import (
     find_decl_defs_uses,
@@ -96,26 +96,29 @@ targetjumpop = ConditionalJump(
                     CastExpr(
                         expr=OperationExpr(
                             args=[
-                                CastExpr(expr=Var(name="bv32"), typ=NamedType("%bv")),
+                                CastExpr(
+                                    expr=Var(name="bv32"),
+                                    resolved_type=types.GenericBitVector(),
+                                ),
                                 OperationExpr(
                                     args=[Number(number=6)],
                                     name="zz5i64zDzKz5i",
-                                    typ=NamedType("%i"),
+                                    resolved_type=types.Int(),
                                 ),
                                 OperationExpr(
                                     args=[Number(number=0)],
                                     name="zz5i64zDzKz5i",
-                                    typ=NamedType("%i"),
+                                    resolved_type=types.Int(),
                                 ),
                             ],
                             name="zsubrange_bits",
-                            typ=NamedType("%bv"),
+                            resolved_type=types.GenericBitVector(),
                         ),
-                        typ=NamedType("%bv7"),
+                        resolved_type=types.SmallFixedBitVector(7),
                     )
                 ],
                 name="zencdec_uop_backwards_matches",
-                typ=NamedType("%bool"),
+                resolved_type=types.Bool(),
             )
         ],
         operation="@not",

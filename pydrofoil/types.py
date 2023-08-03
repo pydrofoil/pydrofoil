@@ -159,6 +159,11 @@ class Int(Type):
         return "%s()" % (type(self).__name__, )
 
 @unique
+class Real(Type):
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
+@unique
 class Bool(Type):
     uninitialized_value = "False"
 

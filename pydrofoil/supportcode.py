@@ -33,7 +33,7 @@ make_dummy('string_startswith')
 make_dummy('string_length')
 make_dummy('sub_nat')
 make_dummy('tmod_int')
-make_dummy('zeros')
+make_dummy('undefined_int')
 
 # generic helpers
 
@@ -219,6 +219,15 @@ def vector_update_subrange_o_i_i_o(bv, n, m, s):
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n.toint(), m.toint())
 
+def slice(machine, bv, start, length):
+    start = start.toint()
+    length = length.toint()
+    return bv.subrange(start + length - 1, start)
+
+def set_slice(machine, _len, _slen, bv, start, bv_new):
+    start = start.toint()
+    return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)
+
 @objectmodel.always_inline
 def slice_fixed_bv_i_i(v, n, m):
     res = safe_rshift(None, v, m)
@@ -232,7 +241,14 @@ def decimal_string_of_bits(machine, sbits):
     return str(sbits)
 
 def uint64c(machine, num):
-    return bitvector.fromint(64, num)
+    import pdb; pdb.set_trace()
+    return bitvector.from_ruint(64, r_uint(num))
+
+def zeros(machine, num):
+    return bitvector.from_ruint(num.toint(), r_uint(0))
+
+def undefined_bitvector(machine, num):
+    return zeros(machine, num)
 
 # integers
 
@@ -335,6 +351,10 @@ def int64_to_int(machine, i):
 def string_to_int(machine, s):
     return Integer.fromstr(s)
 
+
+def undefined_int(machine, _):
+    return Integer.fromint(0)
+
 # various
 
 @objectmodel.specialize.argtype(1)
@@ -350,6 +370,14 @@ def print_endline(machine, s):
     print s
     return ()
 
+def undefined_bool(machine, _):
+    return False
+
+# list weirdnesses
+
+def internal_pick(machine, lst):
+    return lst.head
+
 # vector stuff
 
 @objectmodel.specialize.argtype(1, 2, 4)
@@ -359,6 +387,10 @@ def vector_update_inplace(machine, res, l, index, element):
         l = l[:]
     l[index] = element
     return l
+
+def undefined_vector(machine, size, element):
+    return [element] * size.toint()
+
 
 def elf_tohost(machine, _):
     return Integer.fromint(0)

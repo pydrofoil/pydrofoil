@@ -187,8 +187,7 @@ class OptVisitor(parse.Visitor):
         return expr.obj.fieldvalues[index]
 
     def _gettyp(self, expr):
-        if expr.resolved_type is None:
-            import pdb; pdb.set_trace()
+        assert expr.resolved_type is not None
         return expr.resolved_type
 
     def _extract_smallfixedbitvector(self, arg):

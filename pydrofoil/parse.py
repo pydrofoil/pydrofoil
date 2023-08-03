@@ -509,8 +509,9 @@ class Expression(BaseAst):
         xxx
 
 class Var(Expression):
-    def __init__(self, name):
+    def __init__(self, name, resolved_type=None):
         self.name = name
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return {self.name}

@@ -222,6 +222,8 @@ class OptVisitor(parse.Visitor):
         arg1 = self._extract_number(arg1)
         arg2 = self._extract_number(arg2)
         width = arg1.number - arg2.number + 1
+        if width > 64:
+            return
 
         res = parse.CastExpr(
             parse.OperationExpr(
@@ -412,6 +414,8 @@ class OptVisitor(parse.Visitor):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1 = self._extract_number(arg1)
+        if arg1.number > 64:
+            return
         return parse.CastExpr(
             parse.OperationExpr(
                 "@zero_extend_bv_i_i",

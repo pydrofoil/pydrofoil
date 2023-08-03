@@ -451,10 +451,11 @@ class UnionVariantCheck(Condition):
         xxx
 
 class StructElementAssignment(StatementWithSourcePos):
-    def __init__(self, obj, fields, value, sourcepos=None):
+    def __init__(self, obj, fields, value, resolved_type=None, sourcepos=None):
         self.obj = obj
         self.fields = fields
         self.value = value
+        self.resolved_type = resolved_type
         self.sourcepos = sourcepos
 
     def find_used_vars(self):
@@ -467,6 +468,7 @@ class StructElementAssignment(StatementWithSourcePos):
             self.obj.replace_var(var, expr),
             self.fields,
             self.value.replace_var(var, expr),
+            self.resolved_type,
             self.sourcepos)
 
 

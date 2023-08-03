@@ -133,6 +133,11 @@ class TypeAttachingVisitor(parse.Visitor):
     def visit_StructElementAssignment(self, ast):
         self.visit(ast.obj)
         self.visit(ast.value)
+        curr = ast.obj.resolved_type
+        for field in ast.fields:
+            index = curr.ast.names.index(field)
+            curr = self.visit(curr.ast.types[index])
+        ast.resolved_type = curr
 
     def visit_RefAssignment(self, ast):
         self.visit(ast.ref)

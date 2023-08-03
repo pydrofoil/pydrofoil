@@ -191,6 +191,21 @@ class OptVisitor(parse.Visitor):
     #        value = parse.CastExpr(assign.value, assign.resolved_type)
     #        return parse.StructElementAssignment(assign.obj, assign.fields, value, assign.resolved_type, assign.sourcepos)
 
+    def visit_GeneralAssignment(self, assign):
+        import pdb
+
+        pdb.set_trace()
+        lhs = assign.lhs
+        rhs = assign.rhs
+        if isinstance(rhs, parse.Operation):
+            value = parse.OperationExpr(rhs.name, rhs.args, rhs.resolved_type)
+        else:
+            return None
+        if isinstance(lhs, parse.StructElementAssignment):
+            return parse.StructElementAssignment(
+                lhs.obj, lhs.fields, value, lhs.resolved_type, assign.sourcepos
+            )
+
     def _gettyp(self, expr):
         if expr.resolved_type is None:
             import pdb; pdb.set_trace()

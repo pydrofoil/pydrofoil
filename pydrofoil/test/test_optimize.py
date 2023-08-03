@@ -57,6 +57,28 @@ def test_find_used_vars_condition():
     assert u.find_used_vars() == {"abc"}
 
 
+def test_find_used_vars_general_assignment():
+    ast = GeneralAssignment(
+        lhs=StructElementAssignment(
+            fields=["field"], obj=Var("somevarname"), value=None
+        ),
+        rhs=Operation(
+            args=[
+                Var("othervarname"),
+                Var("c"),
+            ],
+            name="op",
+            result=None,
+        ),
+    )
+    assert ast.find_used_vars() == {"somevarname", "othervarname", "c"}
+
+    ast2 = ast.replace_var("somevarname", 1)
+    assert "somevarname" not in repr(ast2)
+    ast2 = ast.replace_var("othervarname", 1)
+    assert "othervarname" not in repr(ast2)
+
+
 # __________________________________________________
 
 vector_subrange_example = [

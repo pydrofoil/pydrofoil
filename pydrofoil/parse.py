@@ -322,12 +322,13 @@ class GeneralAssignment(StatementWithSourcePos):
         self.resolved_type = resolved_type
 
     def find_used_vars(self):
-        import pdb; pdb.set_trace()
-        return self.rhs.find_used_vars()
+        res = self.lhs.obj.find_used_vars()
+        for arg in self.rhs.args:
+            res.update(arg.find_used_vars())
+        return res
 
     def replace_var(self, var, expr):
-        import pdb; pdb.set_trace()
-        return GeneralAssignment(self.lhs, self.rhs, self.sourcepos, self.resolved_type)
+        return GeneralAssignment(self.lhs.replace_var(var, expr), self.rhs.replace_var(var, expr), self.sourcepos, self.resolved_type)
 
 
 class Assignment(StatementWithSourcePos):
@@ -467,7 +468,7 @@ class StructElementAssignment(StatementWithSourcePos):
         return StructElementAssignment(
             self.obj.replace_var(var, expr),
             self.fields,
-            self.value.replace_var(var, expr),
+            self.value.replace_var(var, expr) if self.value is not None else self.value,
             self.resolved_type,
             self.sourcepos)
 

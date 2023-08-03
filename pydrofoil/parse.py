@@ -720,7 +720,6 @@ def globalval(p):
 
 @pg.production('function : FN NAME LPAREN args RPAREN LBRACE operations RBRACE')
 def function(p):
-    return Function(p[1].value, p[3].args, p[6].body)
     return Function(p[1].value, p[3].args, p[6].collect())
 
 @pg.production('args : NAME | NAME COMMA args')

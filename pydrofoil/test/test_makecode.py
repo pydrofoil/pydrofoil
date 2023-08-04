@@ -529,4 +529,11 @@ fn zinitializze_registers(zgsz349) {
 }
 
 files "../../test/c/real.sail"                      ''', support_code)
+    import py
+    d = {}
+    res = py.code.Source(res)
+    exec res.compile() in d
+    machine = d['Machine']()
+    d['func_zmain'](machine, ())
+    out, err = capsys.readouterr()
 

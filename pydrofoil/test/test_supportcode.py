@@ -3,6 +3,7 @@ import pytest
 from pydrofoil import supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
+from pydrofoil.real import Real
 
 from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
 from rpython.rlib.rbigint import rbigint
@@ -588,3 +589,34 @@ def test_softfloat_ui64tof64():
     machine = DummyMachine()
     supportcode.softfloat_ui64tof64(machine, 0, 0b0000000000000000000000000000000000000000000000000000000000000101)
     assert machine._reg_zfloat_result == 0b0100000000010100000000000000000000000000000000000000000000000000
+
+# tests for real type
+def test_add_real():
+    x = Real.fromint(5)
+    y = Real.fromint(7)
+    res = x.add(y)
+    assert res.toint() == 12
+    x = Real.fromint(3, 4)
+    y = Real.fromint(5, 4)
+    res = x.add(y)
+    assert res.toint() == 2
+    x = Real.fromint(1, 2)
+    y = Real.fromint(1, 2)
+    res = x.add(y)
+    assert res.toint() == 1
+    x = Real.fromint(4, 2)
+    y = Real.fromint(9, 3)
+    res = x.add(y)
+    assert res.toint() == 5
+    x = Real.fromint(-4, 2)
+    y = Real.fromint(9, -3)
+    res = x.add(y)
+    assert res.toint() == -5
+    x = Real.fromint(-4, -2)
+    y = Real.fromint(-9, 3)
+    res = x.add(y)
+    assert res.toint() == -1
+    x = Real.fromint(3, 0)
+    y = Real.fromint(2, 5)
+    res = x.add(y)
+    assert res.toint() == 1

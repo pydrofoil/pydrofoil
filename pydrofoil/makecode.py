@@ -909,7 +909,7 @@ class __extend__(parse.OperationExpr):
                 return "%s(machine, %s)" % (op, args)
         elif isinstance(info.typ, types.Union):
             return info.ast.constructor(info, op, args, argtyps)
-        elif name.startswith("@"):
+        elif name.startswith(("@", "$")):
             return "%s(machine, %s)" % (op, args)
         else:
             # constructors etc don't get machine passed (yet)

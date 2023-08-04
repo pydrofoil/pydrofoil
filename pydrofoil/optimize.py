@@ -163,7 +163,6 @@ class OptVisitor(parse.Visitor):
                 if argspec == "o":
                     newargs.append(arg)
                 elif argspec == "i":
-                    # call int_to_int64
                     newargs.append(
                         self._convert_to_machineint(arg)
                     )
@@ -182,6 +181,7 @@ class OptVisitor(parse.Visitor):
         try:
             return self._extract_machineint(arg)
         except NoMatchException:
+            # call int_to_int64
             return parse.OperationExpr(
                 "zz5izDzKz5i64", [arg], types.MachineInt()
             )

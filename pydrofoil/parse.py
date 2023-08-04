@@ -637,12 +637,13 @@ class StructField(BaseAst):
 # some ASTs only used during optimization
 
 class OperationExpr(Expression):
-    def __init__(self, name, args, resolved_type):
+    def __init__(self, name, args, resolved_type, sourcepos=None):
         from pydrofoil import types
         assert isinstance(resolved_type, types.Type)
         self.name = name
         self.args = args
         self.resolved_type = resolved_type
+        self.sourcepos = sourcepos
 
     def find_used_vars(self):
         res = set()
@@ -652,7 +653,8 @@ class OperationExpr(Expression):
 
     def replace_var(self, var, expr):
         newargs = [arg.replace_var(var, expr) for arg in self.args]
-        return OperationExpr(self.name, newargs, self.resolved_type)
+        return OperationExpr(self.name, newargs, self.resolved_type,
+                self.sourcepos)
 
 class CastExpr(Expression):
     def __init__(self, expr, resolved_type):

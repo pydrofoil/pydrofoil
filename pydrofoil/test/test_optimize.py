@@ -9,8 +9,10 @@ from pydrofoil.optimize import (
     specialize_ops,
 )
 
+
 class dummy_codegen:
     builtin_names = {}
+
 
 dummy_codegen = dummy_codegen()
 
@@ -69,28 +71,52 @@ vector_subrange_example = [
     Assignment(result="bv32", value=Var(name="zargz3")),
     LocalVarDeclaration(name="subrange_result_bv7", typ=NamedType("%bv7"), value=None),
     LocalVarDeclaration(name="num6", typ=NamedType("%i"), value=None),
-    Operation(args=[Number(number=6)], name="int64_to_int", resolved_type=types.Int(), result="num6"),
+    Operation(
+        args=[Number(number=6)],
+        name="int64_to_int",
+        resolved_type=types.Int(),
+        result="num6",
+        sourcepos="pos1",
+    ),
     LocalVarDeclaration(name="num0", typ=NamedType("%i"), value=None),
-    Operation(args=[Number(number=0)], name="int64_to_int", result="num0", resolved_type=types.Int()),
+    Operation(
+        args=[Number(number=0)],
+        name="int64_to_int",
+        result="num0",
+        resolved_type=types.Int(),
+        sourcepos="pos2",
+    ),
     LocalVarDeclaration(name="bvusedonce", typ=NamedType("%bv"), value=None),
-    Assignment(result="bvusedonce", value=Var(name="bv32"), resolved_type=types.GenericBitVector()),
+    Assignment(
+        result="bvusedonce",
+        value=Var(name="bv32"),
+        resolved_type=types.GenericBitVector(),
+    ),
     LocalVarDeclaration(name="subrange_result", typ=NamedType("%bv"), value=None),
     Operation(
         args=[Var(name="bvusedonce"), Var(name="num6"), Var(name="num0")],
         name="vector_subrange",
         resolved_type=types.GenericBitVector(),
         result="subrange_result",
+        sourcepos="pos3",
     ),
-    Assignment(result="subrange_result_bv7", value=Var(name="subrange_result"), resolved_type=types.SmallFixedBitVector(7)),
+    Assignment(
+        result="subrange_result_bv7",
+        value=Var(name="subrange_result"),
+        resolved_type=types.SmallFixedBitVector(7),
+    ),
     LocalVarDeclaration(name="cond", typ=NamedType("%bool"), value=None),
     Operation(
         args=[Var(name="subrange_result_bv7")],
         name="zencdec_uop_backwards_matches",
         result="cond",
         resolved_type=types.Bool(),
+        sourcepos="pos4",
     ),
     ConditionalJump(
-        condition=Comparison(args=[Var(name="cond")], operation="@not"), target=17
+        condition=Comparison(args=[Var(name="cond")], operation="@not"),
+        target=17,
+        sourcepos="pos5",
     ),
     End(),
 ]
@@ -111,26 +137,30 @@ targetjumpop = ConditionalJump(
                                     args=[Number(number=6)],
                                     name="int64_to_int",
                                     resolved_type=types.Int(),
+                                    sourcepos="pos1",
                                 ),
                                 OperationExpr(
                                     args=[Number(number=0)],
                                     name="int64_to_int",
                                     resolved_type=types.Int(),
+                                    sourcepos="pos2",
                                 ),
                             ],
                             name="vector_subrange",
                             resolved_type=types.GenericBitVector(),
+                            sourcepos="pos3",
                         ),
                         resolved_type=types.SmallFixedBitVector(7),
                     )
                 ],
                 name="zencdec_uop_backwards_matches",
                 resolved_type=types.Bool(),
+                sourcepos="pos4",
             )
         ],
         operation="@not",
     ),
-    sourcepos=None,
+    sourcepos="pos5",
     target=17,
 )
 
@@ -174,7 +204,7 @@ def test_replacements_arguments():
             LocalVarDeclaration(
                 name="zz40",
                 sourcepos="`3 227:32-227:53",
-                typ=NamedType('%i'),
+                typ=NamedType("%i"),
                 value=None,
             ),
             Operation(
@@ -187,7 +217,7 @@ def test_replacements_arguments():
             LocalVarDeclaration(
                 name="zz41",
                 sourcepos="`1 227:32-227:53",
-                typ=NamedType('%i'),
+                typ=NamedType("%i"),
                 value=None,
             ),
             Operation(
@@ -209,8 +239,18 @@ def test_replacements_arguments():
     do_replacements(identify_replacements(blocks, predefined))
     assert blocks[0][0] == Operation(
         args=[
-            OperationExpr(args=[Var(name="zx")], name="zsigned", resolved_type=types.Int()),
-            OperationExpr(args=[Var(name="zy")], name="zsigned", resolved_type=types.Int()),
+            OperationExpr(
+                args=[Var(name="zx")],
+                name="zsigned",
+                resolved_type=types.Int(),
+                sourcepos="`1 227:32-227:41",
+            ),
+            OperationExpr(
+                args=[Var(name="zy")],
+                name="zsigned",
+                resolved_type=types.Int(),
+                sourcepos="`1 227:44-227:53",
+            ),
         ],
         name="zlt_int",
         result="return",
@@ -229,12 +269,19 @@ def test_specialize_ops():
         result="return",
         value=OperationExpr(
             args=[
-                CastExpr(expr=Var(name="zz40", resolved_type=types.SmallFixedBitVector(64)), resolved_type=types.GenericBitVector()),
-                OperationExpr(
-                    args=[Number(number=31)], name="int64_to_int", resolved_type=types.Int(),
+                CastExpr(
+                    expr=Var(name="zz40", resolved_type=types.SmallFixedBitVector(64)),
+                    resolved_type=types.GenericBitVector(),
                 ),
                 OperationExpr(
-                    args=[Number(number=0)], name="int64_to_int", resolved_type=types.Int(),
+                    args=[Number(number=31)],
+                    name="int64_to_int",
+                    resolved_type=types.Int(),
+                ),
+                OperationExpr(
+                    args=[Number(number=0)],
+                    name="int64_to_int",
+                    resolved_type=types.Int(),
                 ),
             ],
             name="vector_subrange",
@@ -244,7 +291,11 @@ def test_specialize_ops():
     block = [lv, op]
     specialize_ops({0: block}, dummy_codegen)
     assert block[1].value == OperationExpr(
-        args=[Var(name="zz40", resolved_type=types.SmallFixedBitVector(64)), Number(number=31), Number(number=0)],
+        args=[
+            Var(name="zz40", resolved_type=types.SmallFixedBitVector(64)),
+            Number(number=31),
+            Number(number=0),
+        ],
         name="@slice_fixed_bv_i_i",
         resolved_type=types.SmallFixedBitVector(32),
     )
@@ -324,7 +375,8 @@ def test_optimize_operation():
                 resolved_type=types.GenericBitVector(),
             ),
             CastExpr(
-                expr=BitVectorConstant(constant="0b0010011"), resolved_type=types.GenericBitVector()
+                expr=BitVectorConstant(constant="0b0010011"),
+                resolved_type=types.GenericBitVector(),
             ),
         ],
         name="eq_bits",
@@ -885,5 +937,3 @@ def test_vector_access():
         name="@vector_access_bv_i",
         typ=NamedType("%bit"),
     )
-
-

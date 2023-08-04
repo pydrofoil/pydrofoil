@@ -239,6 +239,9 @@ class TypeAttachingVisitor(parse.Visitor):
             return types.Bit()
         if name == "%string":
             return types.String()
+        if name == "%real":
+            return types.Real()
+        assert False, "unknown type"
 
     def visit_EnumType(self, ast):
         return self.context.get_named_type(ast.name)

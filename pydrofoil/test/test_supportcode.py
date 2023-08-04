@@ -591,8 +591,8 @@ def test_softfloat_ui64tof64():
     assert machine._reg_zfloat_result == 0b0100000000010100000000000000000000000000000000000000000000000000
 
 # tests for real type
+# Test for add
 def test_add_real():
-    # Test for add
     x = Real.fromint(5)
     y = Real.fromint(7)
     res = x.add(y)
@@ -617,7 +617,14 @@ def test_add_real():
     y = Real.fromint(-9, 3)
     res = x.add(y)
     assert res.toint() == -1
-    # Test for sub
+    # Test for denominator equal to 0
+    # x = Real.fromint(3, 0)
+    # y = Real.fromint(2, 5)
+    # res = x.add(y)
+    # assert res.toint() == 1
+
+# Test for sub
+def test_sub_real():
     x = Real.fromint(16)
     y = Real.fromint(6)
     res = x.sub(y)
@@ -638,7 +645,9 @@ def test_add_real():
     y = Real.fromint(9, 3)
     res = x.sub(y)
     assert res.toint() == -5
-    # Test for mul
+
+# Test for mul
+def test_mul_real():
     x = Real.fromint(10)
     y = Real.fromint(6)
     res = x.mul(y)
@@ -667,7 +676,9 @@ def test_add_real():
     y = Real.fromint(2, -5)
     res = x.mul(y)
     assert res.toint() == 1
-    # Test for div
+
+# Test for div
+def test_div_real():
     x = Real.fromint(10)
     y = Real.fromint(2)
     res = x.div(y)
@@ -688,8 +699,278 @@ def test_add_real():
     y = Real.fromint(1, -25)
     res = x.div(y)
     assert res.toint() == 5
-    # Test for denominator equal to 0
-    # x = Real.fromint(3, 0)
-    # y = Real.fromint(2, 5)
-    # res = x.add(y)
-    # assert res.toint() == 1
+    x = Real.fromint(-4, -2)
+    assert x.num.toint() == 2
+    assert x.den.toint() == 1
+    x = Real.fromint(-4, 2)
+    assert x.num.toint() == 2
+    assert x.den.toint() == -1
+    x = Real.fromint(4, -2)
+    assert x.num.toint() == 2
+    assert x.den.toint() == -1
+
+# Test for neg
+def test_neg_real():
+    x = Real.fromint(10)
+    res = x.neg()
+    assert res.toint() == -10
+    x = Real.fromint(-10)
+    res = x.neg()
+    assert res.toint() == 10
+    x = Real.fromint(4, 2)
+    res = x.neg()
+    assert res.toint() == -2
+    x = Real.fromint(-4, 2)
+    res = x.neg()
+    assert res.toint() == 2
+    x = Real.fromint(4, -2)
+    res = x.neg()
+    assert res.toint() == 2
+
+# Test for abs
+def test_abs_real():
+    x = Real.fromint(10)
+    res = x.abs()
+    assert res.toint() == 10
+    x = Real.fromint(-10)
+    res = x.abs()
+    assert res.toint() == 10
+    x = Real.fromint(4, 2)
+    res = x.abs()
+    assert res.toint() == 2
+    x = Real.fromint(-4, 2)
+    res = x.abs()
+    assert res.toint() == 2
+    x = Real.fromint(4, -2)
+    res = x.abs()
+    assert res.toint() == 2
+
+# Test for ceil
+def test_ceil_real():
+    x = Real.fromint(10)
+    res = x.ceil()
+    assert res.toint() == 10
+    x = Real.fromint(-10)
+    res = x.ceil()
+    assert res.toint() == -10
+    x = Real.fromint(3, 2)
+    res = x.ceil()
+    assert res.toint() == 2
+    x = Real.fromint(-3, 2)
+    res = x.ceil()
+    assert res.toint() == -1
+    x = Real.fromint(3, -2)
+    res = x.ceil()
+    assert res.toint() == -1
+    x = Real.fromint(1, 5)
+    res = x.ceil()
+    assert res.toint() == 1
+    x = Real.fromint(-1, 5)
+    res = x.ceil()
+    assert res.toint() == 0
+
+# Test for floor
+def test_floor_real():
+    x = Real.fromint(10)
+    res = x.floor()
+    assert res.toint() == 10
+    x = Real.fromint(-10)
+    res = x.floor()
+    assert res.toint() == -10
+    x = Real.fromint(3, 2)
+    res = x.floor()
+    assert res.toint() == 1
+    x = Real.fromint(-3, 2)
+    res = x.floor()
+    assert res.toint() == -2
+    x = Real.fromint(1, 5)
+    res = x.floor()
+    assert res.toint() == 0
+    x = Real.fromint(1, -5)
+    res = x.floor()
+    assert res.toint() == -1
+
+# Test for eq
+def test_eq_real():
+    x = Real.fromint(10)
+    y = Real.fromint(10)
+    res = x.eq(y)
+    assert res == True
+    x = Real.fromint(10)
+    y = Real.fromint(-3)
+    res = x.eq(y)
+    assert res == False
+    x = Real.fromint(2, 7)
+    y = Real.fromint(2, 7)
+    res = x.eq(y)
+    assert res == True
+    x = Real.fromint(2, 9)
+    y = Real.fromint(2, 7)
+    res = x.eq(y)
+    assert res == False
+
+# Test for lt
+def test_lt_real():
+    x = Real.fromint(10)
+    y = Real.fromint(11)
+    res1 = x.lt(y)
+    res2 = y.lt(x)
+    assert res1 == True
+    assert res2 == False
+    x = Real.fromint(-10)
+    y = Real.fromint(2)
+    res1 = x.lt(y)
+    res2 = y.lt(x)
+    assert res1 == True
+    assert res2 == False
+    x = Real.fromint(10)
+    y = Real.fromint(10)
+    res = x.lt(y)
+    assert res == False
+    x = Real.fromint(1, 3)
+    y = Real.fromint(5, 2)
+    res = x.lt(y)
+    assert res == True
+    x = Real.fromint(1, 3)
+    y = Real.fromint(1, 3)
+    res = x.lt(y)
+    assert res == False
+    x = Real.fromint(-1, 3)
+    y = Real.fromint(1, 6)
+    res = x.lt(y)
+    assert res == True
+    x = Real.fromint(1, -3)
+    y = Real.fromint(1, -6)
+    res = x.lt(y)
+    assert res == True
+
+# Test for gt
+def test_gt_real():
+    x = Real.fromint(10)
+    y = Real.fromint(8)
+    res1 = x.gt(y)
+    res2 = y.gt(x)
+    assert res1 == True
+    assert res2 == False
+    x = Real.fromint(10)
+    y = Real.fromint(-11)
+    res1 = x.gt(y)
+    res2 = y.gt(x)
+    assert res1 == True
+    assert res2 == False
+    x = Real.fromint(2, 7)
+    y = Real.fromint(2, 9)
+    res1 = x.gt(y)
+    res2 = y.gt(x)
+    assert res1 == True
+    assert res2 == False
+    x = Real.fromint(-1, 3)
+    y = Real.fromint(1, 6)
+    res1 = x.gt(y)
+    res2 = y.gt(x)
+    assert res1 == False
+    assert res2 == True
+    x = Real.fromint(1, -3)
+    y = Real.fromint(1, -6)
+    res = x.gt(y)
+    assert res == False
+
+# Test for le
+def test_le_real():
+    x = Real.fromint(10)
+    y = Real.fromint(10)
+    res = x.le(y)
+    assert res == True
+    x = Real.fromint(10)
+    y = Real.fromint(8)
+    res1 = x.le(y)
+    res2 = y.le(x)
+    assert res1 == False
+    assert res2 == True
+    x = Real.fromint(10)
+    y = Real.fromint(-11)
+    res1 = x.le(y)
+    res2 = y.le(x)
+    assert res1 == False
+    assert res2 == True
+    x = Real.fromint(2, 7)
+    y = Real.fromint(2, 9)
+    res1 = x.le(y)
+    res2 = y.le(x)
+    assert res1 == False
+    assert res2 == True
+    x = Real.fromint(-1, 3)
+    y = Real.fromint(1, 6)
+    res1 = x.le(y)
+    res2 = y.le(x)
+    assert res1 == True
+    assert res2 == False
+    x = Real.fromint(1, -3)
+    y = Real.fromint(1, -6)
+    res = x.le(y)
+    assert res == True
+    x = Real.fromint(1, -3)
+    y = Real.fromint(-1, 3)
+    res = x.le(y)
+    assert res == True
+
+# Test for ge
+def test_ge_real():
+    x = Real.fromint(10)
+    y = Real.fromint(10)
+    res = x.ge(y)
+    assert res == True
+    x = Real.fromint(10)
+    y = Real.fromint(8)
+    res1 = x.ge(y)
+    res2 = y.ge(x)
+    assert res1 == True
+    assert res2 == False
+    x = Real.fromint(10)
+    y = Real.fromint(-11)
+    res1 = x.ge(y)
+    res2 = y.ge(x)
+    assert res1 == True
+    assert res2 == False
+    x = Real.fromint(2, 7)
+    y = Real.fromint(2, 9)
+    res1 = x.ge(y)
+    res2 = y.ge(x)
+    assert res1 == True
+    assert res2 == False
+    x = Real.fromint(-1, 3)
+    y = Real.fromint(1, 6)
+    res1 = x.ge(y)
+    res2 = y.ge(x)
+    assert res1 == False
+    assert res2 == True
+    x = Real.fromint(1, -3)
+    y = Real.fromint(1, -6)
+    res = x.ge(y)
+    assert res == False
+    x = Real.fromint(1, -3)
+    y = Real.fromint(-1, 3)
+    res = x.ge(y)
+    assert res == True
+
+# Test for toreal together with other operations
+def test_toreal_real():
+    x = Real.fromint(2)
+    y = Real.fromint(7)
+    x = x.div(y)
+    y = Real.fromint(7, 3)
+    x = x.sub(y)
+    x = x.ceil()
+    y = Real.fromint(1, 2)
+    x = x.add(y)
+    num, den = x.toreal()
+    assert num == 3
+    assert den == -2
+    x = x.floor()
+    num, den = x.toreal()
+    assert num == 2
+    assert den == -1
+    x = x.abs()
+    num, den = x.toreal()
+    assert num == 2
+    assert den == 1

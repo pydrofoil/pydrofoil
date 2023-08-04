@@ -16,16 +16,19 @@ def _make_code(rv64=True):
         s = f.read()
     support_code = "from riscv import supportcoderiscv as supportcode"
     res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', })
-    # XXX horrible hack, they should be fixed in the model!
-    assert res.count("func_zread_ram(machine, zrk") == 2
+    ## XXX horrible hack, they should be fixed in the model!
+    assert res.count("def func_zread_ram(machine, zrk") == 1
     res = res.replace("def func_zread_ram(machine, zrk", "def func_zread_ram(machine, executable_flag, zrk")
-    res = res.replace("func_zread_ram(machine, zrk", "func_zread_ram(machine, (type(zt) is Union_zAccessType_zExecute), zrk")
+    assert res.count("func_zread_ram(machine, U") == 1
+    res = res.replace("func_zread_ram(machine, U", "func_zread_ram(machine, (type(zt) is Union_zAccessTypezIuzK_zExecutezIuzK), U")
     assert res.count("platform_read_mem") == 1
     res = res.replace("platform_read_mem(machine, ", "platform_read_mem(machine, executable_flag, ")
+    bits = 64 if rv64 else 32
 
-    # another one of them:
-    assert res.count("return_ = Union_zExt_DataAddr_Check_zExt_DataAddr_OK(zaddr_lz30") == 1
-    res = res.replace("return_ = Union_zExt_DataAddr_Check_zExt_DataAddr_OK(zaddr_lz30", "supportcode.promote_addr_region(machine, zaddr_lz30, zwidth, zoffset, (type(zacc) is Union_zAccessType_zExecute)); return_ = Union_zExt_DataAddr_Check_zExt_DataAddr_OK(zaddr_lz30")
+    ## another one of them:
+    #target = "return_ = Union_zExt_DataAddr_CheckzIuzK_zExt_DataAddr_OKzIuzK(supportcode.add_bits_bv_bv(func_zrX(machine, supportcode.int_to_int64(machine, supportcode.sail_unsigned(machine, bitvector.from_ruint(5, zbase)))), zoffset, %s))" % bits
+    #assert res.count(target) == 1
+    #res = res.replace(target, "zaddr_lz30 = supportcode.add_bits_bv_bv(func_zrX(machine, supportcode.int_to_int64(machine, supportcode.sail_unsigned(machine, bitvector.from_ruint(5, zbase)))), zoffset, %s); supportcode.promote_addr_region(machine, zaddr_lz30, zwidth, zoffset, (type(zacc) is Union_zAccessTypezIuzK_zExecutezIuzK)); return_ = Union_zExt_DataAddr_CheckzIuzK_zExt_DataAddr_OKzIuzK(zaddr_lz30)" % bits)
     with open(outriscvpys[rv64], "w") as f:
         f.write(res)
     if rv64:

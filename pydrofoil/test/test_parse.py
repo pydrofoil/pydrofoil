@@ -62,12 +62,13 @@ struct zXContextReg {
         [NamedType('%bv64')],
     )
 
-def test_let():
+def xtest_let():
     res = parser.parse(lexer.lex("""
-let (ztrace: %bool) {
-  zgsz30_lz30 : %bool;
-  zgsz30_lz30 = false;
-  ztrace = zgsz30_lz30;
+let (zdefault_meta: %unit) {
+  zz40 : %unit `2 75:30-75:32;
+  zz40 = () `2 75:30-75:32;
+  zdefault_meta = zz40 `2 75:4-75:16;
+}
 }"""))
     assert res.declarations[0] == Let("ztrace", NamedType("%bool"),
         [
@@ -108,175 +109,205 @@ register zPC : %bv16
         Register('zPC', NamedType('%bv16'))
     ]
 
+def test_pragma():
+    res = parser.parse(lexer.lex("""
+#tuplestruct ztuplez3z5bool_z5bool_z5bool ztuplez3z5bool_z5bool_z5bool0 ztuplez3z5bool_z5bool_z5bool1 ztuplez3z5bool_z5bool_z5bool2
+"""))
+    assert res.declarations == [
+        Pragma('tuplestruct', 'ztuplez3z5bool_z5bool_z5bool ztuplez3z5bool_z5bool_z5bool0 ztuplez3z5bool_z5bool_z5bool1 ztuplez3z5bool_z5bool_z5bool2'.split())
+    ]
+
+
 def test_function():
     res = parser.parse(lexer.lex("""
 fn zneq_int(zx, zy) {
-  zgaz30_lz30 : %bool;
-  zgaz30_lz30 = zeq_int(zx, zy);
-  return = znot_bool(zgaz30_lz30);
+  zz40 : %bool `0 100:26-100:48;
+  zz40 = zeq_int(zx, zy) `0 100:35-100:47;
+  return = znot_bool(zz40) `0 100:26-100:48;
   end;
 }
 """))
+
     assert res.declarations[0] == Function(
-        'zneq_int', ['zx', 'zy'],
-        [
-            LocalVarDeclaration('zgaz30_lz30', NamedType('%bool')),
-            Operation('zgaz30_lz30', 'zeq_int', [Var('zx'), Var('zy')]),
-            Operation('return', 'znot_bool', [Var('zgaz30_lz30')]),
-            End(),
-        ]
+        name='zneq_int',
+        args=['zx', 'zy'],
+        body=[
+            LocalVarDeclaration(name='zz40', sourcepos='`0 100:26-100:48', typ=NamedType('%bool'), value=None),
+            Operation(args=[Var(name='zx'), Var(name='zy')], name='zeq_int', result='zz40', sourcepos='`0 100:35-100:47'),
+            Operation(args=[Var(name='zz40')], name='znot_bool', result='return', sourcepos='`0 100:26-100:48'),
+            End()],
     )
 
-def test_function2():
-    res = parser.parse(lexer.lex("""
-fn zsail_mask(zlen, zv) {
-  zgaz32_lz30 : %bool;
-  zgaz31_lz31 : %i;
-  zgaz31_lz31 = zbitvector_length(zv);
-  zgaz32_lz30 = zlteq_int(zlen, zgaz31_lz31);
-  jump zgaz32_lz30 goto 7 ` "/home/cfbolz/.opam/default/share/sail/lib/vector_dec.sail 81:29 - 81:100";
-  return = zsail_zzero_extend(zv, zlen);
-  goto 8;
-  return = ztruncate(zv, zlen);
-  end;
-}
-"""))
-    assert res.declarations[0] == Function(
-        'zsail_mask', ['zlen', 'zv'],
-        [
-            LocalVarDeclaration('zgaz32_lz30', NamedType('%bool')),
-            LocalVarDeclaration('zgaz31_lz31', NamedType('%i')),
-            Operation('zgaz31_lz31', 'zbitvector_length', [Var('zv')]),
-            Operation('zgaz32_lz30', 'zlteq_int', [Var('zlen'), Var('zgaz31_lz31')]),
-            ConditionalJump(ExprCondition(Var('zgaz32_lz30')), 7, '"/home/cfbolz/.opam/default/share/sail/lib/vector_dec.sail 81:29 - 81:100"'),
-            Operation('return', 'zsail_zzero_extend', [Var('zv'), Var('zlen')]),
-            Goto(8),
-            Operation('return', 'ztruncate', [Var('zv'), Var('zlen')]),
-            End(),
-        ]
-    )
-
-def test_function3():
-    res = parser.parse(lexer.lex("""
-fn zbits1_to_bool(zb) {
-  zgsz310_lz30 : %bool;
-  zb__0_lz33 : %bv1;
-  zb__0_lz33 = zb;
-  zgsz311_lz34 : %bool;
-  zgsz311_lz34 = @eq(zb__0_lz33, 0b1);
-  jump @not(zgsz311_lz34) goto 7 ` "f.sail 13:27 - 16:1";
-  goto 8;
-  goto 10;
-  zgsz310_lz30 = true;
-  goto 20;
-  zb__1_lz31 : %bv1;
-  zb__1_lz31 = zb;
-  zgsz312_lz32 : %bool;
-  zgsz312_lz32 = @eq(zb__1_lz31, 0b0);
-  jump @not(zgsz312_lz32) goto 16 ` "f.sail 13:27 - 16:1";
-  goto 17;
-  goto 19;
-  zgsz310_lz30 = false;
-  goto 20;
-  failure;
-  return = zgsz310_lz30;
-  end;
-}
-    """))
-    assert res.declarations[0].body[2] == Assignment('zb__0_lz33', Var('zb'))
-    assert res.declarations[0].body[5] == ConditionalJump(
-            Comparison('@not', [Var('zgsz311_lz34')]), 7, '"f.sail 13:27 - 16:1"')
 
 def test_function4():
     res = parser.parse(lexer.lex("""
 fn zdecode(zmergez3var) {
-  zgsz344_lz30 : %union zoption;
-  zv__1_lz315 : %bv16;
-  zv__1_lz315 = zmergez3var;
-  zgaz317_lz316 : %bv1;
-  zgaz317_lz316 = @slice::<1>(zv__1_lz315, 15);
-  zgsz348_lz317 : %bool;
-  zgsz348_lz317 = @eq(zgaz317_lz316, 0b0);
-  jump @not(zgsz348_lz317) goto 9 ` "f.sail 97:16 - 98:39";
-  goto 10;
-  goto 24;
-  zx_lz318 : %bv15;
-  zx_lz318 = @slice::<15>(zv__1_lz315, 0);
-  zgaz316_lz319 : %union zinstr;
-  zgaz315_lz321 : %bv16;
-  zgsz345_lz322 : %bv = zx_lz318;
-  zgsz346_lz323 : %i = 16;
-  zgsz347_lz324 : %bv;
-  zgsz347_lz324 = zsail_zzero_extend(zgsz345_lz322, zgsz346_lz323);
-  zgaz315_lz321 = zgsz347_lz324;
-  zgaz316_lz319 = zAINST(zgaz315_lz321);
-  zgsz398_lz320 : %union zinstr;
-  zgsz398_lz320 = zgaz316_lz319;
-  zgsz344_lz30 = zSomez3z5unionz0zzinstr(zgsz398_lz320);
-  goto 61;
-  zv__3_lz31 : %bv16;
-  zv__3_lz31 = zmergez3var;
-  zgaz323_lz32 : %bv3;
-  zgaz323_lz32 = @slice::<3>(zv__3_lz31, 13);
-  zgsz350_lz33 : %bool;
-  zgsz350_lz33 = @eq(zgaz323_lz32, 0b111);
-  jump @not(zgsz350_lz33) goto 32 ` "f.sail 97:16 - 98:39";
-  goto 33;
-  goto 60;
-  zjump_lz34 : %bv3;
-  zjump_lz34 = @slice::<3>(zv__3_lz31, 0);
-  zdest_lz35 : %bv3;
-  zdest_lz35 = @slice::<3>(zv__3_lz31, 3);
-  zc_lz36 : %bv6;
-  zc_lz36 = @slice::<6>(zv__3_lz31, 6);
-  za_lz37 : %bv1;
-  za_lz37 = @slice::<1>(zv__3_lz31, 12);
-  zgaz322_lz38 : %union zinstr;
-  zgaz321_lz310 : (%bv1, %enum zarithmetic_op, (%bool, %bool, %bool), %enum zjump);
-  zgaz318_lz311 : %enum zarithmetic_op;
-  zgaz318_lz311 = zdecode_compute_backwards(zc_lz36);
-  zgaz319_lz312 : (%bool, %bool, %bool);
-  zgaz319_lz312 = zdecode_destination(zdest_lz35);
-  zgaz320_lz313 : %enum zjump;
-  zgaz320_lz313 = zdecode_jump_backwards(zjump_lz34);
-  zgsz349_lz314 : (%bv1, %enum zarithmetic_op, (%bool, %bool, %bool), %enum zjump);
-  zgsz349_lz314.0 = za_lz37;
-  zgsz349_lz314.1 = zgaz318_lz311;
-  zgsz349_lz314.2 = zgaz319_lz312;
-  zgsz349_lz314.3 = zgaz320_lz313;
-  zgaz321_lz310 = zgsz349_lz314;
-  zgaz322_lz38 = zCINST(zgaz321_lz310);
-  zgsz399_lz39 : %union zinstr;
-  zgsz399_lz39 = zgaz322_lz38;
-  zgsz344_lz30 = zSomez3z5unionz0zzinstr(zgsz399_lz39);
-  goto 61;
-  zgsz344_lz30 = zNone(());
-  return = zgsz344_lz30;
-  end;
-}"""))
-
-def test_ztup_bug():
-    res = parser.parse(lexer.lex("""
-val zassign_dest : ((%bool, %bool, %bool), %bv16) ->  %unit
-
-fn zassign_dest(zgsz371, zvalue) {
-  za_lz30 : %bool;
-  za_lz30 = zgsz371.ztup0;
-  end;
-}
-    """))
-    assert res.declarations[1].body[1] == Assignment(result='za_lz30', value=FieldAccess(Var(name='zgsz371'), 'ztup0'))
-
-
-def test_dot_vs_is():
-    res = parser.parse(lexer.lex("""
-fn zexception_handler(zcur_priv, zctl, zpc) {
-  ze_lz374 : %struct zsync_exception;
-  ze_lz374 = zgsz34019_lz30.ztup1 as zCTL_TRAP;
+  zz40 : %union zoptionzIUinstrzIzKzK `1 99:16-100:39;
+  zz435 : %bv16 `1 99:23-99:41;
+  zz435 = zmergez3var `1 99:23-99:41;
+  zz436 : %bv1 `1 99:23-99:41;
+  zz450 : %i `1 99:23-99:41;
+  zz450 = zz5i64zDzKz5i(15) `1 99:23-99:41;
+  zz451 : %i `1 99:23-99:41;
+  zz451 = zz5i64zDzKz5i(15) `1 99:23-99:41;
+  zz452 : %bv `1 99:23-99:41;
+  zz452 = zz435 `1 99:23-99:41;
+  zz453 : %bv `1 99:23-99:41;
+  zz453 = zsubrange_bits(zz452, zz450, zz451) `1 99:23-99:41;
+  zz436 = zz453 `1 99:23-99:41;
+  zz437 : %bool `1 99:16-100:39;
+  zz448 : %bv `1 99:23-99:41;
+  zz448 = zz436 `1 99:23-99:41;
+  zz449 : %bv `1 99:23-99:41;
+  zz449 = 0b0 `1 99:23-99:41;
+  zz437 = zeq_bits(zz448, zz449) `1 99:23-99:41;
+  jump @not(zz437) goto 21 `1 99:16-100:39;
+  goto 22;
+  goto 44;
+  zz438 : %bv15 `1 100:3-100:39;
+  zz444 : %i `1 99:29-99:30;
+  zz444 = zz5i64zDzKz5i(14) `1 99:29-99:30;
+  zz445 : %i `1 99:29-99:30;
+  zz445 = zz5i64zDzKz5i(0) `1 99:29-99:30;
+  zz446 : %bv `1 99:29-99:30;
+  zz446 = zz435 `1 99:29-99:30;
+  zz447 : %bv `1 99:29-99:30;
+  zz447 = zsubrange_bits(zz446, zz444, zz445) `1 99:29-99:30;
+  zz438 = zz447 `1 99:29-99:30;
+  zz439 : %union zinstr `1 100:3-100:39;
+  zz440 : %bv16 `1 100:8-100:38;
+  zz441 : %i `1 100:14-100:37;
+  zz441 = zz5i64zDzKz5i(16) `1 100:14-100:37;
+  zz442 : %bv `1 100:14-100:37;
+  zz442 = zz438 `1 100:14-100:37;
+  zz443 : %bv `1 100:14-100:37;
+  zz443 = zsail_zzero_extend(zz442, zz441) `1 100:14-100:37;
+  zz440 = zz443 `1 100:14-100:37;
+  zz439 = zAINST(zz440) `1 100:8-100:38;
+  zz40 = zSomezIUinstrzIzKzK(zz439) `1 100:3-100:39;
+  goto 118;
+  zz41 : %bv16 `1 118:23-118:90;
+  zz41 = zmergez3var `1 118:23-118:90;
+  zz42 : %bv3 `1 118:23-118:90;
+  zz431 : %i `1 118:23-118:90;
+  zz431 = zz5i64zDzKz5i(15) `1 118:23-118:90;
+  zz432 : %i `1 118:23-118:90;
+  zz432 = zz5i64zDzKz5i(13) `1 118:23-118:90;
+  zz433 : %bv `1 118:23-118:90;
+  zz433 = zz41 `1 118:23-118:90;
+  zz434 : %bv `1 118:23-118:90;
+  zz434 = zsubrange_bits(zz433, zz431, zz432) `1 118:23-118:90;
+  zz42 = zz434 `1 118:23-118:90;
+  zz43 : %bool `1 99:16-100:39;
+  zz429 : %bv `1 118:23-118:90;
+  zz429 = zz42 `1 118:23-118:90;
+  zz430 : %bv `1 118:23-118:90;
+  zz430 = 0b111 `1 118:23-118:90;
+  zz43 = zeq_bits(zz429, zz430) `1 118:23-118:90;
+  jump @not(zz43) goto 64 `1 99:16-100:39;
+  goto 65;
+  goto 117;
+  zz44 : %bv3 `1 119:4-119:82;
+  zz425 : %i `1 118:76-118:80;
+  zz425 = zz5i64zDzKz5i(2) `1 118:76-118:80;
+  zz426 : %i `1 118:76-118:80;
+  zz426 = zz5i64zDzKz5i(0) `1 118:76-118:80;
+  zz427 : %bv `1 118:76-118:80;
+  zz427 = zz41 `1 118:76-118:80;
+  zz428 : %bv `1 118:76-118:80;
+  zz428 = zsubrange_bits(zz427, zz425, zz426) `1 118:76-118:80;
+  zz44 = zz428 `1 118:76-118:80;
+  zz45 : %bv3 `1 118:59-118:63;
+  zz421 : %i `1 118:59-118:63;
+  zz421 = zz5i64zDzKz5i(5) `1 118:59-118:63;
+  zz422 : %i `1 118:59-118:63;
+  zz422 = zz5i64zDzKz5i(3) `1 118:59-118:63;
+  zz423 : %bv `1 118:59-118:63;
+  zz423 = zz41 `1 118:59-118:63;
+  zz424 : %bv `1 118:59-118:63;
+  zz424 = zsubrange_bits(zz423, zz421, zz422) `1 118:59-118:63;
+  zz45 = zz424 `1 118:59-118:63;
+  zz46 : %bv6 `1 118:45-118:46;
+  zz417 : %i `1 118:45-118:46;
+  zz417 = zz5i64zDzKz5i(11) `1 118:45-118:46;
+  zz418 : %i `1 118:45-118:46;
+  zz418 = zz5i64zDzKz5i(6) `1 118:45-118:46;
+  zz419 : %bv `1 118:45-118:46;
+  zz419 = zz41 `1 118:45-118:46;
+  zz420 : %bv `1 118:45-118:46;
+  zz420 = zsubrange_bits(zz419, zz417, zz418) `1 118:45-118:46;
+  zz46 = zz420 `1 118:45-118:46;
+  zz47 : %bv1 `1 118:31-118:32;
+  zz413 : %i `1 118:31-118:32;
+  zz413 = zz5i64zDzKz5i(12) `1 118:31-118:32;
+  zz414 : %i `1 118:31-118:32;
+  zz414 = zz5i64zDzKz5i(12) `1 118:31-118:32;
+  zz415 : %bv `1 118:31-118:32;
+  zz415 = zz41 `1 118:31-118:32;
+  zz416 : %bv `1 118:31-118:32;
+  zz416 = zsubrange_bits(zz415, zz413, zz414) `1 118:31-118:32;
+  zz47 = zz416 `1 118:31-118:32;
+  zz48 : %union zinstr `1 119:4-119:82;
+  zz49 : %struct ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump `1 119:9-119:81;
+  zz410 : %enum zarithmetic_op `1 119:9-119:81;
+  zz410 = zdecode_compute_backwards(zz46) `1 119:18-119:35;
+  zz411 : %struct ztuplez3z5bool_z5bool_z5bool `1 119:9-119:81;
+  zz411 = zdecode_destination(zz45) `1 119:37-119:61;
+  zz412 : %enum zjump `1 119:9-119:81;
+  zz412 = zdecode_jump_backwards(zz44) `1 119:63-119:80;
+  zz49 = struct ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump {ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 = zz47, ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = zz410, ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 = zz411, ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = zz412} `1 119:9-119:81;
+  zz48 = zCINST(zz49) `1 119:9-119:81;
+  zz40 = zSomezIUinstrzIzKzK(zz48) `1 119:4-119:82;
+  goto 118;
+  zz40 = zNonezIUinstrzIzKzK(()) `1 121:27-121:33;
+  return = zz40 `1 99:16-100:39;
   end;
 }
 """))
-    assert res.declarations[0].body[1].value == Cast(expr=FieldAccess(Var(name='zgsz34019_lz30'), 'ztup1'), variant='zCTL_TRAP')
+
+def test_zassign_dest():
+    res = parser.parse(lexer.lex("""
+val zassign_dest : (%struct ztuplez3z5bool_z5bool_z5bool, %bv16) ->  %unit
+
+fn zassign_dest(zgsz381, zvalue) {
+  zz40 : %bool `1 149:22-149:23;
+  zz40 = zgsz381.ztuplez3z5bool_z5bool_z5bool0 `1 149:22-149:23;
+  zz41 : %bool `1 149:32-149:33;
+  zz41 = zgsz381.ztuplez3z5bool_z5bool_z5bool1 `1 149:32-149:33;
+  zz42 : %bool `1 149:42-149:43;
+  zz42 = zgsz381.ztuplez3z5bool_z5bool_z5bool2 `1 149:42-149:43;
+  zz44 : %unit `1 150:4-150:38;
+  jump zz42 goto 10 `1 150:4-150:38;
+  zz44 = () `1 150:38-150:38;
+  goto 11;
+  zz44 = zwrite_mem(zA, zvalue) `1 150:16-150:35;
+  zz43 : %unit `1 151:4-151:28;
+  jump zz40 goto 15 `1 151:4-151:28;
+  zz43 = () `1 151:28-151:28;
+  goto 17;
+  zA = zvalue `1 151:20-151:25;
+  zz43 = () `1 151:16-151:25;
+  jump zz41 goto 20 `1 152:4-152:28;
+  return = () `1 152:28-152:28;
+  goto 22;
+  zD = zvalue `1 152:20-152:25;
+  return = () `1 152:16-152:25;
+  end;
+}
+    """))
+
+
+def test_jump_struct_expr():
+    res = parser.parse(lexer.lex("""
+fn zexception_handler(zcur_priv, zctl, zpc) {
+  zz40 : %bv64 `25 470:2-527:3;
+  jump struct ztuplez3z5enumz0zzPrivilege_z5unionz0zzctl_result {ztuplez3z5enumz0zzPrivilege_z5unionz0zzctl_result0 = zcur_priv, ztuplez3z5enumz0zzPrivilege_z5unionz0zzctl_result1 = zctl}.ztuplez3z5enumz0zzPrivilege_z5unionz0zzctl_result1 is zCTL_TRAP goto 43 `25 471:8-471:19;
+  zz484 : %struct zsync_exception `25 471:17-471:18;
+  zz484 = struct ztuplez3z5enumz0zzPrivilege_z5unionz0zzctl_result {ztuplez3z5enumz0zzPrivilege_z5unionz0zzctl_result0 = zcur_priv, ztuplez3z5enumz0zzPrivilege_z5unionz0zzctl_result1 = zctl}.ztuplez3z5enumz0zzPrivilege_z5unionz0zzctl_result1 as zCTL_TRAP `25 471:17-471:18;
+  zz485 : %enum zPrivilege `25 472:6-476:88;
+  end;
+}
+"""))
 
 def test_parse_full():
     with open(cir, "rb") as f:

@@ -1,6 +1,6 @@
-from rpython.rlib import objectmodel
+from rpython.rlib import objectmodel, unroll
 from rpython.rlib.rbigint import rbigint
-from rpython.rlib.rarithmetic import r_uint, intmask
+from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer
 import pydrofoil.softfloat as softfloat
@@ -15,6 +15,30 @@ def make_dummy(name):
         return 123
     dummy.func_name += name
     globals()[name] = dummy
+
+all_unwraps = {}
+
+def unwrap(spec):
+    argspecs = tuple(spec.split())
+    it = unroll.unrolling_iterable(enumerate(argspecs))
+    def wrap(func):
+        def wrappedfunc(machine, *args):
+            newargs = ()
+            for i, spec in it:
+                arg = args[i]
+                if spec == "o":
+                    newargs += (arg, )
+                elif spec == "i":
+                    newargs += (arg.toint(), )
+                else:
+                    assert 0, "unknown spec"
+            return func(machine, *newargs)
+        unwrapped_name = func.func_name + "_" + "_".join(argspecs)
+        globals()[unwrapped_name] = func
+        wrappedfunc.func_name += "_" + func.func_name
+        all_unwraps[func.func_name] = (argspecs, unwrapped_name)
+        return wrappedfunc
+    return wrap
 
 # unimplemented
 
@@ -31,7 +55,6 @@ make_dummy('string_drop')
 make_dummy('string_take')
 make_dummy('string_startswith')
 make_dummy('string_length')
-make_dummy('sub_bits')
 make_dummy('sub_nat')
 make_dummy('tmod_int')
 make_dummy('zeros')
@@ -44,10 +67,15 @@ def raise_type_error():
 
 # bit vectors
 
-def zero_extend(machine, a, b):
-    return a
+@objectmodel.always_inline
+def _mask(width, val):
+    if width == 64:
+        return val
+    assert width < 64
+    mask = (r_uint(1) << width) - 1
+    return val & mask
 
-def fast_signed(machine, op, n):
+def signed_bv(machine, op, n):
     if n == 64:
         return intmask(op)
     assert n > 0
@@ -57,43 +85,112 @@ def fast_signed(machine, op, n):
     return intmask((op ^ m) - m)
 
 @objectmodel.always_inline
+def unsigned_bv_wrapped_res(machine, op, n):
+    return bitvector.Integer.from_ruint(op)
+
+@objectmodel.always_inline
+def unsigned_bv(machine, op, n):
+    if n == 64 and (op & (r_uint(1) << 63)):
+        raise ValueError
+    return intmask(op)
+
+@objectmodel.always_inline
 def add_bits_int(machine, a, b):
     return a.add_int(b)
+
+@objectmodel.always_inline
+def add_bits_int_bv_i(machine, a, width, b):
+    if b >= 0:
+        return _mask(width, a + r_uint(b))
+    return _add_bits_int_bv_i_slow(a, width, b)
+
+def _add_bits_int_bv_i_slow(a, width, b):
+    return bitvector.from_ruint(width, a).add_int(bitvector.SmallInteger.fromint(b))
+
+@objectmodel.always_inline
+def add_bits(machine, a, b):
+    return a.add_bits(b)
+
+def add_bits_bv_bv(machine, a, b, width):
+    return _mask(width, a + b)
 
 def sub_bits_int(machine, a, b):
     return a.sub_int(b)
 
+@objectmodel.always_inline
+def sub_bits(machine, a, b):
+    return a.sub_bits(b)
+
+def sub_bits_bv_bv(machine, a, b, width):
+    return _mask(width, a - b)
+
 def length(machine, gbv):
     return gbv.size_as_int()
 
-def sign_extend(machine, gbv, lint):
-    size = lint.toint()
+@unwrap("o i")
+@objectmodel.always_inline
+def sign_extend(machine, gbv, size):
     return gbv.sign_extend(size)
+
+@unwrap("o i")
+@objectmodel.always_inline
+def zero_extend(machine, gbv, size):
+    return gbv.zero_extend(size)
+
+@objectmodel.always_inline
+def zero_extend_bv_i_i(machine, bv, width, targetwidth):
+    return bv # XXX correct?
 
 def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)
 
+def eq_bits_bv_bv(machine, bva, bvb):
+    return bva == bvb
+
+def neq_bits(machine, gvba, gvbb):
+    return not gvba.eq(gvbb)
+
+def neq_bits_bv_bv(machine, bva, bvb):
+    return bva != bvb
+
 def xor_bits(machine, gvba, gvbb):
     return gvba.xor(gvbb)
+
+def xor_vec_bv_bv(machine, bva, bvb):
+    return bva ^ bvb
 
 def and_bits(machine, gvba, gvbb):
     return gvba.and_(gvbb)
 
+def and_vec_bv_bv(machine, bva, bvb):
+    return bva & bvb
+
 def or_bits(machine, gvba, gvbb):
     return gvba.or_(gvbb)
 
+def or_vec_bv_bv(machine, bva, bvb):
+    return bva | bvb
+
 def not_bits(machine, gvba):
     return gvba.invert()
+
+def not_vec_bv(machine, bva, width):
+    return _mask(width, ~bva)
 
 def print_bits(machine, s, b):
     print s + b.string_of_bits()
     return ()
 
+@unwrap("o i")
 def shiftl(machine, gbv, i):
-    return gbv.lshift(i.toint())
+    return gbv.lshift(i)
 
+def shiftl_bv_i(machine, a, width, i):
+    return _mask(width, a << i)
+
+@unwrap("o i")
 def shiftr(machine, gbv, i):
-    return gbv.rshift(i.toint())
+    return gbv.rshift(i)
 
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)
@@ -107,27 +204,49 @@ def sail_unsigned(machine, gbv):
 def sail_signed(machine, gbv):
     return gbv.signed()
 
+def append(machine, bv1, bv2):
+    return bv1.append(bv2)
+
+def bitvector_concat_bv_bv(machine, bv1, width, bv2):
+    return (bv1 << width) | bv2
+
 def append_64(machine, bv, v):
     return bv.append_64(v)
 
+@unwrap("o i o")
 def vector_update(machine, bv, index, element):
-    return bv.update_bit(index.toint(), element)
+    return bv.update_bit(index, element)
 
+@unwrap("o i")
 def vector_access(machine, bv, index):
-    return bv.read_bit(index.toint())
+    return bv.read_bit(index)
 
-def update_fbits(fb, index, element):
+def vector_access_bv_i(machine, bv, index):
+    if index == 0:
+        return bv & r_uint(1)
+    return r_uint(1) & safe_rshift(None, bv, r_uint(index))
+
+def update_fbits(machine, fb, index, element):
     assert 0 <= index < 64
     if element:
         return fb | (r_uint(1) << index)
     else:
         return fb & ~(r_uint(1) << index)
 
+@unwrap("o i i o")
 def vector_update_subrange(machine, bv, n, m, s):
-    return bv.update_subrange(n.toint(), m.toint(), s)
+    return bv.update_subrange(n, m, s)
 
+@unwrap("o i i")
+@objectmodel.always_inline
 def vector_subrange(machine, bv, n, m):
-    return bv.subrange(n.toint(), m.toint())
+    return bv.subrange(n, m)
+
+@objectmodel.always_inline
+def slice_fixed_bv_i_i(machine, v, n, m):
+    res = safe_rshift(None, v, m)
+    width = n - m + 1
+    return _mask(width, res)
 
 def string_of_bits(machine, gbv):
     return gbv.string_of_bits()
@@ -141,6 +260,9 @@ def decimal_string_of_bits(machine, sbits):
 def eq_int(machine, a, b):
     assert isinstance(a, Integer)
     return a.eq(b)
+
+def eq_int_i_i(machine, a, b):
+    return a == b
 
 def eq_bit(machine, a, b):
     return a == b
@@ -160,8 +282,14 @@ def gteq(machine, ia, ib):
 def add_int(machine, ia, ib):
     return ia.add(ib)
 
+def add_i_i_wrapped_res(machine, a, b):
+    return bitvector.SmallInteger.add_i_i(a, b)
+
 def sub_int(machine, ia, ib):
     return ia.sub(ib)
+
+def sub_i_i_wrapped_res(machine, a, b):
+    return bitvector.SmallInteger.sub_i_i(a, b)
 
 def mult_int(machine, ia, ib):
     return ia.mul(ib)
@@ -172,9 +300,8 @@ def tdiv_int(machine, ia, ib):
 def tmod_int(machine, ia, ib):
     return ia.tmod(ib)
 
-def emod_int(machine, ia, ib):
-    a = ia.toint()
-    b = ib.toint()
+@unwrap("i i")
+def emod_int(machine, a, b):
     if a < 0 or b < 0:
         print "emod_int with negative args not implemented yet", a, b
         raise ValueError # risc-v only needs the positive small case
@@ -190,8 +317,9 @@ def min_int(machine, ia, ib):
         return ia
     return ib
 
+@unwrap("i o i")
 def get_slice_int(machine, len, n, start):
-    return n.slice(len.toint(), start.toint())
+    return n.slice(len, start)
 
 def safe_rshift(machine, n, shift):
     assert shift >= 0
@@ -212,6 +340,21 @@ def eq_bool(machine, a, b):
 def string_of_int(machine, r):
     return r.str()
 
+@objectmodel.specialize.arg_or_var(1)
+def int_to_int64(machine, r):
+    if objectmodel.is_annotation_constant(r):
+        return _int_to_int64_memo(r)
+    return r.toint()
+
+@objectmodel.specialize.memo()
+def _int_to_int64_memo(r):
+    return r.toint()
+
+def int64_to_int(machine, i):
+    return Integer.fromint(i)
+
+def string_to_int(machine, s):
+    return Integer.fromstr(s)
 
 # various
 

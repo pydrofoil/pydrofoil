@@ -1,4 +1,4 @@
-from rpython.rlib import objectmodel
+from rpython.rlib import objectmodel, unroll
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pydrofoil import bitvector
@@ -15,6 +15,30 @@ def make_dummy(name):
         return 123
     dummy.func_name += name
     globals()[name] = dummy
+
+all_unwraps = {}
+
+def unwrap(spec):
+    argspecs = tuple(spec.split())
+    it = unroll.unrolling_iterable(enumerate(argspecs))
+    def wrap(func):
+        def wrappedfunc(machine, *args):
+            newargs = ()
+            for i, spec in it:
+                arg = args[i]
+                if spec == "o":
+                    newargs += (arg, )
+                elif spec == "i":
+                    newargs += (arg.toint(), )
+                else:
+                    assert 0, "unknown spec"
+            return func(machine, *newargs)
+        unwrapped_name = func.func_name + "_" + "_".join(argspecs)
+        globals()[unwrapped_name] = func
+        wrappedfunc.func_name += "_" + func.func_name
+        all_unwraps[func.func_name] = (argspecs, unwrapped_name)
+        return wrappedfunc
+    return wrap
 
 # unimplemented
 
@@ -103,14 +127,14 @@ def sub_bits_bv_bv(machine, a, b, width):
 def length(machine, gbv):
     return gbv.size_as_int()
 
+@unwrap("o i")
 @objectmodel.always_inline
-def sign_extend(machine, gbv, lint):
-    size = lint.toint()
+def sign_extend(machine, gbv, size):
     return gbv.sign_extend(size)
 
+@unwrap("o i")
 @objectmodel.always_inline
-def zero_extend(machine, gbv, lint):
-    size = lint.toint()
+def zero_extend(machine, gbv, size):
     return gbv.zero_extend(size)
 
 @objectmodel.always_inline
@@ -157,14 +181,16 @@ def print_bits(machine, s, b):
     print s + b.string_of_bits()
     return ()
 
+@unwrap("o i")
 def shiftl(machine, gbv, i):
-    return gbv.lshift(i.toint())
+    return gbv.lshift(i)
 
-def shiftl_bv_i(a, width, i):
+def shiftl_bv_i(machine, a, width, i):
     return _mask(width, a << i)
 
+@unwrap("o i")
 def shiftr(machine, gbv, i):
-    return gbv.rshift(i.toint())
+    return gbv.rshift(i)
 
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)
@@ -181,17 +207,19 @@ def sail_signed(machine, gbv):
 def append(machine, bv1, bv2):
     return bv1.append(bv2)
 
-def bitvector_concat_bv_bv(bv1, width, bv2):
+def bitvector_concat_bv_bv(machine, bv1, width, bv2):
     return (bv1 << width) | bv2
 
 def append_64(machine, bv, v):
     return bv.append_64(v)
 
+@unwrap("o i o")
 def vector_update(machine, bv, index, element):
-    return bv.update_bit(index.toint(), element)
+    return bv.update_bit(index, element)
 
+@unwrap("o i")
 def vector_access(machine, bv, index):
-    return bv.read_bit(index.toint())
+    return bv.read_bit(index)
 
 def vector_access_bv_i(machine, bv, index):
     if index == 0:
@@ -205,15 +233,14 @@ def update_fbits(machine, fb, index, element):
     else:
         return fb & ~(r_uint(1) << index)
 
+@unwrap("o i i o")
 def vector_update_subrange(machine, bv, n, m, s):
-    return bv.update_subrange(n.toint(), m.toint(), s)
-
-def vector_update_subrange_o_i_i_o(bv, n, m, s):
     return bv.update_subrange(n, m, s)
 
+@unwrap("o i i")
 @objectmodel.always_inline
 def vector_subrange(machine, bv, n, m):
-    return bv.subrange(n.toint(), m.toint())
+    return bv.subrange(n, m)
 
 @objectmodel.always_inline
 def slice_fixed_bv_i_i(machine, v, n, m):
@@ -273,9 +300,8 @@ def tdiv_int(machine, ia, ib):
 def tmod_int(machine, ia, ib):
     return ia.tmod(ib)
 
-def emod_int(machine, ia, ib):
-    a = ia.toint()
-    b = ib.toint()
+@unwrap("i i")
+def emod_int(machine, a, b):
     if a < 0 or b < 0:
         print "emod_int with negative args not implemented yet", a, b
         raise ValueError # risc-v only needs the positive small case
@@ -291,8 +317,9 @@ def min_int(machine, ia, ib):
         return ia
     return ib
 
+@unwrap("i o i")
 def get_slice_int(machine, len, n, start):
-    return n.slice(len.toint(), start.toint())
+    return n.slice(len, start)
 
 def safe_rshift(machine, n, shift):
     assert shift >= 0

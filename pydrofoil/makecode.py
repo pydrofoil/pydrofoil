@@ -406,7 +406,9 @@ class __extend__(parse.Register):
 
 class __extend__(parse.Function):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks
+        from pydrofoil.optimize import optimize_blocks, CollectSourceVisitor
+        #vbefore = CollectSourceVisitor()
+        #vbefore.visit(self)
         pyname = "func_" + self.name
         if codegen.globalnames[self.name].pyname is not None:
             print "duplicate!", self.name, codegen.globalnames[self.name].pyname
@@ -419,6 +421,12 @@ class __extend__(parse.Function):
         predefined = {arg: typ.argtype.elements[i] for i, arg in enumerate(self.args)}
         predefined["return"] = typ.restype
         optimize_blocks(blocks, codegen, predefined)
+        #vafter = CollectSourceVisitor()
+        #for pc, block in blocks.iteritems():
+        #    for op in block:
+        #        vafter.visit(op)
+        #if vafter.seen != vbefore.seen:
+        #    import pdb; pdb.set_trace()
         if inlinable:
             codegen.inlinable_functions[self.name] = self, blocks
         entrycounts = self._compute_entrycounts(blocks)

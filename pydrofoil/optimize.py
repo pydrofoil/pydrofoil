@@ -94,6 +94,7 @@ def find_decl_defs_uses(blocks, predefined=None):
                 decls[op.name] = (block, i)
     return decls, defs, uses
 
+
 def inline(blocks, inlinable_functions):
     for num, block in blocks.iteritems():
         index = 0
@@ -142,6 +143,40 @@ class NoMatchException(Exception):
     pass
 
 
+class CollectSourceVisitor(parse.Visitor):
+    def __init__(self):
+        self.seen = set()
+
+    def default_visit(self, ast):
+        sourcepos = getattr(ast, "sourcepos", None)
+        sourcepos = self._parse(sourcepos)
+        if sourcepos:
+            self.seen.add(sourcepos)
+        for key, value in ast.__dict__.items():
+            if isinstance(value, parse.BaseAst):
+                self.visit(value)
+            elif (
+                isinstance(value, list)
+                and value
+                and isinstance(value[0], parse.BaseAst)
+            ):
+                for i, item in enumerate(value):
+                    self.visit(item)
+
+    def _parse(self, sourcepos):
+        if sourcepos is None:
+            return None
+        sourcepos = sourcepos.lstrip("`")
+        l = sourcepos.split(" ", 1)
+        if len(l) == 1:
+            return None
+        filenum, rest = l
+        from_, to = rest.split("-", 1)
+        fromline, frompos = from_.split(":", 1)
+        toline, topos = to.split(":", 1)
+        return int(filenum), int(fromline), int(frompos), int(toline), int(topos)
+
+
 class OptVisitor(parse.Visitor):
     def __init__(self, codegen):
         self.codegen = codegen
@@ -174,7 +209,10 @@ class OptVisitor(parse.Visitor):
                 else:
                     assert 0, "unknown spec"
             return parse.OperationExpr(
-                "@" + unwrapped_name, newargs, expr.resolved_type
+                "@" + unwrapped_name,
+                newargs,
+                expr.resolved_type,
+                expr.sourcepos,
             )
         meth = getattr(self, "optimize_%s" % name.lstrip("@"), None)
         if not meth:
@@ -196,7 +234,10 @@ class OptVisitor(parse.Visitor):
         if operation.name == "$zinternal_vector_update":
             return
         expr = parse.OperationExpr(
-            operation.name, operation.args, operation.resolved_type
+            operation.name,
+            operation.args,
+            operation.resolved_type,
+            operation.sourcepos,
         )
         return parse.Assignment(
             operation.result,
@@ -265,6 +306,7 @@ class OptVisitor(parse.Visitor):
                 "@slice_fixed_bv_i_i",
                 [arg0, arg1, arg2],
                 types.SmallFixedBitVector(width),
+                expr.sourcepos,
             ),
             expr.resolved_type,
         )
@@ -275,7 +317,10 @@ class OptVisitor(parse.Visitor):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
-            "@vector_access_bv_i", [arg0, arg1], expr.resolved_type
+            "@vector_access_bv_i",
+            [arg0, arg1],
+            expr.resolved_type,
+            expr.sourcepos,
         )
 
     def optimize_eq_bits(self, expr):
@@ -284,7 +329,9 @@ class OptVisitor(parse.Visitor):
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
         if typ0 is not typ1:
             return
-        res = parse.OperationExpr("@eq_bits_bv_bv", [arg0, arg1], expr.resolved_type)
+        res = parse.OperationExpr(
+            "@eq_bits_bv_bv", [arg0, arg1], expr.resolved_type, expr.sourcepos
+        )
         return res
 
     def optimize_neq_bits(self, expr):
@@ -293,7 +340,9 @@ class OptVisitor(parse.Visitor):
         arg1, typ1 = self._extract_smallfixedbitvector(arg1)
         if typ0 is not typ1:
             return
-        res = parse.OperationExpr("@neq_bits_bv_bv", [arg0, arg1], expr.resolved_type)
+        res = parse.OperationExpr(
+            "@neq_bits_bv_bv", [arg0, arg1], expr.resolved_type, expr.sourcepos
+        )
         return res
 
     def optimize_append(self, expr):
@@ -308,6 +357,7 @@ class OptVisitor(parse.Visitor):
                 "@bitvector_concat_bv_bv",
                 [arg0, parse.Number(typ1.width), arg1],
                 types.SmallFixedBitVector(reswidth),
+                expr.sourcepos,
             ),
             expr.resolved_type,
         )
@@ -317,7 +367,9 @@ class OptVisitor(parse.Visitor):
         arg0, arg1 = expr.args
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
-        return parse.OperationExpr("@eq_int_i_i", [arg0, arg1], expr.resolved_type)
+        return parse.OperationExpr(
+            "@eq_int_i_i", [arg0, arg1], expr.resolved_type, expr.sourcepos
+        )
 
     def optimize_int64_to_int(self, expr):
         (arg0,) = expr.args
@@ -336,7 +388,9 @@ class OptVisitor(parse.Visitor):
         if self._builtinname(arg0.name) == "int64_to_int":
             return arg0.args[0]
         if arg0.name == "@unsigned_bv_wrapped_res":
-            return parse.OperationExpr("@unsigned_bv", arg0.args, expr.resolved_type)
+            return parse.OperationExpr(
+                "@unsigned_bv", arg0.args, expr.resolved_type, expr.sourcepos
+            )
         return None
 
     def optimize_xor_bits(self, expr):
@@ -346,7 +400,12 @@ class OptVisitor(parse.Visitor):
         if typ0 is not typ1:
             return
         return parse.CastExpr(
-            parse.OperationExpr("@xor_vec_bv_bv", [arg0, arg1], typ0),
+            parse.OperationExpr(
+                "@xor_vec_bv_bv",
+                [arg0, arg1],
+                typ0,
+                expr.sourcepos,
+            ),
             expr.resolved_type,
         )
 
@@ -357,7 +416,12 @@ class OptVisitor(parse.Visitor):
         if typ0 is not typ1:
             return
         return parse.CastExpr(
-            parse.OperationExpr("@and_vec_bv_bv", [arg0, arg1], typ0),
+            parse.OperationExpr(
+                "@and_vec_bv_bv",
+                [arg0, arg1],
+                typ0,
+                expr.sourcepos,
+            ),
             expr.resolved_type,
         )
 
@@ -368,7 +432,7 @@ class OptVisitor(parse.Visitor):
         if typ0 is not typ1:
             return
         return parse.CastExpr(
-            parse.OperationExpr("@or_vec_bv_bv", [arg0, arg1], typ0),
+            parse.OperationExpr("@or_vec_bv_bv", [arg0, arg1], typ0, expr.sourcepos),
             expr.resolved_type,
         )
 
@@ -377,7 +441,9 @@ class OptVisitor(parse.Visitor):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         return parse.CastExpr(
-            parse.OperationExpr("@not_vec_bv", [arg0, parse.Number(typ0.width)], typ0),
+            parse.OperationExpr(
+                "@not_vec_bv", [arg0, parse.Number(typ0.width)], typ0, expr.sourcepos
+            ),
             expr.resolved_type,
         )
 
@@ -389,7 +455,10 @@ class OptVisitor(parse.Visitor):
             return
         return parse.CastExpr(
             parse.OperationExpr(
-                "@add_bits_bv_bv", [arg0, arg1, parse.Number(typ0.width)], typ0
+                "@add_bits_bv_bv",
+                [arg0, arg1, parse.Number(typ0.width)],
+                typ0,
+                expr.sourcepos,
             ),
             expr.resolved_type,
         )
@@ -402,7 +471,10 @@ class OptVisitor(parse.Visitor):
             return
         return parse.CastExpr(
             parse.OperationExpr(
-                "@sub_bits_bv_bv", [arg0, arg1, parse.Number(typ0.width)], typ0
+                "@sub_bits_bv_bv",
+                [arg0, arg1, parse.Number(typ0.width)],
+                typ0,
+                expr.sourcepos,
             ),
             expr.resolved_type,
         )
@@ -412,7 +484,10 @@ class OptVisitor(parse.Visitor):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         return parse.CastExpr(
             parse.OperationExpr(
-                "@signed_bv", [arg0, parse.Number(typ0.width)], types.MachineInt()
+                "@signed_bv",
+                [arg0, parse.Number(typ0.width)],
+                types.MachineInt(),
+                expr.sourcepos,
             ),
             expr.resolved_type,
         )
@@ -424,6 +499,7 @@ class OptVisitor(parse.Visitor):
             "@unsigned_bv_wrapped_res",
             [arg0, parse.Number(typ0.width)],
             expr.resolved_type,
+            expr.sourcepos,
         )
 
     def optimize_zero_extend_o_i(self, expr):
@@ -437,6 +513,7 @@ class OptVisitor(parse.Visitor):
                 "@zero_extend_bv_i_i",
                 [arg0, parse.Number(typ0.width), arg1],
                 types.SmallFixedBitVector(arg1.number),
+                expr.sourcepos,
             ),
             expr.resolved_type,
         )
@@ -449,6 +526,7 @@ class OptVisitor(parse.Visitor):
             "@add_i_i_wrapped_res",
             [arg0, arg1],
             expr.resolved_type,
+            expr.sourcepos,
         )
 
     def optimize_sub_int(self, expr):
@@ -459,6 +537,7 @@ class OptVisitor(parse.Visitor):
             "@sub_i_i_wrapped_res",
             [arg0, arg1],
             expr.resolved_type,
+            expr.sourcepos,
         )
 
     def optimize_add_bits_int(self, expr):
@@ -471,6 +550,7 @@ class OptVisitor(parse.Visitor):
                 "@add_bits_int_bv_i",
                 [arg0, parse.Number(typ0.width), arg1],
                 typ0,
+                expr.sourcepos,
             ),
             expr.resolved_type,
         )
@@ -485,6 +565,7 @@ class OptVisitor(parse.Visitor):
                 "@shiftl_bv_i",
                 [arg0, parse.Number(typ0.width), arg1],
                 typ0,
+                expr.sourcepos,
             ),
             expr.resolved_type,
         )

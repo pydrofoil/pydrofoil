@@ -458,7 +458,7 @@ def func_zbits1_to_bool(machine, zb):
             # zz40: NamedType('%bool')
             zz40 = False
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zb', resolved_type=SmallFixedBitVector(1)), BitVectorConstant(constant='0b1', resolved_type=SmallFixedBitVector(1))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`1 13:27-16:1', target=11)
-            if not supportcode.eq_bits_bv_bv(zb, r_uint(0b1)):
+            if not supportcode.eq_bits_bv_bv(machine, zb, r_uint(0b1)):
                 # inline pc=11
                 pc = 14
                 continue
@@ -495,7 +495,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             # zz40: EnumType(name='zarithmetic_op')
             zz40 = -1
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b101010', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`3', target=11)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b101010)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b101010)):
                 # inline pc=11
                 pc = 14
                 continue
@@ -506,7 +506,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 14:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b111111', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`5', target=24)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b111111)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b111111)):
                 # inline pc=24
                 pc = 27
                 continue
@@ -517,7 +517,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 27:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b111010', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`7', target=37)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b111010)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b111010)):
                 # inline pc=37
                 pc = 40
                 continue
@@ -528,7 +528,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 40:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b001100', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`9', target=50)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b001100)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b001100)):
                 # inline pc=50
                 pc = 53
                 continue
@@ -539,7 +539,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 53:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b110000', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`11', target=63)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b110000)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b110000)):
                 # inline pc=63
                 pc = 66
                 continue
@@ -550,7 +550,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 66:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b001101', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`13', target=76)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b001101)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b001101)):
                 # inline pc=76
                 pc = 79
                 continue
@@ -561,7 +561,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 79:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b110001', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`15', target=89)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b110001)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b110001)):
                 # inline pc=89
                 pc = 92
                 continue
@@ -572,7 +572,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 92:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b001111', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`17', target=102)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b001111)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b001111)):
                 # inline pc=102
                 pc = 105
                 continue
@@ -583,7 +583,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 105:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b110011', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`19', target=115)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b110011)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b110011)):
                 # inline pc=115
                 pc = 118
                 continue
@@ -594,7 +594,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 118:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b011111', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`21', target=128)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b011111)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b011111)):
                 # inline pc=128
                 pc = 131
                 continue
@@ -605,7 +605,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 131:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b110111', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`23', target=141)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b110111)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b110111)):
                 # inline pc=141
                 pc = 144
                 continue
@@ -616,7 +616,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 144:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b001110', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`25', target=154)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b001110)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b001110)):
                 # inline pc=154
                 pc = 157
                 continue
@@ -627,7 +627,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 157:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b110010', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`27', target=167)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b110010)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b110010)):
                 # inline pc=167
                 pc = 170
                 continue
@@ -638,7 +638,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 170:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b000010', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`29', target=180)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b000010)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b000010)):
                 # inline pc=180
                 pc = 183
                 continue
@@ -649,7 +649,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 183:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b010011', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`31', target=193)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b010011)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b010011)):
                 # inline pc=193
                 pc = 196
                 continue
@@ -660,7 +660,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 196:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b000111', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`33', target=206)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b000111)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b000111)):
                 # inline pc=206
                 pc = 209
                 continue
@@ -671,7 +671,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 209:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b000000', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`35', target=219)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b000000)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b000000)):
                 # inline pc=219
                 pc = 222
                 continue
@@ -682,7 +682,7 @@ def func_zdecode_compute_backwards(machine, zargz3):
             pc = 236
         if pc == 222:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(6)), BitVectorConstant(constant='0b010101', resolved_type=SmallFixedBitVector(6))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`37', target=232)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b010101)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b010101)):
                 # inline pc=232
                 pc = 235
                 continue
@@ -711,7 +711,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             # zz40: EnumType(name='zjump')
             zz40 = -1
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(3)), BitVectorConstant(constant='0b000', resolved_type=SmallFixedBitVector(3))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`42', target=11)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b000)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b000)):
                 # inline pc=11
                 pc = 14
                 continue
@@ -722,7 +722,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             pc = 106
         if pc == 14:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(3)), BitVectorConstant(constant='0b001', resolved_type=SmallFixedBitVector(3))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`44', target=24)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b001)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b001)):
                 # inline pc=24
                 pc = 27
                 continue
@@ -733,7 +733,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             pc = 106
         if pc == 27:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(3)), BitVectorConstant(constant='0b010', resolved_type=SmallFixedBitVector(3))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`46', target=37)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b010)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b010)):
                 # inline pc=37
                 pc = 40
                 continue
@@ -744,7 +744,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             pc = 106
         if pc == 40:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(3)), BitVectorConstant(constant='0b011', resolved_type=SmallFixedBitVector(3))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`48', target=50)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b011)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b011)):
                 # inline pc=50
                 pc = 53
                 continue
@@ -755,7 +755,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             pc = 106
         if pc == 53:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(3)), BitVectorConstant(constant='0b100', resolved_type=SmallFixedBitVector(3))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`50', target=63)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b100)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b100)):
                 # inline pc=63
                 pc = 66
                 continue
@@ -766,7 +766,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             pc = 106
         if pc == 66:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(3)), BitVectorConstant(constant='0b101', resolved_type=SmallFixedBitVector(3))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`52', target=76)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b101)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b101)):
                 # inline pc=76
                 pc = 79
                 continue
@@ -777,7 +777,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             pc = 106
         if pc == 79:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(3)), BitVectorConstant(constant='0b110', resolved_type=SmallFixedBitVector(3))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`54', target=89)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b110)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b110)):
                 # inline pc=89
                 pc = 92
                 continue
@@ -788,7 +788,7 @@ def func_zdecode_jump_backwards(machine, zargz3):
             pc = 106
         if pc == 92:
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[Var(name='zargz3', resolved_type=SmallFixedBitVector(3)), BitVectorConstant(constant='0b111', resolved_type=SmallFixedBitVector(3))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`56', target=102)
-            if not supportcode.eq_bits_bv_bv(zargz3, r_uint(0b111)):
+            if not supportcode.eq_bits_bv_bv(machine, zargz3, r_uint(0b111)):
                 # inline pc=102
                 pc = 105
                 continue
@@ -817,9 +817,9 @@ def func_zdecode_destination(machine, zb):
     zz41 = zb
     # zz42: NamedType('%bv1')
     # Assignment(resolved_type=SmallFixedBitVector(1), result='zz42', sourcepos='`1 112:8-112:9', value=OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(3)), Number(number=2, resolved_type=MachineInt()), Number(number=2, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(1)))
-    zz42 = supportcode.slice_fixed_bv_i_i(zz41, 2, 2)
+    zz42 = supportcode.slice_fixed_bv_i_i(machine, zz41, 2, 2)
     # Assignment(resolved_type=Struct(<ztuplez3z5bool_z5bool_z5bool>), result='return', sourcepos='`1 111:4-113:5', value=StructConstruction(fieldnames=['ztuplez3z5bool_z5bool_z5bool0', 'ztuplez3z5bool_z5bool_z5bool1', 'ztuplez3z5bool_z5bool_z5bool2'], fieldvalues=[OperationExpr(args=[OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(3)), Number(number=2, resolved_type=MachineInt()), Number(number=2, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(1))], name='zbits1_to_bool', resolved_type=Bool()), OperationExpr(args=[OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(3)), Number(number=1, resolved_type=MachineInt()), Number(number=1, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(1))], name='zbits1_to_bool', resolved_type=Bool()), OperationExpr(args=[OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(3)), Number(number=0, resolved_type=MachineInt()), Number(number=0, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(1))], name='zbits1_to_bool', resolved_type=Bool())], name='ztuplez3z5bool_z5bool_z5bool'))
-    return_ = Struct_ztuplez3z5bool_z5bool_z5bool(func_zbits1_to_bool(machine, supportcode.slice_fixed_bv_i_i(zz41, 2, 2)), func_zbits1_to_bool(machine, supportcode.slice_fixed_bv_i_i(zz41, 1, 1)), func_zbits1_to_bool(machine, supportcode.slice_fixed_bv_i_i(zz41, 0, 0)))
+    return_ = Struct_ztuplez3z5bool_z5bool_z5bool(func_zbits1_to_bool(machine, supportcode.slice_fixed_bv_i_i(machine, zz41, 2, 2)), func_zbits1_to_bool(machine, supportcode.slice_fixed_bv_i_i(machine, zz41, 1, 1)), func_zbits1_to_bool(machine, supportcode.slice_fixed_bv_i_i(machine, zz41, 0, 0)))
     # End()
     return return_
 
@@ -836,28 +836,28 @@ def func_zdecode(machine, zmergez3var):
             # Assignment(resolved_type=SmallFixedBitVector(16), result='zz435', sourcepos='`1 99:23-99:41', value=Var(name='zmergez3var', resolved_type=SmallFixedBitVector(16)))
             zz435 = zmergez3var
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz435', resolved_type=SmallFixedBitVector(16)), Number(number=15, resolved_type=MachineInt()), Number(number=15, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(1)), BitVectorConstant(constant='0b0', resolved_type=SmallFixedBitVector(1))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`1 99:16-100:39', target=21)
-            if not supportcode.eq_bits_bv_bv(supportcode.slice_fixed_bv_i_i(zz435, 15, 15), r_uint(0b0)):
+            if not supportcode.eq_bits_bv_bv(machine, supportcode.slice_fixed_bv_i_i(machine, zz435, 15, 15), r_uint(0b0)):
                 # inline pc=21
                 pc = 44
                 continue
             pc = 22
         if pc == 22:
             # Assignment(resolved_type=Union(<zoptionzIUinstrzIzKzK>), result='zz40', sourcepos='`1 100:3-100:39', value=OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz435', resolved_type=SmallFixedBitVector(16)), Number(number=14, resolved_type=MachineInt()), Number(number=0, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(15)), Number(number=15), Number(number=16, resolved_type=MachineInt())], name='@zero_extend_bv_i_i', resolved_type=SmallFixedBitVector(16))], name='zAINST', resolved_type=Union(<zinstr>))], name='zSomezIUinstrzIzKzK', resolved_type=Union(<zoptionzIUinstrzIzKzK>)))
-            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(Union_zinstr_zAINST(supportcode.zero_extend_bv_i_i(supportcode.slice_fixed_bv_i_i(zz435, 14, 0), 15, 16)))
+            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(Union_zinstr_zAINST(supportcode.zero_extend_bv_i_i(machine, supportcode.slice_fixed_bv_i_i(machine, zz435, 14, 0), 15, 16)))
             pc = 118
         if pc == 44:
             # zz41: NamedType('%bv16')
             # Assignment(resolved_type=SmallFixedBitVector(16), result='zz41', sourcepos='`1 118:23-118:90', value=Var(name='zmergez3var', resolved_type=SmallFixedBitVector(16)))
             zz41 = zmergez3var
             # ConditionalJump(condition=Comparison(args=[OperationExpr(args=[OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(16)), Number(number=15, resolved_type=MachineInt()), Number(number=13, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(3)), BitVectorConstant(constant='0b111', resolved_type=SmallFixedBitVector(3))], name='@eq_bits_bv_bv', resolved_type=Bool())], operation='@not'), sourcepos='`1 99:16-100:39', target=64)
-            if not supportcode.eq_bits_bv_bv(supportcode.slice_fixed_bv_i_i(zz41, 15, 13), r_uint(0b111)):
+            if not supportcode.eq_bits_bv_bv(machine, supportcode.slice_fixed_bv_i_i(machine, zz41, 15, 13), r_uint(0b111)):
                 # inline pc=64
                 pc = 117
                 continue
             pc = 65
         if pc == 65:
             # Assignment(resolved_type=Union(<zoptionzIUinstrzIzKzK>), result='zz40', sourcepos='`1 119:4-119:82', value=OperationExpr(args=[OperationExpr(args=[CastExpr(expr=StructConstruction(fieldnames=['ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3'], fieldvalues=[OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(16)), Number(number=12, resolved_type=MachineInt()), Number(number=12, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(1)), OperationExpr(args=[OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(16)), Number(number=11, resolved_type=MachineInt()), Number(number=6, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(6))], name='zdecode_compute_backwards', resolved_type=Enum(<zarithmetic_op>)), OperationExpr(args=[OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(16)), Number(number=5, resolved_type=MachineInt()), Number(number=3, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(3))], name='zdecode_destination', resolved_type=Struct(<ztuplez3z5bool_z5bool_z5bool>)), OperationExpr(args=[OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(16)), Number(number=2, resolved_type=MachineInt()), Number(number=0, resolved_type=MachineInt())], name='@slice_fixed_bv_i_i', resolved_type=SmallFixedBitVector(3))], name='zdecode_jump_backwards', resolved_type=Enum(<zjump>))], name='ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump'), resolved_type=Struct(<ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump>))], name='zCINST', resolved_type=Union(<zinstr>))], name='zSomezIUinstrzIzKzK', resolved_type=Union(<zoptionzIUinstrzIzKzK>)))
-            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(Union_zinstr_zCINST(Struct_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump(supportcode.slice_fixed_bv_i_i(zz41, 12, 12), func_zdecode_compute_backwards(machine, supportcode.slice_fixed_bv_i_i(zz41, 11, 6)), func_zdecode_destination(machine, supportcode.slice_fixed_bv_i_i(zz41, 5, 3)), func_zdecode_jump_backwards(machine, supportcode.slice_fixed_bv_i_i(zz41, 2, 0)))))
+            zz40 = Union_zoptionzIUinstrzIzKzK_zSomezIUinstrzIzKzK(Union_zinstr_zCINST(Struct_ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump(supportcode.slice_fixed_bv_i_i(machine, zz41, 12, 12), func_zdecode_compute_backwards(machine, supportcode.slice_fixed_bv_i_i(machine, zz41, 11, 6)), func_zdecode_destination(machine, supportcode.slice_fixed_bv_i_i(machine, zz41, 5, 3)), func_zdecode_jump_backwards(machine, supportcode.slice_fixed_bv_i_i(machine, zz41, 2, 0)))))
             pc = 118
         if pc == 117:
             # Assignment(resolved_type=Union(<zoptionzIUinstrzIzKzK>), result='zz40', sourcepos='`1 121:27-121:33', value=OperationExpr(args=[Unit(resolved_type=Unit())], name='zNonezIUinstrzIzKzK', resolved_type=Union(<zoptionzIUinstrzIzKzK>)))
@@ -880,7 +880,7 @@ def func_zcompute_value(machine, za, zop):
             # zz40: NamedType('%bv16')
             zz40 = r_uint(0)
             # ConditionalJump(condition=ExprCondition(expr=OperationExpr(args=[Var(name='za', resolved_type=SmallFixedBitVector(1)), BitVectorConstant(constant='0b0', resolved_type=SmallFixedBitVector(1))], name='@eq_bits_bv_bv', resolved_type=Bool())), sourcepos='`1 124:10-124:45', target=10)
-            if supportcode.eq_bits_bv_bv(za, r_uint(0b0)):
+            if supportcode.eq_bits_bv_bv(machine, za, r_uint(0b0)):
                 # inline pc=10
                 # Assignment(resolved_type=SmallFixedBitVector(16), result='zz40', sourcepos='`1 124:27-124:28', value=Var(name='zA', resolved_type=SmallFixedBitVector(16)))
                 zz40 = machine._reg_zA
@@ -999,7 +999,7 @@ def func_zcompute_value(machine, za, zop):
                                                             pc = 144
                                                             continue
                                                         # Assignment(resolved_type=SmallFixedBitVector(16), result='zz43', sourcepos='`1 138:17-138:27', value=OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(16)), BitVectorConstant(constant='0x0001', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@sub_bits_bv_bv', resolved_type=SmallFixedBitVector(16)))
-                                                        zz43 = supportcode.sub_bits_bv_bv(zz41, r_uint(0x0001), 16)
+                                                        zz43 = supportcode.sub_bits_bv_bv(machine, zz41, r_uint(0x0001), 16)
                                                         pc = 144
                                                         continue
                                                     # zz425: NamedType('%bv')
@@ -1010,7 +1010,7 @@ def func_zcompute_value(machine, za, zop):
                                                     pc = 144
                                                     continue
                                                 # Assignment(resolved_type=SmallFixedBitVector(16), result='zz43', sourcepos='`1 136:17-136:27', value=OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(16)), BitVectorConstant(constant='0x0001', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@add_bits_bv_bv', resolved_type=SmallFixedBitVector(16)))
-                                                zz43 = supportcode.add_bits_bv_bv(zz41, r_uint(0x0001), 16)
+                                                zz43 = supportcode.add_bits_bv_bv(machine, zz41, r_uint(0x0001), 16)
                                                 pc = 144
                                                 continue
                                             # zz432: NamedType('%bv')
@@ -1021,7 +1021,7 @@ def func_zcompute_value(machine, za, zop):
                                             pc = 144
                                             continue
                                         # Assignment(resolved_type=SmallFixedBitVector(16), result='zz43', sourcepos='`1 134:15-134:23', value=OperationExpr(args=[BitVectorConstant(constant='0x0000', resolved_type=SmallFixedBitVector(16)), Var(name='zz41', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@sub_bits_bv_bv', resolved_type=SmallFixedBitVector(16)))
-                                        zz43 = supportcode.sub_bits_bv_bv(r_uint(0x0000), zz41, 16)
+                                        zz43 = supportcode.sub_bits_bv_bv(machine, r_uint(0x0000), zz41, 16)
                                         pc = 144
                                         continue
                                     # zz437: NamedType('%bv')
@@ -1032,7 +1032,7 @@ def func_zcompute_value(machine, za, zop):
                                     pc = 144
                                     continue
                                 # Assignment(resolved_type=SmallFixedBitVector(16), result='zz43', sourcepos='`1 132:15-132:25', value=OperationExpr(args=[Var(name='zz41', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@not_vec_bv', resolved_type=SmallFixedBitVector(16)))
-                                zz43 = supportcode.not_vec_bv(zz41, 16)
+                                zz43 = supportcode.not_vec_bv(machine, zz41, 16)
                                 pc = 144
                                 continue
                             # Assignment(resolved_type=SmallFixedBitVector(16), result='zz43', sourcepos='`1 131:11-131:12', value=Var(name='zz40', resolved_type=SmallFixedBitVector(16)))
@@ -1166,27 +1166,27 @@ def func_zmaybe_jump(machine, zvalue, zj):
                                         pc = 87
                                         continue
                                     # Assignment(resolved_type=Bool(), result='zz44', sourcepos='`1 163:15-163:33', value=OperationExpr(args=[CastExpr(expr=OperationExpr(args=[Var(name='zvalue', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@signed_bv', resolved_type=MachineInt()), resolved_type=Int()), OperationExpr(args=[Number(number=0, resolved_type=MachineInt())], name='zz5i64zDzKz5i', resolved_type=Int())], name='zlteq_int', resolved_type=Bool()))
-                                    zz44 = supportcode.lteq(machine, Integer.fromint(supportcode.signed_bv(zvalue, 16)), smallintconst0_1)
+                                    zz44 = supportcode.lteq(machine, Integer.fromint(supportcode.signed_bv(machine, zvalue, 16)), smallintconst0_1)
                                     pc = 87
                                     continue
                                 # Assignment(resolved_type=Bool(), result='zz44', sourcepos='`1 162:15-162:33', value=OperationExpr(args=[OperationExpr(args=[OperationExpr(args=[CastExpr(expr=OperationExpr(args=[Var(name='zvalue', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@signed_bv', resolved_type=MachineInt()), resolved_type=Int())], name='zz5izDzKz5i64', resolved_type=MachineInt()), Number(number=0, resolved_type=MachineInt())], name='@eq_int_i_i', resolved_type=Bool())], name='znot_bool', resolved_type=Bool()))
-                                zz44 = supportcode.not_(machine, supportcode.eq_int_i_i(supportcode.int_to_int64(machine, Integer.fromint(supportcode.signed_bv(zvalue, 16))), 0))
+                                zz44 = supportcode.not_(machine, supportcode.eq_int_i_i(machine, supportcode.int_to_int64(machine, Integer.fromint(supportcode.signed_bv(machine, zvalue, 16))), 0))
                                 pc = 87
                                 continue
                             # Assignment(resolved_type=Bool(), result='zz44', sourcepos='`1 161:15-161:32', value=OperationExpr(args=[CastExpr(expr=OperationExpr(args=[Var(name='zvalue', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@signed_bv', resolved_type=MachineInt()), resolved_type=Int()), OperationExpr(args=[Number(number=0, resolved_type=MachineInt())], name='zz5i64zDzKz5i', resolved_type=Int())], name='zlt_int', resolved_type=Bool()))
-                            zz44 = supportcode.lt(machine, Integer.fromint(supportcode.signed_bv(zvalue, 16)), smallintconst0_1)
+                            zz44 = supportcode.lt(machine, Integer.fromint(supportcode.signed_bv(machine, zvalue, 16)), smallintconst0_1)
                             pc = 87
                             continue
                         # Assignment(resolved_type=Bool(), result='zz44', sourcepos='`1 160:15-160:33', value=OperationExpr(args=[CastExpr(expr=OperationExpr(args=[Var(name='zvalue', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@signed_bv', resolved_type=MachineInt()), resolved_type=Int()), OperationExpr(args=[Number(number=0, resolved_type=MachineInt())], name='zz5i64zDzKz5i', resolved_type=Int())], name='zgteq_int', resolved_type=Bool()))
-                        zz44 = supportcode.gteq(machine, Integer.fromint(supportcode.signed_bv(zvalue, 16)), smallintconst0_1)
+                        zz44 = supportcode.gteq(machine, Integer.fromint(supportcode.signed_bv(machine, zvalue, 16)), smallintconst0_1)
                         pc = 87
                         continue
                     # Assignment(resolved_type=Bool(), result='zz44', sourcepos='`1 159:15-159:33', value=OperationExpr(args=[OperationExpr(args=[CastExpr(expr=OperationExpr(args=[Var(name='zvalue', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@signed_bv', resolved_type=MachineInt()), resolved_type=Int())], name='zz5izDzKz5i64', resolved_type=MachineInt()), Number(number=0, resolved_type=MachineInt())], name='@eq_int_i_i', resolved_type=Bool()))
-                    zz44 = supportcode.eq_int_i_i(supportcode.int_to_int64(machine, Integer.fromint(supportcode.signed_bv(zvalue, 16))), 0)
+                    zz44 = supportcode.eq_int_i_i(machine, supportcode.int_to_int64(machine, Integer.fromint(supportcode.signed_bv(machine, zvalue, 16))), 0)
                     pc = 87
                     continue
                 # Assignment(resolved_type=Bool(), result='zz44', sourcepos='`1 158:15-158:32', value=OperationExpr(args=[CastExpr(expr=OperationExpr(args=[Var(name='zvalue', resolved_type=SmallFixedBitVector(16)), Number(number=16)], name='@signed_bv', resolved_type=MachineInt()), resolved_type=Int()), OperationExpr(args=[Number(number=0, resolved_type=MachineInt())], name='zz5i64zDzKz5i', resolved_type=Int())], name='zgt_int', resolved_type=Bool()))
-                zz44 = supportcode.gt(machine, Integer.fromint(supportcode.signed_bv(zvalue, 16)), smallintconst0_1)
+                zz44 = supportcode.gt(machine, Integer.fromint(supportcode.signed_bv(machine, zvalue, 16)), smallintconst0_1)
                 pc = 87
                 continue
             # Assignment(resolved_type=Bool(), result='zz44', sourcepos='`1 157:15-157:20', value=Var(name='false', resolved_type=Bool()))
@@ -1234,7 +1234,7 @@ def zexecute_zAINST(zmergez3var, machine, ):
             # Assignment(resolved_type=Unit(), result='zz411', sourcepos='`1 103:2-103:7', value=Unit(resolved_type=Unit()))
             zz411 = ()
             # Assignment(resolved_type=SmallFixedBitVector(16), result='zPC', sourcepos='`1 103:14-103:20', value=OperationExpr(args=[Var(name='zPC', resolved_type=SmallFixedBitVector(16)), Number(number=16), Number(number=1, resolved_type=MachineInt())], name='@add_bits_int_bv_i', resolved_type=SmallFixedBitVector(16)))
-            machine._reg_zPC = supportcode.add_bits_int_bv_i(machine._reg_zPC, 16, 1)
+            machine._reg_zPC = supportcode.add_bits_int_bv_i(machine, machine._reg_zPC, 16, 1)
             # Assignment(resolved_type=Unit(), result='zz40', sourcepos='`1 103:9-103:20', value=Unit(resolved_type=Unit()))
             zz40 = ()
             pc = 32
@@ -1389,7 +1389,7 @@ def func_zrun(machine, zlimit, zdebug):
                 # Assignment(resolved_type=GenericBitVector(), result='zz416', sourcepos='`1 200:15-200:34', value=Var(name='zz40', resolved_type=SmallFixedBitVector(64)))
                 zz416 = bitvector.from_ruint(64, zz40)
                 # ConditionalJump(condition=ExprCondition(expr=OperationExpr(args=[OperationExpr(args=[Var(name='zz416', resolved_type=GenericBitVector())], name='zsigned', resolved_type=Int()), CastExpr(expr=OperationExpr(args=[Var(name='zlimit', resolved_type=SmallFixedBitVector(64)), Number(number=64)], name='@signed_bv', resolved_type=MachineInt()), resolved_type=Int())], name='zlt_int', resolved_type=Bool())), sourcepos='`1 200:12-202:13', target=43)
-                if supportcode.lt(machine, supportcode.sail_signed(machine, zz416), Integer.fromint(supportcode.signed_bv(zlimit, 64))):
+                if supportcode.lt(machine, supportcode.sail_signed(machine, zz416), Integer.fromint(supportcode.signed_bv(machine, zlimit, 64))):
                     # inline pc=43
                     # Assignment(resolved_type=Bool(), result='zz41', sourcepos='`1 201:23-201:27', value=Var(name='true', resolved_type=Bool()))
                     zz41 = True

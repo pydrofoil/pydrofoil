@@ -51,7 +51,7 @@ def _mask(width, val):
     mask = (r_uint(1) << width) - 1
     return val & mask
 
-def signed_bv(op, n):
+def signed_bv(machine, op, n):
     if n == 64:
         return intmask(op)
     assert n > 0
@@ -61,11 +61,11 @@ def signed_bv(op, n):
     return intmask((op ^ m) - m)
 
 @objectmodel.always_inline
-def unsigned_bv_wrapped_res(op, n):
+def unsigned_bv_wrapped_res(machine, op, n):
     return bitvector.Integer.from_ruint(op)
 
 @objectmodel.always_inline
-def unsigned_bv(op, n):
+def unsigned_bv(machine, op, n):
     if n == 64 and (op & (r_uint(1) << 63)):
         raise ValueError
     return intmask(op)
@@ -75,7 +75,7 @@ def add_bits_int(machine, a, b):
     return a.add_int(b)
 
 @objectmodel.always_inline
-def add_bits_int_bv_i(a, width, b):
+def add_bits_int_bv_i(machine, a, width, b):
     if b >= 0:
         return _mask(width, a + r_uint(b))
     return _add_bits_int_bv_i_slow(a, width, b)
@@ -87,7 +87,7 @@ def _add_bits_int_bv_i_slow(a, width, b):
 def add_bits(machine, a, b):
     return a.add_bits(b)
 
-def add_bits_bv_bv(a, b, width):
+def add_bits_bv_bv(machine, a, b, width):
     return _mask(width, a + b)
 
 def sub_bits_int(machine, a, b):
@@ -97,7 +97,7 @@ def sub_bits_int(machine, a, b):
 def sub_bits(machine, a, b):
     return a.sub_bits(b)
 
-def sub_bits_bv_bv(a, b, width):
+def sub_bits_bv_bv(machine, a, b, width):
     return _mask(width, a - b)
 
 def length(machine, gbv):
@@ -114,43 +114,43 @@ def zero_extend(machine, gbv, lint):
     return gbv.zero_extend(size)
 
 @objectmodel.always_inline
-def zero_extend_bv_i_i(bv, width, targetwidth):
+def zero_extend_bv_i_i(machine, bv, width, targetwidth):
     return bv # XXX correct?
 
 def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)
 
-def eq_bits_bv_bv(bva, bvb):
+def eq_bits_bv_bv(machine, bva, bvb):
     return bva == bvb
 
 def neq_bits(machine, gvba, gvbb):
     return not gvba.eq(gvbb)
 
-def neq_bits_bv_bv(bva, bvb):
+def neq_bits_bv_bv(machine, bva, bvb):
     return bva != bvb
 
 def xor_bits(machine, gvba, gvbb):
     return gvba.xor(gvbb)
 
-def xor_vec_bv_bv(bva, bvb):
+def xor_vec_bv_bv(machine, bva, bvb):
     return bva ^ bvb
 
 def and_bits(machine, gvba, gvbb):
     return gvba.and_(gvbb)
 
-def and_vec_bv_bv(bva, bvb):
+def and_vec_bv_bv(machine, bva, bvb):
     return bva & bvb
 
 def or_bits(machine, gvba, gvbb):
     return gvba.or_(gvbb)
 
-def or_vec_bv_bv(bva, bvb):
+def or_vec_bv_bv(machine, bva, bvb):
     return bva | bvb
 
 def not_bits(machine, gvba):
     return gvba.invert()
 
-def not_vec_bv(bva, width):
+def not_vec_bv(machine, bva, width):
     return _mask(width, ~bva)
 
 def print_bits(machine, s, b):
@@ -193,12 +193,12 @@ def vector_update(machine, bv, index, element):
 def vector_access(machine, bv, index):
     return bv.read_bit(index.toint())
 
-def vector_access_bv_i(bv, index):
+def vector_access_bv_i(machine, bv, index):
     if index == 0:
         return bv & r_uint(1)
     return r_uint(1) & safe_rshift(None, bv, r_uint(index))
 
-def update_fbits(fb, index, element):
+def update_fbits(machine, fb, index, element):
     assert 0 <= index < 64
     if element:
         return fb | (r_uint(1) << index)
@@ -216,7 +216,7 @@ def vector_subrange(machine, bv, n, m):
     return bv.subrange(n.toint(), m.toint())
 
 @objectmodel.always_inline
-def slice_fixed_bv_i_i(v, n, m):
+def slice_fixed_bv_i_i(machine, v, n, m):
     res = safe_rshift(None, v, m)
     width = n - m + 1
     return _mask(width, res)
@@ -234,7 +234,7 @@ def eq_int(machine, a, b):
     assert isinstance(a, Integer)
     return a.eq(b)
 
-def eq_int_i_i(a, b):
+def eq_int_i_i(machine, a, b):
     return a == b
 
 def eq_bit(machine, a, b):
@@ -255,13 +255,13 @@ def gteq(machine, ia, ib):
 def add_int(machine, ia, ib):
     return ia.add(ib)
 
-def add_i_i_wrapped_res(a, b):
+def add_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.add_i_i(a, b)
 
 def sub_int(machine, ia, ib):
     return ia.sub(ib)
 
-def sub_i_i_wrapped_res(a, b):
+def sub_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.sub_i_i(a, b)
 
 def mult_int(machine, ia, ib):

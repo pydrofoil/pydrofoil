@@ -618,14 +618,76 @@ def test_add_real():
     res = x.add(y)
     assert res.toint() == -1
     # Test for sub
-    # x = Real.fromint(16)
-    # y = Real.fromint(6)
-    # res = x.add(y)
-    # assert res.toint() == 10
-    # x = Real.fromint(-10)
-    # y = Real.fromint(6)
-    # res = x.add(y)
-    # assert res.toint() == -16
+    x = Real.fromint(16)
+    y = Real.fromint(6)
+    res = x.sub(y)
+    assert res.toint() == 10
+    x = Real.fromint(-10)
+    y = Real.fromint(6)
+    res = x.sub(y)
+    assert res.toint() == -16
+    x = Real.fromint(-10)
+    y = Real.fromint(-6)
+    res = x.sub(y)
+    assert res.toint() == -4
+    x = Real.fromint(-4, 2)
+    y = Real.fromint(9, -3)
+    res = x.sub(y)
+    assert res.toint() == 1
+    x = Real.fromint(-4, 2)
+    y = Real.fromint(9, 3)
+    res = x.sub(y)
+    assert res.toint() == -5
+    # Test for mul
+    x = Real.fromint(10)
+    y = Real.fromint(6)
+    res = x.mul(y)
+    assert res.toint() == 60
+    x = Real.fromint(-10)
+    y = Real.fromint(6)
+    res = x.mul(y)
+    assert res.toint() == -60
+    x = Real.fromint(-10)
+    y = Real.fromint(-6)
+    res = x.mul(y)
+    assert res.toint() == 60
+    x = Real.fromint(4, 2)
+    y = Real.fromint(9, 3)
+    res = x.mul(y)
+    assert res.toint() == 6
+    x = Real.fromint(5, 2)
+    y = Real.fromint(2, 5)
+    res = x.mul(y)
+    assert res.toint() == 1
+    x = Real.fromint(-5, 2)
+    y = Real.fromint(2, 5)
+    res = x.mul(y)
+    assert res.toint() == -1
+    x = Real.fromint(-5, 2)
+    y = Real.fromint(2, -5)
+    res = x.mul(y)
+    assert res.toint() == 1
+    # Test for div
+    x = Real.fromint(10)
+    y = Real.fromint(2)
+    res = x.div(y)
+    assert res.toint() == 5
+    x = Real.fromint(-10)
+    y = Real.fromint(2)
+    res = x.div(y)
+    assert res.toint() == -5
+    x = Real.fromint(1, 5)
+    y = Real.fromint(1, 25)
+    res = x.div(y)
+    assert res.toint() == 5
+    x = Real.fromint(1, -5)
+    y = Real.fromint(1, 25)
+    res = x.div(y)
+    assert res.toint() == -5
+    x = Real.fromint(-1, 5)
+    y = Real.fromint(1, -25)
+    res = x.div(y)
+    assert res.toint() == 5
     # Test for denominator equal to 0
     # x = Real.fromint(3, 0)
     # y = Real.fromint(2, 5)

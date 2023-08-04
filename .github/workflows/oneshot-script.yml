@@ -34,7 +34,7 @@ jobs:
       run: opam init --disable-sandboxing -y
 
     - name: Install sail
-      run: opam install -y sail=0.14
+      run: opam install -y sail=0.15
 
     - uses: actions/checkout@v3
       with:

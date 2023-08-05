@@ -162,7 +162,7 @@ class Codegen(object):
 
     def getcode(self):
         res = ["\n".join(self.declarations)]
-        res.append("def model_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
+        res.append("@jit.dont_look_inside\ndef model_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
         res.append("\n".join(self.code))
         return "\n\n\n".join(res)
 

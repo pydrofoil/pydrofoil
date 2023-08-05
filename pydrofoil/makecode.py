@@ -2,7 +2,7 @@ import sys
 from contextlib import contextmanager
 from rpython.tool.pairtype import pair
 
-from pydrofoil import parse, types, binaryop, operations
+from pydrofoil import parse, types, binaryop, operations, supportcode
 
 
 assert sys.maxint == 2 ** 63 - 1, "only 64 bit platforms are supported!"
@@ -30,6 +30,8 @@ class Codegen(object):
         self.declarationcache = {}
         self.gensym = {} # prefix -> number
         self.localnames = None
+        for name, (spec, unwrapped_name) in supportcode.all_unwraps.iteritems():
+            self.add_global("@" + unwrapped_name, "supportcode." + unwrapped_name)
         self.add_global("false", "False", types.Bool())
         self.add_global("true", "True", types.Bool())
         self.add_global("bitzero", "r_uint(0)", types.Bit())
@@ -50,7 +52,6 @@ class Codegen(object):
         self.add_global("@unsigned_bv_wrapped_res", "supportcode.unsigned_bv_wrapped_res")
         self.add_global("@unsigned_bv", "supportcode.unsigned_bv")
         self.add_global("@zero_extend_bv_i_i", "supportcode.zero_extend_bv_i_i")
-        self.add_global("@vector_update_subrange_o_i_i_o", "supportcode.vector_update_subrange_o_i_i_o")
         self.add_global("@vector_access_bv_i", "supportcode.vector_access_bv_i")
         self.add_global("@add_bits_bv_bv", "supportcode.add_bits_bv_bv")
         self.add_global("@add_bits_int_bv_i", "supportcode.add_bits_int_bv_i")
@@ -416,7 +417,9 @@ class __extend__(parse.Register):
 
 class __extend__(parse.Function):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks
+        from pydrofoil.optimize import optimize_blocks, CollectSourceVisitor
+        #vbefore = CollectSourceVisitor()
+        #vbefore.visit(self)
         pyname = codegen.getname(self.name)
         assert pyname.startswith("func_")
         #if codegen.globalnames[self.name].pyname is not None:
@@ -429,6 +432,12 @@ class __extend__(parse.Function):
         predefined = {arg: typ.argtype.elements[i] for i, arg in enumerate(self.args)}
         predefined["return"] = typ.restype
         optimize_blocks(blocks, codegen, predefined)
+        #vafter = CollectSourceVisitor()
+        #for pc, block in blocks.iteritems():
+        #    for op in block:
+        #        vafter.visit(op)
+        #if vafter.seen != vbefore.seen:
+        #    import pdb; pdb.set_trace()
         if inlinable:
             codegen.inlinable_functions[self.name] = self, blocks
         entrycounts = self._compute_entrycounts(blocks)
@@ -921,6 +930,8 @@ class __extend__(parse.OperationExpr):
                 return "%s(machine, %s)" % (op, args)
         elif isinstance(info.typ, types.Union):
             return info.ast.constructor(info, op, args, argtyps)
+        elif name.startswith(("@", "$")):
+            return "%s(machine, %s)" % (op, args)
         else:
             # constructors etc don't get machine passed (yet)
             return "%s(%s)" % (op, args)

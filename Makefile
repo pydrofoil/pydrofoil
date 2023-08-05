@@ -34,10 +34,10 @@ ifndef RISCVMODELCHECKOUT
 endif
 	./pypy_binary/bin/python run_riscv_tests.py
 
-isla/isla-sail/isla-sail: isla/ ## build isla-sail
+isla/isla-sail/isla-sail: isla/isla-sail/Makefile ## build isla-sail
 	cd isla/isla-sail && $(MAKE)
 
-isla/: ## clone the isla submodule
+isla/isla-sail/Makefile: ## clone the isla submodule
 	git submodule update --init --depth 1
 
 .PHONY: regen-sail-ir-files

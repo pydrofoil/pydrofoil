@@ -182,6 +182,8 @@ class Unit(Type):
 @unique
 class Bit(Type):
     uninitialized_value = "r_uint(0)"
+    convert_to_pypy = "supportcode.generate_convert_to_pypy_bitvector_ruint(1)"
+    convert_from_pypy = "supportcode.generate_convert_from_pypy_bitvector_ruint(1)"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )

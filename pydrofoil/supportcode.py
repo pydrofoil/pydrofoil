@@ -741,6 +741,7 @@ def generate_convert_from_pypy_bitvector_ruint(width):
     return c
 
 def generate_convert_to_pypy_enum(cls):
+    from pypy.interpreter.error import oefmt
     def c(space, val):
         try:
             name = cls.convert_value_to_name(val)
@@ -750,9 +751,10 @@ def generate_convert_to_pypy_enum(cls):
     return c
 
 def generate_convert_from_pypy_enum(cls):
+    from pypy.interpreter.error import oefmt
     def c(space, w_val):
         try:
             return cls.convert_name_to_value(space.text_w(w_val))
         except ValueError:
-            raise oefmt(space.w_ValueError, "unknown enum value %s", w_val)
+            raise oefmt(space.w_ValueError, "unknown enum value %R", w_val)
     return c

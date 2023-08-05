@@ -95,3 +95,5 @@ def test_enum_register():
     for i in range(34):
         cpu.step()
     assert cpu.read_register("cur_privilege") == "Machine"
+    with raises(ValueError):
+        cpu.write_register("cur_privilege", "ABC")

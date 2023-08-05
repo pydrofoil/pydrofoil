@@ -4,7 +4,7 @@ from pydrofoil import supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
 
-from rpython.rlib.rarithmetic import r_uint, intmask
+from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
 from rpython.rlib.rbigint import rbigint
 
 def gbv(size, val):
@@ -21,13 +21,13 @@ def bi(val):
 
 machine = "dummy"
 
-def test_fast_signed():
-    assert supportcode.fast_signed(machine, 0b0, 1) == 0
-    assert supportcode.fast_signed(machine, 0b1, 1) == -1
-    assert supportcode.fast_signed(machine, 0b0, 2) == 0
-    assert supportcode.fast_signed(machine, 0b1, 2) == 1
-    assert supportcode.fast_signed(machine, 0b10, 2) == -2
-    assert supportcode.fast_signed(machine, 0b11, 2) == -1
+def test_signed_bv():
+    assert supportcode.signed_bv(machine, 0b0, 1) == 0
+    assert supportcode.signed_bv(machine, 0b1, 1) == -1
+    assert supportcode.signed_bv(machine, 0b0, 2) == 0
+    assert supportcode.signed_bv(machine, 0b1, 2) == 1
+    assert supportcode.signed_bv(machine, 0b10, 2) == -2
+    assert supportcode.signed_bv(machine, 0b11, 2) == -1
 
 def test_signed():
     for c in gbv, bv:
@@ -53,6 +53,22 @@ def test_sign_extend():
         assert supportcode.sign_extend(machine, c(2, 0b01), Integer.fromint(100)).tobigint().tolong() == 1
         assert supportcode.sign_extend(machine, c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111110
         assert supportcode.sign_extend(machine, c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+
+def test_zero_extend():
+    for c in gbv, bv:
+        assert supportcode.zero_extend(machine, c(1, 0b0), Integer.fromint(2)).size() == 2
+        assert supportcode.zero_extend(machine, c(2, 0b00), Integer.fromint(100)).size() == 100
+        assert supportcode.zero_extend(machine, c(1, 0b0), Integer.fromint(2)).toint() == 0
+        assert supportcode.zero_extend(machine, c(1, 0b1), Integer.fromint(2)).toint() == 0b01
+        assert supportcode.zero_extend(machine, c(2, 0b00), Integer.fromint(4)).toint() == 0
+        assert supportcode.zero_extend(machine, c(2, 0b01), Integer.fromint(4)).toint() == 1
+        assert supportcode.zero_extend(machine, c(2, 0b10), Integer.fromint(4)).toint() == 0b0010
+        assert supportcode.zero_extend(machine, c(2, 0b11), Integer.fromint(4)).toint() == 0b0011
+
+        assert supportcode.zero_extend(machine, c(2, 0b00), Integer.fromint(100)).tobigint().tolong() == 0
+        assert supportcode.zero_extend(machine, c(2, 0b01), Integer.fromint(100)).tobigint().tolong() == 1
+        assert supportcode.zero_extend(machine, c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010
+        assert supportcode.zero_extend(machine, c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
 
 
 def test_unsigned():
@@ -198,6 +214,19 @@ def test_bv_bitwise():
         res = i1.invert()
         assert res.toint() == 0b00001111
 
+def test_add_bv():
+    for c in gbv, bv:
+        assert supportcode.add_bits(None, c(6, 0b11), c(6, 0b111)).touint() == (0b11 + 0b111) & 0b111111
+        assert supportcode.add_bits(None, c(6, 0b10000), c(6, 0b10001)).touint() == (0b10000 + 0b10001) & 0b111111
+        assert supportcode.add_bits(None, c(6, 0b100000), c(6, 0b100001)).touint() == (0b100000 + 0b100001) & 0b111111
+
+def test_sub_bv():
+    for c in gbv, bv:
+        assert supportcode.sub_bits(None, c(6, 0b111), c(6, 0b11)).touint() == (0b111 - 0b11) & 0b111111
+        assert supportcode.sub_bits(None, c(6, 0b10000), c(6, 0b10001)).touint() == (0b10000 - 0b10001) & 0b111111
+        assert supportcode.sub_bits(None, c(6, 0b100000), c(6, 0b100001)).touint() == (0b100000 - 0b100001) & 0b111111
+
+
 def test_eq_int():
     for c1 in bi, si:
         for c2 in bi, si:
@@ -262,3 +291,300 @@ def test_string_of_bits():
         assert c(64, 0x1245ab).string_of_bits() == "0x00000000001245AB"
         assert c(3, 0b1).string_of_bits() == "0b001"
         assert c(9, 0b1101).string_of_bits() == "0b000001101"
+
+
+def test_append():
+    for c1 in gbv, bv:
+        for c2 in gbv, bv:
+            assert c1(16, 0xa9e3).append(c2(16, 0x04fb)).toint() == 0xa9e304fb
+
+        
+# softfloat
+
+class DummyMachine(object): pass
+
+
+def test_softfloat_f16add():
+    machine = DummyMachine()
+    supportcode.softfloat_f16add(machine, 0, 0b0011110000000000, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 0b0011111000000000
+
+def test_softfloat_f16div():
+    machine = DummyMachine()
+    supportcode.softfloat_f16div(machine, 0, 0b0011110000000000, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 0b0100000000000000
+
+def test_softfloat_f16eq():
+    machine = DummyMachine()
+    supportcode.softfloat_f16eq(machine, 0b0011100000000000, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 1
+
+def test_softfloat_f16le():
+    machine = DummyMachine()
+    supportcode.softfloat_f16le(machine, 0b0011100000000000, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 1
+
+def test_softfloat_f16lt():
+    machine = DummyMachine()
+    supportcode.softfloat_f16lt(machine, 0b0011100000000000, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 0
+
+def test_softfloat_f16mul():
+    machine = DummyMachine()
+    supportcode.softfloat_f16mul(machine, 0, 0b0011110000000000, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 0b0011100000000000
+
+def test_softfloat_f16muladd():
+    machine = DummyMachine()
+    supportcode.softfloat_f16muladd(machine, 0, 0b0011110000000000, 0b0011100000000000, 0b0011110000000000)
+    assert machine._reg_zfloat_result == 0b0011111000000000
+
+def test_softfloat_f16sqrt():
+    machine = DummyMachine()
+    supportcode.softfloat_f16sqrt(machine, 0, 0b0100010000000000)
+    assert machine._reg_zfloat_result == 0b0100000000000000
+
+def test_softfloat_f16sub():
+    machine = DummyMachine()
+    supportcode.softfloat_f16sub(machine, 0, 0b0011110000000000, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 0b0011100000000000
+
+def test_softfloat_f32add():
+    machine = DummyMachine()
+    supportcode.softfloat_f32add(machine, 0, 0b00111111000000000000000000000000, 0b00111111100000000000000000000000)
+    assert machine._reg_zfloat_result == 0b00111111110000000000000000000000
+
+def test_softfloat_f32div():
+    machine = DummyMachine()
+    supportcode.softfloat_f32div(machine, 0, 0b00111111100000000000000000000000, 0b01000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b00111111000000000000000000000000
+
+def test_softfloat_f32eq():
+    machine = DummyMachine()
+    supportcode.softfloat_f32eq(machine, 0b00111111000000000000000000000000, 0b00111111000000000000000000000000)
+    assert machine._reg_zfloat_result == 1
+
+def test_softfloat_f32le():
+    machine = DummyMachine()
+    supportcode.softfloat_f32le(machine, 0b00111111000000000000000000000000, 0b00111111000000000000000000000000)
+    assert machine._reg_zfloat_result == 1
+
+def test_softfloat_f32lt():
+    machine = DummyMachine()
+    supportcode.softfloat_f32lt(machine, 0b00111111000000000000000000000000, 0b00111111000000000000000000000000)
+    assert machine._reg_zfloat_result == 0
+
+def test_softfloat_f32mul():
+    machine = DummyMachine()
+    supportcode.softfloat_f32mul(machine, 0, 0b00111111100000000000000000000000, 0b01000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b01000000000000000000000000000000
+
+def test_softfloat_f32muladd():
+    machine = DummyMachine()
+    supportcode.softfloat_f32muladd(machine, 0, 0b00111111100000000000000000000000, 0b00111111000000000000000000000000, 0b00111111100000000000000000000000)
+    assert machine._reg_zfloat_result == 0b00111111110000000000000000000000
+
+def test_softfloat_f32sqrt():
+    machine = DummyMachine()
+    supportcode.softfloat_f32sqrt(machine, 0, 0b01000000100000000000000000000000)
+    assert machine._reg_zfloat_result == 0b01000000000000000000000000000000
+
+def test_softfloat_f32sub():
+    machine = DummyMachine()
+    supportcode.softfloat_f32sub(machine, 0, 0b01000000000000000000000000000000, 0b00111111100000000000000000000000)
+    assert machine._reg_zfloat_result == 0b00111111100000000000000000000000
+
+def test_softfloat_f64add():
+    machine = DummyMachine()
+    supportcode.softfloat_f64add(machine, 0, 0b0011111111110000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0011111111111000000000000000000000000000000000000000000000000000
+
+def test_softfloat_f64div():
+    machine = DummyMachine()
+    supportcode.softfloat_f64div(machine, 0, 0b0011111111110000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0100000000000000000000000000000000000000000000000000000000000000
+
+def test_softfloat_f64eq():
+    machine = DummyMachine()
+    supportcode.softfloat_f64eq(machine, 0b0011111111100000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 1
+
+def test_softfloat_f64le():
+    machine = DummyMachine()
+    supportcode.softfloat_f64le(machine, 0b0011111111100000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 1
+
+def test_softfloat_f64lt():
+    machine = DummyMachine()
+    supportcode.softfloat_f64lt(machine, 0b0011111111100000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0
+
+def test_softfloat_f64mul():
+    machine = DummyMachine()
+    supportcode.softfloat_f64mul(machine, 0, 0b0011111111110000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0011111111100000000000000000000000000000000000000000000000000000
+
+def test_softfloat_f64muladd():
+    machine = DummyMachine()
+    supportcode.softfloat_f64muladd(machine, 0, 0b0011111111110000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000, 0b0011111111110000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0011111111111000000000000000000000000000000000000000000000000000
+
+def test_softfloat_f64sqrt():
+    machine = DummyMachine()
+    supportcode.softfloat_f64sqrt(machine, 0, 0b0100000000010000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0100000000000000000000000000000000000000000000000000000000000000
+
+def test_softfloat_f64sub():
+    machine = DummyMachine()
+    supportcode.softfloat_f64sub(machine, 0, 0b0011111111110000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0011111111100000000000000000000000000000000000000000000000000000
+    
+def test_softfloat_f16tof32():
+    machine = DummyMachine()
+    supportcode.softfloat_f16tof32(machine, 0, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 0b00111111000000000000000000000000
+    
+def test_softfloat_f32tof16():
+    machine = DummyMachine()
+    supportcode.softfloat_f32tof16(machine, 0, 0b00111111000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0011100000000000
+    
+def test_softfloat_f16tof64():
+    machine = DummyMachine()
+    supportcode.softfloat_f16tof64(machine, 0, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 0b0011111111100000000000000000000000000000000000000000000000000000
+    
+def test_softfloat_f64tof16():
+    machine = DummyMachine()
+    supportcode.softfloat_f64tof16(machine, 0, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0011100000000000
+    
+def test_softfloat_f32tof64():
+    machine = DummyMachine()
+    supportcode.softfloat_f32tof64(machine, 0, 0b00111111000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0011111111100000000000000000000000000000000000000000000000000000
+    
+def test_softfloat_f64tof32():
+    machine = DummyMachine()
+    supportcode.softfloat_f64tof32(machine, 0, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b00111111000000000000000000000000
+
+def test_softfloat_f16toi32():
+    machine = DummyMachine()
+    supportcode.softfloat_f16toi32(machine, 0, 0b1100010100000000)
+    assert machine._reg_zfloat_result == 0b11111111111111111111111111111011
+
+def test_softfloat_f16toi64():
+    machine = DummyMachine()
+    supportcode.softfloat_f16toi64(machine, 0, 0b1100010100000000)
+    assert machine._reg_zfloat_result == 0b1111111111111111111111111111111111111111111111111111111111111011
+
+def test_softfloat_f16toui32():
+    machine = DummyMachine()
+    supportcode.softfloat_f16toui32(machine, 0, 0b0100010100000000)
+    assert machine._reg_zfloat_result == 0b00000000000000000000000000000101
+
+def test_softfloat_f16toui64():
+    machine = DummyMachine()
+    supportcode.softfloat_f16toui64(machine, 0, 0b0100010100000000)
+    assert machine._reg_zfloat_result == 0b0000000000000000000000000000000000000000000000000000000000000101
+
+def test_softfloat_f32toi32():
+    machine = DummyMachine()
+    supportcode.softfloat_f32toi32(machine, 0, 0b11000000101000000000000000000000)
+    assert machine._reg_zfloat_result == 0b11111111111111111111111111111011
+
+def test_softfloat_f32toi64():
+    machine = DummyMachine()
+    supportcode.softfloat_f32toi64(machine, 0, 0b11000000101000000000000000000000)
+    assert machine._reg_zfloat_result == 0b1111111111111111111111111111111111111111111111111111111111111011
+
+def test_softfloat_f32toui32():
+    machine = DummyMachine()
+    supportcode.softfloat_f32toui32(machine, 0, 0b01000000101000000000000000000000)
+    assert machine._reg_zfloat_result == 0b00000000000000000000000000000101
+
+def test_softfloat_f32toui64():
+    machine = DummyMachine()
+    supportcode.softfloat_f32toui64(machine, 0, 0b01000000101000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0000000000000000000000000000000000000000000000000000000000000101
+
+def test_softfloat_f64toi32():
+    machine = DummyMachine()
+    supportcode.softfloat_f64toi32(machine, 0, r_ulonglong(0b1100000000010100000000000000000000000000000000000000000000000000))
+    assert machine._reg_zfloat_result == 0b11111111111111111111111111111011
+
+def test_softfloat_f64toi64():
+    machine = DummyMachine()
+    supportcode.softfloat_f64toi64(machine, 0, r_ulonglong(0b1100000000010100000000000000000000000000000000000000000000000000))
+    assert machine._reg_zfloat_result == 0b1111111111111111111111111111111111111111111111111111111111111011
+
+def test_softfloat_f64toui32():
+    machine = DummyMachine()
+    supportcode.softfloat_f64toui32(machine, 0, 0b0100000000010100000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b00000000000000000000000000000101
+
+def test_softfloat_f64toui64():
+    machine = DummyMachine()
+    supportcode.softfloat_f64toui64(machine, 0, 0b0100000000010100000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0b0000000000000000000000000000000000000000000000000000000000000101
+
+def test_softfloat_i32tof16():
+    machine = DummyMachine()
+    supportcode.softfloat_i32tof16(machine, 0, 0b11111111111111111111111111111011)
+    assert machine._reg_zfloat_result == 0b1100010100000000
+
+def test_softfloat_i32tof32():
+    machine = DummyMachine()
+    supportcode.softfloat_i32tof32(machine, 0, 0b11111111111111111111111111111011)
+    assert machine._reg_zfloat_result == 0b11000000101000000000000000000000
+
+def test_softfloat_i32tof64():
+    machine = DummyMachine()
+    supportcode.softfloat_i32tof64(machine, 0, 0b11111111111111111111111111111011)
+    assert machine._reg_zfloat_result == 0b1100000000010100000000000000000000000000000000000000000000000000
+
+def test_softfloat_i64tof16():
+    machine = DummyMachine()
+    supportcode.softfloat_i64tof16(machine, 0, r_ulonglong(0b1111111111111111111111111111111111111111111111111111111111111011))
+    assert machine._reg_zfloat_result == 0b1100010100000000
+
+def test_softfloat_i64tof32():
+    machine = DummyMachine()
+    supportcode.softfloat_i64tof32(machine, 0, r_ulonglong(0b1111111111111111111111111111111111111111111111111111111111111011))
+    assert machine._reg_zfloat_result == 0b11000000101000000000000000000000
+
+def test_softfloat_i64tof64():
+    machine = DummyMachine()
+    supportcode.softfloat_i64tof64(machine, 0, r_ulonglong(0b1111111111111111111111111111111111111111111111111111111111111011))
+    assert machine._reg_zfloat_result == 0b1100000000010100000000000000000000000000000000000000000000000000
+
+def test_softfloat_ui32tof16():
+    machine = DummyMachine()
+    supportcode.softfloat_ui32tof16(machine, 0, 0b00000000000000000000000000000101)
+    assert machine._reg_zfloat_result == 0b0100010100000000
+
+def test_softfloat_ui32tof32():
+    machine = DummyMachine()
+    supportcode.softfloat_ui32tof32(machine, 0, 0b00000000000000000000000000000101)
+    assert machine._reg_zfloat_result == 0b01000000101000000000000000000000
+
+def test_softfloat_ui32tof64():
+    machine = DummyMachine()
+    supportcode.softfloat_ui32tof64(machine, 0, 0b00000000000000000000000000000101)
+    assert machine._reg_zfloat_result == 0b0100000000010100000000000000000000000000000000000000000000000000
+
+def test_softfloat_ui64tof16():
+    machine = DummyMachine()
+    supportcode.softfloat_ui64tof16(machine, 0, 0b0000000000000000000000000000000000000000000000000000000000000101)
+    assert machine._reg_zfloat_result == 0b0100010100000000
+
+def test_softfloat_ui64tof32():
+    machine = DummyMachine()
+    supportcode.softfloat_ui64tof32(machine, 0, 0b0000000000000000000000000000000000000000000000000000000000000101)
+    assert machine._reg_zfloat_result == 0b01000000101000000000000000000000
+
+def test_softfloat_ui64tof64():
+    machine = DummyMachine()
+    supportcode.softfloat_ui64tof64(machine, 0, 0b0000000000000000000000000000000000000000000000000000000000000101)
+    assert machine._reg_zfloat_result == 0b0100000000010100000000000000000000000000000000000000000000000000

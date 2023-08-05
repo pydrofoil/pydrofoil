@@ -34,9 +34,6 @@ def run(cmd, fn, test_cases):
 def main():
     test_cases = []
     for fn in glob.glob(base_test_path + "/rv32*.elf"):
-        # no fp tests for now
-        if "rv32ud" in fn or "rv32uf" in fn:
-            continue
         cmd = "./pydrofoil-riscv --rv32 %s" % (fn, )
         run(cmd, fn, test_cases)
     ts32 = junit_xml.TestSuite("pydrofoild-riscv-32", test_cases)
@@ -44,9 +41,6 @@ def main():
 
     test_cases = []
     for fn in glob.glob(base_test_path + "/rv64*.elf"):
-        # no fp tests for now
-        if "rv64ud" in fn or "rv64uf" in fn:
-            continue
         cmd = "./pydrofoil-riscv %s" % (fn, )
         run(cmd, fn, test_cases)
 

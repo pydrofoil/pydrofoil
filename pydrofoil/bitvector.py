@@ -2,16 +2,22 @@ import sys
 from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
-from rpython.rlib.objectmodel import always_inline, specialize
+from rpython.rlib.objectmodel import always_inline, specialize, is_annotation_constant
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 
 @always_inline
-@specialize.arg_or_var(0)
+#@specialize.arg_or_var(0, 1)
 def from_ruint(size, val):
     if size <= 64:
+#        if is_annotation_constant(size) and is_annotation_constant(val):
+#            return _small_bit_vector_memo(size, val)
         return SmallBitVector(size, val, True)
     return GenericBitVector(size, rbigint.fromrarith_int(val), True)
+
+@specialize.memo()
+def _small_bit_vector_memo(size, val):
+    return SmallBitVector(size, val)
 
 @always_inline
 def from_bigint(size, rval):
@@ -42,6 +48,9 @@ class BitVector(object):
 
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
+
+    def append(self, other):
+        return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
 
     def append_64(self, ui):
         return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
@@ -89,6 +98,16 @@ class SmallBitVector(BitVectorWithSize):
         # XXX can be better
         return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().add(i.tobigint())))
 
+    def add_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, SmallBitVector)
+        return self.make(self.val + other.val, True)
+
+    def sub_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, SmallBitVector)
+        return self.make(self.val - other.val, True)
+
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
             if i.val > 0:
@@ -135,6 +154,15 @@ class SmallBitVector(BitVectorWithSize):
     def subrange(self, n, m):
         width = n - m + 1
         return SmallBitVector(width, self.val >> m, True)
+
+    @always_inline
+    def zero_extend(self, i):
+        if i == self.size():
+            return self
+        assert i > self.size()
+        if i > 64:
+            return GenericBitVector(i, rbigint.fromrarith_int(self.val))
+        return SmallBitVector(i, self.val)
 
     @always_inline
     def sign_extend(self, i):
@@ -200,6 +228,12 @@ class SmallBitVector(BitVectorWithSize):
     def tobigint(self):
         return rbigint.fromrarith_int(self.val)
 
+    def append(self, other):
+        ressize = self.size() + other.size()
+        if ressize > 64 or not isinstance(other, SmallBitVector):
+            return BitVector.append(self, other)
+        return from_ruint(ressize, (self.val << other.size()) | other.val)
+
 
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']
@@ -222,6 +256,16 @@ class GenericBitVector(BitVectorWithSize):
 
     def add_int(self, i):
         return self.make(self._size_mask(self.rval.add(i.tobigint())))
+
+    def add_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, GenericBitVector)
+        return self.make(self._size_mask(self.rval.add(other.rval)))
+
+    def sub_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, GenericBitVector)
+        return self.make(self._size_mask(self.rval.sub(other.rval)))
 
     def sub_int(self, i):
         return self.make(self._size_mask(self.rval.sub(i.tobigint())))
@@ -262,6 +306,12 @@ class GenericBitVector(BitVectorWithSize):
             res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
             return SmallBitVector(width, r_uint(res))
         return from_bigint(width, self.rval.rshift(m))
+
+    def zero_extend(self, i):
+        if i == self.size():
+            return self
+        assert i > self.size()
+        return GenericBitVector(i, self.rval)
 
     def sign_extend(self, i):
         if i == self.size():
@@ -412,20 +462,14 @@ class SmallInteger(Integer):
 
     def add(self, other):
         if isinstance(other, SmallInteger):
-            try:
-                return SmallInteger(ovfcheck(self.val + other.val))
-            except OverflowError:
-                return BigInteger(self.tobigint().int_add(other.val))
+            return SmallInteger.add_i_i(self.val, other.val)
         else:
             assert isinstance(other, BigInteger)
             return BigInteger(other.rval.int_add(self.val))
 
     def sub(self, other):
         if isinstance(other, SmallInteger):
-            try:
-                return SmallInteger(ovfcheck(self.val - other.val))
-            except OverflowError:
-                pass
+            return SmallInteger.sub_i_i(self.val, other.val)
         return BigInteger((other.tobigint().int_sub(self.val)).neg()) # XXX can do better
 
     def mul(self, other):
@@ -455,6 +499,20 @@ class SmallInteger(Integer):
             if not (self.val == -2**63 and other.val == -1):
                 return SmallInteger(int_c_mod(self.val, other.val))
         return BigInteger(self.tobigint()).tmod(other)
+
+    @staticmethod
+    def add_i_i(a, b):
+        try:
+            return SmallInteger(ovfcheck(a + b))
+        except OverflowError:
+            return BigInteger(rbigint.fromrarith_int(a).int_add(b))
+
+    @staticmethod
+    def sub_i_i(a, b):
+        try:
+            return SmallInteger(ovfcheck(a - b))
+        except OverflowError:
+            return BigInteger(rbigint.fromrarith_int(b).int_sub(a).neg())
 
 
 class BigInteger(Integer):

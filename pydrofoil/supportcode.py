@@ -729,15 +729,23 @@ def convert_to_pypy_error(space, val):
 def convert_from_pypy_error(space, w_val):
     raise ValueError
 
-def generate_convert_to_pypy_bitvector_ruint(width):
+def generate_convert_to_pypy_bitvector_ruint(width, cache={}):
+    if width in cache:
+        return cache[width]
     def c(space, val):
         # TODO inefficient! always returns a long
         return space.newint(val)
+    c.func_name = "convert_to_pypy_bitvector_ruint_%s" % width
+    cache[width] = c
     return c
 
-def generate_convert_from_pypy_bitvector_ruint(width):
+def generate_convert_from_pypy_bitvector_ruint(width, cache={}):
+    if width in cache:
+        return cache[width]
     def c(space, w_val):
         return _mask(width, space.uint_w(w_val))
+    c.func_name = "convert_from_pypy_bitvector_ruint_%s" % width
+    cache[width] = c
     return c
 
 def generate_convert_to_pypy_enum(cls):
@@ -746,7 +754,7 @@ def generate_convert_to_pypy_enum(cls):
         try:
             name = cls.convert_value_to_name(val)
         except ValueError:
-            raise oefmt(space.w_ValueError, "unknown enum value %s", val)
+            raise oefmt(space.w_ValueError, "unknown enum value %d", val)
         return space.newtext(name)
     return c
 

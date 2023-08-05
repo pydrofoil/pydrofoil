@@ -737,6 +737,5 @@ def generate_convert_to_pypy_bitvector_ruint(width):
 
 def generate_convert_from_pypy_bitvector_ruint(width):
     def c(space, w_val):
-        # TODO: stop ignoring width
-        return space.uint_w(w_val)
+        return _mask(width, space.uint_w(w_val))
     return c

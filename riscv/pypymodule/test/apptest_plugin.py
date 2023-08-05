@@ -89,3 +89,9 @@ def test_step_monitor_mem_write():
         ("read_executable", 0x0000000080002916, 2, 0x6ED8),
         ("write", 0x0000000080004000, 8, 0x0000000020001401),
     ]
+
+def test_enum_register():
+    cpu = _pydrofoil.RISCV64(mulelf)
+    for i in range(34):
+        cpu.step()
+    assert cpu.read_register("cur_privilege") == "Machine"

@@ -224,6 +224,21 @@ class __extend__(parse.Enum):
                 typ = types.Enum(self)
                 codegen.add_named_type(self.name, self.pyname, typ, self)
                 typ.uninitialized_value = "-1"
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_name_to_value(name):"):
+                    for name in self.names:
+                        with codegen.emit_indent("if name == %r:" % name.lstrip('z')):
+                            codegen.emit("return %s.%s" % (self.pyname, name))
+                    codegen.emit("raise ValueError")
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_value_to_name(value):"):
+                    for name in self.names:
+                        with codegen.emit_indent("if value == %s.%s:" % (self.pyname, name)):
+                            codegen.emit("return %r" % name.lstrip('z'))
+                    codegen.emit("raise ValueError")
+                typ.convert_to_pypy = "supportcode.generate_convert_to_pypy_enum(%s)" % self.pyname
+                typ.convert_from_pypy = "supportcode.generate_convert_from_pypy_enum(%s)" % self.pyname
+
 
 class __extend__(parse.Union):
     def make_code(self, codegen):

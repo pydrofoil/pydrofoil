@@ -37,6 +37,44 @@ class Enum_zjump(supportcode.ObjectBase):
     zJNE = 5
     zJLE = 6
     zJMP = 7
+    @staticmethod
+    def convert_name_to_value(name):
+        if name == 'JDONT':
+            return Enum_zjump.zJDONT
+        if name == 'JGT':
+            return Enum_zjump.zJGT
+        if name == 'JEQ':
+            return Enum_zjump.zJEQ
+        if name == 'JGE':
+            return Enum_zjump.zJGE
+        if name == 'JLT':
+            return Enum_zjump.zJLT
+        if name == 'JNE':
+            return Enum_zjump.zJNE
+        if name == 'JLE':
+            return Enum_zjump.zJLE
+        if name == 'JMP':
+            return Enum_zjump.zJMP
+        raise ValueError
+    @staticmethod
+    def convert_value_to_name(value):
+        if value == Enum_zjump.zJDONT:
+            return 'JDONT'
+        if value == Enum_zjump.zJGT:
+            return 'JGT'
+        if value == Enum_zjump.zJEQ:
+            return 'JEQ'
+        if value == Enum_zjump.zJGE:
+            return 'JGE'
+        if value == Enum_zjump.zJLT:
+            return 'JLT'
+        if value == Enum_zjump.zJNE:
+            return 'JNE'
+        if value == Enum_zjump.zJLE:
+            return 'JLE'
+        if value == Enum_zjump.zJMP:
+            return 'JMP'
+        raise ValueError
 
 class Union_zexception(supportcode.ObjectBase):
     @objectmodel.always_inline
@@ -79,6 +117,84 @@ class Enum_zarithmetic_op(supportcode.ObjectBase):
     zC_A_SUB_D = 24
     zC_D_AND_A = 25
     zC_D_OR_A = 26
+    @staticmethod
+    def convert_name_to_value(name):
+        if name == 'C_ZERO':
+            return Enum_zarithmetic_op.zC_ZERO
+        if name == 'C_ONE':
+            return Enum_zarithmetic_op.zC_ONE
+        if name == 'C_MINUSONE':
+            return Enum_zarithmetic_op.zC_MINUSONE
+        if name == 'C_D':
+            return Enum_zarithmetic_op.zC_D
+        if name == 'C_A':
+            return Enum_zarithmetic_op.zC_A
+        if name == 'C_NOT_D':
+            return Enum_zarithmetic_op.zC_NOT_D
+        if name == 'C_NOT_A':
+            return Enum_zarithmetic_op.zC_NOT_A
+        if name == 'C_NEG_D':
+            return Enum_zarithmetic_op.zC_NEG_D
+        if name == 'C_NEG_A':
+            return Enum_zarithmetic_op.zC_NEG_A
+        if name == 'C_D_ADD_1':
+            return Enum_zarithmetic_op.zC_D_ADD_1
+        if name == 'C_A_ADD_1':
+            return Enum_zarithmetic_op.zC_A_ADD_1
+        if name == 'C_D_SUB_1':
+            return Enum_zarithmetic_op.zC_D_SUB_1
+        if name == 'C_A_SUB_1':
+            return Enum_zarithmetic_op.zC_A_SUB_1
+        if name == 'C_D_ADD_A':
+            return Enum_zarithmetic_op.zC_D_ADD_A
+        if name == 'C_D_SUB_A':
+            return Enum_zarithmetic_op.zC_D_SUB_A
+        if name == 'C_A_SUB_D':
+            return Enum_zarithmetic_op.zC_A_SUB_D
+        if name == 'C_D_AND_A':
+            return Enum_zarithmetic_op.zC_D_AND_A
+        if name == 'C_D_OR_A':
+            return Enum_zarithmetic_op.zC_D_OR_A
+        raise ValueError
+    @staticmethod
+    def convert_value_to_name(value):
+        if value == Enum_zarithmetic_op.zC_ZERO:
+            return 'C_ZERO'
+        if value == Enum_zarithmetic_op.zC_ONE:
+            return 'C_ONE'
+        if value == Enum_zarithmetic_op.zC_MINUSONE:
+            return 'C_MINUSONE'
+        if value == Enum_zarithmetic_op.zC_D:
+            return 'C_D'
+        if value == Enum_zarithmetic_op.zC_A:
+            return 'C_A'
+        if value == Enum_zarithmetic_op.zC_NOT_D:
+            return 'C_NOT_D'
+        if value == Enum_zarithmetic_op.zC_NOT_A:
+            return 'C_NOT_A'
+        if value == Enum_zarithmetic_op.zC_NEG_D:
+            return 'C_NEG_D'
+        if value == Enum_zarithmetic_op.zC_NEG_A:
+            return 'C_NEG_A'
+        if value == Enum_zarithmetic_op.zC_D_ADD_1:
+            return 'C_D_ADD_1'
+        if value == Enum_zarithmetic_op.zC_A_ADD_1:
+            return 'C_A_ADD_1'
+        if value == Enum_zarithmetic_op.zC_D_SUB_1:
+            return 'C_D_SUB_1'
+        if value == Enum_zarithmetic_op.zC_A_SUB_1:
+            return 'C_A_SUB_1'
+        if value == Enum_zarithmetic_op.zC_D_ADD_A:
+            return 'C_D_ADD_A'
+        if value == Enum_zarithmetic_op.zC_D_SUB_A:
+            return 'C_D_SUB_A'
+        if value == Enum_zarithmetic_op.zC_A_SUB_D:
+            return 'C_A_SUB_D'
+        if value == Enum_zarithmetic_op.zC_D_AND_A:
+            return 'C_D_AND_A'
+        if value == Enum_zarithmetic_op.zC_D_OR_A:
+            return 'C_D_OR_A'
+        raise ValueError
 
 class Struct_ztuplez3z5bool_z5bool_z5bool(supportcode.ObjectBase):
     def __init__(self, ztuplez3z5bool_z5bool_z5bool0, ztuplez3z5bool_z5bool_z5bool1, ztuplez3z5bool_z5bool_z5bool2):
@@ -400,6 +516,9 @@ class Tuple_21(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv64')
         if not (self.utup1 == other.utup1): return False # NamedType('%bool')
         return True
 bitvectorconstant0x0000000000000001_1 = bitvector.from_ruint(64, r_uint(0x0000000000000001))
+
+
+@jit.dont_look_inside
 
 
 def model_init(machine):

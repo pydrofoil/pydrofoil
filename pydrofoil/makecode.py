@@ -383,6 +383,18 @@ class __extend__(parse.Struct):
                     codegen.emit("if %s: return False # %s" % (
                         rtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (rtyp, rtyp), types.Bool()), typ))
                 codegen.emit("return True")
+            if len(self.names) == 1: # for now
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_to_pypy(space, self):"):
+                    typ = structtyp.fieldtyps[self.names[0]]
+                    codegen.emit("return %s(space, self.%s)" % (typ.convert_to_pypy, self.names[0]))
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_from_pypy(space, w_value):"):
+                    typ = structtyp.fieldtyps[self.names[0]]
+                    codegen.emit("return %s(%s(space, w_value))" % (self.pyname, typ.convert_from_pypy))
+                structtyp.convert_to_pypy = "%s.convert_to_pypy" % self.pyname
+                structtyp.convert_from_pypy = "%s.convert_from_pypy" % self.pyname
+
         structtyp.uninitialized_value = "%s(%s)" % (self.pyname, ", ".join(uninit_arg))
 
 class __extend__(parse.GlobalVal):

@@ -168,6 +168,8 @@ class Int(Type):
 @unique
 class Bool(Type):
     uninitialized_value = "False"
+    convert_to_pypy = "supportcode.convert_to_pypy_bool"
+    convert_from_pypy = "supportcode.convert_from_pypy_bool"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )

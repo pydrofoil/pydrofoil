@@ -97,3 +97,9 @@ def test_enum_register():
     assert cpu.read_register("cur_privilege") == "Machine"
     with raises(ValueError):
         cpu.write_register("cur_privilege", "ABC")
+
+def test_various_registers():
+    cpu = _pydrofoil.RISCV64(mulelf)
+    cpu.step()
+    assert cpu.read_register("htif_done") == False
+    assert cpu.read_register("misa") == 0x800000000014112d

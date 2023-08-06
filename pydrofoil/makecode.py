@@ -900,15 +900,17 @@ class __extend__(parse.OperationExpr):
         sargs = [arg.to_code(codegen) for arg in self.args]
         argtyps = [arg.gettyp(codegen) for arg in self.args]
         restyp = self.gettyp(codegen)
-        if name in codegen.globalnames and codegen.globalnames[name].pyname == "supportcode.eq_anything":
-            name = "@eq"
+        if name in codegen.globalnames:
+            n = codegen.globalnames[name].pyname
+            if n == "supportcode.eq_anything":
+                name = "@eq"
+            if n == "supportcode.cons":
+                return "%s(%s, %s)" % (restyp.pyname, sargs[0], sargs[1])
 
         if name.startswith("@"):
             meth = getattr(argtyps[0], "make_op_code_special_" + name[1:], None)
             if meth:
                 return meth(self, sargs, argtyps, restyp)
-        elif name.startswith("$zcons"): # magic list cons stuff
-            return "%s(%s, %s)" % (restyp.pyname, sargs[0], sargs[1])
         elif name.startswith("$zinternal_vector_init"): # magic vector stuff
             oftyp = restyp.typ
             return "[%s] * %s" % (oftyp.uninitialized_value, sargs[0])
@@ -920,13 +922,13 @@ class __extend__(parse.OperationExpr):
         op = codegen.getname(name)
         info = codegen.getinfo(name)
         if isinstance(info.typ, types.Function):
-            # pass machine, even to supportcode functions
             if (op.startswith("supportcode.") and
                     all(arg.is_constant(codegen) for arg in self.args) and
                     can_constfold(op)):
                 folded_result = constfold(op, sargs, self, codegen)
                 return folded_result
             else:
+                # pass machine, even to supportcode functions
                 return "%s(machine, %s)" % (op, args)
         elif isinstance(info.typ, types.Union):
             return info.ast.constructor(info, op, args, argtyps)

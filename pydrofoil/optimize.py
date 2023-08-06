@@ -272,6 +272,8 @@ class OptVisitor(parse.Visitor):
             return parse.StructElementAssignment(
                 lhs.obj, lhs.fields, value, lhs.resolved_type, assign.sourcepos
             )
+        assert isinstance(lhs, parse.RefAssignment)
+        return parse.RefAssignment(lhs.ref, value, lhs.resolved_type, assign.sourcepos)
 
     def _gettyp(self, expr):
         assert expr.resolved_type is not None

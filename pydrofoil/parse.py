@@ -322,7 +322,10 @@ class GeneralAssignment(StatementWithSourcePos):
         self.resolved_type = resolved_type
 
     def find_used_vars(self):
-        res = self.lhs.obj.find_used_vars()
+        if isinstance(self.lhs, StructElementAssignment):
+            res = self.lhs.obj.find_used_vars()
+        else:
+            res = self.lhs.ref.find_used_vars()
         for arg in self.rhs.args:
             res.update(arg.find_used_vars())
         return res
@@ -474,10 +477,11 @@ class StructElementAssignment(StatementWithSourcePos):
 
 
 class RefAssignment(StatementWithSourcePos):
-    def __init__(self, ref, value, sourcepos=None):
+    def __init__(self, ref, value, resolved_type=None, sourcepos=None):
         self.ref = ref
         self.value = value
         self.sourcepos = sourcepos
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         res = self.value.find_used_vars()

@@ -164,6 +164,9 @@ class TypeAttachingVisitor(parse.Visitor):
                 index = curr.ast.names.index(field)
                 curr = self.visit(curr.ast.types[index])
             lhs.resolved_type = curr
+        elif isinstance(lhs, parse.RefAssignment):
+            typ = self.visit(lhs.ref)
+            lhs.resolved_type = typ.typ
         else:
             import pdb; pdb.set_trace()
         rhs = ast.rhs # Operation or TemplatedOperation (with None results)

@@ -387,7 +387,6 @@ class __extend__(parse.Union):
                 codegen.emit("@staticmethod")
                 with codegen.emit_indent("def convert_%s(inst):" % fieldname):
                     with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
-                        codegen.emit("return inst.%s" % (fieldname, )) # XXX
                         codegen.emit("return %s" % self.read_field(fieldname, fieldtyp, 'inst'))
                     with codegen.emit_indent("else:"):
                         codegen.emit("raise TypeError")
@@ -901,7 +900,6 @@ class __extend__(parse.TupleElementAssignment):
 
 class __extend__(parse.StructElementAssignment):
     def make_op_code(self, codegen):
-
         fieldtyp = self.obj.resolved_type.fieldtyps[self.field]
         othertyp = self.value.gettyp(codegen)
         rhs = pair(othertyp, fieldtyp).convert(self.value, codegen)
@@ -1038,16 +1036,11 @@ class __extend__(parse.FieldAccess):
         assert not isinstance(objtyp, types.Tuple)
         if isinstance(objtyp, types.Struct):
             fieldtyp = objtyp.fieldtyps[arg]
-            if fieldtyp is types.Unit():
-                res = "()"
-            elif fieldtyp is types.Int():
-                res = "(%s.%s_0, %s.%s_1)" % (objstr, arg, objstr, arg)
-            elif is_bvtyp(fieldtyp):
-                res = "(%s.%s_0, %s.%s_1, %s.%s_2)" % (objstr, arg, objstr, arg, objstr, arg)
-            else:
-                res = "%s.%s" % (objstr, arg)
+            res = objtyp.ast.read_field(codegen, objstr, arg)
             if arg in codegen.promoted_registers:
                 return "jit.promote(%s)" % res
+        else:
+            import pdb; pdb.set_trace()
         return res
 
     def gettyp(self, codegen):
@@ -1107,6 +1100,7 @@ class __extend__(parse.OperationExpr):
             oftyp = restyp.typ
             return "[%s] * %s" % (oftyp.uninitialized_value, sargs[0])
 
+
         if not sargs:
             args = '()'
         else:
@@ -1122,6 +1116,23 @@ class __extend__(parse.OperationExpr):
                 return folded_result
             else:
                 return "%s(machine, %s)" % (op, args)
+            expand_ints = not info.pyname.startswith("supportcode.")
+            if expand_ints:
+                newargs = []
+                for index, (arg, argtyp) in enumerate(zip(sargs, argtyps)):
+                    if argtyp is types.Int():
+                        newargs.append(tupleindexread(arg, 0))
+                        newargs.append(tupleindexread(arg, 1))
+                    elif is_bvtyp(argtyp):
+                        newargs.append(tupleindexread(arg, 0))
+                        newargs.append(tupleindexread(arg, 1))
+                        newargs.append(tupleindexread(arg, 2))
+                    else:
+                        newargs.append(arg)
+                # pass machine, even to supportcode functions
+            else:
+                newargs = sargs
+            return "%s(machine, %s)" % (result, op, ", ".join(newargs))
         elif isinstance(info.typ, types.Union):
             return info.ast.constructor(info, op, args, argtyps)
         elif name.startswith(("@", "$")):

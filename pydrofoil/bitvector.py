@@ -3,6 +3,7 @@ from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
 from rpython.rlib.objectmodel import always_inline, specialize, dont_inline, we_are_translated
+from rpython.rlib.objectmodel import always_inline, specialize, is_annotation_constant
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 
@@ -17,17 +18,24 @@ from rpython.rlib.rstring import (
 
 
 @always_inline
-@specialize.arg_or_var(0)
+#@specialize.arg_or_var(0, 1)
 def from_ruint(size, val):
     if size <= 64:
+#        if is_annotation_constant(size) and is_annotation_constant(val):
+#            return _small_bit_vector_memo(size, val)
         return small_bv(size, val, True)
     return big_bv(size, rbigint.fromrarith_int(val), True)
+
+@specialize.memo()
+def _small_bit_vector_memo(size, val):
+    return small_bv(size, val, True)
 
 @always_inline
 def from_bigint(size, rval):
     if size <= 64:
         return small_bv(size, bigint_size_mask(size, rval).touint())
     return big_bv(size, rval, True)
+
 
 @always_inline
 def from_int(size, val):
@@ -74,6 +82,32 @@ def bv_string_of_bits(bv):
 
 def bv_tolong(bv): # only for tests
     return bv_tobigint(bv).tolong()
+
+@always_inline
+def bv_add(self, other):
+    sizea, vala, rvala = self
+    sizeb, valb, rvalb = other
+    assert sizea == sizeb
+    if rvala is None:
+        assert rvalb is None
+        return small_bv(sizea, vala + valb, True)
+    else:
+        assert rvalb is not None
+        value = rvala.add(rvalb)
+        return big_bv(sizea, value, True)
+
+@always_inline
+def bv_sub(self, other):
+    sizea, vala, rvala = self
+    sizeb, valb, rvalb = other
+    assert sizea == sizeb
+    if rvala is None:
+        assert rvalb is None
+        return small_bv(sizea, vala - valb, True)
+    else:
+        assert rvalb is not None
+        value = rvala.sub(rvalb)
+        return big_bv(sizea, value, True)
 
 @always_inline
 def bv_signed(bv):
@@ -142,6 +176,8 @@ def bv_and(self, other):
         rvalb = bv_tobigint(other)
         return big_bv(sizea, rvala.and_(rvalb), True)
 
+
+
 @always_inline
 def bv_or(self, other):
     sizea, vala, rvala = self
@@ -152,6 +188,8 @@ def bv_or(self, other):
     else:
         rvalb = bv_tobigint(other)
         return big_bv(sizea, rvala.or_(rvalb), True)
+
+
 
 @always_inline
 def bv_xor(self, other):
@@ -330,8 +368,37 @@ def _bv_sign_extend_slow(size, val, rval, target_size):
         bits = rbigint.fromint(1).lshift(extra_bits).int_sub(1).lshift(size)
         return bits.or_(rval)
 
+@always_inline
+def bv_zero_extend(self, i):
+    size, val, rval = self
+    if i == size:
+        return self
+    assert i > size
+    if rval is None:
+        if i > 64:
+            return big_bv(i, rbigint.fromrarith_int(val))
+        return small_bv(i, val)
+    else:
+        assert i > size
+        return big_bv(i, rval)
 
+@always_inline
+def bv_append(self, other):
+    sizea, vala, rvala = self
+    sizeb, valb, rvalb = other
+    size = sizea + sizeb
+    if size > 64:
+        return _bv_append_slowpath(self, other)
+    assert rvala is rvalb is None
+    return from_ruint(size, (vala << sizeb) | valb)
 
+@dont_inline
+def _bv_append_slowpath(self, other):
+    sizea, _, _ = self
+    sizeb, _, _ = other
+    rvala = bv_tobigint(self)
+    rvalb = bv_tobigint(other)
+    return from_bigint(sizea + sizeb, rvala.lshift(sizeb).or_(rvalb))
 
 # integers: the type needs to be able to represent arbitrarily big integers
 # 
@@ -574,6 +641,18 @@ def int_tdiv_slowpath(vala, rvala, valb, rvalb):
         raise ZeroDivisionError
     div, rem = bigint_divrem(rvala, rvalb)
     return div
+
+def int_add_i_i(a, b):
+    try:
+        return int_fromint(ovfcheck(a + b))
+    except OverflowError:
+        return int_frombigint(rbigint.fromrarith_int(a).int_add(b))
+
+def int_sub_i_i(a, b):
+    try:
+        return int_fromint(ovfcheck(a - b))
+    except OverflowError:
+        return int_frombigint(rbigint.fromrarith_int(b).int_sub(a).neg())
 
 @always_inline
 def int_tmod(ia, ib):

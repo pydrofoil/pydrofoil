@@ -21,13 +21,13 @@ def bi(val):
 
 machine = "dummy"
 
-def test_fast_signed():
-    assert supportcode.fast_signed(machine, 0b0, 1) == 0
-    assert supportcode.fast_signed(machine, 0b1, 1) == -1
-    assert supportcode.fast_signed(machine, 0b0, 2) == 0
-    assert supportcode.fast_signed(machine, 0b1, 2) == 1
-    assert supportcode.fast_signed(machine, 0b10, 2) == -2
-    assert supportcode.fast_signed(machine, 0b11, 2) == -1
+def test_signed_bv():
+    assert supportcode.signed_bv(machine, 0b0, 1) == 0
+    assert supportcode.signed_bv(machine, 0b1, 1) == -1
+    assert supportcode.signed_bv(machine, 0b0, 2) == 0
+    assert supportcode.signed_bv(machine, 0b1, 2) == 1
+    assert supportcode.signed_bv(machine, 0b10, 2) == -2
+    assert supportcode.signed_bv(machine, 0b11, 2) == -1
 
 def test_signed():
     def check(size, val):
@@ -57,6 +57,22 @@ def test_sign_extend():
         check(2, 0b01, 100, 1)
         check(2, 0b10, 100, 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111110)
         check(2, 0b11, 100, 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111)
+
+def test_zero_extend():
+    for c in gbv, bv:
+        assert supportcode.zero_extend(machine, c(1, 0b0), int_fromint(2))[0] == 2
+        assert supportcode.zero_extend(machine, c(2, 0b00), int_fromint(100))[0] == 100
+        assert bitvector.bv_toint(supportcode.zero_extend(machine, c(1, 0b0), int_fromint(2))) == 0
+        assert bitvector.bv_toint(supportcode.zero_extend(machine, c(1, 0b1), int_fromint(2))) == 0b01
+        assert bitvector.bv_toint(supportcode.zero_extend(machine, c(2, 0b00), int_fromint(4))) == 0
+        assert bitvector.bv_toint(supportcode.zero_extend(machine, c(2, 0b01), int_fromint(4))) == 1
+        assert bitvector.bv_toint(supportcode.zero_extend(machine, c(2, 0b10), int_fromint(4))) == 0b0010
+        assert bitvector.bv_toint(supportcode.zero_extend(machine, c(2, 0b11), int_fromint(4))) == 0b0011
+
+        assert bitvector.bv_tobigint(supportcode.zero_extend(machine, c(2, 0b00), int_fromint(100))).tolong() == 0
+        assert bitvector.bv_tobigint(supportcode.zero_extend(machine, c(2, 0b01), int_fromint(100))).tolong() == 1
+        assert bitvector.bv_tobigint(supportcode.zero_extend(machine, c(2, 0b10), int_fromint(100))).tolong() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010
+        assert bitvector.bv_tobigint(supportcode.zero_extend(machine, c(2, 0b11), int_fromint(100))).tolong() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
 
 
 def test_unsigned():
@@ -195,6 +211,19 @@ def test_bv_bitwise():
         res = bitvector.bv_invert(i1)
         assert bitvector.bv_toint(res) == 0b1010
 
+def test_add_bv():
+    for c in gbv, bv:
+        assert bitvector.bv_touint(supportcode.add_bits(None, c(6, 0b11), c(6, 0b111))) == (0b11 + 0b111) & 0b111111
+        assert bitvector.bv_touint(supportcode.add_bits(None, c(6, 0b10000), c(6, 0b10001))) == (0b10000 + 0b10001) & 0b111111
+        assert bitvector.bv_touint(supportcode.add_bits(None, c(6, 0b100000), c(6, 0b100001))) == (0b100000 + 0b100001) & 0b111111
+
+def test_sub_bv():
+    for c in gbv, bv:
+        assert bitvector.bv_touint(supportcode.sub_bits(None, c(6, 0b111), c(6, 0b11))) == (0b111 - 0b11) & 0b111111
+        assert bitvector.bv_touint(supportcode.sub_bits(None, c(6, 0b10000), c(6, 0b10001))) == (0b10000 - 0b10001) & 0b111111
+        assert bitvector.bv_touint(supportcode.sub_bits(None, c(6, 0b100000), c(6, 0b100001))) == (0b100000 - 0b100001) & 0b111111
+
+
 def test_eq_int():
     for c1 in bi, si:
         for c2 in bi, si:
@@ -264,6 +293,16 @@ def test_string_of_bits():
 def test_int_fromstr():
     for s in ['0', '-1', '12315', '1' * 100, '-' + '2' * 200]:
         assert bitvector.int_tolong(bitvector.int_fromstr(s)) == int(s)
+
+def test_append(): # XXX
+    assert supportcode.append(None, bv(16, 0xa9e3), bv(16, 0x04fb)) == (32, 0xa9e304fb, None)
+    res = supportcode.append(None, bv(64, 0xa9e3), bv(64, 0x04fb))
+    assert res[0] == 128
+    assert res[2].tolong() == 0xa9e300000000000004fb
+
+    res = supportcode.append(None, gbv(72, 0xa9e3), bv(64, 0x04fb))
+    assert res[0] == 136
+    assert res[2].tolong() == 0xa9e300000000000004fb
         
 # softfloat
 

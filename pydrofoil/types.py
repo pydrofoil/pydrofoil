@@ -20,15 +20,24 @@ class Union(Type):
     def __init__(self, ast):
         self.ast = ast
 
+    def __repr__(self):
+        return "%s(<%s>)" % (type(self).__name__, self.ast.name)
+
 @unique
 class Enum(Type):
     def __init__(self, ast):
         self.ast = ast
 
+    def __repr__(self):
+        return "%s(<%s>)" % (type(self).__name__, self.ast.name)
+
 @unique
 class Struct(Type):
     def __init__(self, ast):
         self.ast = ast
+
+    def __repr__(self):
+        return "%s(<%s>)" % (type(self).__name__, self.ast.name)
 
 @unique
 class Ref(Type):
@@ -36,11 +45,27 @@ class Ref(Type):
         assert isinstance(typ, Type)
         self.typ = typ
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.typ)
+
 @unique
 class Vec(Type):
     def __init__(self, typ):
         assert isinstance(typ, Type)
         self.typ = typ
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.typ)
+
+@unique
+class FVec(Type):
+    def __init__(self, number, typ):
+        assert isinstance(typ, Type)
+        self.number = number
+        self.typ = typ
+
+    def __repr__(self):
+        return "%s(%s, %r)" % (type(self).__name__, self.number, self.typ)
 
 @unique
 class Function(Type):
@@ -50,10 +75,17 @@ class Function(Type):
         self.argtype = argtype
         self.restype = restype
 
+    def __repr__(self):
+        return "%s(%s, %r)" % (type(self).__name__, self.argtype, self.restype)
+
 @unique
 class Tuple(Type):
     def __init__(self, elements):
         self.elements = elements
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.elements)
+
 
 @unique
 class List(Type):
@@ -64,52 +96,92 @@ class List(Type):
         assert isinstance(typ, Type)
         self.typ = typ
 
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.typ)
+
 @unique
-class FixedBitVector(Type):
+class NullType(Type):
+    uninitialized_value = "None"
+
+    def __init__(self):
+        pass
+
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
+@unique
+class SmallFixedBitVector(Type):
     uninitialized_value = "r_uint(0)"
 
     def __init__(self, width):
         # size known at compile time
+        assert width <= 64
         self.width = width
 
     def __repr__(self):
-        return "FixedBitVector(%s)" % (self.width, )
+        return "SmallFixedBitVector(%s)" % (self.width, )
+
+    def __repr__(self):
+        return "%s(%s)" % (type(self).__name__, self.width)
 
 @unique
-class SmallBitVector(Type):
-    uninitialized_value = "(19, r_uint(-1), None)"
+class BigFixedBitVector(Type):
+    uninitialized_value = "rbigint.fromint(0)"
 
-    # small bitvector: length of at most width
     def __init__(self, width):
+        # size known at compile time
+        assert width > 64
         self.width = width
 
     def __repr__(self):
-        return "SmallBitVector(%s)" % (self.width, )
+        return "BigFixedBitVector(%s)" % (self.width, )
+
 
 @unique
 class GenericBitVector(Type):
     uninitialized_value = "(123, r_uint(-1), None)"
 
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
 @unique
 class MachineInt(Type):
     uninitialized_value = "-0xfefe"
+
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
 
 @unique
 class Int(Type):
     uninitialized_value = "UninitInt"
 
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
 @unique
 class Bool(Type):
     uninitialized_value = "False"
+
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
 
 @unique
 class Unit(Type):
     uninitialized_value = "()"
 
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
 @unique
 class Bit(Type):
     uninitialized_value = "r_uint(0)"
 
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
 @unique
 class String(Type):
     uninitialized_value = "None"
+
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )

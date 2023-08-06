@@ -1,3 +1,7 @@
+val zz5izDzKz5i64 = "%i->%i64" : (%i) ->  %i64
+
+val zz5i64zDzKz5i = "%i64->%i" : (%i64) ->  %i
+
 enum zjump {
   zJDONT,
   zJGT,
@@ -7,6 +11,10 @@ enum zjump {
   zJNE,
   zJLE,
   zJMP
+}
+
+union zexception {
+  z__dummy_exnz3: %unit
 }
 
 enum zarithmetic_op {
@@ -30,30 +38,49 @@ enum zarithmetic_op {
   zC_D_OR_A
 }
 
-union zinstr {
-  zAINST: %bv16,
-  zCINST: (%bv1, %enum zarithmetic_op, (%bool, %bool, %bool), %enum zjump)
+#tuplestruct ztuplez3z5bool_z5bool_z5bool ztuplez3z5bool_z5bool_z5bool0 ztuplez3z5bool_z5bool_z5bool1 ztuplez3z5bool_z5bool_z5bool2
+
+struct ztuplez3z5bool_z5bool_z5bool {
+  ztuplez3z5bool_z5bool_z5bool0: %bool,
+  ztuplez3z5bool_z5bool_z5bool1: %bool,
+  ztuplez3z5bool_z5bool_z5bool2: %bool
 }
 
-union zoption {
-  zNone: %unit,
-  zSomez3z5unionz0zzinstr: %union zinstr
+#tuplestruct ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3
+
+struct ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump {
+  ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0: %bv1,
+  ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1: %enum zarithmetic_op,
+  ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2: %struct ztuplez3z5bool_z5bool_z5bool,
+  ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3: %enum zjump
 }
+
+union zinstr {
+  zAINST: %bv16,
+  zCINST: %struct ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump
+}
+
+union zoptionzIUinstrzIzKzK {
+  zNonezIUinstrzIzKzK: %unit,
+  zSomezIUinstrzIzKzK: %union zinstr
+}
+
+#mangled zSome zSomezIUinstrzIzKzK
+
+#mangled zNone zNonezIUinstrzIzKzK
+
+#mangled zoption zoptionzIUinstrzIzKzK
 
 val znot_bool = "not" : (%bool) ->  %bool
 
-val zand_bool = "and_bool" : (%bool, %bool) ->  %bool
-
 val zeq_int = "eq_int" : (%i, %i) ->  %bool
-
-val zeq_bool = "eq_bool" : (%bool, %bool) ->  %bool
 
 val zneq_int : (%i, %i) ->  %bool
 
 fn zneq_int(zx, zy) {
-  zgaz30_lz30 : %bool;
-  zgaz30_lz30 = zeq_int(zx, zy);
-  return = znot_bool(zgaz30_lz30);
+  zz40 : %bool `0 100:26-100:48;
+  zz40 = zeq_int(zx, zy) `0 100:35-100:47;
+  return = znot_bool(zz40) `0 100:26-100:48;
   end;
 }
 
@@ -67,33 +94,13 @@ val zgt_int = "gt" : (%i, %i) ->  %bool
 
 val zeq_bits = "eq_bits" : (%bv, %bv) ->  %bool
 
-val zbitvector_length = "length" : (%bv) ->  %i
-
 val zsail_zzero_extend = "zero_extend" : (%bv, %i) ->  %bv
-
-val ztruncate = "sail_truncate" : (%bv, %i) ->  %bv
-
-val zsail_mask : (%i, %bv) ->  %bv
-
-fn zsail_mask(zlen, zv) {
-  zgaz32_lz30 : %bool;
-  zgaz31_lz31 : %i;
-  zgaz31_lz31 = zbitvector_length(zv);
-  zgaz32_lz30 = zlteq_int(zlen, zgaz31_lz31);
-  jump zgaz32_lz30 goto 7 ` "/home/stupsi/.opam/default/share/sail/lib/vector_dec.sail 81:29 - 81:100";
-  return = zsail_zzero_extend(zv, zlen);
-  goto 8;
-  return = ztruncate(zv, zlen);
-  end;
-}
 
 val zappend_64 = "append_64" : (%bv, %bv64) ->  %bv
 
 val zadd_bits = "add_bits" : (%bv, %bv) ->  %bv
 
 val zadd_bits_int = "add_bits_int" : (%bv, %i) ->  %bv
-
-val zsub_bits = "sub_bits" : (%bv, %bv) ->  %bv
 
 val znot_vec = "not_bits" : (%bv) ->  %bv
 
@@ -103,102 +110,29 @@ val zor_vec = "or_bits" : (%bv, %bv) ->  %bv
 
 val zsubrange_bits = "vector_subrange" : (%bv, %i, %i) ->  %bv
 
-val zzzzz7ordzzJzzKdecz3sail_shiftleft = "shiftl" : (%bv, %i) ->  %bv
-
-val zsail_zzeros = "zeros" : (%i) ->  %bv
-
-val zsail_ones : (%i) ->  %bv
-
-fn zsail_ones(zn) {
-  zgaz33_lz30 : %bv;
-  zgaz33_lz30 = zsail_zzeros(zn);
-  return = znot_vec(zgaz33_lz30);
-  end;
-}
-
 val zsigned = "sail_signed" : (%bv) ->  %i
-
-val zadd_atom = "add_int" : (%i, %i) ->  %i
-
-val zsub_atom = "sub_int" : (%i, %i) ->  %i
-
-val zmult_atom = "mult_int" : (%i, %i) ->  %i
-
-val ztdiv_int = "tdiv_int" : (%i, %i) ->  %i
-
-val zfdiv_int : (%i, %i) ->  %i
-
-fn zfdiv_int(zn, zm) {
-  zgaz35_lz30 : %bool;
-  zgaz34_lz314 : %bool;
-  zgsz30_lz317 : %i = 0;
-  zgaz34_lz314 = zlt_int(zn, zgsz30_lz317);
-  zgsz31_lz315 : %bool;
-  jump zgaz34_lz314 goto 8 ` "/home/stupsi/.opam/default/share/sail/lib/arith.sail 113:5 - 113:18";
-  zgsz31_lz315 = false;
-  goto 10;
-  zgsz32_lz316 : %i = 0;
-  zgsz31_lz315 = zgt_int(zm, zgsz32_lz316);
-  zgaz35_lz30 = zgsz31_lz315;
-  jump zgaz35_lz30 goto 34 ` "/home/stupsi/.opam/default/share/sail/lib/arith.sail 113:2 - 119:3";
-  zgaz39_lz35 : %bool;
-  zgaz38_lz310 : %bool;
-  zgsz33_lz313 : %i = 0;
-  zgaz38_lz310 = zgt_int(zn, zgsz33_lz313);
-  zgsz34_lz311 : %bool;
-  jump zgaz38_lz310 goto 20 ` "/home/stupsi/.opam/default/share/sail/lib/arith.sail 115:12 - 115:25";
-  zgsz34_lz311 = false;
-  goto 22;
-  zgsz35_lz312 : %i = 0;
-  zgsz34_lz311 = zlt_int(zm, zgsz35_lz312);
-  zgaz39_lz35 = zgsz34_lz311;
-  jump zgaz39_lz35 goto 26 ` "/home/stupsi/.opam/default/share/sail/lib/arith.sail 115:9 - 119:3";
-  return = ztdiv_int(zn, zm);
-  goto 33;
-  zgaz311_lz36 : %i;
-  zgaz310_lz38 : %i;
-  zgsz36_lz39 : %i = 1;
-  zgaz310_lz38 = zsub_atom(zn, zgsz36_lz39);
-  zgaz311_lz36 = ztdiv_int(zgaz310_lz38, zm);
-  zgsz37_lz37 : %i = 1;
-  return = zsub_atom(zgaz311_lz36, zgsz37_lz37);
-  goto 41;
-  zgaz37_lz31 : %i;
-  zgaz36_lz33 : %i;
-  zgsz38_lz34 : %i = 1;
-  zgaz36_lz33 = zadd_atom(zn, zgsz38_lz34);
-  zgaz37_lz31 = ztdiv_int(zgaz36_lz33, zm);
-  zgsz39_lz32 : %i = 1;
-  return = zsub_atom(zgaz37_lz31, zgsz39_lz32);
-  end;
-}
 
 val zsub_vec = "sub_bits" : (%bv, %bv) ->  %bv
 
 val zbits1_to_bool : (%bv1) ->  %bool
 
 fn zbits1_to_bool(zb) {
-  zgsz310_lz30 : %bool;
-  zb__0_lz33 : %bv1;
-  zb__0_lz33 = zb;
-  zgsz311_lz34 : %bool;
-  zgsz311_lz34 = @eq(zb__0_lz33, 0b1);
-  jump @not(zgsz311_lz34) goto 7 ` "nand2tetris.sail 13:27 - 16:1";
-  goto 8;
-  goto 10;
-  zgsz310_lz30 = true;
-  goto 20;
-  zb__1_lz31 : %bv1;
-  zb__1_lz31 = zb;
-  zgsz312_lz32 : %bool;
-  zgsz312_lz32 = @eq(zb__1_lz31, 0b0);
-  jump @not(zgsz312_lz32) goto 16 ` "nand2tetris.sail 13:27 - 16:1";
-  goto 17;
-  goto 19;
-  zgsz310_lz30 = false;
-  goto 20;
-  failure;
-  return = zgsz310_lz30;
+  zz40 : %bool `1 13:27-16:1;
+  zz41 : %bv1 `1 14:2-14:5;
+  zz41 = zb `1 14:2-14:5;
+  zz42 : %bool `1 13:27-16:1;
+  zz43 : %bv `1 14:2-14:5;
+  zz43 = zz41 `1 14:2-14:5;
+  zz44 : %bv `1 14:2-14:5;
+  zz44 = 0b1 `1 14:2-14:5;
+  zz42 = zeq_bits(zz43, zz44) `1 14:2-14:5;
+  jump @not(zz42) goto 11 `1 13:27-16:1;
+  goto 12;
+  goto 14;
+  zz40 = true `1 14:10-14:14;
+  goto 15;
+  zz40 = false `1 15:9-15:14;
+  return = zz40 `1 13:27-16:1;
   end;
 }
 
@@ -219,643 +153,994 @@ register zD : %bv16
 val zdecode_compute_backwards : (%bv6) ->  %enum zarithmetic_op
 
 fn zdecode_compute_backwards(zargz3) {
-  zgsz313_lz30 : %enum zarithmetic_op;
-  zb__0_lz335 : %bv6;
-  zb__0_lz335 = zargz3;
-  zgsz314_lz336 : %bool;
-  zgsz314_lz336 = @eq(zb__0_lz335, 0b101010);
-  jump @not(zgsz314_lz336) goto 7 ` "unknown location";
-  goto 8;
-  goto 10;
-  zgsz313_lz30 = zC_ZERO;
-  goto 164;
-  zb__1_lz333 : %bv6;
-  zb__1_lz333 = zargz3;
-  zgsz315_lz334 : %bool;
-  zgsz315_lz334 = @eq(zb__1_lz333, 0b111111);
-  jump @not(zgsz315_lz334) goto 16 ` "unknown location";
-  goto 17;
-  goto 19;
-  zgsz313_lz30 = zC_ONE;
-  goto 164;
-  zb__2_lz331 : %bv6;
-  zb__2_lz331 = zargz3;
-  zgsz316_lz332 : %bool;
-  zgsz316_lz332 = @eq(zb__2_lz331, 0b111010);
-  jump @not(zgsz316_lz332) goto 25 ` "unknown location";
-  goto 26;
-  goto 28;
-  zgsz313_lz30 = zC_MINUSONE;
-  goto 164;
-  zb__3_lz329 : %bv6;
-  zb__3_lz329 = zargz3;
-  zgsz317_lz330 : %bool;
-  zgsz317_lz330 = @eq(zb__3_lz329, 0b001100);
-  jump @not(zgsz317_lz330) goto 34 ` "unknown location";
-  goto 35;
-  goto 37;
-  zgsz313_lz30 = zC_D;
-  goto 164;
-  zb__4_lz327 : %bv6;
-  zb__4_lz327 = zargz3;
-  zgsz318_lz328 : %bool;
-  zgsz318_lz328 = @eq(zb__4_lz327, 0b110000);
-  jump @not(zgsz318_lz328) goto 43 ` "unknown location";
-  goto 44;
-  goto 46;
-  zgsz313_lz30 = zC_A;
-  goto 164;
-  zb__5_lz325 : %bv6;
-  zb__5_lz325 = zargz3;
-  zgsz319_lz326 : %bool;
-  zgsz319_lz326 = @eq(zb__5_lz325, 0b001101);
-  jump @not(zgsz319_lz326) goto 52 ` "unknown location";
+  zz40 : %enum zarithmetic_op `1;
+  zz469 : %bv6 `1 56:19-56:27;
+  zz469 = zargz3 `1 56:19-56:27;
+  zz470 : %bool `2;
+  zz471 : %bv `1 56:19-56:27;
+  zz471 = zz469 `1 56:19-56:27;
+  zz472 : %bv `1 56:19-56:27;
+  zz472 = 0b101010 `1 56:19-56:27;
+  zz470 = zeq_bits(zz471, zz472) `1 56:19-56:27;
+  jump @not(zz470) goto 11 `3;
+  goto 12;
+  goto 14;
+  zz40 = zC_ZERO `1 56:2-56:8;
+  goto 236;
+  zz465 : %bv6 `1 57:19-57:27;
+  zz465 = zargz3 `1 57:19-57:27;
+  zz466 : %bool `4;
+  zz467 : %bv `1 57:19-57:27;
+  zz467 = zz465 `1 57:19-57:27;
+  zz468 : %bv `1 57:19-57:27;
+  zz468 = 0b111111 `1 57:19-57:27;
+  zz466 = zeq_bits(zz467, zz468) `1 57:19-57:27;
+  jump @not(zz466) goto 24 `5;
+  goto 25;
+  goto 27;
+  zz40 = zC_ONE `1 57:2-57:7;
+  goto 236;
+  zz461 : %bv6 `1 58:19-58:27;
+  zz461 = zargz3 `1 58:19-58:27;
+  zz462 : %bool `6;
+  zz463 : %bv `1 58:19-58:27;
+  zz463 = zz461 `1 58:19-58:27;
+  zz464 : %bv `1 58:19-58:27;
+  zz464 = 0b111010 `1 58:19-58:27;
+  zz462 = zeq_bits(zz463, zz464) `1 58:19-58:27;
+  jump @not(zz462) goto 37 `7;
+  goto 38;
+  goto 40;
+  zz40 = zC_MINUSONE `1 58:2-58:12;
+  goto 236;
+  zz457 : %bv6 `1 59:19-59:27;
+  zz457 = zargz3 `1 59:19-59:27;
+  zz458 : %bool `8;
+  zz459 : %bv `1 59:19-59:27;
+  zz459 = zz457 `1 59:19-59:27;
+  zz460 : %bv `1 59:19-59:27;
+  zz460 = 0b001100 `1 59:19-59:27;
+  zz458 = zeq_bits(zz459, zz460) `1 59:19-59:27;
+  jump @not(zz458) goto 50 `9;
+  goto 51;
   goto 53;
-  goto 55;
-  zgsz313_lz30 = zC_NOT_D;
-  goto 164;
-  zb__6_lz323 : %bv6;
-  zb__6_lz323 = zargz3;
-  zgsz320_lz324 : %bool;
-  zgsz320_lz324 = @eq(zb__6_lz323, 0b110001);
-  jump @not(zgsz320_lz324) goto 61 ` "unknown location";
-  goto 62;
+  zz40 = zC_D `1 59:2-59:5;
+  goto 236;
+  zz453 : %bv6 `1 60:19-60:27;
+  zz453 = zargz3 `1 60:19-60:27;
+  zz454 : %bool `10;
+  zz455 : %bv `1 60:19-60:27;
+  zz455 = zz453 `1 60:19-60:27;
+  zz456 : %bv `1 60:19-60:27;
+  zz456 = 0b110000 `1 60:19-60:27;
+  zz454 = zeq_bits(zz455, zz456) `1 60:19-60:27;
+  jump @not(zz454) goto 63 `11;
   goto 64;
-  zgsz313_lz30 = zC_NOT_A;
-  goto 164;
-  zb__7_lz321 : %bv6;
-  zb__7_lz321 = zargz3;
-  zgsz321_lz322 : %bool;
-  zgsz321_lz322 = @eq(zb__7_lz321, 0b001111);
-  jump @not(zgsz321_lz322) goto 70 ` "unknown location";
-  goto 71;
-  goto 73;
-  zgsz313_lz30 = zC_NEG_D;
-  goto 164;
-  zb__8_lz319 : %bv6;
-  zb__8_lz319 = zargz3;
-  zgsz322_lz320 : %bool;
-  zgsz322_lz320 = @eq(zb__8_lz319, 0b110011);
-  jump @not(zgsz322_lz320) goto 79 ` "unknown location";
-  goto 80;
-  goto 82;
-  zgsz313_lz30 = zC_NEG_A;
-  goto 164;
-  zb__9_lz317 : %bv6;
-  zb__9_lz317 = zargz3;
-  zgsz323_lz318 : %bool;
-  zgsz323_lz318 = @eq(zb__9_lz317, 0b011111);
-  jump @not(zgsz323_lz318) goto 88 ` "unknown location";
-  goto 89;
-  goto 91;
-  zgsz313_lz30 = zC_D_ADD_1;
-  goto 164;
-  zb__10_lz315 : %bv6;
-  zb__10_lz315 = zargz3;
-  zgsz324_lz316 : %bool;
-  zgsz324_lz316 = @eq(zb__10_lz315, 0b110111);
-  jump @not(zgsz324_lz316) goto 97 ` "unknown location";
-  goto 98;
-  goto 100;
-  zgsz313_lz30 = zC_A_ADD_1;
-  goto 164;
-  zb__11_lz313 : %bv6;
-  zb__11_lz313 = zargz3;
-  zgsz325_lz314 : %bool;
-  zgsz325_lz314 = @eq(zb__11_lz313, 0b001110);
-  jump @not(zgsz325_lz314) goto 106 ` "unknown location";
-  goto 107;
-  goto 109;
-  zgsz313_lz30 = zC_D_SUB_1;
-  goto 164;
-  zb__12_lz311 : %bv6;
-  zb__12_lz311 = zargz3;
-  zgsz326_lz312 : %bool;
-  zgsz326_lz312 = @eq(zb__12_lz311, 0b110010);
-  jump @not(zgsz326_lz312) goto 115 ` "unknown location";
+  goto 66;
+  zz40 = zC_A `1 60:2-60:5;
+  goto 236;
+  zz449 : %bv6 `1 61:19-61:27;
+  zz449 = zargz3 `1 61:19-61:27;
+  zz450 : %bool `12;
+  zz451 : %bv `1 61:19-61:27;
+  zz451 = zz449 `1 61:19-61:27;
+  zz452 : %bv `1 61:19-61:27;
+  zz452 = 0b001101 `1 61:19-61:27;
+  zz450 = zeq_bits(zz451, zz452) `1 61:19-61:27;
+  jump @not(zz450) goto 76 `13;
+  goto 77;
+  goto 79;
+  zz40 = zC_NOT_D `1 61:2-61:9;
+  goto 236;
+  zz445 : %bv6 `1 62:19-62:27;
+  zz445 = zargz3 `1 62:19-62:27;
+  zz446 : %bool `14;
+  zz447 : %bv `1 62:19-62:27;
+  zz447 = zz445 `1 62:19-62:27;
+  zz448 : %bv `1 62:19-62:27;
+  zz448 = 0b110001 `1 62:19-62:27;
+  zz446 = zeq_bits(zz447, zz448) `1 62:19-62:27;
+  jump @not(zz446) goto 89 `15;
+  goto 90;
+  goto 92;
+  zz40 = zC_NOT_A `1 62:2-62:9;
+  goto 236;
+  zz441 : %bv6 `1 63:19-63:27;
+  zz441 = zargz3 `1 63:19-63:27;
+  zz442 : %bool `16;
+  zz443 : %bv `1 63:19-63:27;
+  zz443 = zz441 `1 63:19-63:27;
+  zz444 : %bv `1 63:19-63:27;
+  zz444 = 0b001111 `1 63:19-63:27;
+  zz442 = zeq_bits(zz443, zz444) `1 63:19-63:27;
+  jump @not(zz442) goto 102 `17;
+  goto 103;
+  goto 105;
+  zz40 = zC_NEG_D `1 63:2-63:9;
+  goto 236;
+  zz437 : %bv6 `1 64:19-64:27;
+  zz437 = zargz3 `1 64:19-64:27;
+  zz438 : %bool `18;
+  zz439 : %bv `1 64:19-64:27;
+  zz439 = zz437 `1 64:19-64:27;
+  zz440 : %bv `1 64:19-64:27;
+  zz440 = 0b110011 `1 64:19-64:27;
+  zz438 = zeq_bits(zz439, zz440) `1 64:19-64:27;
+  jump @not(zz438) goto 115 `19;
   goto 116;
   goto 118;
-  zgsz313_lz30 = zC_A_SUB_1;
-  goto 164;
-  zb__13_lz39 : %bv6;
-  zb__13_lz39 = zargz3;
-  zgsz327_lz310 : %bool;
-  zgsz327_lz310 = @eq(zb__13_lz39, 0b000010);
-  jump @not(zgsz327_lz310) goto 124 ` "unknown location";
-  goto 125;
-  goto 127;
-  zgsz313_lz30 = zC_D_ADD_A;
-  goto 164;
-  zb__14_lz37 : %bv6;
-  zb__14_lz37 = zargz3;
-  zgsz328_lz38 : %bool;
-  zgsz328_lz38 = @eq(zb__14_lz37, 0b010011);
-  jump @not(zgsz328_lz38) goto 133 ` "unknown location";
-  goto 134;
-  goto 136;
-  zgsz313_lz30 = zC_D_SUB_A;
-  goto 164;
-  zb__15_lz35 : %bv6;
-  zb__15_lz35 = zargz3;
-  zgsz329_lz36 : %bool;
-  zgsz329_lz36 = @eq(zb__15_lz35, 0b000111);
-  jump @not(zgsz329_lz36) goto 142 ` "unknown location";
-  goto 143;
-  goto 145;
-  zgsz313_lz30 = zC_A_SUB_D;
-  goto 164;
-  zb__16_lz33 : %bv6;
-  zb__16_lz33 = zargz3;
-  zgsz330_lz34 : %bool;
-  zgsz330_lz34 = @eq(zb__16_lz33, 0b000000);
-  jump @not(zgsz330_lz34) goto 151 ` "unknown location";
-  goto 152;
-  goto 154;
-  zgsz313_lz30 = zC_D_AND_A;
-  goto 164;
-  zb__17_lz31 : %bv6;
-  zb__17_lz31 = zargz3;
-  zgsz331_lz32 : %bool;
-  zgsz331_lz32 = @eq(zb__17_lz31, 0b010101);
-  jump @not(zgsz331_lz32) goto 160 ` "unknown location";
-  goto 161;
-  goto 163;
-  zgsz313_lz30 = zC_D_OR_A;
-  goto 164;
-  failure;
-  return = zgsz313_lz30;
+  zz40 = zC_NEG_A `1 64:2-64:9;
+  goto 236;
+  zz433 : %bv6 `1 65:19-65:27;
+  zz433 = zargz3 `1 65:19-65:27;
+  zz434 : %bool `20;
+  zz435 : %bv `1 65:19-65:27;
+  zz435 = zz433 `1 65:19-65:27;
+  zz436 : %bv `1 65:19-65:27;
+  zz436 = 0b011111 `1 65:19-65:27;
+  zz434 = zeq_bits(zz435, zz436) `1 65:19-65:27;
+  jump @not(zz434) goto 128 `21;
+  goto 129;
+  goto 131;
+  zz40 = zC_D_ADD_1 `1 65:2-65:11;
+  goto 236;
+  zz429 : %bv6 `1 66:19-66:27;
+  zz429 = zargz3 `1 66:19-66:27;
+  zz430 : %bool `22;
+  zz431 : %bv `1 66:19-66:27;
+  zz431 = zz429 `1 66:19-66:27;
+  zz432 : %bv `1 66:19-66:27;
+  zz432 = 0b110111 `1 66:19-66:27;
+  zz430 = zeq_bits(zz431, zz432) `1 66:19-66:27;
+  jump @not(zz430) goto 141 `23;
+  goto 142;
+  goto 144;
+  zz40 = zC_A_ADD_1 `1 66:2-66:11;
+  goto 236;
+  zz425 : %bv6 `1 67:19-67:27;
+  zz425 = zargz3 `1 67:19-67:27;
+  zz426 : %bool `24;
+  zz427 : %bv `1 67:19-67:27;
+  zz427 = zz425 `1 67:19-67:27;
+  zz428 : %bv `1 67:19-67:27;
+  zz428 = 0b001110 `1 67:19-67:27;
+  zz426 = zeq_bits(zz427, zz428) `1 67:19-67:27;
+  jump @not(zz426) goto 154 `25;
+  goto 155;
+  goto 157;
+  zz40 = zC_D_SUB_1 `1 67:2-67:11;
+  goto 236;
+  zz421 : %bv6 `1 68:19-68:27;
+  zz421 = zargz3 `1 68:19-68:27;
+  zz422 : %bool `26;
+  zz423 : %bv `1 68:19-68:27;
+  zz423 = zz421 `1 68:19-68:27;
+  zz424 : %bv `1 68:19-68:27;
+  zz424 = 0b110010 `1 68:19-68:27;
+  zz422 = zeq_bits(zz423, zz424) `1 68:19-68:27;
+  jump @not(zz422) goto 167 `27;
+  goto 168;
+  goto 170;
+  zz40 = zC_A_SUB_1 `1 68:2-68:11;
+  goto 236;
+  zz417 : %bv6 `1 69:19-69:27;
+  zz417 = zargz3 `1 69:19-69:27;
+  zz418 : %bool `28;
+  zz419 : %bv `1 69:19-69:27;
+  zz419 = zz417 `1 69:19-69:27;
+  zz420 : %bv `1 69:19-69:27;
+  zz420 = 0b000010 `1 69:19-69:27;
+  zz418 = zeq_bits(zz419, zz420) `1 69:19-69:27;
+  jump @not(zz418) goto 180 `29;
+  goto 181;
+  goto 183;
+  zz40 = zC_D_ADD_A `1 69:2-69:11;
+  goto 236;
+  zz413 : %bv6 `1 70:19-70:27;
+  zz413 = zargz3 `1 70:19-70:27;
+  zz414 : %bool `30;
+  zz415 : %bv `1 70:19-70:27;
+  zz415 = zz413 `1 70:19-70:27;
+  zz416 : %bv `1 70:19-70:27;
+  zz416 = 0b010011 `1 70:19-70:27;
+  zz414 = zeq_bits(zz415, zz416) `1 70:19-70:27;
+  jump @not(zz414) goto 193 `31;
+  goto 194;
+  goto 196;
+  zz40 = zC_D_SUB_A `1 70:2-70:11;
+  goto 236;
+  zz49 : %bv6 `1 71:19-71:27;
+  zz49 = zargz3 `1 71:19-71:27;
+  zz410 : %bool `32;
+  zz411 : %bv `1 71:19-71:27;
+  zz411 = zz49 `1 71:19-71:27;
+  zz412 : %bv `1 71:19-71:27;
+  zz412 = 0b000111 `1 71:19-71:27;
+  zz410 = zeq_bits(zz411, zz412) `1 71:19-71:27;
+  jump @not(zz410) goto 206 `33;
+  goto 207;
+  goto 209;
+  zz40 = zC_A_SUB_D `1 71:2-71:11;
+  goto 236;
+  zz45 : %bv6 `1 72:19-72:27;
+  zz45 = zargz3 `1 72:19-72:27;
+  zz46 : %bool `34;
+  zz47 : %bv `1 72:19-72:27;
+  zz47 = zz45 `1 72:19-72:27;
+  zz48 : %bv `1 72:19-72:27;
+  zz48 = 0b000000 `1 72:19-72:27;
+  zz46 = zeq_bits(zz47, zz48) `1 72:19-72:27;
+  jump @not(zz46) goto 219 `35;
+  goto 220;
+  goto 222;
+  zz40 = zC_D_AND_A `1 72:2-72:11;
+  goto 236;
+  zz41 : %bv6 `1 73:19-73:27;
+  zz41 = zargz3 `1 73:19-73:27;
+  zz42 : %bool `36;
+  zz43 : %bv `1 73:19-73:27;
+  zz43 = zz41 `1 73:19-73:27;
+  zz44 : %bv `1 73:19-73:27;
+  zz44 = 0b010101 `1 73:19-73:27;
+  zz42 = zeq_bits(zz43, zz44) `1 73:19-73:27;
+  jump @not(zz42) goto 232 `37;
+  goto 233;
+  goto 235;
+  zz40 = zC_D_OR_A `1 73:2-73:10;
+  goto 236;
+  exit match `38;
+  return = zz40 `39;
   end;
 }
 
 val zdecode_jump_backwards : (%bv3) ->  %enum zjump
 
 fn zdecode_jump_backwards(zargz3) {
-  zgsz332_lz30 : %enum zjump;
-  zb__0_lz315 : %bv3;
-  zb__0_lz315 = zargz3;
-  zgsz333_lz316 : %bool;
-  zgsz333_lz316 = @eq(zb__0_lz315, 0b000);
-  jump @not(zgsz333_lz316) goto 7 ` "unknown location";
-  goto 8;
-  goto 10;
-  zgsz332_lz30 = zJDONT;
-  goto 74;
-  zb__1_lz313 : %bv3;
-  zb__1_lz313 = zargz3;
-  zgsz334_lz314 : %bool;
-  zgsz334_lz314 = @eq(zb__1_lz313, 0b001);
-  jump @not(zgsz334_lz314) goto 16 ` "unknown location";
-  goto 17;
-  goto 19;
-  zgsz332_lz30 = zJGT;
-  goto 74;
-  zb__2_lz311 : %bv3;
-  zb__2_lz311 = zargz3;
-  zgsz335_lz312 : %bool;
-  zgsz335_lz312 = @eq(zb__2_lz311, 0b010);
-  jump @not(zgsz335_lz312) goto 25 ` "unknown location";
-  goto 26;
-  goto 28;
-  zgsz332_lz30 = zJEQ;
-  goto 74;
-  zb__3_lz39 : %bv3;
-  zb__3_lz39 = zargz3;
-  zgsz336_lz310 : %bool;
-  zgsz336_lz310 = @eq(zb__3_lz39, 0b011);
-  jump @not(zgsz336_lz310) goto 34 ` "unknown location";
-  goto 35;
-  goto 37;
-  zgsz332_lz30 = zJGE;
-  goto 74;
-  zb__4_lz37 : %bv3;
-  zb__4_lz37 = zargz3;
-  zgsz337_lz38 : %bool;
-  zgsz337_lz38 = @eq(zb__4_lz37, 0b100);
-  jump @not(zgsz337_lz38) goto 43 ` "unknown location";
-  goto 44;
-  goto 46;
-  zgsz332_lz30 = zJLT;
-  goto 74;
-  zb__5_lz35 : %bv3;
-  zb__5_lz35 = zargz3;
-  zgsz338_lz36 : %bool;
-  zgsz338_lz36 = @eq(zb__5_lz35, 0b101);
-  jump @not(zgsz338_lz36) goto 52 ` "unknown location";
+  zz40 : %enum zjump `40;
+  zz429 : %bv3 `1 79:13-79:18;
+  zz429 = zargz3 `1 79:13-79:18;
+  zz430 : %bool `41;
+  zz431 : %bv `1 79:13-79:18;
+  zz431 = zz429 `1 79:13-79:18;
+  zz432 : %bv `1 79:13-79:18;
+  zz432 = 0b000 `1 79:13-79:18;
+  zz430 = zeq_bits(zz431, zz432) `1 79:13-79:18;
+  jump @not(zz430) goto 11 `42;
+  goto 12;
+  goto 14;
+  zz40 = zJDONT `1 79:2-79:7;
+  goto 106;
+  zz425 : %bv3 `1 80:13-80:18;
+  zz425 = zargz3 `1 80:13-80:18;
+  zz426 : %bool `43;
+  zz427 : %bv `1 80:13-80:18;
+  zz427 = zz425 `1 80:13-80:18;
+  zz428 : %bv `1 80:13-80:18;
+  zz428 = 0b001 `1 80:13-80:18;
+  zz426 = zeq_bits(zz427, zz428) `1 80:13-80:18;
+  jump @not(zz426) goto 24 `44;
+  goto 25;
+  goto 27;
+  zz40 = zJGT `1 80:2-80:5;
+  goto 106;
+  zz421 : %bv3 `1 81:13-81:18;
+  zz421 = zargz3 `1 81:13-81:18;
+  zz422 : %bool `45;
+  zz423 : %bv `1 81:13-81:18;
+  zz423 = zz421 `1 81:13-81:18;
+  zz424 : %bv `1 81:13-81:18;
+  zz424 = 0b010 `1 81:13-81:18;
+  zz422 = zeq_bits(zz423, zz424) `1 81:13-81:18;
+  jump @not(zz422) goto 37 `46;
+  goto 38;
+  goto 40;
+  zz40 = zJEQ `1 81:2-81:5;
+  goto 106;
+  zz417 : %bv3 `1 82:13-82:18;
+  zz417 = zargz3 `1 82:13-82:18;
+  zz418 : %bool `47;
+  zz419 : %bv `1 82:13-82:18;
+  zz419 = zz417 `1 82:13-82:18;
+  zz420 : %bv `1 82:13-82:18;
+  zz420 = 0b011 `1 82:13-82:18;
+  zz418 = zeq_bits(zz419, zz420) `1 82:13-82:18;
+  jump @not(zz418) goto 50 `48;
+  goto 51;
   goto 53;
-  goto 55;
-  zgsz332_lz30 = zJNE;
-  goto 74;
-  zb__6_lz33 : %bv3;
-  zb__6_lz33 = zargz3;
-  zgsz339_lz34 : %bool;
-  zgsz339_lz34 = @eq(zb__6_lz33, 0b110);
-  jump @not(zgsz339_lz34) goto 61 ` "unknown location";
-  goto 62;
+  zz40 = zJGE `1 82:2-82:5;
+  goto 106;
+  zz413 : %bv3 `1 83:13-83:18;
+  zz413 = zargz3 `1 83:13-83:18;
+  zz414 : %bool `49;
+  zz415 : %bv `1 83:13-83:18;
+  zz415 = zz413 `1 83:13-83:18;
+  zz416 : %bv `1 83:13-83:18;
+  zz416 = 0b100 `1 83:13-83:18;
+  zz414 = zeq_bits(zz415, zz416) `1 83:13-83:18;
+  jump @not(zz414) goto 63 `50;
   goto 64;
-  zgsz332_lz30 = zJLE;
-  goto 74;
-  zb__7_lz31 : %bv3;
-  zb__7_lz31 = zargz3;
-  zgsz340_lz32 : %bool;
-  zgsz340_lz32 = @eq(zb__7_lz31, 0b111);
-  jump @not(zgsz340_lz32) goto 70 ` "unknown location";
-  goto 71;
-  goto 73;
-  zgsz332_lz30 = zJMP;
-  goto 74;
-  failure;
-  return = zgsz332_lz30;
+  goto 66;
+  zz40 = zJLT `1 83:2-83:5;
+  goto 106;
+  zz49 : %bv3 `1 84:13-84:18;
+  zz49 = zargz3 `1 84:13-84:18;
+  zz410 : %bool `51;
+  zz411 : %bv `1 84:13-84:18;
+  zz411 = zz49 `1 84:13-84:18;
+  zz412 : %bv `1 84:13-84:18;
+  zz412 = 0b101 `1 84:13-84:18;
+  zz410 = zeq_bits(zz411, zz412) `1 84:13-84:18;
+  jump @not(zz410) goto 76 `52;
+  goto 77;
+  goto 79;
+  zz40 = zJNE `1 84:2-84:5;
+  goto 106;
+  zz45 : %bv3 `1 85:13-85:18;
+  zz45 = zargz3 `1 85:13-85:18;
+  zz46 : %bool `53;
+  zz47 : %bv `1 85:13-85:18;
+  zz47 = zz45 `1 85:13-85:18;
+  zz48 : %bv `1 85:13-85:18;
+  zz48 = 0b110 `1 85:13-85:18;
+  zz46 = zeq_bits(zz47, zz48) `1 85:13-85:18;
+  jump @not(zz46) goto 89 `54;
+  goto 90;
+  goto 92;
+  zz40 = zJLE `1 85:2-85:5;
+  goto 106;
+  zz41 : %bv3 `1 86:13-86:18;
+  zz41 = zargz3 `1 86:13-86:18;
+  zz42 : %bool `55;
+  zz43 : %bv `1 86:13-86:18;
+  zz43 = zz41 `1 86:13-86:18;
+  zz44 : %bv `1 86:13-86:18;
+  zz44 = 0b111 `1 86:13-86:18;
+  zz42 = zeq_bits(zz43, zz44) `1 86:13-86:18;
+  jump @not(zz42) goto 102 `56;
+  goto 103;
+  goto 105;
+  zz40 = zJMP `1 86:2-86:5;
+  goto 106;
+  exit match `57;
+  return = zz40 `58;
   end;
 }
 
-val zdecode : (%bv16) ->  %union zoption
+val zdecode : (%bv16) ->  %union zoptionzIUinstrzIzKzK
 
 val zexecute : (%union zinstr) ->  %unit
 
-val zdecode_destination : (%bv3) ->  (%bool, %bool, %bool)
+val zdecode_destination : (%bv3) ->  %struct ztuplez3z5bool_z5bool_z5bool
 
 fn zdecode_destination(zb) {
-  zgsz341_lz30 : (%bool, %bool, %bool);
-  zv__0_lz31 : %bv3;
-  zv__0_lz31 = zb;
-  za_lz32 : %bv1;
-  za_lz32 = @slice::<1>(zv__0_lz31, 2);
-  zm_lz33 : %bv1;
-  zm_lz33 = @slice::<1>(zv__0_lz31, 0);
-  zd_lz34 : %bv1;
-  zd_lz34 = @slice::<1>(zv__0_lz31, 1);
-  zashadowz30_lz35 : %bv1;
-  zashadowz30_lz35 = @slice::<1>(zv__0_lz31, 2);
-  zgaz312_lz36 : %bool;
-  zgaz312_lz36 = zbits1_to_bool(zashadowz30_lz35);
-  zgaz313_lz37 : %bool;
-  zgaz313_lz37 = zbits1_to_bool(zd_lz34);
-  zgaz314_lz38 : %bool;
-  zgaz314_lz38 = zbits1_to_bool(zm_lz33);
-  zgsz342_lz39 : (%bool, %bool, %bool);
-  zgsz342_lz39.0 = zgaz312_lz36;
-  zgsz342_lz39.1 = zgaz313_lz37;
-  zgsz342_lz39.2 = zgaz314_lz38;
-  zgsz341_lz30 = zgsz342_lz39;
-  return = zgsz341_lz30;
+  zz40 : %struct ztuplez3z5bool_z5bool_z5bool `1 111:4-113:5;
+  zz41 : %bv3 `1 112:8-112:47;
+  zz41 = zb `1 112:8-112:47;
+  zz42 : %bv1 `1 112:51-112:105;
+  zz421 : %i `1 112:8-112:9;
+  zz421 = zz5i64zDzKz5i(2) `1 112:8-112:9;
+  zz422 : %i `1 112:8-112:9;
+  zz422 = zz5i64zDzKz5i(2) `1 112:8-112:9;
+  zz423 : %bv `1 112:8-112:9;
+  zz423 = zz41 `1 112:8-112:9;
+  zz424 : %bv `1 112:8-112:9;
+  zz424 = zsubrange_bits(zz423, zz421, zz422) `1 112:8-112:9;
+  zz42 = zz424 `1 112:8-112:9;
+  zz43 : %bv1 `1 112:36-112:37;
+  zz417 : %i `1 112:36-112:37;
+  zz417 = zz5i64zDzKz5i(0) `1 112:36-112:37;
+  zz418 : %i `1 112:36-112:37;
+  zz418 = zz5i64zDzKz5i(0) `1 112:36-112:37;
+  zz419 : %bv `1 112:36-112:37;
+  zz419 = zz41 `1 112:36-112:37;
+  zz420 : %bv `1 112:36-112:37;
+  zz420 = zsubrange_bits(zz419, zz417, zz418) `1 112:36-112:37;
+  zz43 = zz420 `1 112:36-112:37;
+  zz44 : %bv1 `1 112:22-112:23;
+  zz413 : %i `1 112:22-112:23;
+  zz413 = zz5i64zDzKz5i(1) `1 112:22-112:23;
+  zz414 : %i `1 112:22-112:23;
+  zz414 = zz5i64zDzKz5i(1) `1 112:22-112:23;
+  zz415 : %bv `1 112:22-112:23;
+  zz415 = zz41 `1 112:22-112:23;
+  zz416 : %bv `1 112:22-112:23;
+  zz416 = zsubrange_bits(zz415, zz413, zz414) `1 112:22-112:23;
+  zz44 = zz416 `1 112:22-112:23;
+  zz45 : %bv1 `1 112:8-112:9;
+  zz49 : %i `1 112:8-112:9;
+  zz49 = zz5i64zDzKz5i(2) `1 112:8-112:9;
+  zz410 : %i `1 112:8-112:9;
+  zz410 = zz5i64zDzKz5i(2) `1 112:8-112:9;
+  zz411 : %bv `1 112:8-112:9;
+  zz411 = zz41 `1 112:8-112:9;
+  zz412 : %bv `1 112:8-112:9;
+  zz412 = zsubrange_bits(zz411, zz49, zz410) `1 112:8-112:9;
+  zz45 = zz412 `1 112:8-112:9;
+  zz46 : %bool `1 112:51-112:105;
+  zz46 = zbits1_to_bool(zz45) `1 112:52-112:68;
+  zz47 : %bool `1 112:51-112:105;
+  zz47 = zbits1_to_bool(zz44) `1 112:70-112:86;
+  zz48 : %bool `1 112:51-112:105;
+  zz48 = zbits1_to_bool(zz43) `1 112:88-112:104;
+  zz40 = struct ztuplez3z5bool_z5bool_z5bool {ztuplez3z5bool_z5bool_z5bool0 = zz46, ztuplez3z5bool_z5bool_z5bool1 = zz47, ztuplez3z5bool_z5bool_z5bool2 = zz48} `1 112:51-112:105;
+  return = zz40 `1 111:4-113:5;
   end;
 }
 
 fn zdecode(zmergez3var) {
-  zgsz344_lz30 : %union zoption;
-  zv__1_lz315 : %bv16;
-  zv__1_lz315 = zmergez3var;
-  zgaz317_lz316 : %bv1;
-  zgaz317_lz316 = @slice::<1>(zv__1_lz315, 15);
-  zgsz348_lz317 : %bool;
-  zgsz348_lz317 = @eq(zgaz317_lz316, 0b0);
-  jump @not(zgsz348_lz317) goto 9 ` "nand2tetris.sail 99:16 - 100:39";
-  goto 10;
-  goto 24;
-  zx_lz318 : %bv15;
-  zx_lz318 = @slice::<15>(zv__1_lz315, 0);
-  zgaz316_lz319 : %union zinstr;
-  zgaz315_lz321 : %bv16;
-  zgsz345_lz322 : %bv = zx_lz318;
-  zgsz346_lz323 : %i = 16;
-  zgsz347_lz324 : %bv;
-  zgsz347_lz324 = zsail_zzero_extend(zgsz345_lz322, zgsz346_lz323);
-  zgaz315_lz321 = zgsz347_lz324;
-  zgaz316_lz319 = zAINST(zgaz315_lz321);
-  zgsz3111_lz320 : %union zinstr;
-  zgsz3111_lz320 = zgaz316_lz319;
-  zgsz344_lz30 = zSomez3z5unionz0zzinstr(zgsz3111_lz320);
-  goto 61;
-  zv__3_lz31 : %bv16;
-  zv__3_lz31 = zmergez3var;
-  zgaz323_lz32 : %bv3;
-  zgaz323_lz32 = @slice::<3>(zv__3_lz31, 13);
-  zgsz350_lz33 : %bool;
-  zgsz350_lz33 = @eq(zgaz323_lz32, 0b111);
-  jump @not(zgsz350_lz33) goto 32 ` "nand2tetris.sail 99:16 - 100:39";
-  goto 33;
-  goto 60;
-  zjump_lz34 : %bv3;
-  zjump_lz34 = @slice::<3>(zv__3_lz31, 0);
-  zdest_lz35 : %bv3;
-  zdest_lz35 = @slice::<3>(zv__3_lz31, 3);
-  zc_lz36 : %bv6;
-  zc_lz36 = @slice::<6>(zv__3_lz31, 6);
-  za_lz37 : %bv1;
-  za_lz37 = @slice::<1>(zv__3_lz31, 12);
-  zgaz322_lz38 : %union zinstr;
-  zgaz321_lz310 : (%bv1, %enum zarithmetic_op, (%bool, %bool, %bool), %enum zjump);
-  zgaz318_lz311 : %enum zarithmetic_op;
-  zgaz318_lz311 = zdecode_compute_backwards(zc_lz36);
-  zgaz319_lz312 : (%bool, %bool, %bool);
-  zgaz319_lz312 = zdecode_destination(zdest_lz35);
-  zgaz320_lz313 : %enum zjump;
-  zgaz320_lz313 = zdecode_jump_backwards(zjump_lz34);
-  zgsz349_lz314 : (%bv1, %enum zarithmetic_op, (%bool, %bool, %bool), %enum zjump);
-  zgsz349_lz314.0 = za_lz37;
-  zgsz349_lz314.1 = zgaz318_lz311;
-  zgsz349_lz314.2 = zgaz319_lz312;
-  zgsz349_lz314.3 = zgaz320_lz313;
-  zgaz321_lz310 = zgsz349_lz314;
-  zgaz322_lz38 = zCINST(zgaz321_lz310);
-  zgsz3112_lz39 : %union zinstr;
-  zgsz3112_lz39 = zgaz322_lz38;
-  zgsz344_lz30 = zSomez3z5unionz0zzinstr(zgsz3112_lz39);
-  goto 61;
-  zgsz344_lz30 = zNone(());
-  return = zgsz344_lz30;
+  zz40 : %union zoptionzIUinstrzIzKzK `1 99:16-100:39;
+  zz435 : %bv16 `1 99:23-99:41;
+  zz435 = zmergez3var `1 99:23-99:41;
+  zz436 : %bv1 `1 99:23-99:41;
+  zz450 : %i `1 99:23-99:41;
+  zz450 = zz5i64zDzKz5i(15) `1 99:23-99:41;
+  zz451 : %i `1 99:23-99:41;
+  zz451 = zz5i64zDzKz5i(15) `1 99:23-99:41;
+  zz452 : %bv `1 99:23-99:41;
+  zz452 = zz435 `1 99:23-99:41;
+  zz453 : %bv `1 99:23-99:41;
+  zz453 = zsubrange_bits(zz452, zz450, zz451) `1 99:23-99:41;
+  zz436 = zz453 `1 99:23-99:41;
+  zz437 : %bool `1 99:16-100:39;
+  zz448 : %bv `1 99:23-99:41;
+  zz448 = zz436 `1 99:23-99:41;
+  zz449 : %bv `1 99:23-99:41;
+  zz449 = 0b0 `1 99:23-99:41;
+  zz437 = zeq_bits(zz448, zz449) `1 99:23-99:41;
+  jump @not(zz437) goto 21 `1 99:16-100:39;
+  goto 22;
+  goto 44;
+  zz438 : %bv15 `1 100:3-100:39;
+  zz444 : %i `1 99:29-99:30;
+  zz444 = zz5i64zDzKz5i(14) `1 99:29-99:30;
+  zz445 : %i `1 99:29-99:30;
+  zz445 = zz5i64zDzKz5i(0) `1 99:29-99:30;
+  zz446 : %bv `1 99:29-99:30;
+  zz446 = zz435 `1 99:29-99:30;
+  zz447 : %bv `1 99:29-99:30;
+  zz447 = zsubrange_bits(zz446, zz444, zz445) `1 99:29-99:30;
+  zz438 = zz447 `1 99:29-99:30;
+  zz439 : %union zinstr `1 100:3-100:39;
+  zz440 : %bv16 `1 100:8-100:38;
+  zz441 : %i `1 100:14-100:37;
+  zz441 = zz5i64zDzKz5i(16) `1 100:14-100:37;
+  zz442 : %bv `1 100:14-100:37;
+  zz442 = zz438 `1 100:14-100:37;
+  zz443 : %bv `1 100:14-100:37;
+  zz443 = zsail_zzero_extend(zz442, zz441) `1 100:14-100:37;
+  zz440 = zz443 `1 100:14-100:37;
+  zz439 = zAINST(zz440) `1 100:8-100:38;
+  zz40 = zSomezIUinstrzIzKzK(zz439) `1 100:3-100:39;
+  goto 118;
+  zz41 : %bv16 `1 118:23-118:90;
+  zz41 = zmergez3var `1 118:23-118:90;
+  zz42 : %bv3 `1 118:23-118:90;
+  zz431 : %i `1 118:23-118:90;
+  zz431 = zz5i64zDzKz5i(15) `1 118:23-118:90;
+  zz432 : %i `1 118:23-118:90;
+  zz432 = zz5i64zDzKz5i(13) `1 118:23-118:90;
+  zz433 : %bv `1 118:23-118:90;
+  zz433 = zz41 `1 118:23-118:90;
+  zz434 : %bv `1 118:23-118:90;
+  zz434 = zsubrange_bits(zz433, zz431, zz432) `1 118:23-118:90;
+  zz42 = zz434 `1 118:23-118:90;
+  zz43 : %bool `1 99:16-100:39;
+  zz429 : %bv `1 118:23-118:90;
+  zz429 = zz42 `1 118:23-118:90;
+  zz430 : %bv `1 118:23-118:90;
+  zz430 = 0b111 `1 118:23-118:90;
+  zz43 = zeq_bits(zz429, zz430) `1 118:23-118:90;
+  jump @not(zz43) goto 64 `1 99:16-100:39;
+  goto 65;
+  goto 117;
+  zz44 : %bv3 `1 119:4-119:82;
+  zz425 : %i `1 118:76-118:80;
+  zz425 = zz5i64zDzKz5i(2) `1 118:76-118:80;
+  zz426 : %i `1 118:76-118:80;
+  zz426 = zz5i64zDzKz5i(0) `1 118:76-118:80;
+  zz427 : %bv `1 118:76-118:80;
+  zz427 = zz41 `1 118:76-118:80;
+  zz428 : %bv `1 118:76-118:80;
+  zz428 = zsubrange_bits(zz427, zz425, zz426) `1 118:76-118:80;
+  zz44 = zz428 `1 118:76-118:80;
+  zz45 : %bv3 `1 118:59-118:63;
+  zz421 : %i `1 118:59-118:63;
+  zz421 = zz5i64zDzKz5i(5) `1 118:59-118:63;
+  zz422 : %i `1 118:59-118:63;
+  zz422 = zz5i64zDzKz5i(3) `1 118:59-118:63;
+  zz423 : %bv `1 118:59-118:63;
+  zz423 = zz41 `1 118:59-118:63;
+  zz424 : %bv `1 118:59-118:63;
+  zz424 = zsubrange_bits(zz423, zz421, zz422) `1 118:59-118:63;
+  zz45 = zz424 `1 118:59-118:63;
+  zz46 : %bv6 `1 118:45-118:46;
+  zz417 : %i `1 118:45-118:46;
+  zz417 = zz5i64zDzKz5i(11) `1 118:45-118:46;
+  zz418 : %i `1 118:45-118:46;
+  zz418 = zz5i64zDzKz5i(6) `1 118:45-118:46;
+  zz419 : %bv `1 118:45-118:46;
+  zz419 = zz41 `1 118:45-118:46;
+  zz420 : %bv `1 118:45-118:46;
+  zz420 = zsubrange_bits(zz419, zz417, zz418) `1 118:45-118:46;
+  zz46 = zz420 `1 118:45-118:46;
+  zz47 : %bv1 `1 118:31-118:32;
+  zz413 : %i `1 118:31-118:32;
+  zz413 = zz5i64zDzKz5i(12) `1 118:31-118:32;
+  zz414 : %i `1 118:31-118:32;
+  zz414 = zz5i64zDzKz5i(12) `1 118:31-118:32;
+  zz415 : %bv `1 118:31-118:32;
+  zz415 = zz41 `1 118:31-118:32;
+  zz416 : %bv `1 118:31-118:32;
+  zz416 = zsubrange_bits(zz415, zz413, zz414) `1 118:31-118:32;
+  zz47 = zz416 `1 118:31-118:32;
+  zz48 : %union zinstr `1 119:4-119:82;
+  zz49 : %struct ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump `1 119:9-119:81;
+  zz410 : %enum zarithmetic_op `1 119:9-119:81;
+  zz410 = zdecode_compute_backwards(zz46) `1 119:18-119:35;
+  zz411 : %struct ztuplez3z5bool_z5bool_z5bool `1 119:9-119:81;
+  zz411 = zdecode_destination(zz45) `1 119:37-119:61;
+  zz412 : %enum zjump `1 119:9-119:81;
+  zz412 = zdecode_jump_backwards(zz44) `1 119:63-119:80;
+  zz49 = struct ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump {ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 = zz47, ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 = zz410, ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 = zz411, ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 = zz412} `1 119:9-119:81;
+  zz48 = zCINST(zz49) `1 119:9-119:81;
+  zz40 = zSomezIUinstrzIzKzK(zz48) `1 119:4-119:82;
+  goto 118;
+  zz40 = zNonezIUinstrzIzKzK(()) `1 121:27-121:33;
+  return = zz40 `1 99:16-100:39;
   end;
 }
 
 val zcompute_value : (%bv1, %enum zarithmetic_op) ->  %bv16
 
 fn zcompute_value(za, zop) {
-  zashadowz31_lz30 : %bv16;
-  zgaz324_lz34 : %bool;
-  zgaz324_lz34 = @eq(za, 0b0);
-  jump zgaz324_lz34 goto 6 ` "nand2tetris.sail 124:10 - 124:45";
-  zashadowz31_lz30 = zread_mem(zA);
-  goto 7;
-  zashadowz31_lz30 = zA;
-  zd_lz31 : %bv16;
-  zd_lz31 = zD;
-  zresult_lz32 : %bv16;
-  zgsz352_lz33 : %bv16;
-  jump @neq(zC_ZERO, zop) goto 14 ` "nand2tetris.sail 127:4 - 127:10";
-  zgsz352_lz33 = 0x0000;
-  goto 66;
-  jump @neq(zC_ONE, zop) goto 17 ` "nand2tetris.sail 128:4 - 128:9";
-  zgsz352_lz33 = 0x0001;
-  goto 66;
-  jump @neq(zC_MINUSONE, zop) goto 20 ` "nand2tetris.sail 129:4 - 129:14";
-  zgsz352_lz33 = 0xFFFF;
-  goto 66;
-  jump @neq(zC_D, zop) goto 23 ` "nand2tetris.sail 130:4 - 130:7";
-  zgsz352_lz33 = zd_lz31;
-  goto 66;
-  jump @neq(zC_A, zop) goto 26 ` "nand2tetris.sail 131:4 - 131:7";
-  zgsz352_lz33 = zashadowz31_lz30;
-  goto 66;
-  jump @neq(zC_NOT_D, zop) goto 29 ` "nand2tetris.sail 132:4 - 132:11";
-  zgsz352_lz33 = @bvnot(zd_lz31);
-  goto 66;
-  jump @neq(zC_NOT_A, zop) goto 32 ` "nand2tetris.sail 133:4 - 133:11";
-  zgsz352_lz33 = @bvnot(zashadowz31_lz30);
-  goto 66;
-  jump @neq(zC_NEG_D, zop) goto 35 ` "nand2tetris.sail 134:4 - 134:11";
-  zgsz352_lz33 = @bvsub(0x0000, zd_lz31);
-  goto 66;
-  jump @neq(zC_NEG_A, zop) goto 38 ` "nand2tetris.sail 135:4 - 135:11";
-  zgsz352_lz33 = @bvsub(0x0000, zashadowz31_lz30);
-  goto 66;
-  jump @neq(zC_D_ADD_1, zop) goto 41 ` "nand2tetris.sail 136:4 - 136:13";
-  zgsz352_lz33 = @bvadd(zd_lz31, 0x0001);
-  goto 66;
-  jump @neq(zC_A_ADD_1, zop) goto 44 ` "nand2tetris.sail 137:4 - 137:13";
-  zgsz352_lz33 = @bvadd(zashadowz31_lz30, 0x0001);
-  goto 66;
-  jump @neq(zC_D_SUB_1, zop) goto 47 ` "nand2tetris.sail 138:4 - 138:13";
-  zgsz352_lz33 = @bvsub(zd_lz31, 0x0001);
-  goto 66;
-  jump @neq(zC_A_SUB_1, zop) goto 50 ` "nand2tetris.sail 139:4 - 139:13";
-  zgsz352_lz33 = @bvsub(zashadowz31_lz30, 0x0001);
-  goto 66;
-  jump @neq(zC_D_ADD_A, zop) goto 53 ` "nand2tetris.sail 140:4 - 140:13";
-  zgsz352_lz33 = @bvadd(zd_lz31, zashadowz31_lz30);
-  goto 66;
-  jump @neq(zC_D_SUB_A, zop) goto 56 ` "nand2tetris.sail 141:4 - 141:13";
-  zgsz352_lz33 = @bvsub(zd_lz31, zashadowz31_lz30);
-  goto 66;
-  jump @neq(zC_A_SUB_D, zop) goto 59 ` "nand2tetris.sail 142:4 - 142:13";
-  zgsz352_lz33 = @bvsub(zashadowz31_lz30, zd_lz31);
-  goto 66;
-  jump @neq(zC_D_AND_A, zop) goto 62 ` "nand2tetris.sail 143:4 - 143:13";
-  zgsz352_lz33 = @bvand(zd_lz31, zashadowz31_lz30);
-  goto 66;
-  jump @neq(zC_D_OR_A, zop) goto 65 ` "nand2tetris.sail 144:4 - 144:12";
-  zgsz352_lz33 = @bvor(zd_lz31, zashadowz31_lz30);
-  goto 66;
-  failure;
-  zresult_lz32 = zgsz352_lz33;
-  return = zresult_lz32;
+  zz40 : %bv16 `1 124:2-146:8;
+  zz441 : %bool `1 124:10-124:45;
+  zz442 : %bv `1 124:13-124:21;
+  zz442 = za `1 124:13-124:21;
+  zz443 : %bv `1 124:13-124:21;
+  zz443 = 0b0 `1 124:13-124:21;
+  zz441 = zeq_bits(zz442, zz443) `1 124:13-124:21;
+  jump zz441 goto 10 `1 124:10-124:45;
+  zz40 = zread_mem(zA) `1 124:34-124:45;
+  goto 11;
+  zz40 = zA `1 124:27-124:28;
+  zz41 : %bv16 `1 125:2-146:8;
+  zz41 = zD `1 125:10-125:11;
+  zz42 : %bv16 `1 126:2-146:8;
+  zz43 : %bv16 `1 126:26-145:3;
+  jump @neq(zC_ZERO, zop) goto 18 `1 127:4-127:10;
+  zz43 = 0x0000 `1 127:14-127:20;
+  goto 144;
+  jump @neq(zC_ONE, zop) goto 21 `1 128:4-128:9;
+  zz43 = 0x0001 `1 128:13-128:19;
+  goto 144;
+  jump @neq(zC_MINUSONE, zop) goto 24 `1 129:4-129:14;
+  zz43 = 0xFFFF `1 129:18-129:24;
+  goto 144;
+  jump @neq(zC_D, zop) goto 27 `1 130:4-130:7;
+  zz43 = zz41 `1 130:11-130:12;
+  goto 144;
+  jump @neq(zC_A, zop) goto 30 `1 131:4-131:7;
+  zz43 = zz40 `1 131:11-131:12;
+  goto 144;
+  jump @neq(zC_NOT_D, zop) goto 37 `1 132:4-132:11;
+  zz439 : %bv `1 132:15-132:25;
+  zz439 = zz41 `1 132:15-132:25;
+  zz440 : %bv `1 132:15-132:25;
+  zz440 = znot_vec(zz439) `1 132:15-132:25;
+  zz43 = zz440 `1 132:15-132:25;
+  goto 144;
+  jump @neq(zC_NOT_A, zop) goto 44 `1 133:4-133:11;
+  zz437 : %bv `1 133:15-133:25;
+  zz437 = zz40 `1 133:15-133:25;
+  zz438 : %bv `1 133:15-133:25;
+  zz438 = znot_vec(zz437) `1 133:15-133:25;
+  zz43 = zz438 `1 133:15-133:25;
+  goto 144;
+  jump @neq(zC_NEG_D, zop) goto 53 `1 134:4-134:11;
+  zz434 : %bv `1 134:15-134:23;
+  zz434 = 0x0000 `1 134:15-134:23;
+  zz435 : %bv `1 134:15-134:23;
+  zz435 = zz41 `1 134:15-134:23;
+  zz436 : %bv `1 134:15-134:23;
+  zz436 = zsub_vec(zz434, zz435) `1 134:15-134:23;
+  zz43 = zz436 `1 134:15-134:23;
+  goto 144;
+  jump @neq(zC_NEG_A, zop) goto 62 `1 135:4-135:11;
+  zz431 : %bv `1 135:15-135:23;
+  zz431 = 0x0000 `1 135:15-135:23;
+  zz432 : %bv `1 135:15-135:23;
+  zz432 = zz40 `1 135:15-135:23;
+  zz433 : %bv `1 135:15-135:23;
+  zz433 = zsub_vec(zz431, zz432) `1 135:15-135:23;
+  zz43 = zz433 `1 135:15-135:23;
+  goto 144;
+  jump @neq(zC_D_ADD_1, zop) goto 71 `1 136:4-136:13;
+  zz428 : %bv `1 136:17-136:27;
+  zz428 = zz41 `1 136:17-136:27;
+  zz429 : %bv `1 136:17-136:27;
+  zz429 = 0x0001 `1 136:17-136:27;
+  zz430 : %bv `1 136:17-136:27;
+  zz430 = zadd_bits(zz428, zz429) `1 136:17-136:27;
+  zz43 = zz430 `1 136:17-136:27;
+  goto 144;
+  jump @neq(zC_A_ADD_1, zop) goto 80 `1 137:4-137:13;
+  zz425 : %bv `1 137:17-137:27;
+  zz425 = zz40 `1 137:17-137:27;
+  zz426 : %bv `1 137:17-137:27;
+  zz426 = 0x0001 `1 137:17-137:27;
+  zz427 : %bv `1 137:17-137:27;
+  zz427 = zadd_bits(zz425, zz426) `1 137:17-137:27;
+  zz43 = zz427 `1 137:17-137:27;
+  goto 144;
+  jump @neq(zC_D_SUB_1, zop) goto 89 `1 138:4-138:13;
+  zz422 : %bv `1 138:17-138:27;
+  zz422 = zz41 `1 138:17-138:27;
+  zz423 : %bv `1 138:17-138:27;
+  zz423 = 0x0001 `1 138:17-138:27;
+  zz424 : %bv `1 138:17-138:27;
+  zz424 = zsub_vec(zz422, zz423) `1 138:17-138:27;
+  zz43 = zz424 `1 138:17-138:27;
+  goto 144;
+  jump @neq(zC_A_SUB_1, zop) goto 98 `1 139:4-139:13;
+  zz419 : %bv `1 139:17-139:27;
+  zz419 = zz40 `1 139:17-139:27;
+  zz420 : %bv `1 139:17-139:27;
+  zz420 = 0x0001 `1 139:17-139:27;
+  zz421 : %bv `1 139:17-139:27;
+  zz421 = zsub_vec(zz419, zz420) `1 139:17-139:27;
+  zz43 = zz421 `1 139:17-139:27;
+  goto 144;
+  jump @neq(zC_D_ADD_A, zop) goto 107 `1 140:4-140:13;
+  zz416 : %bv `1 140:17-140:22;
+  zz416 = zz41 `1 140:17-140:22;
+  zz417 : %bv `1 140:17-140:22;
+  zz417 = zz40 `1 140:17-140:22;
+  zz418 : %bv `1 140:17-140:22;
+  zz418 = zadd_bits(zz416, zz417) `1 140:17-140:22;
+  zz43 = zz418 `1 140:17-140:22;
+  goto 144;
+  jump @neq(zC_D_SUB_A, zop) goto 116 `1 141:4-141:13;
+  zz413 : %bv `1 141:17-141:22;
+  zz413 = zz41 `1 141:17-141:22;
+  zz414 : %bv `1 141:17-141:22;
+  zz414 = zz40 `1 141:17-141:22;
+  zz415 : %bv `1 141:17-141:22;
+  zz415 = zsub_vec(zz413, zz414) `1 141:17-141:22;
+  zz43 = zz415 `1 141:17-141:22;
+  goto 144;
+  jump @neq(zC_A_SUB_D, zop) goto 125 `1 142:4-142:13;
+  zz410 : %bv `1 142:17-142:22;
+  zz410 = zz40 `1 142:17-142:22;
+  zz411 : %bv `1 142:17-142:22;
+  zz411 = zz41 `1 142:17-142:22;
+  zz412 : %bv `1 142:17-142:22;
+  zz412 = zsub_vec(zz410, zz411) `1 142:17-142:22;
+  zz43 = zz412 `1 142:17-142:22;
+  goto 144;
+  jump @neq(zC_D_AND_A, zop) goto 134 `1 143:4-143:13;
+  zz47 : %bv `1 143:17-143:22;
+  zz47 = zz41 `1 143:17-143:22;
+  zz48 : %bv `1 143:17-143:22;
+  zz48 = zz40 `1 143:17-143:22;
+  zz49 : %bv `1 143:17-143:22;
+  zz49 = zand_vec(zz47, zz48) `1 143:17-143:22;
+  zz43 = zz49 `1 143:17-143:22;
+  goto 144;
+  jump @neq(zC_D_OR_A, zop) goto 143 `1 144:4-144:12;
+  zz44 : %bv `1 144:16-144:21;
+  zz44 = zz41 `1 144:16-144:21;
+  zz45 : %bv `1 144:16-144:21;
+  zz45 = zz40 `1 144:16-144:21;
+  zz46 : %bv `1 144:16-144:21;
+  zz46 = zor_vec(zz44, zz45) `1 144:16-144:21;
+  zz43 = zz46 `1 144:16-144:21;
+  goto 144;
+  exit match `1 126:26-145:3;
+  zz42 = zz43 `1 126:26-145:3;
+  return = zz42 `1 146:2-146:8;
   end;
 }
 
-val zassign_dest : ((%bool, %bool, %bool), %bv16) ->  %unit
+val zassign_dest : (%struct ztuplez3z5bool_z5bool_z5bool, %bv16) ->  %unit
 
-fn zassign_dest(zgsz371, zvalue) {
-  za_lz30 : %bool;
-  za_lz30 = zgsz371.ztup0;
-  zd_lz31 : %bool;
-  zd_lz31 = zgsz371.ztup1;
-  zm_lz32 : %bool;
-  zm_lz32 = zgsz371.ztup2;
-  zgsz373_lz34 : %unit;
-  jump zm_lz32 goto 10 ` "nand2tetris.sail 150:4 - 150:38";
-  zgsz373_lz34 = ();
+fn zassign_dest(zgsz381, zvalue) {
+  zz40 : %bool `1 149:22-149:23;
+  zz40 = zgsz381.ztuplez3z5bool_z5bool_z5bool0 `1 149:22-149:23;
+  zz41 : %bool `1 149:32-149:33;
+  zz41 = zgsz381.ztuplez3z5bool_z5bool_z5bool1 `1 149:32-149:33;
+  zz42 : %bool `1 149:42-149:43;
+  zz42 = zgsz381.ztuplez3z5bool_z5bool_z5bool2 `1 149:42-149:43;
+  zz44 : %unit `1 150:4-150:38;
+  jump zz42 goto 10 `1 150:4-150:38;
+  zz44 = () `1 150:38-150:38;
   goto 11;
-  zgsz373_lz34 = zwrite_mem(zA, zvalue);
-  zgsz372_lz33 : %unit;
-  jump za_lz30 goto 15 ` "nand2tetris.sail 151:4 - 151:28";
-  zgsz372_lz33 = ();
+  zz44 = zwrite_mem(zA, zvalue) `1 150:16-150:35;
+  zz43 : %unit `1 151:4-151:28;
+  jump zz40 goto 15 `1 151:4-151:28;
+  zz43 = () `1 151:28-151:28;
   goto 17;
-  zA = zvalue;
-  zgsz372_lz33 = ();
-  jump zd_lz31 goto 20 ` "nand2tetris.sail 152:4 - 152:28";
-  return = ();
+  zA = zvalue `1 151:20-151:25;
+  zz43 = () `1 151:16-151:25;
+  jump zz41 goto 20 `1 152:4-152:28;
+  return = () `1 152:28-152:28;
   goto 22;
-  zD = zvalue;
-  return = ();
+  zD = zvalue `1 152:20-152:25;
+  return = () `1 152:16-152:25;
   end;
 }
 
 val zmaybe_jump : (%bv16, %enum zjump) ->  %unit
 
 fn zmaybe_jump(zvalue, zj) {
-  zcond_lz30 : %bool;
-  zgsz374_lz34 : %bool;
-  jump @neq(zJDONT, zj) goto 5 ` "nand2tetris.sail 157:6 - 157:11";
-  zgsz374_lz34 = false;
-  goto 41;
-  jump @neq(zJGT, zj) goto 10 ` "nand2tetris.sail 158:6 - 158:9";
-  zgaz325_lz312 : %i64;
-  zgaz325_lz312 = @signed::<64>(zvalue);
-  zgsz374_lz34 = @gt(zgaz325_lz312, 0);
-  goto 41;
-  jump @neq(zJEQ, zj) goto 15 ` "nand2tetris.sail 159:6 - 159:9";
-  zgaz326_lz311 : %i64;
-  zgaz326_lz311 = @signed::<64>(zvalue);
-  zgsz374_lz34 = @eq(zgaz326_lz311, 0);
-  goto 41;
-  jump @neq(zJGE, zj) goto 20 ` "nand2tetris.sail 160:6 - 160:9";
-  zgaz327_lz310 : %i64;
-  zgaz327_lz310 = @signed::<64>(zvalue);
-  zgsz374_lz34 = @gteq(zgaz327_lz310, 0);
-  goto 41;
-  jump @neq(zJLT, zj) goto 25 ` "nand2tetris.sail 161:6 - 161:9";
-  zgaz328_lz39 : %i64;
-  zgaz328_lz39 = @signed::<64>(zvalue);
-  zgsz374_lz34 = @lt(zgaz328_lz39, 0);
-  goto 41;
-  jump @neq(zJNE, zj) goto 32 ` "nand2tetris.sail 162:6 - 162:9";
-  zgaz329_lz36 : %i64;
-  zgaz329_lz36 = @signed::<64>(zvalue);
-  zgsz382_lz37 : %i = 0;
-  zgsz381_lz38 : %i = zgaz329_lz36;
-  zgsz374_lz34 = zneq_int(zgsz381_lz38, zgsz382_lz37);
-  goto 41;
-  jump @neq(zJLE, zj) goto 37 ` "nand2tetris.sail 163:6 - 163:9";
-  zgaz330_lz35 : %i64;
-  zgaz330_lz35 = @signed::<64>(zvalue);
-  zgsz374_lz34 = @lteq(zgaz330_lz35, 0);
-  goto 41;
-  jump @neq(zJMP, zj) goto 40 ` "nand2tetris.sail 164:6 - 164:9";
-  zgsz374_lz34 = true;
-  goto 41;
-  failure;
-  zcond_lz30 = zgsz374_lz34;
-  jump zcond_lz30 goto 50 ` "nand2tetris.sail 166:4 - 166:46";
-  zgsz385_lz31 : %bv = zPC;
-  zgsz386_lz32 : %i = 1;
-  zgsz387_lz33 : %bv;
-  zgsz387_lz33 = zadd_bits_int(zgsz385_lz31, zgsz386_lz32);
-  zPC = zgsz387_lz33;
-  return = ();
-  goto 52;
-  zPC = zA;
-  return = ();
+  zz40 : %bool `1 155:58-167:1;
+  zz44 : %bool `1 156:18-165:5;
+  jump @neq(zJDONT, zj) goto 5 `1 157:6-157:11;
+  zz44 = false `1 157:15-157:20;
+  goto 87;
+  jump @neq(zJGT, zj) goto 18 `1 158:6-158:9;
+  zz430 : %i64 `1 158:15-158:32;
+  zz433 : %bv `1 158:15-158:28;
+  zz433 = zvalue `1 158:15-158:28;
+  zz434 : %i `1 158:15-158:28;
+  zz434 = zsigned(zz433) `1 158:15-158:28;
+  zz430 = zz5izDzKz5i64(zz434) `1 158:15-158:28;
+  zz431 : %i `1 158:15-158:32;
+  zz431 = zz5i64zDzKz5i(0) `1 158:15-158:32;
+  zz432 : %i `1 158:15-158:32;
+  zz432 = zz5i64zDzKz5i(zz430) `1 158:15-158:32;
+  zz44 = zgt_int(zz432, zz431) `1 158:15-158:32;
+  goto 87;
+  jump @neq(zJEQ, zj) goto 31 `1 159:6-159:9;
+  zz425 : %i64 `1 159:15-159:33;
+  zz428 : %bv `1 159:15-159:28;
+  zz428 = zvalue `1 159:15-159:28;
+  zz429 : %i `1 159:15-159:28;
+  zz429 = zsigned(zz428) `1 159:15-159:28;
+  zz425 = zz5izDzKz5i64(zz429) `1 159:15-159:28;
+  zz426 : %i `1 159:15-159:33;
+  zz426 = zz5i64zDzKz5i(0) `1 159:15-159:33;
+  zz427 : %i `1 159:15-159:33;
+  zz427 = zz5i64zDzKz5i(zz425) `1 159:15-159:33;
+  zz44 = zeq_int(zz427, zz426) `1 159:15-159:33;
+  goto 87;
+  jump @neq(zJGE, zj) goto 44 `1 160:6-160:9;
+  zz420 : %i64 `1 160:15-160:33;
+  zz423 : %bv `1 160:15-160:28;
+  zz423 = zvalue `1 160:15-160:28;
+  zz424 : %i `1 160:15-160:28;
+  zz424 = zsigned(zz423) `1 160:15-160:28;
+  zz420 = zz5izDzKz5i64(zz424) `1 160:15-160:28;
+  zz421 : %i `1 160:15-160:33;
+  zz421 = zz5i64zDzKz5i(0) `1 160:15-160:33;
+  zz422 : %i `1 160:15-160:33;
+  zz422 = zz5i64zDzKz5i(zz420) `1 160:15-160:33;
+  zz44 = zgteq_int(zz422, zz421) `1 160:15-160:33;
+  goto 87;
+  jump @neq(zJLT, zj) goto 57 `1 161:6-161:9;
+  zz415 : %i64 `1 161:15-161:32;
+  zz418 : %bv `1 161:15-161:28;
+  zz418 = zvalue `1 161:15-161:28;
+  zz419 : %i `1 161:15-161:28;
+  zz419 = zsigned(zz418) `1 161:15-161:28;
+  zz415 = zz5izDzKz5i64(zz419) `1 161:15-161:28;
+  zz416 : %i `1 161:15-161:32;
+  zz416 = zz5i64zDzKz5i(0) `1 161:15-161:32;
+  zz417 : %i `1 161:15-161:32;
+  zz417 = zz5i64zDzKz5i(zz415) `1 161:15-161:32;
+  zz44 = zlt_int(zz417, zz416) `1 161:15-161:32;
+  goto 87;
+  jump @neq(zJNE, zj) goto 70 `1 162:6-162:9;
+  zz410 : %i64 `1 162:15-162:33;
+  zz413 : %bv `1 162:15-162:28;
+  zz413 = zvalue `1 162:15-162:28;
+  zz414 : %i `1 162:15-162:28;
+  zz414 = zsigned(zz413) `1 162:15-162:28;
+  zz410 = zz5izDzKz5i64(zz414) `1 162:15-162:28;
+  zz411 : %i `1 162:15-162:33;
+  zz411 = zz5i64zDzKz5i(0) `1 162:15-162:33;
+  zz412 : %i `1 162:15-162:33;
+  zz412 = zz5i64zDzKz5i(zz410) `1 162:15-162:33;
+  zz44 = zneq_int(zz412, zz411) `1 162:15-162:33;
+  goto 87;
+  jump @neq(zJLE, zj) goto 83 `1 163:6-163:9;
+  zz45 : %i64 `1 163:15-163:33;
+  zz48 : %bv `1 163:15-163:28;
+  zz48 = zvalue `1 163:15-163:28;
+  zz49 : %i `1 163:15-163:28;
+  zz49 = zsigned(zz48) `1 163:15-163:28;
+  zz45 = zz5izDzKz5i64(zz49) `1 163:15-163:28;
+  zz46 : %i `1 163:15-163:33;
+  zz46 = zz5i64zDzKz5i(0) `1 163:15-163:33;
+  zz47 : %i `1 163:15-163:33;
+  zz47 = zz5i64zDzKz5i(zz45) `1 163:15-163:33;
+  zz44 = zlteq_int(zz47, zz46) `1 163:15-163:33;
+  goto 87;
+  jump @neq(zJMP, zj) goto 86 `1 164:6-164:9;
+  zz44 = true `1 164:15-164:19;
+  goto 87;
+  exit match `1 156:18-165:5;
+  zz40 = zz44 `1 156:18-165:5;
+  jump zz40 goto 98 `1 166:4-166:46;
+  zz41 : %i `1 166:38-166:44;
+  zz41 = zz5i64zDzKz5i(1) `1 166:38-166:44;
+  zz42 : %bv `1 166:38-166:44;
+  zz42 = zPC `1 166:38-166:44;
+  zz43 : %bv `1 166:38-166:44;
+  zz43 = zadd_bits_int(zz42, zz41) `1 166:38-166:44;
+  zPC = zz43 `1 166:38-166:44;
+  return = () `1 166:33-166:44;
+  goto 100;
+  zPC = zA `1 166:23-166:24;
+  return = () `1 166:18-166:24;
   end;
 }
 
 fn zexecute(zmergez3var) {
-  zgsz388_lz30 : %unit;
-  jump zmergez3var is zAINST goto 14 ` "nand2tetris.sail 102:24 - 102:32";
-  zx_lz37 : %bv16;
-  zx_lz37 = zmergez3var as zAINST;
-  zA = zx_lz37;
-  zgsz389_lz311 : %unit;
-  zgsz389_lz311 = ();
-  zgsz390_lz38 : %bv = zPC;
-  zgsz391_lz39 : %i = 1;
-  zgsz392_lz310 : %bv;
-  zgsz392_lz310 = zadd_bits_int(zgsz390_lz38, zgsz391_lz39);
-  zPC = zgsz392_lz310;
-  zgsz388_lz30 = ();
-  goto 30;
-  jump zmergez3var is zCINST goto 29 ` "nand2tetris.sail 169:24 - 169:48";
-  za_lz31 : %bv1;
-  za_lz31 = zmergez3var as zCINST.ztup0;
-  zop_lz32 : %enum zarithmetic_op;
-  zop_lz32 = zmergez3var as zCINST.ztup1;
-  zdest_lz33 : (%bool, %bool, %bool);
-  zdest_lz33 = zmergez3var as zCINST.ztup2;
-  zjump_lz34 : %enum zjump;
-  zjump_lz34 = zmergez3var as zCINST.ztup3;
-  zvalue_lz35 : %bv16;
-  zvalue_lz35 = zcompute_value(za_lz31, zop_lz32);
-  zgsz394_lz36 : %unit;
-  zgsz394_lz36 = zassign_dest(zdest_lz33, zvalue_lz35);
-  zgsz388_lz30 = zmaybe_jump(zvalue_lz35, zjump_lz34);
-  goto 30;
-  failure;
-  return = zgsz388_lz30;
+  zz40 : %unit `1 102:16-104:1;
+  jump zmergez3var is zAINST goto 16 `1 102:24-102:32;
+  zz47 : %bv16 `1 102:30-102:31;
+  zz47 = zmergez3var as zAINST `1 102:30-102:31;
+  zA = zz47 `1 103:6-103:7;
+  zz411 : %unit `1 103:2-103:7;
+  zz411 = () `1 103:2-103:7;
+  zz48 : %i `1 103:14-103:20;
+  zz48 = zz5i64zDzKz5i(1) `1 103:14-103:20;
+  zz49 : %bv `1 103:14-103:20;
+  zz49 = zPC `1 103:14-103:20;
+  zz410 : %bv `1 103:14-103:20;
+  zz410 = zadd_bits_int(zz49, zz48) `1 103:14-103:20;
+  zPC = zz410 `1 103:14-103:20;
+  zz40 = () `1 103:9-103:20;
+  goto 32;
+  jump zmergez3var is zCINST goto 31 `1 169:24-169:48;
+  zz41 : %bv1 `1 169:30-169:31;
+  zz41 = zmergez3var as zCINST.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0 `1 169:30-169:31;
+  zz42 : %enum zarithmetic_op `1 169:33-169:35;
+  zz42 = zmergez3var as zCINST.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1 `1 169:33-169:35;
+  zz43 : %struct ztuplez3z5bool_z5bool_z5bool `1 169:37-169:41;
+  zz43 = zmergez3var as zCINST.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2 `1 169:37-169:41;
+  zz44 : %enum zjump `1 169:43-169:47;
+  zz44 = zmergez3var as zCINST.ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3 `1 169:43-169:47;
+  zz45 : %bv16 `1 170:2-172:25;
+  zz45 = zcompute_value(zz41, zz42) `1 170:14-170:34;
+  zz46 : %unit `1 171:2-171:26;
+  zz46 = zassign_dest(zz43, zz45) `1 171:2-171:26;
+  zz40 = zmaybe_jump(zz45, zz44) `1 172:2-172:25;
+  goto 32;
+  exit match `1 102:16-104:1;
+  return = zz40 `1 102:16-104:1;
   end;
 }
 
 val zfetch_decode_execute : (%unit) ->  %bool
 
-fn zfetch_decode_execute(zgsz396) {
-  zinstr_lz30 : %bv16;
-  zinstr_lz30 = zread_rom(zPC);
-  zx_lz31 : %union zoption;
-  zx_lz31 = zdecode(zinstr_lz30);
-  zcont_lz32 : %bool;
-  zcont_lz32 = false;
-  zgsz397_lz33 : %unit;
-  jump zx_lz31 is zSomez3z5unionz0zzinstr goto 15 ` "nand2tetris.sail 183:8 - 183:19";
-  zinstrshadowz32_lz35 : %union zinstr;
-  zinstrshadowz32_lz35 = zx_lz31 as zSomez3z5unionz0zzinstr;
-  zgsz398_lz36 : %unit;
-  zgsz398_lz36 = zexecute(zinstrshadowz32_lz35);
-  zcont_lz32 = true;
-  zgsz397_lz33 = ();
+fn zfetch_decode_execute(zgsz3106) {
+  zz40 : %bv16 `1 179:4-186:16;
+  zz40 = zread_rom(zPC) `1 179:27-179:39;
+  zz41 : %union zoptionzIUinstrzIzKzK `1 180:4-186:16;
+  zz41 = zdecode(zz40) `1 180:12-180:25;
+  zz42 : %bool `1 181:4-186:16;
+  zz42 = false `1 181:18-181:23;
+  zz43 : %unit `1 182:4-185:5;
+  jump zz41 is zSomezIUinstrzIzKzK goto 15 `1 183:8-183:19;
+  zz45 : %union zinstr `1 183:13-183:18;
+  zz45 = zz41 as zSomezIUinstrzIzKzK `1 183:13-183:18;
+  zz46 : %unit `1 183:25-183:39;
+  zz46 = zexecute(zz45) `1 183:25-183:39;
+  zz42 = true `1 183:48-183:52;
+  zz43 = () `1 183:41-183:52;
   goto 20;
-  jump zx_lz31 is zNone goto 19 ` "nand2tetris.sail 184:8 - 184:14";
-  zcont_lz32 = false;
-  zgsz397_lz33 = ();
+  jump zz41 is zNonezIUinstrzIzKzK goto 19 `1 184:8-184:14;
+  zz42 = false `1 184:27-184:32;
+  zz43 = () `1 184:20-184:32;
   goto 20;
-  failure;
-  zgsz3101_lz34 : %unit;
-  zgsz3101_lz34 = zgsz397_lz33;
-  return = zcont_lz32;
+  exit match `1 182:4-185:5;
+  zz44 : %unit `1 182:4-185:5;
+  zz44 = zz43 `1 182:4-185:5;
+  return = zz42 `59;
   end;
 }
 
 val zrun : (%bv64, %bool) ->  %unit
 
 fn zrun(zlimit, zdebug) {
-  zcycle_count_lz30 : %bv64;
-  zcycle_count_lz30 = 0x0000000000000000;
-  zcont_lz31 : %bool;
-  zcont_lz31 = true;
-  zgsz3105_lz32 : %bool;
-  zgsz3106_lz33 : %unit;
-  zgsz3105_lz32 = zcont_lz31;
-  jump @not(zgsz3105_lz32) goto 36 ` "nand2tetris.sail 194:4 - 205:5";
-  zcont_lz31 = false;
-  zgsz3104_lz310 : %unit;
-  zgsz3104_lz310 = ();
-  zgsz3103_lz39 : %unit;
-  jump zdebug goto 15 ` "nand2tetris.sail 196:8 - 198:9";
-  zgsz3103_lz39 = ();
+  zz40 : %bv64 `1 191:29-206:1;
+  zz40 = 0x0000000000000000 `1 192:29-192:47;
+  zz41 : %bool `1 191:29-206:1;
+  zz41 = true `1 193:18-193:22;
+  zz42 : %bool `1 194:4-205:5;
+  zz43 : %unit `1 194:4-205:5;
+  zz42 = zz41 `1 194:11-194:15;
+  jump @not(zz42) goto 54 `1 194:4-205:5;
+  zz41 = false `1 195:15-195:20;
+  zz419 : %unit `1 195:8-195:20;
+  zz419 = () `1 195:8-195:20;
+  zz418 : %unit `1 196:8-198:9;
+  jump zdebug goto 15 `1 196:8-198:9;
+  zz418 = () `1 198:9-198:9;
   goto 16;
-  zgsz3103_lz39 = zprint_debug(zcycle_count_lz30, zPC, zA, zD);
-  zgaz331_lz34 : %bool;
-  zgaz331_lz34 = zfetch_decode_execute(());
-  zgsz3102_lz35 : %unit;
-  jump zgaz331_lz34 goto 22 ` "nand2tetris.sail 199:8 - 203:9";
-  zgsz3102_lz35 = ();
-  goto 33;
-  zgaz334_lz36 : %bool;
-  zgaz332_lz37 : %i64;
-  zgaz332_lz37 = @signed::<64>(zcycle_count_lz30);
-  zgaz333_lz38 : %i64;
-  zgaz333_lz38 = @signed::<64>(zlimit);
-  zgaz334_lz36 = @lt(zgaz332_lz37, zgaz333_lz38);
-  jump zgaz334_lz36 goto 31 ` "nand2tetris.sail 200:12 - 202:13";
-  zgsz3102_lz35 = ();
-  goto 33;
-  zcont_lz31 = true;
-  zgsz3102_lz35 = ();
-  zcycle_count_lz30 = @bvadd(zcycle_count_lz30, 0x0000000000000001);
-  zgsz3106_lz33 = ();
+  zz418 = zprint_debug(zz40, zPC, zA, zD) `1 197:12-197:46;
+  zz47 : %bool `1 199:8-203:9;
+  zz47 = zfetch_decode_execute(()) `1 199:11-199:33;
+  zz48 : %unit `1 199:8-203:9;
+  jump zz47 goto 22 `1 199:8-203:9;
+  zz48 = () `1 203:9-203:9;
+  goto 45;
+  zz49 : %bool `1 200:12-202:13;
+  zz410 : %i64 `1 200:15-200:50;
+  zz416 : %bv `1 200:15-200:34;
+  zz416 = zz40 `1 200:15-200:34;
+  zz417 : %i `1 200:15-200:34;
+  zz417 = zsigned(zz416) `1 200:15-200:34;
+  zz410 = zz5izDzKz5i64(zz417) `1 200:15-200:34;
+  zz411 : %i64 `1 200:15-200:50;
+  zz414 : %bv `1 200:37-200:50;
+  zz414 = zlimit `1 200:37-200:50;
+  zz415 : %i `1 200:37-200:50;
+  zz415 = zsigned(zz414) `1 200:37-200:50;
+  zz411 = zz5izDzKz5i64(zz415) `1 200:37-200:50;
+  zz412 : %i `1 200:15-200:50;
+  zz412 = zz5i64zDzKz5i(zz410) `1 200:15-200:50;
+  zz413 : %i `1 200:15-200:50;
+  zz413 = zz5i64zDzKz5i(zz411) `1 200:15-200:50;
+  zz49 = zlt_int(zz412, zz413) `1 200:15-200:50;
+  jump zz49 goto 43 `1 200:12-202:13;
+  zz48 = () `1 202:13-202:13;
+  goto 45;
+  zz41 = true `1 201:23-201:27;
+  zz48 = () `1 201:16-201:27;
+  zz44 : %bv `1 204:22-204:54;
+  zz44 = zz40 `1 204:22-204:54;
+  zz45 : %bv `1 204:22-204:54;
+  zz45 = 0x0000000000000001 `1 204:22-204:54;
+  zz46 : %bv `1 204:22-204:54;
+  zz46 = zadd_bits(zz44, zz45) `1 204:22-204:54;
+  zz40 = zz46 `1 204:22-204:54;
+  zz43 = () `1 204:8-204:54;
   goto 6;
-  return = ();
+  return = () `1 194:4-205:5;
   end;
 }
 
 val zmymain : (%bv64, %bool) ->  %unit
 
 fn zmymain(zlimit, zdebug) {
-  zPC = 0x0000;
-  zgsz3109_lz32 : %unit;
-  zgsz3109_lz32 = ();
-  zA = 0x0000;
-  zgsz3108_lz31 : %unit;
-  zgsz3108_lz31 = ();
-  zD = 0x0000;
-  zgsz3107_lz30 : %unit;
-  zgsz3107_lz30 = ();
-  return = zrun(zlimit, zdebug);
+  zPC = 0x0000 `1 209:9-209:15;
+  zz42 : %unit `1 209:4-209:15;
+  zz42 = () `1 209:4-209:15;
+  zA = 0x0000 `1 210:8-210:14;
+  zz41 : %unit `1 210:4-210:14;
+  zz41 = () `1 210:4-210:14;
+  zD = 0x0000 `1 211:8-211:14;
+  zz40 : %unit `1 211:4-211:14;
+  zz40 = () `1 211:4-211:14;
+  return = zrun(zlimit, zdebug) `1 212:4-212:21;
   end;
 }
 
 val zmain : (%unit) ->  %unit
 
-fn zmain(zgsz3110) {
-  zgaz335_lz30 : %unit;
-  zgaz335_lz30 = zmymain(0x0000000000000010, false);
-  return = zgaz335_lz30;
+fn zmain(zgsz3120) {
+  zz40 : %unit `1 218:20-218:60;
+  zz40 = zmymain(0x0000000000000010, false) `1 218:27-218:60;
+  return = zz40 `60;
   end;
 }
+
+val zinitializze_registers : (%unit) ->  %unit
+
+fn zinitializze_registers(zgsz3121) {
+  zPC = 0x0000 `61;
+  zz41 : %unit `62;
+  zz41 = () `63;
+  zA = 0x0000 `64;
+  zz40 : %unit `65;
+  zz40 = () `66;
+  zD = 0x0000 `67;
+  return = () `68;
+  end;
+}
+
+files "/home/cfbolz/.opam/ocaml.4.13.1/share/sail/lib/flow.sail" "nand2tetris.sail"
 

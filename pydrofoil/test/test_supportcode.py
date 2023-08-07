@@ -4,6 +4,7 @@ from pydrofoil import supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
 from pydrofoil.real import Real
+from hypothesis import given, strategies, assume
 
 from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
 from rpython.rlib.rbigint import rbigint
@@ -975,28 +976,58 @@ def test_toreal_real():
     assert num == 2
     assert den == 1
 
-# # Test for basic corner cases
-# def test_corner_real():
-#     # x = Real.fromint(-2**63)
-#     # res = x.abs()
-#     # assert res.toint() == 2**63
-#     # x = Real.fromint(-2**63)
-#     # y = Real.fromint(1)
-#     # res = x.sub(y)
-#     # print(res.toint())
-#     # x = Real.fromint(2**63)
-#     # res = x.abs()
-#     # assert res.toint() == 2**63
-#     x = Real.fromint(2**63)
-#     # y = Real.fromint(1)
-#     # res = x.sub(y)
-#     # print(x.toint())
-#     assert x.toint() == 2**63
-#     x = Real.fromint(-2**63)
-#     assert x.toint() == -2**63
-#     x = Real.fromint(-2**63)
-#     y = Real.fromint(1)
-#     res = x.add(y)
-#     assert res.toint() == -2**63+1
+# Test for basic corner cases
+def test_corner_real():
+    x = Real.fromint(2**63-1)
+    assert x.den.str() == "1"
+    assert x.num.str() == str(2**63-1)
+    x = Real.fromint(-2**63)
+    assert x.toint() == -2**63
+    x = Real.fromint(-2**63)
+    y = Real.fromint(1)
+    res = x.add(y)
+    assert res.toint() == -2**63+1
+    x = Real.fromint(1, -2**63)
+    assert x.num.str() == str(-1)
+    assert x.den.str() == str(2**63)
+    x = Real.fromint(1, 2**63-1)
+    assert x.num.str() == "1"
+    assert x.den.str() == str(2**63-1)
+    x = Real.fromint(2**63-1, 2**63-1)
+    assert x.toint() == 1
+    x = Real.fromint(-2**63, -2**63)
+    assert x.toint() == 1
+    x = Real.fromint(2**63-1, -2**63)
+    assert x.num.str() == str(-(2**63-1))
+    assert x.den.str() == str(2**63)
+    x = Real.fromint(-2**63, 2**63-1)
+    assert x.num.str() == str(-2**63)
+    assert x.den.str() == str(2**63-1)
+    x = Real.fromint(-2**63)
+    y = Real.fromint(-2**10)
+    res = x.add(y)
+    assert res.num.str() == str(-2**63-2**10)
+    assert res.den.str() == str(1)
+    x = Real.fromint(2**63-1)
+    y = Real.fromint(3)
+    res = x.add(y)
+    assert res.num.str() == str(2**63+2)
+    assert res.den.str() == str(1)
+    # test if input is out of range
+    # x = Real.fromint(-2**63-1)
+    # x = Real.fromint(2**63)
+    # x = Real.fromint(1, 2**63)
+    # x = Real.fromint(1, -2**63-1)
+
+def rr(num, den):
+    num = rbigint.fromlong(num)
+    den = rbigint.fromlong(den)
+    return Real(num, den)
     
-    
+@given(strategies.integers(), strategies.integers(min_value = 1))
+def test_real_neg_hypothesis(num, den):
+    r = rr(num, den)
+    r_2 = r.neg()
+    assert r.den.eq(r_2.den)
+    assert r.num.neg().eq(r_2.num)
+

@@ -3,6 +3,9 @@ from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
 
+MAXINT = 2**63-1
+MININT = -2**63
+
 class Real(object):
     def __init__(self, num, den):
         gcd_val = num.gcd(den)
@@ -11,12 +14,37 @@ class Real(object):
 
     @staticmethod
     def fromint(num, den=1):
-        sign = num/abs(num)*den/abs(den)
-        num = abs(num)*sign
-        den = abs(den)
-        num = rbigint.fromint(num)
-        den = rbigint.fromint(den)
-        assert not den.int_eq(0), "denominator cannot be 0"
+        assert not den==0, "denominator cannot be 0"
+        # if ((num <= -2**63 or num >= 2**63) and den > 0) or (den >= 2**63):
+        #     num = rbigint.fromlong(num)
+        #     den = rbigint.fromlong(den)
+        # elif ((num <= -2**63 or num >= 2**63) and den <0) or (den <= -2**63):
+        #     num = rbigint.fromlong(-num)
+        #     den = rbigint.fromlong(-den)
+        # else:
+        if ((num == MININT or num == MAXINT) and (den > 0 and den <= MAXINT)) or ((den == MAXINT) and ((num > 0 and num <= MAXINT) or (num < 0 and num >= MININT))):
+            num = rbigint.fromint(num)
+            den = rbigint.fromint(den)
+        elif ((num == MININT or num == MAXINT) and (den < 0 and den >= MININT)) or ((den == MININT) and ((num > 0 and num <= MAXINT) or (num < 0 and num >= MININT))):
+            if (num == MININT and den == MININT):
+                num = rbigint.fromint(1)
+                den = rbigint.fromint(1)
+            elif num == MININT:
+                num = rbigint.fromint(MAXINT).add(rbigint.fromint(1))
+                den = rbigint.fromint(-den)
+            elif den == MININT:
+                num = rbigint.fromint(-num)
+                den = rbigint.fromint(MAXINT).add(rbigint.fromint(1))
+            else:                
+                num = rbigint.fromint(-num)
+                den = rbigint.fromint(-den)
+        elif ((num > MININT and num < MAXINT) and (den > MININT and den < MAXINT)):
+            sign = num/abs(num)*den/abs(den)
+            num = rbigint.fromint(abs(num)*sign)
+            den = rbigint.fromint(abs(den))
+        else:
+            assert False, "input is out of range of INT"
+        # assert not den.int_eq(0), "denominator cannot be 0"
         return Real(num, den)
     
     def add(self, other):
@@ -44,7 +72,7 @@ class Real(object):
         return Real(num_new, den_new)
     
     def neg(self):
-        return Real(self.num, self.den.neg())
+        return Real(self.num.neg(), self.den)
     
     def abs(self):
         return Real(self.num.abs(), self.den)

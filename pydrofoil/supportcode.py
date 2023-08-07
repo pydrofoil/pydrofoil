@@ -323,8 +323,6 @@ def tmod_int(machine, ia, ib):
 @unwrap("i i")
 @objectmodel.always_inline
 def emod_int(machine, a, b):
-    a = bitvector.int_toint(ia)
-    b = bitvector.int_toint(ib)
     if a < 0 or b < 0:
         print "emod_int with negative args not implemented yet", a, b
         raise ValueError # risc-v only needs the positive small case

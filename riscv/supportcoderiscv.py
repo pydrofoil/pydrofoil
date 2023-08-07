@@ -816,7 +816,7 @@ def get_main(outriscv, rv64):
     def bound_main(argv):
         return main(argv, Machine)
     bound_main.outriscv = outriscv
-    bound_main.Machine = Machine
+    bound_main._machinecls = Machine
 
     # a bit of micro-optimization
     always_inline(outriscv.func_zread_ram)

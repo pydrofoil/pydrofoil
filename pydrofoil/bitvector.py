@@ -644,13 +644,17 @@ def int_tdiv_slowpath(vala, rvala, valb, rvalb):
 
 def int_add_i_i(a, b):
     try:
-        return int_fromint(ovfcheck(a + b))
+        # this is int_fromint, but we can't inline that due to exceptions, so
+        # do it manually
+        return (ovfcheck(a + b), None)
     except OverflowError:
         return int_frombigint(rbigint.fromrarith_int(a).int_add(b))
 
 def int_sub_i_i(a, b):
     try:
-        return int_fromint(ovfcheck(a - b))
+        # this is int_fromint, but we can't inline that due to exceptions, so
+        # do it manually
+        return (ovfcheck(a - b), None)
     except OverflowError:
         return int_frombigint(rbigint.fromrarith_int(b).int_sub(a).neg())
 

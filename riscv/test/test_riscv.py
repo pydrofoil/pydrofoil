@@ -99,14 +99,14 @@ def test_opt_mem_read_risc(riscvmain):
     from pydrofoil import bitvector
     
     outriscv = riscvmain.outriscv
-    Machine = riscvmain.Machine
+    Machine = riscvmain._machinecls
     machine = Machine()
     machine.init_model()
     machine.g.mem = mem_mod.FlatMemory(False)
     outriscv.func_zwithin_phys_mem(machine, r_uint(12), *bitvector.int_fromint(2))
     def f(addr):
         addr = r_uint(addr)
-        access = outriscv.Union_zAccessType_zReadz3z5unit.singleton
+        access = outriscv.Union_zAccessTypezIuzK_zReadzIuzK.singleton
         #return outriscv.func_zwithin_phys_mem(machine, addr, *bitvector.int_fromint(2))
         res = outriscv.func_zmem_read(machine, access, addr, 8, False, False, False)
         return res is not None

@@ -33,7 +33,7 @@ class __extend__(pairtype(types.GenericBitVector, types.SmallFixedBitVector)):
 
 class __extend__(pairtype(types.GenericBitVector, types.BigFixedBitVector)):
     def convert((from_, to), ast, codegen):
-        return "bitvector.bv_touint(%s)" % ast.to_code(codegen)
+        return "bitvector.bv_tobigint(%s)" % ast.to_code(codegen)
 
 class __extend__(pairtype(types.BigFixedBitVector, types.GenericBitVector)):
     def convert((from_, to), ast, codegen):

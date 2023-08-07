@@ -1019,6 +1019,36 @@ def test_corner_real():
     # x = Real.fromint(1, 2**63)
     # x = Real.fromint(1, -2**63-1)
 
+def test_fromstr_real():
+    x = Real.fromstr("3.1")
+    assert x.num.str() == str(31)
+    assert x.den.str() == str(10)
+    x = Real.fromstr("1.22222222222222222222221")
+    assert x.num.str() == str(122222222222222222222221)
+    assert x.den.str() == str(100000000000000000000000)
+    x = Real.fromstr("222.1111111111111111111")
+    assert x.num.str() == str(2221111111111111111111)
+    assert x.den.str() == str(10000000000000000000)
+    x = Real.fromstr("-22.137")
+    assert x.num.str() == str(-22137)
+    assert x.den.str() == str(1000)
+    x = Real.fromstr("2213")
+    assert x.num.str() == str(2213)
+    assert x.den.str() == str(1)
+    x = Real.fromstr("2213.0")
+    assert x.num.str() == str(2213)
+    assert x.den.str() == str(1)
+    x = Real.fromstr("-12.12345678912345678912345678912345678912341")
+    assert x.num.str() == str(-1212345678912345678912345678912345678912341)
+    assert x.den.str() == str(100000000000000000000000000000000000000000)
+    # pos, x = Real.fromstr("2213")
+    # assert pos == 3
+    # assert x == str(2213)
+    # pos, x = Real.fromstr("1.22222222222222222222221")
+    # assert pos == 1
+    # assert x == str(122222222222222222222221)
+    
+
 def rr(num, den):
     num = rbigint.fromlong(num)
     den = rbigint.fromlong(den)

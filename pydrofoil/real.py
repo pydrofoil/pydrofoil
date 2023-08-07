@@ -47,6 +47,24 @@ class Real(object):
         # assert not den.int_eq(0), "denominator cannot be 0"
         return Real(num, den)
     
+    @staticmethod
+    def fromstr(str):
+        from rpython.rlib.rstring import strip_spaces
+        s = strip_spaces(str)
+        for i in range(0, len(s)):
+            if not s[i].isdigit() and s[i] != "+" and s[i] != "-":
+                break
+        # return i, s[:i]+s[i+1:]
+        num = rbigint.fromstr(s[:i] + s[i+1:]) if i < len(s)-1 else rbigint.fromstr(s)
+        dif = len(s)-1-i
+        if dif < 19:
+            den = rbigint.fromint(10**dif)
+        else:
+            den = den_of_fromstr(dif)
+        return Real(num, den)
+
+
+
     def add(self, other):
         num_new_1 = self.num.mul(other.den)
         num_new_2 = other.num.mul(self.den)
@@ -113,3 +131,13 @@ class Real(object):
     
     def toreal(self):
         return self.num.toint(), self.den.toint()
+    
+
+# Helper function for fromstr()
+def den_of_fromstr(dif):
+    if dif < 19:
+        quo = dif // 2
+        rem = dif % 2
+        return rbigint.fromint(10**(2*quo)*10**(rem))
+    else:
+        return rbigint.fromint(10**18).mul(den_of_fromstr(dif-18))

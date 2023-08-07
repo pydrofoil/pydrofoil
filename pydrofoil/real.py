@@ -5,71 +5,59 @@ from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
 
 class Real(object):
     def __init__(self, num, den):
-        self.num = num
-        self.den = den
+        gcd_val = num.gcd(den)
+        self.num = num.div(gcd_val)
+        self.den = den.div(gcd_val)
 
     @staticmethod
     def fromint(num, den=1):
         sign = num/abs(num)*den/abs(den)
-        num = rbigint.fromint(abs(num))
-        den = rbigint.fromint(abs(den)*sign)
-        # assert den.int_ne(0)
+        num = abs(num)*sign
+        den = abs(den)
+        num = rbigint.fromint(num)
+        den = rbigint.fromint(den)
         assert not den.int_eq(0), "denominator cannot be 0"
-        return Real(num.div(num.gcd(den)), den.div(num.gcd(den)))
+        return Real(num, den)
     
     def add(self, other):
         num_new_1 = self.num.mul(other.den)
         num_new_2 = other.num.mul(self.den)
-        self.den = self.den.mul(other.den)
-        self.num = num_new_1.add(num_new_2)
-        sign = self.num.div(self.num.abs()).mul(self.den.div(self.den.abs()))
-        self.num = self.num.abs()
-        self.den = self.den.abs().mul(sign)
-        # return Real(self.num.add(other.num), self.den)
-        return Real(self.num.div(self.num.gcd(self.den)), self.den.div(self.num.gcd(self.den)))
+        den_new = self.den.mul(other.den)
+        num_new = num_new_1.add(num_new_2)
+        return Real(num_new, den_new)
     
     def sub(self, other):
         num_new_1 = self.num.mul(other.den)
         num_new_2 = other.num.mul(self.den)
-        self.den = self.den.mul(other.den)
-        self.num = num_new_1.sub(num_new_2)
-        sign = self.num.div(self.num.abs()).mul(self.den.div(self.den.abs()))
-        self.num = self.num.abs()
-        self.den = self.den.abs().mul(sign)
-        # return Real(self.num.add(other.num), self.den)
-        return Real(self.num.div(self.num.gcd(self.den)), self.den.div(self.num.gcd(self.den)))
+        den_new = self.den.mul(other.den)
+        num_new = num_new_1.sub(num_new_2)
+        return Real(num_new, den_new)
     
     def mul(self, other):
-        self.num = self.num.mul(other.num)
-        self.den = self.den.mul(other.den)
-        sign = self.num.div(self.num.abs()).mul(self.den.div(self.den.abs()))
-        self.num = self.num.abs()
-        self.den = self.den.abs().mul(sign)
-        return Real(self.num.div(self.num.gcd(self.den)), self.den.div(self.num.gcd(self.den)))
+        num_new = self.num.mul(other.num)
+        den_new = self.den.mul(other.den)
+        return Real(num_new, den_new)
     
     def div(self, other):
-        self.num = self.num.mul(other.den)
-        self.den = self.den.mul(other.num)
-        sign = self.num.div(self.num.abs()).mul(self.den.div(self.den.abs()))
-        self.num = self.num.abs()
-        self.den = self.den.abs().mul(sign)
-        return Real(self.num.div(self.num.gcd(self.den)), self.den.div(self.num.gcd(self.den)))
+        num_new = self.num.mul(other.den)
+        den_new = self.den.mul(other.num)
+        return Real(num_new, den_new)
     
     def neg(self):
         return Real(self.num, self.den.neg())
     
     def abs(self):
-        return Real(self.num, self.den.abs())
+        return Real(self.num.abs(), self.den)
 
     def ceil(self):
         diff = self.num.divmod(self.den)
-        self.num = self.num if diff[1].int_eq(0) else self.num.add(self.den.sub(diff[1]))
-        return Real(self.num.div(self.num.gcd(self.den)), self.den.div(self.num.gcd(self.den)))
+        num_new = self.num if diff[1].int_eq(0) else self.num.add(self.den.sub(diff[1]))
+        return Real(num_new, self.den)
 
     def floor(self):
         diff = self.num.divmod(self.den)
-        self.num = self.num if diff[1].int_eq(0) else self.num.sub(diff[1])
-        return Real(self.num.div(self.num.gcd(self.den)), self.den.div(self.num.gcd(self.den)))
+        num_new = self.num if diff[1].int_eq(0) else self.num.sub(diff[1])
+        return Real(num_new, self.den)
     
     def eq(self, other):
         return self.num.eq(other.num) and self.den.eq(other.den)

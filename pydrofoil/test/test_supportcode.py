@@ -703,11 +703,11 @@ def test_div_real():
     assert x.num.toint() == 2
     assert x.den.toint() == 1
     x = Real.fromint(-4, 2)
-    assert x.num.toint() == 2
-    assert x.den.toint() == -1
+    assert x.num.toint() == -2
+    assert x.den.toint() == 1
     x = Real.fromint(4, -2)
-    assert x.num.toint() == 2
-    assert x.den.toint() == -1
+    assert x.num.toint() == -2
+    assert x.den.toint() == 1
 
 # Test for neg
 def test_neg_real():
@@ -964,13 +964,39 @@ def test_toreal_real():
     y = Real.fromint(1, 2)
     x = x.add(y)
     num, den = x.toreal()
-    assert num == 3
-    assert den == -2
+    assert num == -3
+    assert den == 2
     x = x.floor()
     num, den = x.toreal()
-    assert num == 2
-    assert den == -1
+    assert num == -2
+    assert den == 1
     x = x.abs()
     num, den = x.toreal()
     assert num == 2
     assert den == 1
+
+# # Test for basic corner cases
+# def test_corner_real():
+#     # x = Real.fromint(-2**63)
+#     # res = x.abs()
+#     # assert res.toint() == 2**63
+#     # x = Real.fromint(-2**63)
+#     # y = Real.fromint(1)
+#     # res = x.sub(y)
+#     # print(res.toint())
+#     # x = Real.fromint(2**63)
+#     # res = x.abs()
+#     # assert res.toint() == 2**63
+#     x = Real.fromint(2**63)
+#     # y = Real.fromint(1)
+#     # res = x.sub(y)
+#     # print(x.toint())
+#     assert x.toint() == 2**63
+#     x = Real.fromint(-2**63)
+#     assert x.toint() == -2**63
+#     x = Real.fromint(-2**63)
+#     y = Real.fromint(1)
+#     res = x.add(y)
+#     assert res.toint() == -2**63+1
+    
+    

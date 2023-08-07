@@ -362,7 +362,6 @@ class __extend__(parse.Union):
                 elif type(rtyp) is types.Struct:
                     codegen.emit("res = %s" % rtyp.uninitialized_value)
                     for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
-                        codegen.emit("res.%s = inst.%s" % (fieldname, fieldname)) # XXX
                         if fieldtyp is types.Unit():
                             continue
                         if fieldtyp is types.Int():
@@ -417,20 +416,18 @@ class __extend__(parse.Struct):
             structtyp.fieldtyps[arg] = typ.resolve_type(codegen) # also pre-declares the types
         uninit_arg = []
         with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
-            for arg, typ in zip(self.names, self.types):
-                fieldtyp = structtyp.fieldtyps[arg]
-                if fieldtyp is types.Int():
-                    codegen.emit("%s_0 = 11986" % arg)
-                    codegen.emit("%s_1 = None" % arg)
-                elif is_bvtyp(fieldtyp):
-                    codegen.emit("%s_0 = 0" % arg)
-                    codegen.emit("%s_1 = r_uint(-5123)" % arg)
-                    codegen.emit("%s_2 = None" % arg)
-                else:
-                    codegen.emit("%s = %s" % (arg, fieldtyp.uninitialized_value))
             with codegen.emit_indent("def __init__(self, %s):" % ", ".join(self.names)):
                 for arg, typ in zip(self.names, self.types):
-                    codegen.emit("self.%s = %s # %s" % (arg, arg, typ)) # XXX
+                    fieldtyp = structtyp.fieldtyps[arg]
+                    if fieldtyp is types.Int():
+                        codegen.emit("self.%s_0 = %s[0]" % (arg, arg))
+                        codegen.emit("self.%s_1 = %s[1]" % (arg, arg))
+                    elif is_bvtyp(fieldtyp):
+                        codegen.emit("self.%s_0 = %s[0]" % (arg, arg))
+                        codegen.emit("self.%s_1 = %s[1]" % (arg, arg))
+                        codegen.emit("self.%s_2 = %s[2]" % (arg, arg))
+                    else:
+                        codegen.emit("self.%s = %s # %s" % (arg, arg, typ))
                     fieldtyp = structtyp.fieldtyps[arg] = typ.resolve_type(codegen)
                     uninit_arg.append(fieldtyp.uninitialized_value)
             with codegen.emit_indent("def copy_into(self, res=None):"):
@@ -1114,25 +1111,25 @@ class __extend__(parse.OperationExpr):
                     can_constfold(op)):
                 folded_result = constfold(op, sargs, self, codegen)
                 return folded_result
-            else:
-                return "%s(machine, %s)" % (op, args)
             expand_ints = not info.pyname.startswith("supportcode.")
             if expand_ints:
-                newargs = []
+                newargs = [] # every one of them is a tuple
                 for index, (arg, argtyp) in enumerate(zip(sargs, argtyps)):
-                    if argtyp is types.Int():
-                        newargs.append(tupleindexread(arg, 0))
-                        newargs.append(tupleindexread(arg, 1))
-                    elif is_bvtyp(argtyp):
-                        newargs.append(tupleindexread(arg, 0))
-                        newargs.append(tupleindexread(arg, 1))
-                        newargs.append(tupleindexread(arg, 2))
-                    else:
+                    if argtyp is types.Int() or is_bvtyp(argtyp):
                         newargs.append(arg)
-                # pass machine, even to supportcode functions
+                    else:
+                        if newargs and newargs[-1].endswith(", )"):
+                            newargs[-1] = newargs[-1][:-1] + arg + ", )"
+                        else:
+                            newargs.append("(%s, )" % arg)
+                if len(newargs) == 1:
+                    newargs = args
+                else:
+                    newargs = "*(%s)" % (" + ".join(newargs))
             else:
-                newargs = sargs
-            return "%s(machine, %s)" % (result, op, ", ".join(newargs))
+                newargs = args
+            # pass machine, even to supportcode functions
+            return "%s(machine, %s)" % (op, newargs)
         elif isinstance(info.typ, types.Union):
             return info.ast.constructor(info, op, args, argtyps)
         elif name.startswith(("@", "$")):

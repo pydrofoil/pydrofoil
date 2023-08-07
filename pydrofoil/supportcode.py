@@ -147,8 +147,9 @@ def eq_bits(machine, gvba, gvbb):
 def eq_bits_bv_bv(machine, bva, bvb):
     return bva == bvb
 
+@objectmodel.always_inline
 def neq_bits(machine, gvba, gvbb):
-    return not gvba.eq(gvbb)
+    return not bitvector.bv_eq(gvba, gvbb)
 
 def neq_bits_bv_bv(machine, bva, bvb):
     return bva != bvb

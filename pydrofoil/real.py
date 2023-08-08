@@ -52,17 +52,29 @@ class Real(object):
         from rpython.rlib.rstring import strip_spaces
         s = strip_spaces(str)
         j = -1
-        # need to considering about inf case
+        lead_zero_count = 0
+        ZERO_COUNT_END = False
         for i in range(0, len(s)):
+            if s[i].isdigit() and s[i] != "0":
+                ZERO_COUNT_END = True
+            if (not ZERO_COUNT_END) and s[i] == "0":
+                lead_zero_count += 1 
             if not s[i].isdigit() and s[i] != "+" and s[i] != "-":
                 if i == 1 or (i == 2 and (s[0] == "+" or s[0] == "-")):
                     for j in range(len(s)-1, i, -1):
                         if (s[j] == "+" or s[j] == "-") and s[j-1] == "e":
                             break
+                for k in range(i+1, len(s)):
+                    if (not ZERO_COUNT_END) and s[k] == "0":
+                        lead_zero_count += 1
+                    else:
+                        break
                 break
         # return i, s[:i]+s[i+1:]
         if j == -1 or (j == 2 and (s[0] != "+" and s[0] != "-")) or (j == 3 and (s[0] == "+" or s[0] == "-")):
-            num = rbigint.fromstr(s[:i] + s[i+1:]) if i < len(s)-1 else rbigint.fromstr(s)
+            if lead_zero_count == len(s)-1:
+                return Real(rbigint.fromint(0), rbigint.fromint(1))
+            num = rbigint.fromstr((s[:i] + s[i+1:])[lead_zero_count:] if (s[0] != "+" and s[0] != "-") else s[0]+(s[1:i] + s[i+1:])[lead_zero_count:]) if i < len(s)-1 else rbigint.fromstr(s)
             dif = len(s)-1-i
             if dif < 19:
                 den = rbigint.fromint(10**dif)
@@ -95,17 +107,38 @@ class Real(object):
     # def fromstr(str):
     #     from rpython.rlib.rstring import strip_spaces
     #     s = strip_spaces(str)
+    #     lead_zero_count = 0
+    #     ZERO_COUNT_END = False
     #     for i in range(0, len(s)):
+    #         if s[i].isdigit() and s[i] != "0":
+    #             ZERO_COUNT_END = True
+    #         if (not ZERO_COUNT_END) and s[i] == "0":
+    #             lead_zero_count += 1 
     #         if not s[i].isdigit() and s[i] != "+" and s[i] != "-":
+    #             for j in range(i+1, len(s)):
+    #                 if (not ZERO_COUNT_END) and s[j] == "0":
+    #                     lead_zero_count += 1
+    #                 else:
+    #                     break
     #             break
     #     # return i, s[:i]+s[i+1:]
-    #     num = rbigint.fromstr(s[:i] + s[i+1:]) if i < len(s)-1 else rbigint.fromstr(s)
+    #     if lead_zero_count == len(s)-1:
+    #         return Real(rbigint.fromint(0), rbigint.fromint(1))
+    #     num = rbigint.fromstr((s[:i] + s[i+1:])[lead_zero_count:] if (s[0] != "+" and s[0] != "-") else s[0]+(s[1:i] + s[i+1:])[lead_zero_count:]) if i < len(s)-1 else rbigint.fromstr(s)
     #     dif = len(s)-1-i
     #     if dif < 19:
     #         den = rbigint.fromint(10**dif)
     #     else:
     #         den = den_of_fromstr(dif)
     #     return Real(num, den)
+    #     # num = ((s[:i] + s[i+1:])[lead_zero_count:] if (s[0] != "+" and s[0] != "-") else s[0]+(s[1:i] + s[i+1:])[lead_zero_count:]) if i < len(s)-1 else (s)
+    #     # dif = len(s)-1-i
+    #     # if dif < 19:
+    #     #     den = rbigint.fromint(10**dif)
+    #     # else:
+    #     #     den = den_of_fromstr(dif)
+    #     # # return Real(num, den)
+    #     # return lead_zero_count, num, den.str()
 
 
 

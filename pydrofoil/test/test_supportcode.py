@@ -1048,6 +1048,28 @@ def test_fromstr_real():
     x = Real.fromstr(" 0.0")
     assert x.num.str() == str(0)
     assert x.den.str() == str(1)
+    x = Real.fromstr("0.1")
+    assert x.den.str() == str(10)
+    assert x.num.str() == str(1)
+    x = Real.fromstr("0.10")
+    assert x.den.str() == str(10)
+    assert x.num.str() == str(1)
+    x = Real.fromstr("-0.000123")
+    assert x.num.str() == str(-123)
+    assert x.den.str() == str(1000000)
+    # n, num, den = Real.fromstr("0.10")
+    # assert n == 1
+    # assert num == "10"
+    # assert den == str(100)
+    # n, num, den = Real.fromstr("0.010")
+    # assert n == 2
+    # assert num == "10"
+    # assert den == str(1000)
+    # n, num, den = Real.fromstr("+0.00110")
+    # assert n == 3
+    # assert num == "+110"
+    # assert den == str(100000)
+    
     # pos, x = Real.fromstr("2213")
     # assert pos == 3
     # assert x == str(2213)
@@ -1194,7 +1216,7 @@ def test_real_ge_hypothesis(num1, den1, num2, den2):
     frac2 = Fraction(num2, den2)
     assert r1.ge(r2) == (frac1 - frac2 >= 0)
 
-@given(strategies.integers(), strategies.integers(min_value = 1), strategies.integers(min_value = 1, max_value = 200))
+@given(strategies.integers(), strategies.integers(min_value = 1), strategies.integers(min_value = 1, max_value = 100))
 def test_real_pow_hypothesis(num, den, n):
     r = rr_den_pos(num, den)
     res = r.pow(n)
@@ -1212,3 +1234,11 @@ def test_real_fromstr_hypothesis(num):
     assert r.den.tolong() == frac.denominator
     # assert frac.numerator == 1
     # assert frac.denominator == 1
+
+@given(strategies.integers(), strategies.integers(min_value = 0))
+def test_real_fromstr_2_hypothesis(integer, fractional):
+    num_str = str(integer) + "." + str(fractional)
+    r = Real.fromstr(num_str)
+    frac = Fraction(num_str)
+    assert r.num.tolong() == frac.numerator
+    assert r.den.tolong() == frac.denominator

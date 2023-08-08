@@ -51,17 +51,61 @@ class Real(object):
     def fromstr(str):
         from rpython.rlib.rstring import strip_spaces
         s = strip_spaces(str)
+        j = -1
+        # need to considering about inf case
         for i in range(0, len(s)):
             if not s[i].isdigit() and s[i] != "+" and s[i] != "-":
+                if i == 1 or (i == 2 and (s[0] == "+" or s[0] == "-")):
+                    for j in range(len(s)-1, i, -1):
+                        if (s[j] == "+" or s[j] == "-") and s[j-1] == "e":
+                            break
                 break
         # return i, s[:i]+s[i+1:]
-        num = rbigint.fromstr(s[:i] + s[i+1:]) if i < len(s)-1 else rbigint.fromstr(s)
-        dif = len(s)-1-i
-        if dif < 19:
-            den = rbigint.fromint(10**dif)
+        if j == -1 or (j == 2 and (s[0] != "+" and s[0] != "-")) or (j == 3 and (s[0] == "+" or s[0] == "-")):
+            num = rbigint.fromstr(s[:i] + s[i+1:]) if i < len(s)-1 else rbigint.fromstr(s)
+            dif = len(s)-1-i
+            if dif < 19:
+                den = rbigint.fromint(10**dif)
+            else:
+                den = den_of_fromstr(dif)
+            return Real(num, den)
         else:
-            den = den_of_fromstr(dif)
-        return Real(num, den)
+            if s[j] == "+":
+                shift = int(s[j+1:])
+                if shift >= j-i-2:
+                    num = rbigint.fromstr(s[:i]+s[i+1:j-1]+"0"*(shift-(j-i-2)))
+                    den = rbigint.fromint(1)
+                    return Real(num, den)
+                else:
+                    return Real.fromstr(s[:i]+s[i+1:i+1+shift]+s[i]+s[i+1+shift:j-1])
+                # 1.222e+5
+                # 1.222222e+3
+            elif s[j] == "-":
+                shift = int(s[j+1:])
+                num = rbigint.fromstr(s[:i]+s[i+1:j-1])
+                dif = j-i-2+shift
+                if dif < 19:
+                    den = rbigint.fromint(10**dif)
+                else:
+                    den = den_of_fromstr(dif)
+                return Real(num, den)
+
+    # string to real without considering about input as x.xxxxe+xxx or x.xxxxe-xxxx
+    # @staticmethod
+    # def fromstr(str):
+    #     from rpython.rlib.rstring import strip_spaces
+    #     s = strip_spaces(str)
+    #     for i in range(0, len(s)):
+    #         if not s[i].isdigit() and s[i] != "+" and s[i] != "-":
+    #             break
+    #     # return i, s[:i]+s[i+1:]
+    #     num = rbigint.fromstr(s[:i] + s[i+1:]) if i < len(s)-1 else rbigint.fromstr(s)
+    #     dif = len(s)-1-i
+    #     if dif < 19:
+    #         den = rbigint.fromint(10**dif)
+    #     else:
+    #         den = den_of_fromstr(dif)
+    #     return Real(num, den)
 
 
 
@@ -85,9 +129,53 @@ class Real(object):
         return Real(num_new, den_new)
     
     def div(self, other):
-        num_new = self.num.mul(other.den)
-        den_new = self.den.mul(other.num)
+        if self.num.int_eq(0) and not other.num.int_eq(0):
+            num_new = rbigint.fromint(0)
+            den_new = rbigint.fromint(1)
+        elif other.num.int_eq(0):
+            assert False, "ZerodivideError: denominator cannot be 0"
+        else:
+            num_new = self.num.mul(other.den)
+            den_new = self.den.mul(other.num)
+        if den_new.int_lt(0):
+            num_new = num_new.neg()
+            den_new = den_new.neg()
         return Real(num_new, den_new)
+
+    def pow(self, n):
+        if isinstance(n, int):
+            if n == 0:
+                return Real(rbigint.fromint(1), rbigint.fromint(1))
+            elif n < MININT or n > MAXINT:
+                assert False, "exponent is out of range of INT"
+            else:
+                n = rbigint.fromint(n)
+                num_new = self.num.pow(n)
+                den_new = self.den.pow(n)
+                return Real(num_new, den_new)
+        elif isinstance(n, rbigint):
+            if n.int_eq(0):
+                return Real(rbigint.fromint(1), rbigint.fromint(1))
+            else:
+                n = rbigint.fromint(n)
+                num_new = self.num.pow(n)
+                den_new = self.den.pow(n)
+                return Real(num_new, den_new)
+        elif isinstance(n, Real):
+            if n.num.int_eq(0):
+                return Real(rbigint.fromint(1), rbigint.fromint(1))
+            else:
+                if n.den.int_eq(1):
+                    num_new = self.num.pow(n.num)
+                    den_new = self.den.pow(n.num)
+                    return Real(num_new, den_new)
+                else:
+                    assert False, "exponent cannot be fraction"
+        else:
+            raise TypeError("exponent doesn't support this type")
+        
+        
+            
     
     def neg(self):
         return Real(self.num.neg(), self.den)

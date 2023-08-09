@@ -59,6 +59,16 @@ make_dummy('sub_nat')
 make_dummy('tmod_int')
 make_dummy('undefined_int')
 
+make_dummy("softfloat_f16lt_quiet")
+make_dummy("softfloat_f32lt_quiet")
+make_dummy("softfloat_f64lt_quiet")
+make_dummy("softfloat_f16le_quiet")
+make_dummy("softfloat_f32le_quiet")
+make_dummy("softfloat_f64le_quiet")
+make_dummy("softfloat_f16roundToInt")
+make_dummy("softfloat_f32roundToInt")
+make_dummy("softfloat_f64roundToInt")
+
 # generic helpers
 
 def raise_type_error():

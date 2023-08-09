@@ -107,10 +107,12 @@ endif
 		model/riscv_insts_zbc.sail \
 		model/riscv_insts_zbs.sail \
 		model/riscv_insts_zfh.sail \
+		model/riscv_insts_zfa.sail \
 		model/riscv_insts_zkn.sail \
 		model/riscv_insts_zks.sail \
 		model/riscv_insts_zbkb.sail \
 		model/riscv_insts_zbkx.sail \
+		model/riscv_insts_zicond.sail \
 		model/riscv_jalr_seq.sail \
 		model/riscv_insts_end.sail \
 		model/riscv_step_common.sail \
@@ -180,10 +182,12 @@ endif
 		model/riscv_insts_zbc.sail \
 		model/riscv_insts_zbs.sail \
 		model/riscv_insts_zfh.sail \
+		model/riscv_insts_zfa.sail \
 		model/riscv_insts_zkn.sail \
 		model/riscv_insts_zks.sail \
 		model/riscv_insts_zbkb.sail \
 		model/riscv_insts_zbkx.sail \
+		model/riscv_insts_zicond.sail \
 		model/riscv_jalr_seq.sail \
 		model/riscv_insts_end.sail \
 		model/riscv_step_common.sail \

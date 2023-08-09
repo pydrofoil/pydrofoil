@@ -157,11 +157,9 @@ class Real(object):
     def fromstr(str):
         from rpython.rlib.rstring import strip_spaces
         s = strip_spaces(str)
-        for i in range(0, len(s)):
-            if s[i] == ".":
-                break
-        num = rbigint.fromstr(s[:i]+s[i+1:], 10) if i < len(s)-1 else rbigint.fromstr(s, 10)
-        den = rbigint.fromstr("1"+"0"*(len(s)-1 - i))
+        decimalpos = s.find(".")
+        num = rbigint.fromstr(s[:decimalpos]+s[decimalpos+1:], 10) if decimalpos < len(s)-1 else rbigint.fromstr(s, 10)
+        den = rbigint.fromint(10).int_pow(len(s)-1 - decimalpos)
         return Real(num, den)
 
 

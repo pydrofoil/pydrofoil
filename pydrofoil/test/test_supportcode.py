@@ -948,6 +948,11 @@ def test_corner_real():
     assert res.num.str() == str(2**63+2)
     assert res.den.str() == str(1)
 
+def test_fromstr_real():
+    x = Real.fromstr("12")
+    assert x.den.tolong() == 1
+    assert x.num.tolong() == 12
+    
 
 def rr_den_pos(num, den):
     num = rbigint.fromlong(num)
@@ -1094,9 +1099,9 @@ def test_real_pow_hypothesis(num, den, n):
     assert res.num.tolong() == frac_pow.numerator
     assert res.den.tolong() == frac_pow.denominator
 
-@given(strategies.integers(), strategies.integers(min_value = 0))
-def test_real_fromstr_2_hypothesis(integer, fractional):
-    num_str = str(integer) + "." + str(fractional)
+@given(strategies.integers(), strategies.integers(min_value = 0, max_value = 100), strategies.integers(min_value = 0))
+def test_real_fromstr_2_hypothesis(integer, zeros, fractional):
+    num_str = str(integer) + "." + "0"*zeros + str(fractional)
     r = Real.fromstr(num_str)
     frac = Fraction(num_str)
     assert r.num.tolong() == frac.numerator

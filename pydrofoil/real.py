@@ -34,8 +34,8 @@ class Real(object):
         from rpython.rlib.rstring import strip_spaces
         s = strip_spaces(str)
         decimalpos = s.find(".")
-        num = rbigint.fromstr(s[:decimalpos]+s[decimalpos+1:], 10) if decimalpos < len(s)-1 else rbigint.fromstr(s, 10)
-        den = rbigint.fromint(10).int_pow(len(s)-1 - decimalpos)
+        num = rbigint.fromstr(s[:decimalpos]+s[decimalpos+1:], 10) if decimalpos != -1 else rbigint.fromstr(s, 10)
+        den = rbigint.fromint(10).int_pow(len(s)-1 - decimalpos) if decimalpos != -1 else rbigint.fromint(1)
         return Real(num, den)
 
 
@@ -75,9 +75,8 @@ class Real(object):
         elif n < MININT or n > MAXINT:
             assert False, "exponent is out of range of INT"
         else:
-            n = rbigint.fromint(n)
-            num_new = self.num.pow(n)
-            den_new = self.den.pow(n)
+            num_new = self.num.int_pow(n)
+            den_new = self.den.int_pow(n)
             return Real(num_new, den_new)       
     
     def neg(self):

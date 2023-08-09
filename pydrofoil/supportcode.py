@@ -42,7 +42,6 @@ def unwrap(spec):
 
 # unimplemented
 
-make_dummy('eq_string')
 make_dummy('plat_enable_dirty_update')
 make_dummy('plat_enable_misaligned_access')
 make_dummy('plat_enable_pmp')
@@ -443,6 +442,9 @@ def platform_write_mem_ea(machine, write_kind, addr_size, addr, n):
 
 def concat_str(machine, a, b):
     return a + b
+
+def eq_string(machine, a, b):
+    return a == b
     
 # softfloat
 

@@ -160,9 +160,10 @@ class Codegen(object):
 
     def getcode(self):
         res = ["\n".join(self.declarations)]
+        self.runtimeinit.append("func_zinitializze_registers(machine, ())")
         res.append("def model_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
         res.append("\n".join(self.code))
-        return "\n\n\n".join(res)
+        return "\n\n".join(res)
 
 
 def parse_and_make_code(s, support_code, promoted_registers=set()):
@@ -186,7 +187,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
     try:
         ast.make_code(c)
     except Exception:
-        print c.getcode()
+        print c.getcode()[:1024*1024*1024]
         raise
     return c.getcode()
 
@@ -203,6 +204,7 @@ class __extend__(parse.File):
         import traceback
         failure_count = 0
         for index, decl in enumerate(self.declarations):
+            print "MAKING CODE FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl)
             try:
                 decl.make_code(codegen)
             except Exception as e:
@@ -401,8 +403,17 @@ class __extend__(parse.GlobalVal):
             pyname = "func_" + self.name
             codegen.add_global(self.name, pyname,  typ, self)
 
+class __extend__(parse.Abstract):
+    def make_code(self, codegen):
+        typ = self.typ.resolve_type(codegen) # XXX should use self.resolve_type?
+        pyname = "func_" + self.name
+        codegen.add_global(self.name, pyname,  typ, self)
+        codegen.emit("# %s" % self)
+        codegen.emit("def %s(*args): return ()" % (pyname, ))
+
 class __extend__(parse.Register):
     def make_code(self, codegen):
+        from pydrofoil.optimize import optimize_blocks
         self.pyname = "_reg_%s" % (self.name, )
         typ = self.typ.resolve_type(codegen)
         if self.name in codegen.promoted_registers:
@@ -413,6 +424,17 @@ class __extend__(parse.Register):
         with codegen.emit_code_type("declarations"):
             codegen.emit("# %s" % (self, ))
             codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
+
+        if self.body is None:
+            return
+        with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
+            codegen.emit(" # register %s : %s" % (self.name, self.typ, ))
+            blocks = {0: self.body[:]}
+            optimize_blocks(blocks, codegen)
+            for i, op in enumerate(blocks[0]):
+                codegen.emit("# %s" % (op, ))
+                op.make_op_code(codegen)
+            codegen.emit()
 
 
 class __extend__(parse.Function):
@@ -614,7 +636,7 @@ class __extend__(parse.Function):
             if (isinstance(op, parse.LocalVarDeclaration) and
                     i + 1 < len(block) and
                     isinstance(block[i + 1], (parse.Assignment, parse.Operation)) and
-                    op.name == block[i + 1].result):
+                    op.name == block[i + 1].result and op.name not in block[i + 1].find_used_vars()):
                 op.make_op_code(codegen, False)
             elif isinstance(op, parse.ConditionalJump):
                 codegen.emit("# %s" % (op, ))
@@ -878,8 +900,10 @@ class __extend__(parse.Cast):
 class __extend__(parse.RefOf):
     def to_code(self, codegen):
         expr = self.expr.to_code(codegen)
-        assert isinstance(self.expr.gettyp(codegen), types.Struct)
-        return expr
+        if isinstance(self.expr.gettyp(codegen), types.Struct):
+            return expr
+        assert isinstance(self.expr, parse.Var)
+        return repr("crashmenow")
 
     def gettyp(self, codegen):
         return types.Ref(self.expr.gettyp(codegen))

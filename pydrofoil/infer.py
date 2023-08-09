@@ -62,6 +62,10 @@ class TypeAttachingVisitor(parse.Visitor):
         typ = ast.resolved_type = self.visit(ast.typ)
         self.context.add_global_name(ast.name, typ)
 
+    def visit_Abstract(self, ast):
+        typ = ast.resolved_type = self.visit(ast.typ)
+        self.context.add_global_name(ast.name, typ)
+
     def visit_Let(self, ast):
         typ = ast.resolved_type = self.visit(ast.typ)
         self.context.add_global_name(ast.name, typ)
@@ -129,6 +133,11 @@ class TypeAttachingVisitor(parse.Visitor):
     def visit_Register(self, ast):
         typ = self.visit(ast.typ)
         self.context.add_global_name(ast.name, typ)
+        if ast.body is not None:
+            with self.context.enter_scope():
+                for stmt in ast.body:
+                    self.visit(stmt)
+
 
     def visit_StructElementAssignment(self, ast):
         self.visit(ast.obj)

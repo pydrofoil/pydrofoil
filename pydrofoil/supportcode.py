@@ -223,14 +223,18 @@ def append_64(machine, bv, v):
     return bv.append_64(v)
 
 @unwrap("o i o")
+@objectmodel.specialize.argtype(1)
 def vector_update(machine, bv, index, element):
+    if isinstance(bv, list):
+        res = bv[:] # XXX Sail C does this without a copy
+        res[index] = element
+        return res
     return bv.update_bit(index, element)
 
 @unwrap("o i")
 @objectmodel.specialize.argtype(1)
 def vector_access(machine, vec, index):
     if isinstance(vec, list):
-        import pdb; pdb.set_trace()
         return vec[index]
     return vec.read_bit(index)
 
@@ -390,6 +394,10 @@ def string_to_int(machine, s):
 
 def undefined_int(machine, _):
     return Integer.fromint(0)
+
+@unwrap("i")
+def pow2(machine, x):
+    return Integer.frombigint(rbigint.fromint(2).int_pow(x))
 
 # various
 

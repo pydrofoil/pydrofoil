@@ -21,6 +21,7 @@ addkeyword('enum')
 addkeyword('union')
 addkeyword('struct')
 addkeyword('val')
+addkeyword('abstract')
 addkeyword('fn')
 addkeyword('end')
 addkeyword('arbitrary')
@@ -173,12 +174,21 @@ class GlobalVal(Declaration):
         self.definition = definition
         self.typ = typ
 
+class Abstract(Declaration):
+    resolved_type = None
+
+    def __init__(self, name, definition, typ, sourcepos=None):
+        self.name = name
+        self.definition = definition
+        self.typ = typ
+
 class Register(Declaration):
     resolved_type = None
 
-    def __init__(self, name, typ):
+    def __init__(self, name, typ, body=None):
         self.name = name
         self.typ = typ
+        self.body = body
 
 class Let(Declaration):
     resolved_type = None
@@ -444,15 +454,16 @@ class Comparison(Condition):
         return Comparison(self.operation, newargs)
 
 class UnionVariantCheck(Condition):
-    def __init__(self, var, variant):
+    def __init__(self, var, variant, resolved_type=None):
         self.var = var
         self.variant = variant
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return self.var.find_used_vars()
 
     def replace_var(self, var, expr):
-        xxx
+        return UnionVariantCheck(self.var.replace_var(var, expr), self.variant, self.resolved_type)
 
 class StructElementAssignment(StatementWithSourcePos):
     def __init__(self, obj, fields, value, resolved_type=None, sourcepos=None):
@@ -706,7 +717,7 @@ def file(p):
         return File(p)
     return File(p[0].declarations + [p[1]])
 
-@pg.production('declaration : enum | union | struct | globalval | function | register | let | pragma | files')
+@pg.production('declaration : enum | union | struct | globalval | function | register | let | pragma | files | abstract')
 def declaration(p):
     return p[0]
 
@@ -744,6 +755,10 @@ def globalval(p):
     else:
         return GlobalVal(p[1].value, p[3].value, p[5])
 
+@pg.production('abstract : ABSTRACT NAME EQUAL STRING COLON type')
+def abstract(p):
+    return Abstract(p[1].value, p[3].value, p[5])
+
 counter = 0
 @pg.production('function : FN NAME LPAREN args RPAREN LBRACE operations RBRACE')
 def function(p):
@@ -759,9 +774,11 @@ def args(p):
     else:
         return Function(None, [p[0].value] + p[2].args, None)
 
-@pg.production('register : REGISTER NAME COLON type')
+@pg.production('register : REGISTER NAME COLON type | REGISTER NAME COLON type LBRACE operations RBRACE')
 def register(p):
-    return Register(p[1].value, p[3])
+    if len(p) == 4:
+        return Register(p[1].value, p[3])
+    return Register(p[1].value, p[3], p[5].collect())
 
 @pg.production('let : LET LPAREN NAME COLON type RPAREN LBRACE operations RBRACE')
 def let(p):
@@ -1006,7 +1023,7 @@ def listtype(p):
 def functiontype(p):
     return FunctionType(p[0], p[2])
 
-@pg.production('reftype : AMPERSAND LPAREN structtype RPAREN')
+@pg.production('reftype : AMPERSAND LPAREN simpletype RPAREN')
 def reftype(p):
     return RefType(p[2])
 

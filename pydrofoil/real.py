@@ -113,3 +113,6 @@ class Real(object):
     
     def totuple(self):
         return self.num.toint(), self.den.toint()
+    
+    def sqrt(self):
+        return Real(self.num, self.den)

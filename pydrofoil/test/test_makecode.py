@@ -311,7 +311,7 @@ def test_full_nand():
     t = Translation(main, [])
     t.rtype() # check that it's rpython
 
-def test_real():
+def test_real(capsys):
     support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
     res = parse_and_make_code('''
         val zz5i64zDzKz5i = "%i64->%i" : (%i64) ->  %i

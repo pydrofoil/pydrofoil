@@ -59,10 +59,7 @@ class Real(object):
         return Real(num_new, den_new)
     
     def div(self, other):
-        if self.num.int_eq(0) and not other.num.int_eq(0):
-            num_new = rbigint.fromint(0)
-            den_new = rbigint.fromint(1)
-        elif other.num.int_eq(0):
+        if other.num.int_eq(0):
             assert False, "ZerodivideError: denominator cannot be 0"
         else:
             num_new = self.num.mul(other.den)

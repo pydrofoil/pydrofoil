@@ -22,28 +22,40 @@ class Real(object):
         #     num = rbigint.fromlong(-num)
         #     den = rbigint.fromlong(-den)
         # else:
-        if ((num == MININT or num == MAXINT) and (den > 0 and den <= MAXINT)) or ((den == MAXINT) and ((num > 0 and num <= MAXINT) or (num < 0 and num >= MININT))):
+        # if ((num == MININT or num == MAXINT) and (den > 0 and den <= MAXINT)) or ((den == MAXINT) and ((num > 0 and num <= MAXINT) or (num < 0 and num >= MININT))):
+        #     num = rbigint.fromint(num)
+        #     den = rbigint.fromint(den)
+        # elif ((num == MININT or num == MAXINT) and (den < 0 and den >= MININT)) or ((den == MININT) and ((num > 0 and num <= MAXINT) or (num < 0 and num >= MININT))):
+        #     if (num == MININT and den == MININT):
+        #         num = rbigint.fromint(1)
+        #         den = rbigint.fromint(1)
+        #     elif num == MININT:
+        #         num = rbigint.fromint(MAXINT).add(rbigint.fromint(1))
+        #         den = rbigint.fromint(-den)
+        #     elif den == MININT:
+        #         num = rbigint.fromint(-num)
+        #         den = rbigint.fromint(MAXINT).add(rbigint.fromint(1))
+        #     else:                
+        #         num = rbigint.fromint(-num)
+        #         den = rbigint.fromint(-den)
+        # elif ((num > MININT and num < MAXINT) and (den > MININT and den < MAXINT)):
+        #     sign = num/abs(num)*den/abs(den)
+        #     num = rbigint.fromint(abs(num)*sign)
+        #     den = rbigint.fromint(abs(den))
+        # else:
+        #     assert False, "input is out of range of INT"
+        if num == MININT or den == MININT:
             num = rbigint.fromint(num)
             den = rbigint.fromint(den)
-        elif ((num == MININT or num == MAXINT) and (den < 0 and den >= MININT)) or ((den == MININT) and ((num > 0 and num <= MAXINT) or (num < 0 and num >= MININT))):
-            if (num == MININT and den == MININT):
-                num = rbigint.fromint(1)
-                den = rbigint.fromint(1)
-            elif num == MININT:
-                num = rbigint.fromint(MAXINT).add(rbigint.fromint(1))
-                den = rbigint.fromint(-den)
-            elif den == MININT:
-                num = rbigint.fromint(-num)
-                den = rbigint.fromint(MAXINT).add(rbigint.fromint(1))
-            else:                
-                num = rbigint.fromint(-num)
-                den = rbigint.fromint(-den)
-        elif ((num > MININT and num < MAXINT) and (den > MININT and den < MAXINT)):
+            sign = num.sign * den.sign
+            num = num.abs().int_mul(sign)
+            den = den.abs()
+        elif num < MININT or num > MAXINT or den < MININT or den > MAXINT:
+            assert False, "input is out of range of INT"
+        else:
             sign = num/abs(num)*den/abs(den)
             num = rbigint.fromint(abs(num)*sign)
             den = rbigint.fromint(abs(den))
-        else:
-            assert False, "input is out of range of INT"
         # assert not den.int_eq(0), "denominator cannot be 0"
         return Real(num, den)
     
@@ -140,6 +152,17 @@ class Real(object):
     #     # # return Real(num, den)
     #     # return lead_zero_count, num, den.str()
 
+    # Simplest implementation of fromstr with input format only as xxx.xxxx, leading zero issue resolved by setting base = 10 for rbigint.fromstr()
+    @staticmethod
+    def fromstr(str):
+        from rpython.rlib.rstring import strip_spaces
+        s = strip_spaces(str)
+        for i in range(0, len(s)):
+            if s[i] == ".":
+                break
+        num = rbigint.fromstr(s[:i]+s[i+1:], 10) if i < len(s)-1 else rbigint.fromstr(s, 10)
+        den = rbigint.fromstr("1"+"0"*(len(s)-1 - i))
+        return Real(num, den)
 
 
     def add(self, other):
@@ -175,37 +198,47 @@ class Real(object):
             den_new = den_new.neg()
         return Real(num_new, den_new)
 
+    # def pow(self, n):
+    #     if isinstance(n, int):
+    #         if n == 0:
+    #             return Real(rbigint.fromint(1), rbigint.fromint(1))
+    #         elif n < MININT or n > MAXINT:
+    #             assert False, "exponent is out of range of INT"
+    #         else:
+    #             n = rbigint.fromint(n)
+    #             num_new = self.num.pow(n)
+    #             den_new = self.den.pow(n)
+    #             return Real(num_new, den_new)
+    #     elif isinstance(n, rbigint):
+    #         if n.int_eq(0):
+    #             return Real(rbigint.fromint(1), rbigint.fromint(1))
+    #         else:
+    #             n = rbigint.fromint(n)
+    #             num_new = self.num.pow(n)
+    #             den_new = self.den.pow(n)
+    #             return Real(num_new, den_new)
+    #     elif isinstance(n, Real):
+    #         if n.num.int_eq(0):
+    #             return Real(rbigint.fromint(1), rbigint.fromint(1))
+    #         else:
+    #             if n.den.int_eq(1):
+    #                 num_new = self.num.pow(n.num)
+    #                 den_new = self.den.pow(n.num)
+    #                 return Real(num_new, den_new)
+    #             else:
+    #                 assert False, "exponent cannot be fraction"
+    #     else:
+    #         raise TypeError("exponent doesn't support this type")
     def pow(self, n):
-        if isinstance(n, int):
-            if n == 0:
-                return Real(rbigint.fromint(1), rbigint.fromint(1))
-            elif n < MININT or n > MAXINT:
-                assert False, "exponent is out of range of INT"
-            else:
-                n = rbigint.fromint(n)
-                num_new = self.num.pow(n)
-                den_new = self.den.pow(n)
-                return Real(num_new, den_new)
-        elif isinstance(n, rbigint):
-            if n.int_eq(0):
-                return Real(rbigint.fromint(1), rbigint.fromint(1))
-            else:
-                n = rbigint.fromint(n)
-                num_new = self.num.pow(n)
-                den_new = self.den.pow(n)
-                return Real(num_new, den_new)
-        elif isinstance(n, Real):
-            if n.num.int_eq(0):
-                return Real(rbigint.fromint(1), rbigint.fromint(1))
-            else:
-                if n.den.int_eq(1):
-                    num_new = self.num.pow(n.num)
-                    den_new = self.den.pow(n.num)
-                    return Real(num_new, den_new)
-                else:
-                    assert False, "exponent cannot be fraction"
+        if n == 0:
+            return Real(rbigint.fromint(1), rbigint.fromint(1))
+        elif n < MININT or n > MAXINT:
+            assert False, "exponent is out of range of INT"
         else:
-            raise TypeError("exponent doesn't support this type")
+            n = rbigint.fromint(n)
+            num_new = self.num.pow(n)
+            den_new = self.den.pow(n)
+            return Real(num_new, den_new)
         
         
             
@@ -216,26 +249,26 @@ class Real(object):
     def abs(self):
         return Real(self.num.abs(), self.den)
 
-    def ceil(self):
-        diff = self.num.divmod(self.den)
-        num_new = self.num if diff[1].int_eq(0) else self.num.add(self.den.sub(diff[1]))
-        return Real(num_new, self.den)
+    # def ceil(self):
+    #     diff = self.num.divmod(self.den)
+    #     num_new = self.num if diff[1].int_eq(0) else self.num.add(self.den.sub(diff[1]))
+    #     return Real(num_new, self.den)
 
-    def floor(self):
-        diff = self.num.divmod(self.den)
-        num_new = self.num if diff[1].int_eq(0) else self.num.sub(diff[1])
-        return Real(num_new, self.den)
+    # def floor(self):
+    #     diff = self.num.divmod(self.den)
+    #     num_new = self.num if diff[1].int_eq(0) else self.num.sub(diff[1])
+    #     return Real(num_new, self.den)
+    def ceil(self):
+        return self.num if self.den.int_eq(1) else self.num.floordiv(self.den).int_add(1)
     
+    def floor(self):
+        return self.num if self.den.int_eq(1) else self.num.floordiv(self.den)
+
     def eq(self, other):
         return self.num.eq(other.num) and self.den.eq(other.den)
     
     def lt(self, other):
-        if (self.den.int_gt(0) and other.den.int_gt(0)) or (not self.den.int_gt(0) and not other.den.int_gt(0)):
-            return self.num.mul(other.den).lt(self.den.mul(other.num))
-        elif self.den.int_gt(0):
-            return False
-        else:
-            return True
+        return self.num.mul(other.den).lt(self.den.mul(other.num))
     
     def gt(self, other):
         return other.lt(self)
@@ -250,7 +283,7 @@ class Real(object):
         assert self.den.abs().int_eq(1)
         return self.num.mul(self.den).toint()
     
-    def toreal(self):
+    def totuple(self):
         return self.num.toint(), self.den.toint()
     
 

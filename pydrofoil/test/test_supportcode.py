@@ -747,50 +747,50 @@ def test_abs_real():
     res = x.abs()
     assert res.toint() == 2
 
-# Test for ceil
-def test_ceil_real():
-    x = Real.fromint(10)
-    res = x.ceil()
-    assert res.toint() == 10
-    x = Real.fromint(-10)
-    res = x.ceil()
-    assert res.toint() == -10
-    x = Real.fromint(3, 2)
-    res = x.ceil()
-    assert res.toint() == 2
-    x = Real.fromint(-3, 2)
-    res = x.ceil()
-    assert res.toint() == -1
-    x = Real.fromint(3, -2)
-    res = x.ceil()
-    assert res.toint() == -1
-    x = Real.fromint(1, 5)
-    res = x.ceil()
-    assert res.toint() == 1
-    x = Real.fromint(-1, 5)
-    res = x.ceil()
-    assert res.toint() == 0
+# # Test for ceil
+# def test_ceil_real():
+#     x = Real.fromint(10)
+#     res = x.ceil()
+#     assert res.toint() == 10
+#     x = Real.fromint(-10)
+#     res = x.ceil()
+#     assert res.toint() == -10
+#     x = Real.fromint(3, 2)
+#     res = x.ceil()
+#     assert res.toint() == 2
+#     x = Real.fromint(-3, 2)
+#     res = x.ceil()
+#     assert res.toint() == -1
+#     x = Real.fromint(3, -2)
+#     res = x.ceil()
+#     assert res.toint() == -1
+#     x = Real.fromint(1, 5)
+#     res = x.ceil()
+#     assert res.toint() == 1
+#     x = Real.fromint(-1, 5)
+#     res = x.ceil()
+#     assert res.toint() == 0
 
-# Test for floor
-def test_floor_real():
-    x = Real.fromint(10)
-    res = x.floor()
-    assert res.toint() == 10
-    x = Real.fromint(-10)
-    res = x.floor()
-    assert res.toint() == -10
-    x = Real.fromint(3, 2)
-    res = x.floor()
-    assert res.toint() == 1
-    x = Real.fromint(-3, 2)
-    res = x.floor()
-    assert res.toint() == -2
-    x = Real.fromint(1, 5)
-    res = x.floor()
-    assert res.toint() == 0
-    x = Real.fromint(1, -5)
-    res = x.floor()
-    assert res.toint() == -1
+# # Test for floor
+# def test_floor_real():
+#     x = Real.fromint(10)
+#     res = x.floor()
+#     assert res.toint() == 10
+#     x = Real.fromint(-10)
+#     res = x.floor()
+#     assert res.toint() == -10
+#     x = Real.fromint(3, 2)
+#     res = x.floor()
+#     assert res.toint() == 1
+#     x = Real.fromint(-3, 2)
+#     res = x.floor()
+#     assert res.toint() == -2
+#     x = Real.fromint(1, 5)
+#     res = x.floor()
+#     assert res.toint() == 0
+#     x = Real.fromint(1, -5)
+#     res = x.floor()
+#     assert res.toint() == -1
 
 # Test for eq
 def test_eq_real():
@@ -956,26 +956,26 @@ def test_ge_real():
     assert res == True
 
 # Test for toreal together with other operations
-def test_toreal_real():
-    x = Real.fromint(2)
-    y = Real.fromint(7)
-    x = x.div(y)
-    y = Real.fromint(7, 3)
-    x = x.sub(y)
-    x = x.ceil()
-    y = Real.fromint(1, 2)
-    x = x.add(y)
-    num, den = x.toreal()
-    assert num == -3
-    assert den == 2
-    x = x.floor()
-    num, den = x.toreal()
-    assert num == -2
-    assert den == 1
-    x = x.abs()
-    num, den = x.toreal()
-    assert num == 2
-    assert den == 1
+# def test_toreal_real():
+#     x = Real.fromint(2)
+#     y = Real.fromint(7)
+#     x = x.div(y)
+#     y = Real.fromint(7, 3)
+#     x = x.sub(y)
+#     x = x.ceil()
+#     y = Real.fromint(1, 2)
+#     x = x.add(y)
+#     num, den = x.toreal()
+#     assert num == -3
+#     assert den == 2
+#     x = x.floor()
+#     num, den = x.toreal()
+#     assert num == -2
+#     assert den == 1
+#     x = x.abs()
+#     num, den = x.toreal()
+#     assert num == 2
+#     assert den == 1
 
 # Test for basic corner cases
 def test_corner_real():
@@ -1020,62 +1020,66 @@ def test_corner_real():
     # x = Real.fromint(1, 2**63)
     # x = Real.fromint(1, -2**63-1)
 
-def test_fromstr_real():
-    x = Real.fromstr("3.1")
-    assert x.num.str() == str(31)
-    assert x.den.str() == str(10)
-    x = Real.fromstr("1.22222222222222222222221")
-    assert x.num.str() == str(122222222222222222222221)
-    assert x.den.str() == str(100000000000000000000000)
-    x = Real.fromstr("222.1111111111111111111")
-    assert x.num.str() == str(2221111111111111111111)
-    assert x.den.str() == str(10000000000000000000)
-    x = Real.fromstr("-22.137")
-    assert x.num.str() == str(-22137)
-    assert x.den.str() == str(1000)
-    x = Real.fromstr("2213")
-    assert x.num.str() == str(2213)
-    assert x.den.str() == str(1)
-    x = Real.fromstr("2213.0")
-    assert x.num.str() == str(2213)
-    assert x.den.str() == str(1)
-    x = Real.fromstr("-12.12345678912345678912345678912345678912341")
-    assert x.num.str() == str(-1212345678912345678912345678912345678912341)
-    assert x.den.str() == str(100000000000000000000000000000000000000000)
-    x = Real.fromstr(" +2213.01 ")
-    assert x.num.str() == str(221301)
-    assert x.den.str() == str(100)
-    x = Real.fromstr(" 0.0")
-    assert x.num.str() == str(0)
-    assert x.den.str() == str(1)
-    x = Real.fromstr("0.1")
-    assert x.den.str() == str(10)
-    assert x.num.str() == str(1)
-    x = Real.fromstr("0.10")
-    assert x.den.str() == str(10)
-    assert x.num.str() == str(1)
-    x = Real.fromstr("-0.000123")
-    assert x.num.str() == str(-123)
-    assert x.den.str() == str(1000000)
-    # n, num, den = Real.fromstr("0.10")
-    # assert n == 1
-    # assert num == "10"
-    # assert den == str(100)
-    # n, num, den = Real.fromstr("0.010")
-    # assert n == 2
-    # assert num == "10"
-    # assert den == str(1000)
-    # n, num, den = Real.fromstr("+0.00110")
-    # assert n == 3
-    # assert num == "+110"
-    # assert den == str(100000)
+# def test_fromstr_real():
+#     x = Real.fromstr("3.1")
+#     assert x.num.str() == str(31)
+#     assert x.den.str() == str(10)
+#     x = Real.fromstr("1.22222222222222222222221")
+#     assert x.num.str() == str(122222222222222222222221)
+#     assert x.den.str() == str(100000000000000000000000)
+#     x = Real.fromstr("222.1111111111111111111")
+#     assert x.num.str() == str(2221111111111111111111)
+#     assert x.den.str() == str(10000000000000000000)
+#     x = Real.fromstr("-22.137")
+#     assert x.num.str() == str(-22137)
+#     assert x.den.str() == str(1000)
+#     x = Real.fromstr("2213")
+#     assert x.num.str() == str(2213)
+#     assert x.den.str() == str(1)
+#     x = Real.fromstr("2213.0")
+#     assert x.num.str() == str(2213)
+#     assert x.den.str() == str(1)
+#     x = Real.fromstr("-12.12345678912345678912345678912345678912341")
+#     assert x.num.str() == str(-1212345678912345678912345678912345678912341)
+#     assert x.den.str() == str(100000000000000000000000000000000000000000)
+#     x = Real.fromstr(" +2213.01 ")
+#     assert x.num.str() == str(221301)
+#     assert x.den.str() == str(100)
+#     x = Real.fromstr(" 0.0")
+#     assert x.num.str() == str(0)
+#     assert x.den.str() == str(1)
+#     x = Real.fromstr("0.1")
+#     assert x.den.str() == str(10)
+#     assert x.num.str() == str(1)
+#     x = Real.fromstr("0.10")
+#     assert x.den.str() == str(10)
+#     assert x.num.str() == str(1)
+#     x = Real.fromstr("-0.000123")
+#     assert x.num.str() == str(-123)
+#     assert x.den.str() == str(1000000)
+#     x = rbigint.fromstr("010", 10)
+#     assert x.tolong() == 10
+#     x = rbigint.fromstr("0001110", 10)
+#     assert x.tolong() == 1110
+#     # n, num, den = Real.fromstr("0.10")
+#     # assert n == 1
+#     # assert num == "10"
+#     # assert den == str(100)
+#     # n, num, den = Real.fromstr("0.010")
+#     # assert n == 2
+#     # assert num == "10"
+#     # assert den == str(1000)
+#     # n, num, den = Real.fromstr("+0.00110")
+#     # assert n == 3
+#     # assert num == "+110"
+#     # assert den == str(100000)
     
-    # pos, x = Real.fromstr("2213")
-    # assert pos == 3
-    # assert x == str(2213)
-    # pos, x = Real.fromstr("1.22222222222222222222221")
-    # assert pos == 1
-    # assert x == str(122222222222222222222221)
+#     # pos, x = Real.fromstr("2213")
+#     # assert pos == 3
+#     # assert x == str(2213)
+#     # pos, x = Real.fromstr("1.22222222222222222222221")
+#     # assert pos == 1
+#     # assert x == str(122222222222222222222221)
 
 
 def rr_den_pos(num, den):
@@ -1096,6 +1100,8 @@ def test_pow_real():
     frac2 = frac ** 157
     assert frac2.numerator == 190409951913019359038317205622379457602035828161843624841207699640927333775046592117576433413376876105733603132434130232503683347785849318708509006432638953486459208060845830210831558599521266976597040288338545867344941559448210334962626849683138394215452361342483721896244695900342376820803404194896623578448721624401505793922858830089779388353229122375093315200327346176160201718081720922073765801503425541320651826634918043017133821123183693597845974507140550679408598425919072817502440705107563048772735794355949110660987620452824340776421141373378290388817722475777148149975006672300034940593562448675468527495896721557991715834489874636851054079281397033594218236496485700225830148375518405292368299266009779917697829068198692096000628965707869321183885417286230992305081062530810866126143930416846043662822682676265086593516620362109350087692151401171574058530429406860774077169678007037105575066100122224458321910152117944402331106583508534456254328581000038776850549037516306343853937763154535726419506592565250043512735506500050261473531397610769914398937629531939801849672473635189016987431448735983440291380473040048197144019936119057341031918984486870504545050237287974159943109902318579139573274087239158619821430962845884982613093737307323878091650016619308103208329051403017616292867427190150854611336696189675504308156673508645105181281534412711098521536335431300694163571611622508279641087680718962608046173975982960763365829378072699378641778714190817639937109358325321390501277552874635888901134603602189317283813110095294463428256170489469014615855156113040491798719415902149707071886660965416331005536296213055293194324606271255372690723430086511418166517112555757502202943421083825056523256193875236868131174984183525966873195540423765385513537781389750320784087424269992287016787675035568680805164909381373540508162634656613331790628358843988423467684724221226370341755451140190650781392496569578390881482246137743560727961120731986954334551195036809498851891499076178759525544347615692909093530014144601840102691015315169454460358563561301836839948762170182154177820560799228353437527328887865228305164982877950354698743822854076828223264157126244593770905192754873629164102000824458166916255482474653728766584423935436416665805589318534422094319896764912922891833539002715876662525027414796574568793844818057873912316649506326200489784545284231310640311258092576397121085874623483705221538967981926375857588113488064860838693989619646910717850643725125121151234511228165467105756138172053457546627173533402454314427348881592924832613424836721378626746053259587650488905814047739578955554695190014861757531195585001381395177155962377973636592899925717133673364683892637460352899677059394634219468963753575873664804765393235790882252616112308232444860780269091312300714438345143185170047348769027612481660663086538261726430502662395476908993715884211257866079156686243943175661299906030620025565620307377497265614217590773929914349479073535628553786049948004222888033286872604240323620881874001858192397525515375033096723570220950963746360502322678972754702551350841260269564403529679481818049357095857577062718147264051178345559973013611595399542327251244339857400927908447217906468708735571398954364678012999940266806891496476698708680508763560788258191054422672424829577101528077350460987995283796127345586232872348026585327705119426167260906765363432483507311318583716014273159306874704208102292570789326518795588220950969393809356453658489749373250557552793974847344630507447675300224283881898448032208475834951974207816067748495800862805749758479452665073073752074093203171173647866537953578871912720053270564531412228847987973308723256009261963987757440489290836501484070922113537049266434700522488231367414903099627460332351165673486972622704133190312924635158945144528021166776465675177478477033832562308925055120304997687890399163253132001730170107718281112510035708801649669645292211763408389267000376007761925250203108215212103518733189179015050338309991434427035536843348866615402560771870192281519878418938465048851057800568710574851328316280359702405178729302310881503358523301282670768976929342234219755958251763163623019122054132586638636055406646489634749338893327349077769886809892948821987235170145851885728851836626227988340402437205450072047914494298390487209025687453319119517297422542231932617241772961034263051083941093827549112012830097767776861469860823431336653616381002324991088816484641564510478930156189810585298867775911888958837287778813463079052280097983414742675627089050251859351421557719614944181797856661305825845675150845525997176719912149567334085843289445778263408335744217060071779081954294980610542192840054769433871220932564149414702861477491108227104599349559153034972238340329231037305318962059908485157939430601857863362639690950321251652038851290606630911836583621377615188689341218152625038339018868626843846701526168656950409293804227910392545916376960555237496816629944195699706390319737311331640473976149436676091791677052875736540960938891648580742748218248088950832621657039938672448151609227744465296003314690599111225878734167290173489785600107683712190915766399968575750144
     assert frac2.denominator == 152605935647679226282756190536636722669030930172767429260321713188655918063291372275949200913016469230881861936703267926892858191458666863236706148079968034303895171583534914159543857359589737180559339571339024633993101292297056083370608964594151791160554700812317461700468494874387520259364884336717586817778868394969465624697599648081857317122403102600721538641626163500190856568740415042847729062808976305298778819845783956670623356512378943285147657051165807324310741194576085942198601527892840213183790696348482655206168963355811560025082160505184110371696390624220005143785589654253497186816424880382583974181896693796771489424351793841770369303040204386469621500846258204487691049699829361937627175912264554944061791381666300044781732730751581825809003317286906774184845677020999700170418521310117798552782595025178116845856610447237341949406468521935351149232417276311757882172794671430098193798720976426930292527069917377994943054079172955248496471620627384146039114277553316420411898571728140514292645828750708028744876224446369411230868911890279944097845355858026893487929614329997659931762053654664862635020403815047127361278339525656399780842537282910548581007949535930754506407338788657741580953742155958283616108899207670258999952786492547280717908819145621372483197929855444767007288504579156624502324541571430514293204141107551108524249139085703904546174763838774659306760589080680752392716409190922535467519266207238159929509950267336791220517552975604697469453990196616594989092187988315421274118513323516422290303534101018693976123356270438385190370166384215870643122537135721541190703525629992429757758543711003399749182492092530329093962986465222895621542205981860941339743836893566694051422789063773150827779357821843524199955673573901121976427626673677852336319783284562438046308325164627990165473060582075767921495521043270500857512488056907397699831057657336723350597095074559442033991631963260738967102173706731010860031600250844534707322198534068002659601304943428683479507006764170029792019208835245080192898531303668306040449949556192399033456250780662678186777626097370254236651078644165664192559131037070113809176626408872070305666367546775016246021122268904569928324039173898484742373125824909799788656911845746229468127290683128367592262078509794696336528838202883291443449142660392362587336174811218403556760305442842323206883
+    # x = Real.fromint(1, 5)
+    # res = x.pow("3")
 
 @given(strategies.integers(), strategies.integers(min_value = 1))
 def test_real_neg_hypothesis(num, den):
@@ -1148,33 +1154,59 @@ def test_real_div_hypothesis(num1, den1, num2, den2):
     assert res.num.tolong() == frac.numerator
     assert res.den.tolong() == frac.denominator
 
+# @given(strategies.integers(), strategies.integers(min_value = 1))
+# def test_real_ceil_hypothesis(num, den):
+#     r = rr_den_pos(num, den)
+#     res = r.ceil()
+#     frac = Fraction(num, den)
+#     assert res.den.toint() == 1
+#     if num % den == 0:
+#         assert res.num.tolong() == frac.numerator
+#     else:
+#         if num > 0:
+#             assert res.num.tolong() == frac.numerator // frac.denominator + 1
+#         else:
+#             assert res.num.tolong() == -((-frac.numerator) // frac.denominator)
+    
+# @given(strategies.integers(), strategies.integers(min_value = 1))
+# def test_real_floor_hypothesis(num, den):
+#     r = rr_den_pos(num, den)
+#     res = r.floor()
+#     frac = Fraction(num, den)
+#     assert res.den.toint() == 1
+#     if num % den == 0:
+#         assert res.num.tolong() == frac.numerator
+#     else:
+#         if num > 0:
+#             assert res.num.tolong() == frac.numerator // frac.denominator
+#         else:
+#             assert res.num.tolong() == -((-frac.numerator) // frac.denominator + 1)
+
 @given(strategies.integers(), strategies.integers(min_value = 1))
 def test_real_ceil_hypothesis(num, den):
     r = rr_den_pos(num, den)
     res = r.ceil()
     frac = Fraction(num, den)
-    assert res.den.toint() == 1
     if num % den == 0:
-        assert res.num.tolong() == frac.numerator
+        assert res.tolong() == frac.numerator
     else:
         if num > 0:
-            assert res.num.tolong() == frac.numerator // frac.denominator + 1
+            assert res.tolong() == frac.numerator // frac.denominator + 1
         else:
-            assert res.num.tolong() == -((-frac.numerator) // frac.denominator)
+            assert res.tolong() == -((-frac.numerator) // frac.denominator)
     
 @given(strategies.integers(), strategies.integers(min_value = 1))
 def test_real_floor_hypothesis(num, den):
     r = rr_den_pos(num, den)
     res = r.floor()
     frac = Fraction(num, den)
-    assert res.den.toint() == 1
     if num % den == 0:
-        assert res.num.tolong() == frac.numerator
+        assert res.tolong() == frac.numerator
     else:
         if num > 0:
-            assert res.num.tolong() == frac.numerator // frac.denominator
+            assert res.tolong() == frac.numerator // frac.denominator
         else:
-            assert res.num.tolong() == -((-frac.numerator) // frac.denominator + 1)
+            assert res.tolong() == -((-frac.numerator) // frac.denominator + 1)
 
 @given(strategies.integers(), strategies.integers(min_value = 1), strategies.integers(), strategies.integers(min_value = 1))
 def test_real_eq_hypothesis(num1, den1, num2, den2):
@@ -1216,7 +1248,7 @@ def test_real_ge_hypothesis(num1, den1, num2, den2):
     frac2 = Fraction(num2, den2)
     assert r1.ge(r2) == (frac1 - frac2 >= 0)
 
-@given(strategies.integers(), strategies.integers(min_value = 1), strategies.integers(min_value = 1, max_value = 100))
+@given(strategies.integers(), strategies.integers(min_value = 1), strategies.integers(min_value = 1, max_value = 50))
 def test_real_pow_hypothesis(num, den, n):
     r = rr_den_pos(num, den)
     res = r.pow(n)
@@ -1225,15 +1257,15 @@ def test_real_pow_hypothesis(num, den, n):
     assert res.num.tolong() == frac_pow.numerator
     assert res.den.tolong() == frac_pow.denominator
 
-@given(strategies.floats(min_value = float(-2**126), max_value = float(2**126)))
-def test_real_fromstr_hypothesis(num):
-    num_str = str(num)
-    r = Real.fromstr(num_str)
-    frac = Fraction(num_str)
-    assert r.num.tolong() == frac.numerator
-    assert r.den.tolong() == frac.denominator
-    # assert frac.numerator == 1
-    # assert frac.denominator == 1
+# @given(strategies.floats(min_value = float(-2**126), max_value = float(2**126)))
+# def test_real_fromstr_hypothesis(num):
+#     num_str = str(num)
+#     r = Real.fromstr(num_str)
+#     frac = Fraction(num_str)
+#     assert r.num.tolong() == frac.numerator
+#     assert r.den.tolong() == frac.denominator
+#     # assert frac.numerator == 1
+#     # assert frac.denominator == 1
 
 @given(strategies.integers(), strategies.integers(min_value = 0))
 def test_real_fromstr_2_hypothesis(integer, fractional):

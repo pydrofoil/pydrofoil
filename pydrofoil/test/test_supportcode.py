@@ -957,7 +957,7 @@ def test_fromstr_real():
 def rr_den_pos(num, den):
     num = rbigint.fromlong(num)
     den = rbigint.fromlong(den)
-    return Real(num, den)
+    return Real(num, den, False)
 
 def test_pow_real():
     x = Real.fromint(1, 5)

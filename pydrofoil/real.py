@@ -7,10 +7,15 @@ MAXINT = 2**63-1
 MININT = -2**63
 
 class Real(object):
-    def __init__(self, num, den):
-        gcd_val = num.gcd(den)
-        self.num = num.div(gcd_val)
-        self.den = den.div(gcd_val)
+    def __init__(self, num, den, Normalize = True):
+        if Normalize:
+            self.num = num
+            self.den = den
+        else:
+            gcd_val = num.gcd(den)
+            self.num = num.div(gcd_val)
+            self.den = den.div(gcd_val)
+        
 
     @staticmethod
     def fromint(num, den=1):
@@ -27,7 +32,7 @@ class Real(object):
             sign = num/abs(num)*den/abs(den)
             num = rbigint.fromint(abs(num)*sign)
             den = rbigint.fromint(abs(den))
-        return Real(num, den)
+        return Real(num, den, False)
     
     @staticmethod
     def fromstr(str):
@@ -36,34 +41,67 @@ class Real(object):
         decimalpos = s.find(".")
         num = rbigint.fromstr(s[:decimalpos]+s[decimalpos+1:], 10) if decimalpos != -1 else rbigint.fromstr(s, 10)
         den = rbigint.fromint(10).int_pow(len(s)-1 - decimalpos) if decimalpos != -1 else rbigint.fromint(1)
-        return Real(num, den)
+        return Real(num, den, False)
 
 
     def add(self, other):
-        num_new_1 = self.num.mul(other.den)
-        num_new_2 = other.num.mul(self.den)
-        den_new = self.den.mul(other.den)
-        num_new = num_new_1.add(num_new_2)
-        return Real(num_new, den_new)
+        g = self.den.gcd(other.den)
+        if g.int_eq(1):
+            num_new_1 = self.num.mul(other.den)
+            num_new_2 = other.num.mul(self.den)
+            den_new = self.den.mul(other.den)
+            num_new = num_new_1.add(num_new_2)
+            return Real(num_new, den_new)
+        s = self.den.div(g)
+        t = self.num.mul(other.den.div(g)).add(other.num.mul(s))
+        g2 = t.gcd(g)
+        if g2.int_eq(1):
+            return Real(t, s.mul(other.den))
+        return Real(t.div(g2), s.mul(other.den.div(g2)))
+
     
     def sub(self, other):
-        num_new_1 = self.num.mul(other.den)
-        num_new_2 = other.num.mul(self.den)
-        den_new = self.den.mul(other.den)
-        num_new = num_new_1.sub(num_new_2)
-        return Real(num_new, den_new)
+        g = self.den.gcd(other.den)
+        if g.int_eq(1):
+            num_new_1 = self.num.mul(other.den)
+            num_new_2 = other.num.mul(self.den)
+            den_new = self.den.mul(other.den)
+            num_new = num_new_1.sub(num_new_2)
+            return Real(num_new, den_new)
+        s = self.den.div(g)
+        t = self.num.mul(other.den.div(g)).sub(other.num.mul(s))
+        g2 = t.gcd(g)
+        if g2.int_eq(1):
+            return Real(t, s.mul(other.den))
+        return Real(t.div(g2), s.mul(other.den.div(g2)))
     
     def mul(self, other):
-        num_new = self.num.mul(other.num)
-        den_new = self.den.mul(other.den)
-        return Real(num_new, den_new)
+        g1 = self.num.gcd(other.den)
+        g2 = other.num.gcd(self.den)
+        if (g1.int_eq(1) and g2.int_eq(1)):
+            return Real(self.num.mul(other.num), self.den.mul(other.den))
+        num1_new = self.num.div(g1) if g1.int_gt(1) else self.num
+        den2_new = other.den.div(g1) if g1.int_gt(1) else other.den
+        num2_new = other.num.div(g2) if g2.int_gt(1) else other.num
+        den1_new = self.den.div(g2) if g2.int_gt(1) else self.den
+        return Real(num1_new.mul(num2_new), den1_new.mul(den2_new))
+        
     
     def div(self, other):
         if other.num.int_eq(0):
             assert False, "ZerodivideError: denominator cannot be 0"
         else:
-            num_new = self.num.mul(other.den)
-            den_new = self.den.mul(other.num)
+            g1 = self.num.gcd(other.num)
+            g2 = self.den.gcd(other.den)
+            if g1.int_eq(1) and g2.int_eq(1):
+                num_new = self.num.mul(other.den)
+                den_new = self.den.mul(other.num)
+            else:
+                num1_new = self.num.div(g1) if g1.int_gt(1) else self.num
+                num2_new = other.num.div(g1) if g1.int_gt(1) else other.num
+                den1_new = self.den.div(g2) if g2.int_gt(1) else self.den
+                den2_new = other.den.div(g2) if g2.int_gt(1) else other.den
+                num_new, den_new = num1_new.mul(den2_new), num2_new.mul(den1_new)
         if den_new.int_lt(0):
             num_new = num_new.neg()
             den_new = den_new.neg()
@@ -77,7 +115,7 @@ class Real(object):
         else:
             num_new = self.num.int_pow(n)
             den_new = self.den.int_pow(n)
-            return Real(num_new, den_new)       
+            return Real(num_new, den_new, True)       
     
     def neg(self):
         return Real(self.num.neg(), self.den)

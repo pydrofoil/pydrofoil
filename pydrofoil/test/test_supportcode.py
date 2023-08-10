@@ -25,12 +25,12 @@ def bi(val):
 machine = "dummy"
 
 def test_signed_bv():
-    assert supportcode.signed_bv(0b0, 1) == 0
-    assert supportcode.signed_bv(0b1, 1) == -1
-    assert supportcode.signed_bv(0b0, 2) == 0
-    assert supportcode.signed_bv(0b1, 2) == 1
-    assert supportcode.signed_bv(0b10, 2) == -2
-    assert supportcode.signed_bv(0b11, 2) == -1
+    assert supportcode.signed_bv(machine, 0b0, 1) == 0
+    assert supportcode.signed_bv(machine, 0b1, 1) == -1
+    assert supportcode.signed_bv(machine, 0b0, 2) == 0
+    assert supportcode.signed_bv(machine, 0b1, 2) == 1
+    assert supportcode.signed_bv(machine, 0b10, 2) == -2
+    assert supportcode.signed_bv(machine, 0b11, 2) == -1
 
 def test_signed():
     for c in gbv, bv:

@@ -381,6 +381,8 @@ class __extend__(parse.GlobalVal):
                     name = "int64_to_int"
                 elif name == "%string->%i":
                     name = "string_to_int"
+                elif name == "%string->%real":
+                    name = "string_to_real"
                 else:
                     import pdb; pdb.set_trace()
             if name == "not": name = "not_"
@@ -993,7 +995,9 @@ class __extend__(parse.NamedType):
             return types.Bit()
         if name == "%string":
             return types.String()
-        xxx
+        if name == "%real":
+            return types.Real()
+        assert False, "unknown type"
 
 class __extend__(parse.EnumType):
     def resolve_type(self, codegen):

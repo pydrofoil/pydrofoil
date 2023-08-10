@@ -4,6 +4,7 @@ from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer
 import pydrofoil.softfloat as softfloat
+from pydrofoil.real import Real
 
 @objectmodel.specialize.call_location()
 def make_dummy(name):
@@ -356,6 +357,63 @@ def int64_to_int(machine, i):
 def string_to_int(machine, s):
     return Integer.fromstr(s)
 
+
+# real
+def neg_real(machine, r):
+    return r.neg()
+
+def abs_real(machine, r):
+    return r.abs()
+
+def add_real(machine, a, b):
+    return a.add(b)
+
+def sub_real(machine, a, b):
+    return a.sub(b)
+
+def mult_real(machine, a, b):
+    return a.mul(b)
+
+def div_real(machine, a, b):
+    return a.div(b)
+
+def round_up(machine, r):
+    return Integer.frombigint(r.ceil())
+
+def round_down(machine, r):
+    return Integer.frombigint(r.floor())
+
+def eq_real(machine, a, b):
+    return a.eq(b)
+
+def lt_real(machine, a, b):
+    return a.lt(b)
+
+def gt_real(machine, a, b):
+    return a.gt(b)
+
+def lteq_real(machine, a, b):
+    return a.le(b)
+
+def gteq_real(machine, a, b):
+    return a.ge(b)
+
+def real_power(machine, r, si):
+    n = si.toint()
+    return r.pow(n)
+
+def sqrt_real(machine, r):
+    return r.sqrt()
+
+def string_to_real(machine, str):
+    return Real.fromstr(str)
+
+def print_real(machine, s, r):
+    print s + r.num.str()+"/"+r.den.str()
+    return ()
+
+def to_real(machine, i):
+    return Real(i.tobigint(), rbigint.fromint(1))
 # various
 
 @objectmodel.specialize.argtype(1)

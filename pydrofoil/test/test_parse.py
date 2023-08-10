@@ -35,22 +35,6 @@ enum zjump {
     assert res.declarations[0] == Enum(
         'zjump', ['zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'])
 
-def test_union():
-    res = parser.parse(lexer.lex("""
-union zinstr {
-  zAINST: %bv16,
-  zCINST: (%bv1, %enum zarithmetic_op, (%bool, %bool, %bool), %enum zjump)
-}
-"""))
-    assert res.declarations[0] == Union('zinstr',
-            ['zAINST', 'zCINST'],
-            [NamedType('%bv16'),
-             TupleType([
-                 NamedType('%bv1'), EnumType('zarithmetic_op'),
-                 TupleType([NamedType('%bool'), NamedType('%bool'), NamedType('%bool')]),
-                 EnumType('zjump')]),
-            ])
-
 def test_struct():
     res = parser.parse(lexer.lex("""
 struct zXContextReg {

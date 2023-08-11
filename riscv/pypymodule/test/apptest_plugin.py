@@ -111,3 +111,9 @@ def test_register_info():
     assert rs["pc"] == 'bits(64)'
     assert rs["htif_done"] == 'bool'
     assert rs["mstatush"] == 'bitfield Mstatush'
+
+def test_memory_info():
+    cpu = _pydrofoil.RISCV64()
+    info = cpu.memory_info()
+    assert info == [(0, 0x800000), (0x80000000, 0x4000000 + 0x80000000)]
+

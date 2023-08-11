@@ -182,6 +182,18 @@ class W_RISCV64(W_Root):
         except ValueError:
             raise oefmt(self.space.w_IndexError, "memory access out of bounds")
 
+    def memory_info(self):
+        space = self.space
+        res = self.machine.g.mem.memory_info()
+        if res is None:
+            return space.w_None
+        res_w = []
+        for from_, to in res:
+            res_w.append(space.newtuple2(space.newint(from_), space.newint(to)))
+        w_res = space.newlist(res_w)
+        space.call_method(w_res, "sort")
+        return w_res
+
     @unwrap_spec(limit=int)
     def run(self, limit=0):
         from rpython.rlib.nonconst import NonConstant
@@ -217,6 +229,9 @@ class MemoryObserver(mem_mod.MemBase):
     def close(self):
         return self.wrapped.close()
 
+    def memory_info(self):
+        return self.wrapped.memory_info()
+
 
 @unwrap_spec(elf="text_or_none")
 def riscv64_descr_new(space, w_subtype, elf=None):
@@ -234,5 +249,6 @@ W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     register_info = interp2app(W_RISCV64.get_register_info),
     read_memory = interp2app(W_RISCV64.read_memory),
     write_memory = interp2app(W_RISCV64.write_memory),
+    memory_info = interp2app(W_RISCV64.memory_info),
     run = interp2app(W_RISCV64.run),
 )

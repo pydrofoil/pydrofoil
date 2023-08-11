@@ -729,56 +729,61 @@ def convert_to_pypy_error(space, val):
 def convert_from_pypy_error(space, w_val):
     raise ValueError
 
-@objectmodel.specialize.memo()
-def generate_convert_to_pypy_bitvector_ruint(width, cache={}):
-    if width in cache:
-        return cache[width]
+def cache(func):
+    cache = {}
+    @objectmodel.specialize.memo()
+    def cached_func(*args):
+        if isinstance(args[0], tuple) and len(args) == 1:
+            args = args[0] # ??? wtf
+        if args in cache:
+            return cache[args]
+        res = func(*args)
+        cache[args] = res
+        return res
+    return cached_func
+
+@cache
+def generate_convert_to_pypy_bitvector_ruint(width):
     def c(space, val):
         # TODO inefficient! always returns a long
         return space.newint(val)
     c.func_name = "convert_to_pypy_bitvector_ruint_%s" % width
-    cache[width] = c
     return c
 
-@objectmodel.specialize.memo()
-def generate_convert_from_pypy_bitvector_ruint(width, cache={}):
-    if width in cache:
-        return cache[width]
+@cache
+def generate_convert_from_pypy_bitvector_ruint(width):
+    if isinstance(width, tuple):
+        import pdb; pdb.set_trace()
     def c(space, w_val):
         return _mask(width, space.uint_w(w_val))
     c.func_name = "convert_from_pypy_bitvector_ruint_%s" % width
-    cache[width] = c
     return c
 
-@objectmodel.specialize.memo()
-def generate_convert_to_pypy_enum(cls, name, cache={}):
+@cache
+def generate_convert_to_pypy_enum(cls, name):
     from pypy.interpreter.error import oefmt
-    if cls in cache:
-        return cache[cls]
     def c(space, val):
         try:
-            name = cls.convert_value_to_name(val)
+            res = cls.convert_value_to_name(val)
         except ValueError:
             raise oefmt(space.w_ValueError, "unknown value %d for enum %s", val, name)
-        return space.newtext(name)
-    cache[cls] = c
+        return space.newtext(res)
+    c.func_name = "convert_to_pypy_enum_" + name
     return c
 
-@objectmodel.specialize.memo()
-def generate_convert_from_pypy_enum(cls, name, cache={}):
+@cache
+def generate_convert_from_pypy_enum(cls, name):
     from pypy.interpreter.error import oefmt
-    if cls in cache:
-        return cache[cls]
     def c(space, w_val):
         try:
             return cls.convert_name_to_value(space.text_w(w_val))
         except ValueError:
             raise oefmt(space.w_ValueError, "unknown enum value %R for enum %s", w_val, name)
-    cache[cls] = c
+    c.func_name = "convert_from_pypy_enum_" + name
     return c
 
 def convert_to_pypy_bool(space, val):
     return space.newbool(val)
 
 def convert_from_pypy_bool(space, w_val):
-    return space.istrue(val)
+    return space.is_true(w_val)

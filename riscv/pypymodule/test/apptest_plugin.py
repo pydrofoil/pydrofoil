@@ -103,6 +103,8 @@ def test_various_registers():
     cpu = _pydrofoil.RISCV64(mulelf)
     cpu.step()
     assert cpu.read_register("htif_done") == False
+    cpu.write_register("htif_done", 12)
+    assert cpu.read_register("htif_done") == True
     assert cpu.read_register("misa") == 0x800000000014112d
 
 def test_register_info():

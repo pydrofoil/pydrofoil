@@ -203,6 +203,13 @@ class W_RISCV64(W_Root):
             do_show_times = False
         run_sail(self.space, self.machine, limit, do_show_times)
 
+    @unwrap_spec(verbosity=bool)
+    def set_verbosity(self, verbosity):
+        self.machine.g.config_print_instr = verbosity
+        self.machine.g.config_print_reg = verbosity
+        self.machine.g.config_print_mem_access = verbosity
+        self.machine.g.config_print_platform = verbosity
+
 
 class MemoryObserver(mem_mod.MemBase):
     _immutable_fields_ = ['wrapped']
@@ -251,4 +258,5 @@ W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     write_memory = interp2app(W_RISCV64.write_memory),
     memory_info = interp2app(W_RISCV64.memory_info),
     run = interp2app(W_RISCV64.run),
+    set_verbosity = interp2app(W_RISCV64.set_verbosity),
 )

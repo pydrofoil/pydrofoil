@@ -117,3 +117,13 @@ def test_memory_info():
     info = cpu.memory_info()
     assert info == [(0, 0x800000), (0x80000000, 0x4000000 + 0x80000000)]
 
+def test_set_verbosity():
+    # smoke test
+    cpu = _pydrofoil.RISCV64(addielf)
+    cpu.set_verbosity(False)
+    print("starting")
+    cpu.run(10)
+    print("ending")
+    cpu.set_verbosity(True)
+    cpu.run(10)
+

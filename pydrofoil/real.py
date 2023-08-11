@@ -5,6 +5,11 @@ from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
 
 MAXINT = 2**63-1
 MININT = -2**63
+NULLRBIGINT = rbigint.fromint(0)
+ONERBIGINT = rbigint.fromint(1)
+SQRTPRECISION = 30
+DEN_CONVERGE = rbigint.fromint(10).int_pow(SQRTPRECISION)
+
 
 class Real(object):
     def __init__(self, num, den, normalized=False):
@@ -153,5 +158,56 @@ class Real(object):
     def totuple(self):
         return self.num.toint(), self.den.toint()
     
-    def sqrt(self):
-        return Real(self.num, self.den)
+    def sqrt(self): 
+        if self.num.int_lt(0):
+            assert False, "sqrt(x), x cannot be negative"
+        if self.num.int_eq(0):
+            return Real(NULLRBIGINT, ONERBIGINT)
+        OUT, PerfectSqr = isperfectsquare(self.num)
+        if PerfectSqr and self.den.int_eq(1):
+            return Real(OUT, self.den)
+        current = Real(isqrt(self.num.floordiv(self.den)), ONERBIGINT)
+        convergence = Real(ONERBIGINT, DEN_CONVERGE, True)
+        while True:
+            # next = (current + self/current)/2
+            next = current.add(self.div(current)).div(Real(rbigint.fromint(2), ONERBIGINT))
+            epsilon = next.sub(current).abs()
+            if epsilon.le(convergence):
+                break
+            current = next
+        return next
+
+        
+
+# Helper functions for sqrt()
+def isperfectsquare(b):
+    low = rbigint.fromint(1)
+    high = b
+    while high.gt(low.int_add(1)):
+        mid = high.add(low).floordiv(rbigint.fromint(2))
+        if b.int_eq(1):
+            return ONERBIGINT, True
+        elif mid.mul(mid).eq(b):
+            return mid, True
+        elif mid.mul(mid).gt(b):
+            high = mid.sub(ONERBIGINT)
+        elif mid.mul(mid).lt(b):
+            low = mid.add(ONERBIGINT)
+    return mid, False
+
+def isqrt(self):
+        """ Compute the integer square root of self """
+        if self.int_lt(0):
+            raise ValueError("isqrt() argument must be nonnegative")
+        if self.int_eq(0):
+            return NULLRBIGINT
+        c = (self.bit_length() - 1) // 2
+        a = ONERBIGINT
+        d = 0
+        for s in range(c.bit_length() - 1, -1, -1):
+            # Loop invariant: (a-1)**2 < (self >> 2*(c - d)) < (a+1)**2
+            e = d
+            d = c >> s
+            a = a.lshift(d - e - 1).add(self.rshift(2*c - e - d + 1).floordiv(a))
+        return a.int_sub(a.mul(a).gt(self))
+

@@ -3,7 +3,7 @@ import pytest
 from pydrofoil import supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
-from pydrofoil.real import Real
+from pydrofoil.real import *
 from hypothesis import given, strategies, assume
 from fractions import Fraction
 
@@ -952,6 +952,30 @@ def test_fromstr_real():
     x = Real.fromstr("12")
     assert x.den.tolong() == 1
     assert x.num.tolong() == 12
+
+def test_sqrt_real():
+    x = rbigint.fromint(4)
+    res = isqrt(x)
+    assert res.tolong() == 2
+    x = rbigint.fromint(26)
+    res = isqrt(x)
+    assert res.tolong() == 5
+    x = rbigint.fromint(16)
+    res = isqrt(x)
+    assert res.tolong() == 4
+    x = rbigint.fromint(255)
+    res = isqrt(x)
+    assert res.tolong() == 15
+    x = Real.fromstr("4")
+    res = x.sqrt()
+    assert res.num.tolong() == 2
+    assert res.den.tolong() == 1
+    x = Real.fromstr("26")
+    res = x.sqrt()
+    assert res.den.tolong() == 13440582586105723640064737480160
+    assert res.num.tolong() == 68533792880608460985460475212801
+    
+    
     
 
 def rr_den_pos(num, den):

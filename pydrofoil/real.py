@@ -181,13 +181,14 @@ class Real(object):
 
 # Helper functions for sqrt()
 def isperfectsquare(b):
+    if b.int_eq(1):
+        return ONERBIGINT, True
     low = rbigint.fromint(1)
     high = b
+    mid = NULLRBIGINT
     while high.gt(low.int_add(1)):
         mid = high.add(low).floordiv(rbigint.fromint(2))
-        if b.int_eq(1):
-            return ONERBIGINT, True
-        elif mid.mul(mid).eq(b):
+        if mid.mul(mid).eq(b):
             return mid, True
         elif mid.mul(mid).gt(b):
             high = mid.sub(ONERBIGINT)

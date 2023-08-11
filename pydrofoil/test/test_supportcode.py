@@ -974,6 +974,14 @@ def test_sqrt_real():
     res = x.sqrt()
     assert res.den.tolong() == 13440582586105723640064737480160
     assert res.num.tolong() == 68533792880608460985460475212801
+    x = Real.fromstr("0")
+    res = x.sqrt()
+    assert res.num.tolong() == 0
+    assert res.den.tolong() == 1
+    x = Real.fromstr("1")
+    res = x.sqrt()
+    assert res.num.tolong() == 1
+    assert res.den.tolong() == 1
     
     
     

@@ -731,10 +731,8 @@ def convert_from_pypy_error(space, w_val):
 
 def cache(func):
     cache = {}
-    @objectmodel.specialize.memo()
+    @objectmodel.not_rpython
     def cached_func(*args):
-        if isinstance(args[0], tuple) and len(args) == 1:
-            args = args[0] # ??? wtf
         if args in cache:
             return cache[args]
         res = func(*args)
@@ -752,8 +750,6 @@ def generate_convert_to_pypy_bitvector_ruint(width):
 
 @cache
 def generate_convert_from_pypy_bitvector_ruint(width):
-    if isinstance(width, tuple):
-        import pdb; pdb.set_trace()
     def c(space, w_val):
         return _mask(width, space.uint_w(w_val))
     c.func_name = "convert_from_pypy_bitvector_ruint_%s" % width

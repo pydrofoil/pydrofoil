@@ -92,14 +92,22 @@ def test_step_monitor_mem_write():
 
 def test_enum_register():
     cpu = _pydrofoil.RISCV64(mulelf)
-    for i in range(34):
+    for i in range(3):
         cpu.step()
     assert cpu.read_register("cur_privilege") == "Machine"
-    with raises(ValueError):
+    with raises(ValueError) as excinfo:
         cpu.write_register("cur_privilege", "ABC")
+    assert str(excinfo.value) == "unknown enum value 'ABC' for enum Privilege"
 
 def test_various_registers():
     cpu = _pydrofoil.RISCV64(mulelf)
     cpu.step()
     assert cpu.read_register("htif_done") == False
     assert cpu.read_register("misa") == 0x800000000014112d
+
+def test_register_info():
+    cpu = _pydrofoil.RISCV64()
+    rs = dict(cpu.register_info())
+    assert rs["pc"] == 'bits(64)'
+    assert rs["htif_done"] == 'bool'
+    assert rs["mstatush"] == 'bitfield Mstatush'

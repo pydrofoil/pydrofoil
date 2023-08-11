@@ -236,8 +236,8 @@ class __extend__(parse.Enum):
                         with codegen.emit_indent("if value == %s.%s:" % (self.pyname, name)):
                             codegen.emit("return %r" % name.lstrip('z'))
                     codegen.emit("raise ValueError")
-                typ.convert_to_pypy = "supportcode.generate_convert_to_pypy_enum(%s)" % self.pyname
-                typ.convert_from_pypy = "supportcode.generate_convert_from_pypy_enum(%s)" % self.pyname
+                typ.convert_to_pypy = "supportcode.generate_convert_to_pypy_enum(%s, %r)" % (self.pyname, self.name.lstrip('z'))
+                typ.convert_from_pypy = "supportcode.generate_convert_from_pypy_enum(%s, %r)" % (self.pyname, self.name.lstrip('z'))
 
 
 class __extend__(parse.Union):
@@ -430,8 +430,9 @@ class __extend__(parse.Register):
         with codegen.emit_code_type("declarations"):
             codegen.emit("# %s" % (self, ))
             codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
-            codegen.emit("Machine._all_register_names.append((%r, %r, %s, %s))" % (
-                self.pyname, self.name, typ.convert_to_pypy, typ.convert_from_pypy))
+            codegen.emit("Machine._all_register_names.append((%r, %r, %s, %s, %r))" % (
+                self.pyname, self.name, typ.convert_to_pypy, typ.convert_from_pypy,
+                typ.sail_repr()))
 
 
 class __extend__(parse.Function):

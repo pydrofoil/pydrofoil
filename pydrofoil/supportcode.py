@@ -751,7 +751,7 @@ def generate_convert_from_pypy_bitvector_ruint(width, cache={}):
     return c
 
 @objectmodel.specialize.memo()
-def generate_convert_to_pypy_enum(cls, cache={}):
+def generate_convert_to_pypy_enum(cls, name, cache={}):
     from pypy.interpreter.error import oefmt
     if cls in cache:
         return cache[cls]
@@ -759,13 +759,13 @@ def generate_convert_to_pypy_enum(cls, cache={}):
         try:
             name = cls.convert_value_to_name(val)
         except ValueError:
-            raise oefmt(space.w_ValueError, "unknown enum value %d", val)
+            raise oefmt(space.w_ValueError, "unknown value %d for enum %s", val, name)
         return space.newtext(name)
     cache[cls] = c
     return c
 
 @objectmodel.specialize.memo()
-def generate_convert_from_pypy_enum(cls, cache={}):
+def generate_convert_from_pypy_enum(cls, name, cache={}):
     from pypy.interpreter.error import oefmt
     if cls in cache:
         return cache[cls]
@@ -773,7 +773,7 @@ def generate_convert_from_pypy_enum(cls, cache={}):
         try:
             return cls.convert_name_to_value(space.text_w(w_val))
         except ValueError:
-            raise oefmt(space.w_ValueError, "unknown enum value %R", w_val)
+            raise oefmt(space.w_ValueError, "unknown enum value %R for enum %s", w_val, name)
     cache[cls] = c
     return c
 

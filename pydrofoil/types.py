@@ -18,6 +18,9 @@ class Type(object):
     convert_to_pypy = "supportcode.convert_to_pypy_error"
     convert_from_pypy = "supportcode.convert_from_pypy_error"
 
+    def sail_repr(self):
+        return repr(self)
+
 
 @unique
 class Union(Type):
@@ -32,6 +35,9 @@ class Enum(Type):
     def __init__(self, ast):
         self.ast = ast
 
+    def sail_repr(self):
+        return "enum %s" % (self.ast.name.lstrip('z'), )
+
     def __repr__(self):
         return "%s(<%s>)" % (type(self).__name__, self.ast.name)
 
@@ -39,6 +45,12 @@ class Enum(Type):
 class Struct(Type):
     def __init__(self, ast):
         self.ast = ast
+
+    def sail_repr(self):
+        ast = self.ast
+        if len(ast.names) == 1 and isinstance(self.fieldtyps[ast.names[0]], SmallFixedBitVector):
+            return "bitfield %s" % self.ast.name.lstrip('z')
+        return Type(sail_repr(self), )
 
     def __repr__(self):
         return "%s(<%s>)" % (type(self).__name__, self.ast.name)
@@ -124,8 +136,8 @@ class SmallFixedBitVector(Type):
         self.convert_to_pypy = "supportcode.generate_convert_to_pypy_bitvector_ruint(%s)" % width
         self.convert_from_pypy = "supportcode.generate_convert_from_pypy_bitvector_ruint(%s)" % width
 
-    def __repr__(self):
-        return "SmallFixedBitVector(%s)" % (self.width, )
+    def sail_repr(self):
+        return "bits(%s)" % (self.width, )
 
     def __repr__(self):
         return "%s(%s)" % (type(self).__name__, self.width)
@@ -173,6 +185,9 @@ class Bool(Type):
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
+
+    def sail_repr(self):
+        return 'bool'
 
 @unique
 class Unit(Type):

@@ -75,41 +75,51 @@ class W_RISCV64(W_Root):
             setter.func_name += "_" + name
             return setter
         register_info = []
-        for (attrname, name, convert_to_pypy, convert_from_pypy) in _all_register_names:
+        applevel_register_info = []
+        for (attrname, name, convert_to_pypy, convert_from_pypy, sailrepr) in _all_register_names:
             name = name.lower().lstrip("z")
             getter = make_getter(attrname, name, convert_to_pypy)
             setter = make_setter(attrname, name, convert_from_pypy)
-            register_info.append((attrname, name, getter, setter))
+            register_info.append((attrname, name, getter, setter, sailrepr))
+            applevel_register_info.append((name, sailrepr))
 
         unrolling_register_info = unrolling_iterable(register_info)
         @staticmethod
         @jit.elidable
         def lookup_register(space, name):
-            for attrname, pyname, getter, setter in unrolling_register_info:
+            for attrname, pyname, getter, setter, sailrepr in unrolling_register_info:
                 if pyname == name:
-                    return getter, setter
+                    return getter, setter, sailrepr
             raise oefmt(space.w_ValueError, "register not found")
         cls._lookup_register = lookup_register
 
         def get_register_value(self, name):
             machine = self.machine
             space = self.space
-            getter, _ = self._lookup_register(space, name)
+            getter, _, sailrepr = self._lookup_register(space, name)
             try:
                 return getter(space, self.machine)
             except ValueError:
-                raise oefmt(space.w_TypeError, "could not convert register value to Python object")
+                raise oefmt(space.w_TypeError, "could not convert register value to Python object (Sail type %s)", sailrepr)
         cls._get_register_value = get_register_value
 
         def set_register_value(self, name, w_value):
             machine = self.machine
             space = self.space
-            _, setter = self._lookup_register(space, name)
+            _, setter, sailrepr = self._lookup_register(space, name)
             try:
                 setter(space, self.machine, w_value)
             except ValueError:
-                raise oefmt(space.w_TypeError, "could not convert Python object to register value")
+                raise oefmt(space.w_TypeError, "could not convert Python object to register value (Sail type %s)", sailrepr)
         cls._set_register_value = set_register_value
+
+        class State:
+            def __init__(self, space):
+                self.w_register_info = space.wrap(applevel_register_info)
+        
+        def _get_register_info(self, space):
+            return space.fromcache(State).w_register_info
+        cls._get_register_info = _get_register_info
 
     def step(self):
         from pydrofoil.bitvector import Integer
@@ -150,6 +160,9 @@ class W_RISCV64(W_Root):
     def write_register(self, name, w_value):
         name = name.lower()
         return self._set_register_value(name, w_value)
+
+    def get_register_info(self, space):
+        return self._get_register_info(space)
 
     @unwrap_spec(address=r_uint, width=int)
     def read_memory(self, address, width=8):
@@ -218,6 +231,7 @@ W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     step_monitor_mem = interp2app(W_RISCV64.step_monitor_mem),
     read_register = interp2app(W_RISCV64.read_register),
     write_register = interp2app(W_RISCV64.write_register),
+    register_info = interp2app(W_RISCV64.get_register_info),
     read_memory = interp2app(W_RISCV64.read_memory),
     write_memory = interp2app(W_RISCV64.write_memory),
     run = interp2app(W_RISCV64.run),

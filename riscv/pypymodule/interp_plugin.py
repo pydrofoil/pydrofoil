@@ -122,6 +122,7 @@ class W_RISCV64(W_Root):
         cls._get_register_info = _get_register_info
 
     def step(self):
+        """ Execute a single instruction. """
         from pydrofoil.bitvector import Integer
         if self._tick:
             self.machine.tick_clock()
@@ -135,6 +136,14 @@ class W_RISCV64(W_Root):
                 self._tick = True
 
     def step_monitor_mem(self):
+        """ EXPERIMENTAL: Execute a single instruction and monitor memory
+        access while doing so. Returns a list of tuples of memory accesses the
+        instruction executed. Every tuple has the format:
+
+        (kind_of_access, start_address, number_of_bytes, memory_value)
+
+        kind_of_access is a string, either "read", "read_executable", or
+        "write". """
         result = self.machine.g.mem.memory_observer = []
         try:
             self.step()
@@ -153,19 +162,29 @@ class W_RISCV64(W_Root):
 
     @unwrap_spec(name="text")
     def read_register(self, name):
+        """ read the value of register name """
         name = name.lower()
         return self._get_register_value(name)
 
     @unwrap_spec(name="text")
     def write_register(self, name, w_value):
+        """ set the value of register name to value"""
         name = name.lower()
         return self._set_register_value(name, w_value)
 
     def get_register_info(self, space):
+        """ Returns information about all available registers of the Sail
+        model. The result is a list of tuples of the form
+
+        (name, sail_type)
+
+        of all the registers.
+        """
         return self._get_register_info(space)
 
     @unwrap_spec(address=r_uint, width=int)
     def read_memory(self, address, width=8):
+        """ Read width bytes of memory at address """
         if not (width == 1 or width == 2 or width == 4 or width == 8):
             raise oefmt(self.space.w_ValueError, "width can only be 1, 2, 4, or 8")
         try:
@@ -175,6 +194,7 @@ class W_RISCV64(W_Root):
 
     @unwrap_spec(address=r_uint, value=r_uint, width=int)
     def write_memory(self, address, value, width=8):
+        """ Write width bytes of memory at address. """
         if not (width == 1 or width == 2 or width == 4 or width == 8):
             raise oefmt(self.space.w_ValueError, "width can only be 1, 2, 4, or 8")
         try:
@@ -183,6 +203,13 @@ class W_RISCV64(W_Root):
             raise oefmt(self.space.w_IndexError, "memory access out of bounds")
 
     def memory_info(self):
+        """ Return information about the emulated memory of the model. Returns
+        a list of tuples of the form
+
+        (address_start, address_end)
+
+        for all the parts of the address space that are currently backend by
+        emulated memory. """
         space = self.space
         res = self.machine.g.mem.memory_info()
         if res is None:
@@ -196,6 +223,8 @@ class W_RISCV64(W_Root):
 
     @unwrap_spec(limit=int)
     def run(self, limit=0):
+        """ Run the emulator, either for a given number of steps if limit is
+        set, or indefinitely. """
         from rpython.rlib.nonconst import NonConstant
         if NonConstant(True):
             do_show_times = True
@@ -205,6 +234,7 @@ class W_RISCV64(W_Root):
 
     @unwrap_spec(verbosity=bool)
     def set_verbosity(self, verbosity):
+        """ Set the verbosity of the Sail emulation. """
         self.machine.g.config_print_instr = verbosity
         self.machine.g.config_print_reg = verbosity
         self.machine.g.config_print_mem_access = verbosity

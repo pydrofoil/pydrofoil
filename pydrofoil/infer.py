@@ -274,7 +274,7 @@ class TypeAttachingVisitor(parse.Visitor):
             return types.String()
         if name == "%real":
             return types.Real()
-        import pdb; pdb.set_trace()
+        assert False, "unknown type"
 
     def visit_EnumType(self, ast):
         return self.context.get_named_type(ast.name)

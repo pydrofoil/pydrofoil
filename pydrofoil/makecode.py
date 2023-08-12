@@ -1034,7 +1034,7 @@ class __extend__(parse.NamedType):
             return types.String()
         if name == "%real":
             return types.Real()
-        xxx
+        assert False, "unknown type"
 
 class __extend__(parse.EnumType):
     def resolve_type(self, codegen):

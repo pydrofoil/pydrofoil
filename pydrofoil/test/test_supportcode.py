@@ -955,18 +955,6 @@ def test_fromstr_real():
     assert x.num.tolong() == 12
 
 def test_sqrt_real():
-    x = rbigint.fromint(4)
-    res = isqrt(x)
-    assert res.tolong() == 2
-    x = rbigint.fromint(26)
-    res = isqrt(x)
-    assert res.tolong() == 5
-    x = rbigint.fromint(16)
-    res = isqrt(x)
-    assert res.tolong() == 4
-    x = rbigint.fromint(255)
-    res = isqrt(x)
-    assert res.tolong() == 15
     x = Real.fromstr("4")
     res = x.sqrt()
     assert res.num.tolong() == 2

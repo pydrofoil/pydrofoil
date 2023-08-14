@@ -8,7 +8,7 @@ class __extend__(types.Type):
         return "not (%s)" % (self.make_op_code_special_eq(ast, sargs, argtyps, restyp), )
 
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
-        return "supportcode.raise_type_error()"
+        return "supportcode.raise_type_error() + %r + %r" % (sarg1, sarg2)
 
 def ruint_mask(s, width):
     if width == 64:

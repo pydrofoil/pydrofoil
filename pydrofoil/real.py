@@ -5,6 +5,11 @@ from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
 
 MAXINT = 2**63-1
 MININT = -2**63
+NULLRBIGINT = rbigint.fromint(0)
+ONERBIGINT = rbigint.fromint(1)
+SQRTPRECISION = 30
+DEN_CONVERGE = rbigint.fromint(10).int_pow(SQRTPRECISION)
+
 
 class Real(object):
     def __init__(self, num, den, normalized=False):
@@ -115,8 +120,17 @@ class Real(object):
         elif n < MININT or n > MAXINT:
             assert False, "exponent is out of range of INT"
         else:
-            num_new = self.num.int_pow(n)
-            den_new = self.den.int_pow(n)
+            if n > 0:
+                num_new = self.num.int_pow(n)
+                den_new = self.den.int_pow(n)
+            else:
+                if self.num.int_eq(0):
+                    raise ZeroDivisionError("0 doesn't have negative power")
+                else:
+                    num_new = self.den.int_pow(-n)
+                    den_new = self.num.int_pow(-n)
+                if den_new.int_lt(0):
+                    num_new, den_new = num_new.neg(), den_new.neg()
             return Real(num_new, den_new, True)       
     
     def neg(self):
@@ -153,5 +167,41 @@ class Real(object):
     def totuple(self):
         return self.num.toint(), self.den.toint()
     
-    def sqrt(self):
-        return Real(self.num, self.den)
+    def sqrt(self): 
+        if self.num.int_lt(0):
+            assert False, "sqrt(x), x cannot be negative"
+        if self.num.int_eq(0):
+            return Real(NULLRBIGINT, ONERBIGINT)
+        current = Real(isqrt(self.num), isqrt(self.den))
+        if current.mul(current).eq(self):
+            return current
+        convergence = Real(ONERBIGINT, DEN_CONVERGE, True).mul(self)
+        while True:
+            # next = (current + self/current)/2
+            next = current.add(self.div(current)).div(Real(rbigint.fromint(2), ONERBIGINT)) 
+            epsilon = next.sub(current).abs()
+            if epsilon.le(convergence):
+                break
+            current = next
+        return next
+
+        
+
+# Helper functions for sqrt()
+def isqrt(i):
+        """ Compute the integer square root of self """
+        if i.int_lt(0):
+            raise ValueError("isqrt() argument must be nonnegative")
+        if i.int_eq(0):
+            return NULLRBIGINT
+        c = (i.bit_length() - 1) // 2
+        a = ONERBIGINT
+        d = 0
+        for s in range(c.bit_length() - 1, -1, -1):
+            # Loop invariant: (a-1)**2 < (self >> 2*(c - d)) < (a+1)**2
+            e = d
+            d = c >> s
+            a = a.lshift(d - e - 1).add(i.rshift(2*c - e - d + 1).floordiv(a))
+        return a.int_sub(a.mul(a).gt(i))
+
+

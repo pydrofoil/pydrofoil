@@ -1,10 +1,11 @@
 import pytest
+import math
 
 from pydrofoil import supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
-from pydrofoil.real import Real
-from hypothesis import given, strategies, assume
+from pydrofoil.real import *
+from hypothesis import given, strategies, assume, example, settings
 from fractions import Fraction
 
 from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
@@ -952,6 +953,38 @@ def test_fromstr_real():
     x = Real.fromstr("12")
     assert x.den.tolong() == 1
     assert x.num.tolong() == 12
+
+def test_sqrt_real():
+    x = rbigint.fromint(4)
+    res = isqrt(x)
+    assert res.tolong() == 2
+    x = rbigint.fromint(26)
+    res = isqrt(x)
+    assert res.tolong() == 5
+    x = rbigint.fromint(16)
+    res = isqrt(x)
+    assert res.tolong() == 4
+    x = rbigint.fromint(255)
+    res = isqrt(x)
+    assert res.tolong() == 15
+    x = Real.fromstr("4")
+    res = x.sqrt()
+    assert res.num.tolong() == 2
+    assert res.den.tolong() == 1
+    x = Real.fromstr("26")
+    res = x.sqrt()
+    assert res.den.tolong() == 13440582586105723640064737480160
+    assert res.num.tolong() == 68533792880608460985460475212801
+    x = Real.fromstr("0")
+    res = x.sqrt()
+    assert res.num.tolong() == 0
+    assert res.den.tolong() == 1
+    x = Real.fromstr("1")
+    res = x.sqrt()
+    assert res.num.tolong() == 1
+    assert res.den.tolong() == 1
+    
+    
     
 
 def rr_den_pos(num, den):
@@ -1090,7 +1123,7 @@ def test_real_ge_hypothesis(num1, den1, num2, den2):
     frac2 = Fraction(num2, den2)
     assert r1.ge(r2) == (frac1 - frac2 >= 0)
 
-@given(strategies.integers(), strategies.integers(min_value = 1), strategies.integers(min_value = 1, max_value = 50))
+@given(strategies.integers().filter(lambda n: n != 0), strategies.integers(min_value = 1), strategies.integers(min_value = -50, max_value = 50))
 def test_real_pow_hypothesis(num, den, n):
     r = rr_den_pos(num, den)
     res = r.pow(n)
@@ -1106,3 +1139,13 @@ def test_real_fromstr_2_hypothesis(integer, zeros, fractional):
     frac = Fraction(num_str)
     assert r.num.tolong() == frac.numerator
     assert r.den.tolong() == frac.denominator
+
+@settings(deadline=1000)
+@given(strategies.floats(allow_nan = False, allow_infinity = False, min_value = 0, max_value = float(2**63-1)))
+def test_real_sqrt_hypothesis(a):
+    from rpython.rlib.rfloat import float_as_rbigint_ratio
+    num, den = float_as_rbigint_ratio(a)
+    x = Real(num, den).sqrt()
+    assert math.sqrt(a) == x.num.truediv(x.den)
+    num, den = float_as_rbigint_ratio(math.sqrt(a))
+    assert max(len(x.num.str()), len(x.den.str())) >= max(len(num.str()), len(den.str()))

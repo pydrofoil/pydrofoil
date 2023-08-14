@@ -166,11 +166,12 @@ class Real(object):
         OUT, PerfectSqr = isperfectsquare(self.num)
         if PerfectSqr and self.den.int_eq(1):
             return Real(OUT, self.den)
-        current = Real(isqrt(self.num.floordiv(self.den)), ONERBIGINT)
-        convergence = Real(ONERBIGINT, DEN_CONVERGE, True)
+        # current = Real(isqrt(self.num.floordiv(self.den)), ONERBIGINT)
+        current = Real(isqrt(self.num), isqrt(self.den))
+        convergence = Real(ONERBIGINT, DEN_CONVERGE, True).mul(self)
         while True:
             # next = (current + self/current)/2
-            next = current.add(self.div(current)).div(Real(rbigint.fromint(2), ONERBIGINT))
+            next = current.add(self.div(current)).div(Real(rbigint.fromint(2), ONERBIGINT)) 
             epsilon = next.sub(current).abs()
             if epsilon.le(convergence):
                 break
@@ -196,19 +197,19 @@ def isperfectsquare(b):
             low = mid.add(ONERBIGINT)
     return mid, False
 
-def isqrt(self):
+def isqrt(i):
         """ Compute the integer square root of self """
-        if self.int_lt(0):
+        if i.int_lt(0):
             raise ValueError("isqrt() argument must be nonnegative")
-        if self.int_eq(0):
+        if i.int_eq(0):
             return NULLRBIGINT
-        c = (self.bit_length() - 1) // 2
+        c = (i.bit_length() - 1) // 2
         a = ONERBIGINT
         d = 0
         for s in range(c.bit_length() - 1, -1, -1):
             # Loop invariant: (a-1)**2 < (self >> 2*(c - d)) < (a+1)**2
             e = d
             d = c >> s
-            a = a.lshift(d - e - 1).add(self.rshift(2*c - e - d + 1).floordiv(a))
-        return a.int_sub(a.mul(a).gt(self))
+            a = a.lshift(d - e - 1).add(i.rshift(2*c - e - d + 1).floordiv(a))
+        return a.int_sub(a.mul(a).gt(i))
 

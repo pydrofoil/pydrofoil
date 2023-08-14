@@ -1,4 +1,5 @@
 import pytest
+import math
 
 from pydrofoil import supportcode
 from pydrofoil import bitvector
@@ -1138,3 +1139,13 @@ def test_real_fromstr_2_hypothesis(integer, zeros, fractional):
     frac = Fraction(num_str)
     assert r.num.tolong() == frac.numerator
     assert r.den.tolong() == frac.denominator
+
+@given(strategies.floats(allow_nan = False, allow_infinity = False, min_value = 0, max_value = float(2**63-1)))
+def test_real_sqrt_hypothesis(a):
+    from rpython.rlib.rfloat import float_as_rbigint_ratio
+    num, den = float_as_rbigint_ratio(a)
+    x = Real(num, den).sqrt()
+    assert math.sqrt(a) == x.num.truediv(x.den)
+    num, den = float_as_rbigint_ratio(math.sqrt(a))
+    assert max(len(x.num.str()), len(x.den.str())) >= max(len(num.str()), len(den.str()))
+    

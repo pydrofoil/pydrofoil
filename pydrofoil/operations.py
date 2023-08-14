@@ -138,3 +138,8 @@ class __extend__(types.Ref):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
         assert restyp is types.Bool()
         return "supportcode.raise_type_error()"
+
+class __extend__(types.Real):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
+        return "supportcode.eq_real(machine, %s, %s)" % (sarg1, sarg2)
+

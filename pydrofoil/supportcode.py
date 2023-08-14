@@ -400,7 +400,11 @@ def undefined_int(machine, _):
 def pow2(machine, x):
     return Integer.frombigint(rbigint.fromint(2).int_pow(x))
 
+def neg_int(machine, x):
+    return Integer.fromint(0).sub(x)
+
 # real
+
 def neg_real(machine, r):
     return r.neg()
 
@@ -456,6 +460,11 @@ def print_real(machine, s, r):
 
 def to_real(machine, i):
     return Real(i.tobigint(), rbigint.fromint(1))
+
+def undefined_real(machine, _):
+    return Real.fromint(12, 19)
+
+
 # various
 
 @objectmodel.specialize.argtype(1)

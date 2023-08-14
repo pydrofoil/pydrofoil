@@ -172,10 +172,9 @@ class Real(object):
             assert False, "sqrt(x), x cannot be negative"
         if self.num.int_eq(0):
             return Real(NULLRBIGINT, ONERBIGINT)
-        OUT, PerfectSqr = isperfectsquare(self.num)
-        if PerfectSqr and self.den.int_eq(1):
-            return Real(OUT, self.den)
         current = Real(isqrt(self.num), isqrt(self.den))
+        if current.mul(current).eq(self):
+            return current
         convergence = Real(ONERBIGINT, DEN_CONVERGE, True).mul(self)
         while True:
             # next = (current + self/current)/2
@@ -205,11 +204,4 @@ def isqrt(i):
             a = a.lshift(d - e - 1).add(i.rshift(2*c - e - d + 1).floordiv(a))
         return a.int_sub(a.mul(a).gt(i))
 
-def isperfectsquare(b):
-    if b.int_eq(1):
-        return ONERBIGINT, True
-    sqrt = isqrt(b)
-    if sqrt.mul(sqrt) == b:
-        return sqrt, True
-    return sqrt, False
 

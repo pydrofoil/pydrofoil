@@ -120,8 +120,17 @@ class Real(object):
         elif n < MININT or n > MAXINT:
             assert False, "exponent is out of range of INT"
         else:
-            num_new = self.num.int_pow(n)
-            den_new = self.den.int_pow(n)
+            if n > 0:
+                num_new = self.num.int_pow(n)
+                den_new = self.den.int_pow(n)
+            else:
+                if self.num.int_eq(0):
+                    raise ZeroDivisionError("0 doesn't have negative power")
+                else:
+                    num_new = self.den.int_pow(-n)
+                    den_new = self.num.int_pow(-n)
+                if den_new.int_lt(0):
+                    num_new, den_new = num_new.neg(), den_new.neg()
             return Real(num_new, den_new, True)       
     
     def neg(self):
@@ -166,7 +175,6 @@ class Real(object):
         OUT, PerfectSqr = isperfectsquare(self.num)
         if PerfectSqr and self.den.int_eq(1):
             return Real(OUT, self.den)
-        # current = Real(isqrt(self.num.floordiv(self.den)), ONERBIGINT)
         current = Real(isqrt(self.num), isqrt(self.den))
         convergence = Real(ONERBIGINT, DEN_CONVERGE, True).mul(self)
         while True:

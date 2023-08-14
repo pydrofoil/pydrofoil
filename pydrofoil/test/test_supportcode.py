@@ -1123,7 +1123,7 @@ def test_real_ge_hypothesis(num1, den1, num2, den2):
     frac2 = Fraction(num2, den2)
     assert r1.ge(r2) == (frac1 - frac2 >= 0)
 
-@given(strategies.integers(), strategies.integers(min_value = 1), strategies.integers(min_value = 1, max_value = 50))
+@given(strategies.integers().filter(lambda n: n != 0), strategies.integers(min_value = 1), strategies.integers(min_value = -50, max_value = 50))
 def test_real_pow_hypothesis(num, den, n):
     r = rr_den_pos(num, den)
     res = r.pow(n)
@@ -1148,4 +1148,4 @@ def test_real_sqrt_hypothesis(a):
     assert math.sqrt(a) == x.num.truediv(x.den)
     num, den = float_as_rbigint_ratio(math.sqrt(a))
     assert max(len(x.num.str()), len(x.den.str())) >= max(len(num.str()), len(den.str()))
-    
+

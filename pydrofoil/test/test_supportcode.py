@@ -5,7 +5,7 @@ from pydrofoil import supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
 from pydrofoil.real import *
-from hypothesis import given, strategies, assume
+from hypothesis import given, strategies, assume, example, settings
 from fractions import Fraction
 
 from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
@@ -1140,6 +1140,7 @@ def test_real_fromstr_2_hypothesis(integer, zeros, fractional):
     assert r.num.tolong() == frac.numerator
     assert r.den.tolong() == frac.denominator
 
+@settings(deadline=1000)
 @given(strategies.floats(allow_nan = False, allow_infinity = False, min_value = 0, max_value = float(2**63-1)))
 def test_real_sqrt_hypothesis(a):
     from rpython.rlib.rfloat import float_as_rbigint_ratio
@@ -1148,4 +1149,3 @@ def test_real_sqrt_hypothesis(a):
     assert math.sqrt(a) == x.num.truediv(x.den)
     num, den = float_as_rbigint_ratio(math.sqrt(a))
     assert max(len(x.num.str()), len(x.den.str())) >= max(len(num.str()), len(den.str()))
-

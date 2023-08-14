@@ -20,7 +20,7 @@ class Real(object):
             gcd_val = num.gcd(den)
             self.num = num.div(gcd_val)
             self.den = den.div(gcd_val)
-        
+
 
     @staticmethod
     def fromint(num, den=1):
@@ -38,7 +38,7 @@ class Real(object):
             num = rbigint.fromint(abs(num)*sign)
             den = rbigint.fromint(abs(den))
         return Real(num, den)
-    
+
     @staticmethod
     def fromstr(str):
         from rpython.rlib.rstring import strip_spaces
@@ -64,7 +64,7 @@ class Real(object):
             return Real(t, s.mul(other.den), True)
         return Real(t.div(g2), s.mul(other.den.div(g2)), True)
 
-    
+
     def sub(self, other):
         g = self.den.gcd(other.den)
         if g.int_eq(1):
@@ -79,7 +79,7 @@ class Real(object):
         if g2.int_eq(1):
             return Real(t, s.mul(other.den), True)
         return Real(t.div(g2), s.mul(other.den.div(g2)), True)
-    
+
     def mul(self, other):
         num1_new, den1_new = self.num, self.den
         num2_new, den2_new = other.num, other.den
@@ -92,8 +92,8 @@ class Real(object):
             num2_new = num2_new.div(g2)
             den1_new = den1_new.div(g2)
         return Real(num1_new.mul(num2_new), den1_new.mul(den2_new), True)
-        
-    
+
+
     def div(self, other):
         num2_new, den2_new = other.num, other.den
         if num2_new.int_eq(0):
@@ -131,77 +131,57 @@ class Real(object):
                     den_new = self.num.int_pow(-n)
                 if den_new.int_lt(0):
                     num_new, den_new = num_new.neg(), den_new.neg()
-            return Real(num_new, den_new, True)       
-    
+            return Real(num_new, den_new, True)
+
     def neg(self):
         return Real(self.num.neg(), self.den, True)
-    
+
     def abs(self):
         return Real(self.num.abs(), self.den, True)
 
     def ceil(self):
         return self.num if self.den.int_eq(1) else self.num.floordiv(self.den).int_add(1)
-    
+
     def floor(self):
         return self.num if self.den.int_eq(1) else self.num.floordiv(self.den)
 
     def eq(self, other):
         return self.num.eq(other.num) and self.den.eq(other.den)
-    
+
     def lt(self, other):
         return self.num.mul(other.den).lt(self.den.mul(other.num))
-    
+
     def gt(self, other):
         return other.lt(self)
-    
+
     def le(self, other):
         return not self.gt(other)
-    
+
     def ge(self, other):
         return not self.lt(other)
 
     def toint(self):
         assert self.den.abs().int_eq(1)
         return self.num.mul(self.den).toint()
-    
+
     def totuple(self):
         return self.num.toint(), self.den.toint()
-    
-    def sqrt(self): 
+
+    def sqrt(self):
         if self.num.int_lt(0):
             assert False, "sqrt(x), x cannot be negative"
         if self.num.int_eq(0):
             return Real(NULLRBIGINT, ONERBIGINT)
-        current = Real(isqrt(self.num), isqrt(self.den))
+        current = Real(self.num.isqrt(), self.den.isqrt())
         if current.mul(current).eq(self):
             return current
         convergence = Real(ONERBIGINT, DEN_CONVERGE, True).mul(self)
         while True:
             # next = (current + self/current)/2
-            next = current.add(self.div(current)).div(Real(rbigint.fromint(2), ONERBIGINT)) 
+            next = current.add(self.div(current)).div(Real(rbigint.fromint(2), ONERBIGINT))
             epsilon = next.sub(current).abs()
             if epsilon.le(convergence):
                 break
             current = next
         return next
-
-        
-
-# Helper functions for sqrt()
-def isqrt(i):
-        """ Compute the integer square root of self """
-        if i.int_lt(0):
-            raise ValueError("isqrt() argument must be nonnegative")
-        if i.int_eq(0):
-            return NULLRBIGINT
-        c = (i.bit_length() - 1) // 2
-        a = ONERBIGINT
-        d = 0
-        for s in range(c.bit_length() - 1, -1, -1):
-            # Loop invariant: (a-1)**2 < (self >> 2*(c - d)) < (a+1)**2
-            e = d
-            d = c >> s
-            a = a.lshift(d - e - 1).add(i.rshift(2*c - e - d + 1).floordiv(a))
-        return a.int_sub(a.mul(a).gt(i))
-
 

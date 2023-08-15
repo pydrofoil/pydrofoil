@@ -414,6 +414,9 @@ class SmallInteger(Integer):
     def str(self):
         return str(self.val)
 
+    def hex(self):
+        return hex(self.val)
+
     def toint(self):
         return self.val
 
@@ -526,6 +529,9 @@ class BigInteger(Integer):
 
     def str(self):
         return self.rval.str()
+
+    def hex(self):
+        return self.rval.hex()
 
     def toint(self):
         return self.rval.toint()

@@ -337,6 +337,13 @@ def tmod_int(machine, ia, ib):
     return ia.tmod(ib)
 
 @unwrap("i i")
+def ediv_int(machine, a, b):
+    if a < 0 or b < 0:
+        print "emod_int with negative args not implemented yet", a, b
+        raise ValueError # arm only needs the positive small case
+    return Integer.fromint(a // b)
+
+@unwrap("i i")
 def emod_int(machine, a, b):
     if a < 0 or b < 0:
         print "emod_int with negative args not implemented yet", a, b

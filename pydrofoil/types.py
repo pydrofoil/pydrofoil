@@ -59,6 +59,8 @@ class Vec(Type):
 
 @unique
 class FVec(Type):
+    uninitialized_value = 'None'
+
     def __init__(self, number, typ):
         assert isinstance(typ, Type)
         self.number = number

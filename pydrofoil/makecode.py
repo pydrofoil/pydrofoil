@@ -857,7 +857,11 @@ class __extend__(parse.StructConstruction):
     def to_code(self, codegen):
         typ = self.gettyp(codegen)
         ast_type = typ.ast
-        sargs = [arg.to_code(codegen) for arg in self.fieldvalues]
+        sargs = []
+        for name, arg in zip(self.fieldnames, self.fieldvalues):
+            fieldtyp = typ.fieldtyps[name]
+            valuetyp = arg.gettyp(codegen)
+            sargs.append(pair(valuetyp, fieldtyp).convert(arg, codegen))
         assert self.fieldnames == ast_type.names
         return "%s(%s)" % (ast_type.pyname, ", ".join(sargs))
 

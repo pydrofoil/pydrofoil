@@ -6,6 +6,11 @@ armir = os.path.join(toplevel, "arm", "armv9.ir")
 outarm = os.path.join(toplevel, "arm", "generated", "outarm.py")
 
 def make_code():
+    from arm import supportcodearm
+    outarm = _make_code()
+    return supportcodearm.get_main(outarm)
+
+def _make_code():
     print "making python code"
     #with open(armir, "rb") as f:
     #    s = f.read()
@@ -16,10 +21,7 @@ def make_code():
     #print "written file", outarm, "importing now"
     from arm.generated import outarm as mod
     print "done"
-    def main(argv):
-        return mod.func_zmain()
-    main.mod = mod
-    return main
+    return mod
 
 def target(*args):
     main = make_code()

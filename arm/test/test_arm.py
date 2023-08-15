@@ -28,6 +28,7 @@ def test_stuff(armmain):
     from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
     from arm import supportcodearm
     machine = armmain.mod.Machine()
+    print "loading Linux kernel"
     supportcodearm.load_raw(machine, [r_uint(0x80000000), r_uint(0x81000000), r_uint(0x82080000)], ["arm/bootloader.bin", "arm/sail.dtb", "arm/Image"])
+    print "done"
     armmain.mod.func_zmain(machine, ())
-    

@@ -6,6 +6,8 @@ from rpython.rlib.objectmodel import always_inline, specialize, is_annotation_co
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 
+MININT = -sys.maxint - 1
+
 @always_inline
 #@specialize.arg_or_var(0, 1)
 def from_ruint(size, val):
@@ -460,6 +462,11 @@ class SmallInteger(Integer):
         assert isinstance(other, BigInteger)
         return other.rval.int_le(self.val)
 
+    def abs(self):
+        if self.val == MININT:
+            return BigInteger(rbigint.fromint(self.val).abs())
+        return SmallInteger(abs(self.val))
+
     def add(self, other):
         if isinstance(other, SmallInteger):
             return SmallInteger.add_i_i(self.val, other.val)
@@ -576,6 +583,9 @@ class BigInteger(Integer):
             return self.rval.int_ge(other.val)
         assert isinstance(other, BigInteger)
         return self.rval.ge(other.rval)
+
+    def abs(self):
+        return BigInteger(self.rval.abs())
 
     def add(self, other):
         if isinstance(other, SmallInteger):

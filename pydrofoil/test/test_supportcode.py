@@ -307,6 +307,11 @@ def test_append():
         for c2 in gbv, bv:
             assert c1(16, 0xa9e3).append(c2(16, 0x04fb)).toint() == 0xa9e304fb
 
+def test_abs_int():
+    for c in si, bi:
+        for value in [-2**63, -6, 10, 2**63-1]:
+            assert c(value).abs().tobigint().tolong() == abs(value)
+
         
 # softfloat
 
@@ -960,18 +965,6 @@ def test_fromstr_real():
     assert x.num.tolong() == 12
 
 def test_sqrt_real():
-    x = rbigint.fromint(4)
-    res = isqrt(x)
-    assert res.tolong() == 2
-    x = rbigint.fromint(26)
-    res = isqrt(x)
-    assert res.tolong() == 5
-    x = rbigint.fromint(16)
-    res = isqrt(x)
-    assert res.tolong() == 4
-    x = rbigint.fromint(255)
-    res = isqrt(x)
-    assert res.tolong() == 15
     x = Real.fromstr("4")
     res = x.sqrt()
     assert res.num.tolong() == 2

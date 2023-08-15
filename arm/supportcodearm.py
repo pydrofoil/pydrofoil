@@ -1,3 +1,4 @@
+from rpython.rlib import jit
 from pydrofoil import mem as mem_mod
 from pydrofoil.supportcode import *
 
@@ -78,14 +79,6 @@ def get_cycle_count(machine, _):
 def sail_get_verbosity(machine, _):
     return r_uint(1)
 
-def align_bits(machine, xbv, yi):
-    if xbv.size() != 64:
-        import pdb; pdb.set_trace()
-    x = xbv.touint()
-    y = yi.touint()
-    z = y * (x // y)
-    return bitvector.from_ruint(xbv.size(), z)
-
 def read_mem(machine, address):
     return machine.g.mem.read(address, 1)
 
@@ -98,6 +91,13 @@ def platform_read_mem(machine, read_kind, addr_size, addr, n):
     assert addr_size in (64, 32)
     res = machine.g.mem.read(addr.touint(), n)
     return bitvector.SmallBitVector(n*8, res)
+
+def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
+    n = n.toint()
+    assert addr_size in (64, 32)
+    assert data.size() == n * 8
+    jit.promote(machine.g).mem.write(addr.touint(), n, data.touint())
+    return ()
 
 make_dummy("sail_truncate")
 make_dummy("arith_shiftr")

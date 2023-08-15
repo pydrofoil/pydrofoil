@@ -292,6 +292,18 @@ def test_int_shift():
     for c in bi, si:
         assert c(0b1010001).rshift(2).tobigint().tolong() == 0b10100
         assert c(-0b1010001).rshift(3).tobigint().tolong() == -0b1011
+        assert c(0b1010001).lshift(2).tobigint().tolong() == 0b101000100
+        assert c(-0b1010001).lshift(3).tobigint().tolong() == -0b1010001000
+
+def test_replicate_bits():
+    for c1 in gbv, bv:
+        res = c1(3, 0b011).replicate(10)
+        assert res.size() == 3 * 10
+        assert res.touint() == 0b011011011011011011011011011011
+        res = c1(8, 0xe7).replicate(15)
+        assert res.size() == 8*15
+        assert res.tobigint().tolong() == 0xe7e7e7e7e7e7e7e7e7e7e7e7e7e7e7
+
 
 
 def test_string_of_bits():
@@ -311,6 +323,11 @@ def test_abs_int():
     for c in si, bi:
         for value in [-2**63, -6, 10, 2**63-1]:
             assert c(value).abs().tobigint().tolong() == abs(value)
+
+def test_rshift_int():
+   for c in bi, si:
+       assert si(0b1010001).rshift(2).tobigint().tolong() == 0b10100
+       assert si(-0b1010001).rshift(3).tobigint().tolong() == 12
 
         
 # softfloat

@@ -73,6 +73,12 @@ make_dummy("softfloat_f16roundToInt")
 make_dummy("softfloat_f32roundToInt")
 make_dummy("softfloat_f64roundToInt")
 
+make_dummy("prerr_int")
+make_dummy("sail_putchar")
+make_dummy("wakeup_request")
+make_dummy("set_slice_int")
+make_dummy("undefined_range")
+
 # generic helpers
 
 def raise_type_error():
@@ -216,6 +222,11 @@ def shift_bits_left(machine, gbv, gbva):
 
 def shift_bits_right(machine, gbv, gbva):
     return gbv.rshift_bits(gbva)
+
+@unwrap("o i")
+def replicate_bits(machine, bv, repetition):
+    return bv.replicate(repetition)
+
 
 def sail_unsigned(machine, gbv):
     return gbv.unsigned()
@@ -424,6 +435,23 @@ def dec_str(machine, x):
 
 def hex_str(machine, x):
     return x.hex()
+
+@unwrap("o i")
+def shl_int(machine, i, shift):
+    return i.lshift(shift)
+
+@unwrap("o i")
+def shr_int(machine, i, shift):
+    return i.rshift(shift)
+
+def shl_mach_int(machine, i, shift):
+    return i << shift
+
+def shr_mach_int(machine, i, shift):
+    return i >> shift
+
+def abs_int(machine, i):
+    return i.abs()
 
 
 # real

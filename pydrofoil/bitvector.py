@@ -236,6 +236,16 @@ class SmallBitVector(BitVectorWithSize):
             return BitVector.append(self, other)
         return from_ruint(ressize, (self.val << other.size()) | other.val)
 
+    def replicate(self, i):
+        size = self.size()
+        if size * i <= 64:
+            res = val = self.val
+            for _ in range(i - 1):
+                res = (res << size) | val
+            return SmallBitVector(size * i, res)
+        gbv = GenericBitVector(size, rbigint.fromrarith_int(self.val))
+        return gbv.replicate(i)
+
 
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']
@@ -371,6 +381,13 @@ class GenericBitVector(BitVectorWithSize):
 
     def tobigint(self):
         return self.rval
+
+    def replicate(self, i):
+        size = self.size()
+        res = val = self.rval
+        for _ in range(i - 1):
+            res = res.lshift(size).or_(val)
+        return GenericBitVector(size * i, res)
 
 
 class Integer(object):
@@ -514,6 +531,15 @@ class SmallInteger(Integer):
         assert i >= 0
         return SmallInteger(self.val >> i)
 
+    def lshift(self, i):
+        assert i >= 0
+        if i < 64:
+            try:
+                return SmallInteger(ovfcheck(self.val << i))
+            except OverflowError:
+                pass
+        return BigInteger(rbigint.fromint(self.val).lshift(i))
+
     @staticmethod
     def add_i_i(a, b):
         try:
@@ -634,4 +660,7 @@ class BigInteger(Integer):
         assert i >= 0
         # XXX should we check whether it fits in a SmallInteger now?
         return BigInteger(self.rval.rshift(i))
+
+    def lshift(self, i):
+        return BigInteger(self.rval.lshift(i))
 

@@ -10,7 +10,7 @@ pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softf
 
 .PHONY: pypy-c-pydrofoil
 
-pypy-c-pydrofoil: pypy_binary/bin/python pypy/rpython/bin/rpython ## Build pypy with pydrofoil plugin
+pypy-c-pydrofoil: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build pypy with pydrofoil plugin
 	pkg-config libffi # if this fails, libffi development headers arent installed
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --no-shared --output=pypy/pypy/goal/pypy-c-pydrofoil pypy/pypy/goal/targetpypystandalone.py --ext=riscv.pypymodule
 	rm -f pypy-c-pydrofoil

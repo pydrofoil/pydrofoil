@@ -280,10 +280,10 @@ class GenericBitVector(BitVectorWithSize):
         return self.make(self._size_mask(self.rval.rshift(i)))
 
     def lshift_bits(self, other):
-        return self.make(self._size_mask(self.rval.lshift(other.toint())))
+        return self.lshift(other.toint())
 
     def rshift_bits(self, other):
-        return self.make(self._size_mask(self.rval.rshift(other.toint())))
+        return self.rshift(other.toint())
 
     def xor(self, other):
         return self.make(self._size_mask(self.rval.xor(other.tobigint())))

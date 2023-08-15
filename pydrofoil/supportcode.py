@@ -1,3 +1,5 @@
+import os
+
 from rpython.rlib import objectmodel, unroll
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
@@ -5,6 +7,8 @@ from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer
 import pydrofoil.softfloat as softfloat
 from pydrofoil.real import Real
+
+STDERR = 2
 
 @objectmodel.specialize.call_location()
 def make_dummy(name):
@@ -190,6 +194,11 @@ def not_vec_bv(machine, bva, width):
 def print_bits(machine, s, b):
     print s + b.string_of_bits()
     return ()
+
+def prerr_bits(machine, s, b):
+    os.write(STDERR, "%s%s\n" % (s, b.string_of_bits()))
+    return ()
+
 
 @unwrap("o i")
 def shiftl(machine, gbv, i):
@@ -410,6 +419,13 @@ def pow2(machine, x):
 def neg_int(machine, x):
     return Integer.fromint(0).sub(x)
 
+def dec_str(machine, x):
+    return x.str()
+
+def hex_str(machine, x):
+    return x.hex()
+
+
 # real
 
 def neg_real(machine, r):
@@ -486,6 +502,11 @@ def sail_assert(cond, st):
 def print_endline(machine, s):
     print s
     return ()
+
+def prerr_endline(machine, s):
+    os.write(STDERR, s + "\n")
+    return ()
+
 
 def undefined_bool(machine, _):
     return False

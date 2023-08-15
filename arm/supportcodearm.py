@@ -77,13 +77,7 @@ def sail_get_verbosity(machine, _):
     return r_uint(1)
 
 
-def dec_str(machine, x):
-    return str(x)
 
-def hex_str(machine, x):
-    return hex(x.toint())
 make_dummy("sail_truncate")
 make_dummy("arith_shiftr")
-make_dummy("prerr_endline")
-make_dummy("prerr_bits")
 make_dummy("zSetInterruptRequestLevel")

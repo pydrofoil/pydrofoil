@@ -70,14 +70,34 @@ def cycle_count(machine, _):
     machine.g.cycle_count += 1
     return ()
 
+cyclecount = 0
+
 def get_cycle_count(machine, _):
     return bitvector.Integer.fromint(machine.g.cycle_count)
 
 def sail_get_verbosity(machine, _):
     return r_uint(1)
 
+def align_bits(machine, xbv, yi):
+    if xbv.size() != 64:
+        import pdb; pdb.set_trace()
+    x = xbv.touint()
+    y = yi.touint()
+    z = y * (x // y)
+    return bitvector.from_ruint(xbv.size(), z)
 
+def read_mem(machine, address):
+    return machine.g.mem.read(address, 1)
+
+def write_mem(machine, address, data):
+    machine.g.mem.write(address, 1, data)
+    return ()
+
+def platform_read_mem(machine, read_kind, addr_size, addr, n):
+    n = n.toint()
+    assert addr_size in (64, 32)
+    res = machine.g.mem.read(addr.touint(), n)
+    return bitvector.SmallBitVector(n*8, res)
 
 make_dummy("sail_truncate")
 make_dummy("arith_shiftr")
-make_dummy("zSetInterruptRequestLevel")

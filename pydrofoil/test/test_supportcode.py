@@ -288,6 +288,11 @@ def test_op_gv_int():
             assert c1(16, 4).add_int(c2(9)).touint() == 13
             assert c1(16, 4).sub_int(c2(9)).touint() == r_uint((-5) & 0xffff)
 
+def test_int_shift():
+    for c in bi, si:
+        assert c(0b1010001).rshift(2).tobigint().tolong() == 0b10100
+        assert c(-0b1010001).rshift(3).tobigint().tolong() == -0b1011
+
 
 def test_string_of_bits():
     for c in gbv, bv:

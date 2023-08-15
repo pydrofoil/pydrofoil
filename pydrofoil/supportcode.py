@@ -507,9 +507,11 @@ def prerr_endline(machine, s):
     os.write(STDERR, s + "\n")
     return ()
 
-
 def undefined_bool(machine, _):
     return False
+
+def undefined_unit(machine, _):
+    return ()
 
 # list weirdnesses
 

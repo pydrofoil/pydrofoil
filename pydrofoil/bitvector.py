@@ -503,6 +503,10 @@ class SmallInteger(Integer):
                 return SmallInteger(int_c_mod(self.val, other.val))
         return BigInteger(self.tobigint()).tmod(other)
 
+    def rshift(self, i):
+        assert i >= 0
+        return SmallInteger(self.val >> i)
+
     @staticmethod
     def add_i_i(a, b):
         try:
@@ -615,3 +619,9 @@ class BigInteger(Integer):
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
         return BigInteger(rem)
+
+    def rshift(self, i):
+        assert i >= 0
+        # XXX should we check whether it fits in a SmallInteger now?
+        return BigInteger(self.rval.rshift(i))
+

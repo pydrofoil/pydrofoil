@@ -58,10 +58,14 @@ make_dummy('print_string')
 make_dummy('string_drop')
 make_dummy('string_take')
 make_dummy('string_startswith')
-make_dummy('string_length')
 make_dummy('sub_nat')
-make_dummy('tmod_int')
 make_dummy('undefined_int')
+make_dummy("prerr_int")
+make_dummy("sail_putchar")
+make_dummy("wakeup_request")
+make_dummy("set_slice_int")
+make_dummy("undefined_range")
+make_dummy("arith_shiftr")
 
 make_dummy("softfloat_f16lt_quiet")
 make_dummy("softfloat_f32lt_quiet")
@@ -73,11 +77,6 @@ make_dummy("softfloat_f16roundToInt")
 make_dummy("softfloat_f32roundToInt")
 make_dummy("softfloat_f64roundToInt")
 
-make_dummy("prerr_int")
-make_dummy("sail_putchar")
-make_dummy("wakeup_request")
-make_dummy("set_slice_int")
-make_dummy("undefined_range")
 
 # generic helpers
 
@@ -310,6 +309,11 @@ def zeros(machine, num):
 
 def undefined_bitvector(machine, num):
     return zeros(machine, num)
+
+@unwrap("o i")
+def sail_truncate(machine, bv, i):
+    return bv.truncate(i)
+
 
 # integers
 
@@ -577,6 +581,9 @@ def concat_str(machine, a, b):
 
 def eq_string(machine, a, b):
     return a == b
+
+def string_length(machine, s):
+    return Integer.fromint(len(s))
     
 # softfloat
 

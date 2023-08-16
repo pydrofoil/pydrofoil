@@ -246,6 +246,10 @@ class SmallBitVector(BitVectorWithSize):
         gbv = GenericBitVector(size, rbigint.fromrarith_int(self.val))
         return gbv.replicate(i)
 
+    def truncate(self, i):
+        assert i <= self.size()
+        return SmallBitVector(i, self.val, normalize=True)
+
 
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']
@@ -388,6 +392,13 @@ class GenericBitVector(BitVectorWithSize):
         for _ in range(i - 1):
             res = res.lshift(size).or_(val)
         return GenericBitVector(size * i, res)
+
+    def truncate(self, i):
+        assert i <= self.size()
+        val = self.rbigint_mask(i, self.rval)
+        if i <= 64:
+            return SmallBitVector(i, val.touint(), normalize=True)
+        return GenericBitVector(i, val)
 
 
 class Integer(object):

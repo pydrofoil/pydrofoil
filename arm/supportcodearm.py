@@ -99,5 +99,3 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
     jit.promote(machine.g).mem.write(addr.touint(), n, data.touint())
     return ()
 
-make_dummy("sail_truncate")
-make_dummy("arith_shiftr")

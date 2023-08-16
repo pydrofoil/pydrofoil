@@ -304,6 +304,14 @@ def test_replicate_bits():
         assert res.size() == 8*15
         assert res.tobigint().tolong() == 0xe7e7e7e7e7e7e7e7e7e7e7e7e7e7e7
 
+def test_truncate():
+    for c1 in gbv, bv:
+        res = c1(10, 0b1011010100).truncate(2)
+        assert res.size() == 2
+        assert res.touint() == 0b00
+        res = c1(10, 0b1011010100).truncate(6)
+        assert res.size() == 6
+        assert res.touint() == 0b010100
 
 
 def test_string_of_bits():

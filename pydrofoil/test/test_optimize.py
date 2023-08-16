@@ -9,6 +9,8 @@ from pydrofoil.optimize import (
     specialize_ops,
     collect_jump_to_jump,
     optimize_gotos,
+    _compute_dominators,
+    immediate_dominators,
 )
 
 
@@ -973,15 +975,18 @@ def test_collect_jump_to_jump():
 
 
 def test_collect_jump_to_jump_to_jump():
-    assert collect_jump_to_jump(
-        {
-            0: [Goto(12)],
-            1: [Goto(12)],
-            2: vector_subrange_example,
-            12: [Goto(13)],
-            13: [End()],
-        }
-    ) == {1: 13, 12: 13}
+    assert (
+        collect_jump_to_jump(
+            {
+                0: [Goto(12)],
+                1: [Goto(12)],
+                2: vector_subrange_example,
+                12: [Goto(13)],
+                13: [End()],
+            }
+        )
+        == {1: 13, 12: 13}
+    )
 
 
 def test_optimize_gotos():
@@ -992,3 +997,19 @@ def test_optimize_gotos():
     }
     optimize_gotos(blocks)
     assert blocks == {0: [ConditionalJump("cond", target=12), Goto(12)], 12: [End()]}
+
+
+# dominators
+
+
+def test_compute_dominators():
+    G = {0: {2}, 2: {3, 4, 6}, 3: {5}, 4: {5}, 5: {2}, 6: {}}
+    assert _compute_dominators(G) == {
+        0: {0},
+        2: {0, 2},
+        3: {0, 2, 3},
+        4: {0, 2, 4},
+        5: {0, 2, 5},
+        6: {0, 2, 6},
+    }
+    assert immediate_dominators(G) == {2: 0, 3: 2, 4: 2, 5: 2, 6: 2}

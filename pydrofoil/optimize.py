@@ -623,3 +623,92 @@ def optimize_gotos(blocks):
                 op.target = jumps[op.target]
     for useless in jumps:
         del blocks[useless]
+
+
+def _get_successors(block):
+    result = set()
+    for op in block:
+        if not hasattr(op, "target"):
+            continue
+        result.add(op.target)
+    return result
+
+
+def compute_predecessors(G):
+    result = defaultdict(set)
+    for num, succs in G.iteritems():
+        for succ in succs:
+            result[succ].add(num)
+        result[num].add(num)
+    return result
+
+
+def _compute_dominators(G, start=0):
+    preds = compute_predecessors(G)
+    # initialize
+    dominators = {}
+    for node in G:
+        dominators[node] = set(G)
+    dominators[start] = {start}
+
+    # fixpoint
+    changed = True
+    while changed:
+        changed = False
+        for node in G:
+            if node == start:
+                continue
+            dom = set(G).intersection(*[dominators[x] for x in preds[node]])
+            dom.add(node)
+            if dom != dominators[node]:
+                changed = True
+                dominators[node] = dom
+    return dominators
+
+
+def immediate_dominators(G, start=0):
+    res = {}
+    dominators = _compute_dominators(G, start)
+    for node in G:
+        if node == start:
+            continue
+        doms = dominators[node]
+        for candidate in doms:
+            if candidate == node:
+                continue
+            for otherdom in doms:
+                if otherdom == node or otherdom == candidate:
+                    continue
+                if candidate in dominators[otherdom]:
+                    break
+            else:
+                break
+        res[node] = candidate
+    return res
+
+def immediate_dominators_blocks(blocks):
+    G = {num: _get_successors(block) for (num, block) in blocks.iteritems()}
+    return immediate_dominators(G)
+
+def view_blocks(blocks):
+    from rpython.translator.tool.make_dot import DotGen
+    from dotviewer import graphclient
+    import pytest
+    dotgen = DotGen('G')
+    G = {num: _get_successors(block) for (num, block) in blocks.iteritems()}
+    idom = immediate_dominators(G)
+    for num, block in blocks.iteritems():
+        label = [str(num)] + [str(op)[:100] for op in block]
+        dotgen.emit_node(str(num), label="\n".join(label), shape="box")
+
+    for start, succs in G.iteritems():
+        for finish in succs:
+            color = "green"
+            dotgen.emit_edge(str(start), str(finish), color=color)
+    for finish, start in idom.iteritems():
+        color = "red"
+        dotgen.emit_edge(str(start), str(finish), color=color)
+
+    p = pytest.ensuretemp("pyparser").join("temp.dot")
+    p.write(dotgen.generate(target=None))
+    graphclient.display_dot_file(str(p))

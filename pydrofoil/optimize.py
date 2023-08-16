@@ -71,6 +71,7 @@ def optimize_blocks(blocks, codegen, predefined=None):
     inline(blocks, codegen.inlinable_functions)
     do_replacements(identify_replacements(blocks, predefined))
     specialize_ops(blocks, codegen)
+    optimize_gotos(blocks)
 
 
 def find_decl_defs_uses(blocks, predefined=None):
@@ -569,3 +570,35 @@ class OptVisitor(parse.Visitor):
             ),
             expr.resolved_type,
         )
+
+
+# optimize_gotos
+
+
+def collect_jump_to_jump(blocks):
+    res = {}
+    for num, block in blocks.iteritems():
+        if num == 0 or len(block) > 1:
+            continue
+        (op,) = block
+        if not isinstance(op, parse.Goto):
+            continue
+        res[num] = op.target
+    for source, target in res.iteritems():
+        while target in res:
+            target = res[source] = res[target]
+    return res
+
+
+def optimize_gotos(blocks):
+    jumps = collect_jump_to_jump(blocks)
+    if not jumps:
+        return
+    for num, block in blocks.iteritems():
+        for op in block:
+            if not hasattr(op, "target"):
+                continue
+            if op.target in jumps:
+                op.target = jumps[op.target]
+    for useless in jumps:
+        del blocks[useless]

@@ -577,6 +577,7 @@ class __extend__(parse.Function):
                 if isinstance(op, (parse.Goto, parse.ConditionalJump)):
                     if op.target not in added:
                         added.add(op.target)
+                        assert op.target in blocks
                         todo.append(op.target)
             res.append((index, [op for op in current if op is not None]))
         added = set()

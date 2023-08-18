@@ -667,6 +667,8 @@ def _compute_dominators(G, start=0):
 
 
 def immediate_dominators(G, start=0):
+    if start not in G:
+        return {}
     res = {}
     dominators = _compute_dominators(G, start)
     for node in G:
@@ -686,9 +688,41 @@ def immediate_dominators(G, start=0):
         res[node] = candidate
     return res
 
+def _extract_graph(blocks):
+    return {num: _get_successors(block) for (num, block) in blocks.iteritems()}
+
 def immediate_dominators_blocks(blocks):
-    G = {num: _get_successors(block) for (num, block) in blocks.iteritems()}
+    G = _extract_graph(blocks)
     return immediate_dominators(G)
+
+def bfs_graph(G, start=0):
+    from collections import deque
+    todo = deque([start])
+    seen = set()
+    res = []
+    while todo:
+        node = todo.popleft()
+        if node in seen:
+            continue
+        seen.add(node)
+        todo.extend(G[node])
+        res.append(node)
+    return res
+
+def bfs_edges(G, start=0):
+    from collections import deque
+    todo = deque([start])
+    seen = set()
+    res = []
+    while todo:
+        node = todo.popleft()
+        if node in seen:
+            continue
+        seen.add(node)
+        todo.extend(G[node])
+        for succ in G[node]:
+            res.append((node, succ))
+    return res
 
 def view_blocks(blocks):
     from rpython.translator.tool.make_dot import DotGen
@@ -712,3 +746,69 @@ def view_blocks(blocks):
     p = pytest.ensuretemp("pyparser").join("temp.dot")
     p.write(dotgen.generate(target=None))
     graphclient.display_dot_file(str(p))
+
+
+# graph splitting
+
+class CantSplitError(Exception):
+    pass
+
+def split_graph(blocks, min_size=6):
+    G = _extract_graph(blocks)
+    return_blocks = {num for (num, block) in blocks.iteritems() if isinstance(block[-1], parse.End)}
+    end_blocks = {num for (num, block) in blocks.iteritems() if isinstance(block[-1], parse.FunctionEndingStatement)}
+    return_edges = [(source, target) for (source, target) in bfs_edges(G) if target in return_blocks]
+    return_edges.reverse()
+    # split graph, starting from exit edges (ie an edge going to a block
+    # ending with End)
+    graph1 = {}
+    while 1:
+        # approach: from the edge going to the 'End' node, extend by adding
+        # predecessors up to fixpoint
+        if not return_edges:
+            raise CantSplitError # didn't manage to split
+        source, target = return_edges.pop()
+        preds = compute_predecessors(G)
+        graph1[target] = blocks[target]
+        todo = [source]
+        while todo:
+            node = todo.pop()
+            if node in graph1:
+                continue
+            graph1[node] = blocks[node]
+            todo.extend(preds[node])
+        # add all end nodes that are reachable from the nodes in graph1.
+        # also compute nodes where we need to transfer from graph1 to graph2
+        transfer_nodes = set()
+        for node in list(graph1):
+            for succ in G[node]:
+                if succ in graph1:
+                    continue
+                if succ in end_blocks:
+                    graph1[succ] = blocks[succ]
+                else:
+                    transfer_nodes.add(succ)
+        if len(graph1) == len(blocks):
+            # didn't manage to split
+            raise CantSplitError
+        if len(graph1) > min_size and len(transfer_nodes) == 1:
+            break
+    # compute graph2
+    graph2 = {}
+    for node in G:
+        if node not in graph1:
+            graph2[node] = blocks[node]
+    # add reachable end nodes
+    for node in list(graph2):
+        for succ in G[node]:
+            if succ in end_blocks:
+                graph2[succ] = blocks[succ]
+    # consistency check:
+    for num, block in blocks.iteritems():
+        assert num in graph1 or num in graph2
+        if num in graph1 and num in graph2:
+            assert num in end_blocks
+    transferpc, = transfer_nodes
+    assert transferpc not in graph1
+    assert transferpc in graph2
+    return graph1, graph2, transferpc

@@ -436,10 +436,16 @@ class __extend__(parse.Register):
                 op.make_op_code(codegen)
             codegen.emit()
 
+def iterblockops(blocks):
+    for blockpc, block in sorted(blocks.items()):
+        for op in block:
+            yield blockpc, op
+
 
 class __extend__(parse.Function):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks, CollectSourceVisitor
+        from pydrofoil.optimize import optimize_blocks, CollectSourceVisitor, view_blocks
+        from pydrofoil import optimize
         #vbefore = CollectSourceVisitor()
         #vbefore.visit(self)
         pyname = codegen.getname(self.name)
@@ -469,6 +475,15 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, entrycounts, codegen)
             return
+        if len(blocks) > 10:
+            print "splitting", self.name
+            try:
+                self._split_function(blocks, entrycounts, codegen)
+                codegen.emit()
+                return
+            except optimize.CantSplitError:
+                print "didn't manage"
+
         with self._scope(codegen, pyname):
             if entrycounts == {0: 1}:
                 assert self.body[-1].end_of_block
@@ -478,12 +493,18 @@ class __extend__(parse.Function):
         codegen.emit()
 
     @contextmanager
-    def _scope(self, codegen, pyname, method=False):
+    def _scope(self, codegen, pyname, method=False, extra_args=None):
+        # extra_args is a list of tuples (name, typ)
+        args = self.args
+        if extra_args:
+            args = args[:]
+            for name, _ in extra_args:
+                args.append(name)
         if not method:
-            first = "def %s(machine, %s):" % (pyname, ", ".join(self.args))
+            first = "def %s(machine, %s):" % (pyname, ", ".join(args))
         else:
             # bit messy, need the self
-            first = "def %s(%s, machine, %s):" % (pyname, self.args[0], ", ".join(self.args[1:]))
+            first = "def %s(%s, machine, %s):" % (pyname, args[0], ", ".join(args[1:]))
         typ = codegen.globalnames[self.name].typ
         with codegen.enter_scope(self), codegen.emit_indent(first):
             if self.name in codegen.inlinable_functions:
@@ -491,6 +512,9 @@ class __extend__(parse.Function):
             codegen.add_local('return', 'return_', typ.restype, self)
             for i, arg in enumerate(self.args):
                 codegen.add_local(arg, arg, typ.argtype.elements[i], self)
+            if extra_args:
+                for name, typ in extra_args:
+                    codegen.add_local(name, name, typ, self)
             yield
 
     def _prepare_blocks(self):
@@ -621,18 +645,60 @@ class __extend__(parse.Function):
             process(index, current)
         return {k: v for k, v in res}
 
+    def _split_function(self, blocks, entrycounts, codegen):
+        from pydrofoil import optimize
+        g1, g2, transferpc = optimize.split_graph(blocks, 5)
+        next_func_name = self.pyname + "_next_" + str(transferpc)
+        # compute the local variables that are declared in g1 and used in g2,
+        # they become extra arguments
+        declared_variables_g1 = {}
+        for blockpc, op in iterblockops(g1):
+            if isinstance(op, parse.LocalVarDeclaration):
+                declared_variables_g1[op.name] = op
+        needed_args = set()
+        assignment_targets = set()
+        for blockpc, op in iterblockops(g2):
+            needed_args.update(op.find_used_vars())
+            if isinstance(op, parse.Assignment):
+                assignment_targets.add(op.result)
+        extra_args_names = sorted(needed_args.intersection(declared_variables_g1))
+        extra_args = [(name, declared_variables_g1[name].typ.resolve_type(codegen))
+            for name in extra_args_names]
+
+        # which variables are declared in g1, and also assigned to in g2
+        # make a copy to not mutate blocks
+        transferstartblock = g2[transferpc] = g2[transferpc][:]
+        for declvar in assignment_targets.intersection(declared_variables_g1):
+            transferstartblock.insert(0, declared_variables_g1[declvar])
+
+        with self._scope(codegen, self.pyname):
+            args = self.args + extra_args_names
+            next_call = "return %s(machine, %s)" % (next_func_name, ", ".join(args))
+            g1[transferpc] = [next_call]
+            self._emit_blocks(g1, codegen, entrycounts)
+        with self._scope(codegen, next_func_name, extra_args=extra_args):
+            self._emit_blocks(g2, codegen, entrycounts, startpc=transferpc)
 
     def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
         codegen.emit("pc = %s" % startpc)
         with codegen.emit_indent("while 1:"):
+            prefix = ''
             for blockpc, block in sorted(blocks.items()):
                 if block == [None]:
                     # inlined by emit_block_ops
                     continue
-                with codegen.emit_indent("if pc == %s:" % blockpc):
+                with codegen.emit_indent("%sif pc == %s:" % (prefix, blockpc)):
                     self.emit_block_ops(block, codegen, entrycounts, blockpc, blocks)
+                prefix = 'el'
+            with codegen.emit_indent("else:"):
+                codegen.emit("assert 0, 'should be unreachable'")
 
     def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
+        if isinstance(block[0], str):
+            # bit hacky: just emit it
+            assert len(block) == 1
+            codegen.emit(block[0])
+            return
         for i, op in enumerate(block):
             if (isinstance(op, parse.LocalVarDeclaration) and
                     i + 1 < len(block) and

@@ -502,7 +502,10 @@ class RefAssignment(StatementWithSourcePos):
     def replace_var(self, var, expr):
         return RefAssignment(self.ref.replace_var(var, expr), self.value, self.sourcepos)
 
-class End(Statement):
+class FunctionEndingStatement(StatementWithSourcePos):
+    pass
+
+class End(FunctionEndingStatement):
     end_of_block = True
 
     def find_used_vars(self):
@@ -511,7 +514,7 @@ class End(Statement):
     def replace_var(self, var, expr):
         xxx
 
-class Exit(StatementWithSourcePos):
+class Exit(FunctionEndingStatement):
     end_of_block = True
 
     def __init__(self, kind, sourcepos=None):
@@ -524,7 +527,7 @@ class Exit(StatementWithSourcePos):
     def replace_var(self, var, expr):
         xxx
 
-class Arbitrary(Statement):
+class Arbitrary(FunctionEndingStatement):
     end_of_block = True
 
     def find_used_vars(self):

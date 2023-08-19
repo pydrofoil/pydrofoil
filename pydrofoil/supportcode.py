@@ -243,7 +243,7 @@ def append_64(machine, bv, v):
     return bv.append_64(v)
 
 @unwrap("o i o")
-@objectmodel.specialize.argtype(1)
+@objectmodel.specialize.argtype(1, 3)
 def vector_update(machine, bv, index, element):
     if isinstance(bv, list):
         res = bv[:] # XXX Sail C does this without a copy
@@ -530,6 +530,7 @@ def sail_assert(cond, st):
     if not objectmodel.we_are_translated() and not cond:
         import pdb; pdb.set_trace()
     assert cond, st
+    return ()
 
 def print_endline(machine, s):
     print s
@@ -547,6 +548,7 @@ def undefined_unit(machine, _):
 
 # list weirdnesses
 
+@objectmodel.specialize.argtype(1)
 def internal_pick(machine, lst):
     return lst.head
 

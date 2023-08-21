@@ -475,7 +475,7 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, entrycounts, codegen)
             return
-        if len(blocks) > 10:
+        if len(blocks) > 2000:
             print "splitting", self.name
             try:
                 self._split_function(blocks, entrycounts, codegen)
@@ -647,7 +647,7 @@ class __extend__(parse.Function):
 
     def _split_function(self, blocks, entrycounts, codegen):
         from pydrofoil import optimize
-        g1, g2, transferpc = optimize.split_graph(blocks, 5)
+        g1, g2, transferpc = optimize.split_graph(blocks, len(blocks) * 0.40)
         next_func_name = self.pyname + "_next_" + str(transferpc)
         # compute the local variables that are declared in g1 and used in g2,
         # they become extra arguments

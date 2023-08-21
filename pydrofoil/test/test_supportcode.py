@@ -334,8 +334,8 @@ def test_abs_int():
 
 def test_rshift_int():
    for c in bi, si:
-       assert si(0b1010001).rshift(2).tobigint().tolong() == 0b10100
-       assert si(-0b1010001).rshift(3).tobigint().tolong() == 12
+       assert c(0b1010001).rshift(2).tobigint().tolong() == 0b10100
+       assert c(-0b1010001).rshift(3).tobigint().tolong() == -11
 
         
 # softfloat

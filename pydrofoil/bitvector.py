@@ -97,7 +97,7 @@ class SmallBitVector(BitVectorWithSize):
         return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().sub(i.tobigint())))
 
     def print_bits(self):
-        print self.__repr__()
+        print(self.__repr__())
 
     def lshift(self, i):
         assert i >= 0
@@ -110,6 +110,18 @@ class SmallBitVector(BitVectorWithSize):
         if i >= self.size():
             return self.make(r_uint(0))
         return self.make(self.val >> i)
+    
+    def arith_shiftr(self, i):
+        assert i >= 0
+        if i == 0:
+            return self
+        if self.read_bit(self._size - 1) == 0:
+            return self.rshift(i)
+        val_new = (-self.val)/(2**i)
+        
+        return (SmallBitVector(self._size, -val_new) if (-self.val)%(2**i) == 0 else SmallBitVector(self._size, -val_new-1)) if i < self._size\
+        else SmallBitVector(self._size, (r_uint(1) << self._size) -1)
+
 
     def lshift_bits(self, other):
         return self.lshift(other.toint())
@@ -234,6 +246,19 @@ class GenericBitVector(BitVectorWithSize):
 
     def rshift(self, i):
         return self.make(self._size_mask(self.rval.rshift(i)))
+    
+    def arith_shiftr(self, i):
+        if i < 0:
+            raise ValueError("negative shift count")
+        if i == 0:
+            return self
+        if self.rval.int_gt(0):
+            return self.rshift(i)
+        rval_new, rval_mod = self.rval.neg().divmod(rbigint.fromint(2).int_pow(i))
+        # return self.make(self._size_mask(rval_new.neg()) if rval_mod.int_eq(0) else self.make(self._size_mask(rval_new.neg().int_sub(1)))) if i < self._size\
+        # else self.make(self._size_mask(rbigint.fromint(1).lshift(rbigint.fromstr(str(self._size))).int_sub(1)))
+        return (GenericBitVector(self._size, rval_new.neg()) if rval_mod.int_eq(0) else GenericBitVector(self._size, rval_new.neg().int_sub(1))) if i < self._size \
+        else GenericBitVector(self._size, rbigint.fromint(1).lshift(rbigint.fromstr(str(self._size))).int_sub(1))
 
     def lshift_bits(self, other):
         return self.make(self._size_mask(self.rval.lshift(other.toint())))

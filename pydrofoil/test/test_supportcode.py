@@ -2,8 +2,8 @@ import pytest
 
 from pydrofoil import supportcode
 from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
-
+from pydrofoil.bitvector import Integer, SmallInteger, BigInteger, SmallBitVector, GenericBitVector
+from hypothesis import given, strategies as st, assume, example, settings
 from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
 from rpython.rlib.rbigint import rbigint
 
@@ -552,3 +552,165 @@ def test_softfloat_ui64tof64():
     machine = DummyMachine()
     supportcode.softfloat_ui64tof64(machine, 0, 0b0000000000000000000000000000000000000000000000000000000000000101)
     assert machine._reg_zfloat_result == 0b0100000000010100000000000000000000000000000000000000000000000000
+
+
+def test_smallbitvector():
+    x = SmallBitVector(4, r_uint(4))
+    # 1011 --> 1100 --> 1101
+    assert x.read_bit(0) == 0
+    assert x.read_bit(1) == 0
+    assert x.read_bit(2) == 1
+    assert x.read_bit(3) == 0
+    x = x.arith_shiftr(1)
+    assert x.read_bit(0) == 0
+    assert x.read_bit(1) == 1
+    assert x.read_bit(2) == 0
+    assert x.read_bit(3) == 0
+    x = SmallBitVector(4, r_uint(-4))
+    # 1100 --> 1011 --> 1100
+    assert x.read_bit(0) == 0
+    assert x.read_bit(1) == 0
+    assert x.read_bit(2) == 1
+    assert x.read_bit(3) == 1
+    x = x.arith_shiftr(1)
+    assert x.read_bit(0) == 0
+    assert x.read_bit(1) == 1
+    assert x.read_bit(2) == 1
+    assert x.read_bit(3) == 1
+    assert x.eq(SmallBitVector(4, r_uint(-2))) == True
+    x = SmallBitVector(4, r_uint(3))
+    x = x.arith_shiftr(1)
+    assert x.read_bit(0) == 1
+    assert x.read_bit(1) == 0
+    assert x.read_bit(2) == 0
+    assert x.read_bit(3) == 0
+    x = SmallBitVector(4, r_uint(-3))
+    # 1011 --> 1100 --> 1101
+    assert x.read_bit(0) == 1
+    assert x.read_bit(1) == 0
+    assert x.read_bit(2) == 1
+    assert x.read_bit(3) == 1
+    x = x.arith_shiftr(1)
+    assert x.read_bit(0) == 0
+    assert x.read_bit(1) == 1
+    assert x.read_bit(2) == 1
+    assert x.read_bit(3) == 1
+    assert x.eq(SmallBitVector(4, r_uint(-2))) == True
+    x = SmallBitVector(6, r_uint(-7))
+    # 100111 --> 111000 --> 111001
+    assert x.read_bit(0) == 1
+    assert x.read_bit(1) == 0
+    assert x.read_bit(2) == 0
+    assert x.read_bit(3) == 1
+    assert x.read_bit(4) == 1
+    assert x.read_bit(5) == 1
+    x = x.arith_shiftr(2)
+    assert x.read_bit(0) == 0
+    assert x.read_bit(1) == 1
+    assert x.read_bit(2) == 1
+    assert x.read_bit(3) == 1
+    assert x.read_bit(4) == 1
+    assert x.read_bit(5) == 1
+    assert x.eq(SmallBitVector(6, r_uint(-2)))
+    x = SmallBitVector(4, r_uint(-1))
+    x = x.arith_shiftr(5)
+    assert x.read_bit(0) == 1
+    assert x.read_bit(1) == 1
+    assert x.read_bit(2) == 1
+    assert x.read_bit(3) == 1
+    x = SmallBitVector(4, r_uint(-1))
+    # 1001 --> 1110 --> 1111
+    x = x.arith_shiftr(2)
+    assert x.read_bit(0) == 1
+    assert x.read_bit(1) == 1
+    assert x.read_bit(2) == 1
+    assert x.read_bit(3) == 1
+    x = SmallBitVector(4, r_uint(0))
+    assert x.read_bit(0) == 0
+    assert x.read_bit(1) == 0
+    assert x.read_bit(2) == 0
+    assert x.read_bit(3) == 0
+    x = SmallBitVector(4, r_uint(17))
+    assert x.read_bit(0) == 1
+    assert x.read_bit(1) == 0
+    assert x.read_bit(2) == 0
+    assert x.read_bit(3) == 0 
+    a = -6
+    # assert str(bin(abs(a)))[2:] == "111"
+    val_bin = abs(a)
+    length = len(bin(val_bin))-2
+    val_bin = (val_bin ^ ((1 << len(bin(val_bin)[2:])) -1)) + 1
+    val_str = "0"*(length-len(bin(val_bin)[2:]))+bin(val_bin)[2:]
+    assert val_str == "010"
+
+def test_genericbitvector():
+    x = GenericBitVector(4, rbigint.fromint(4))
+    assert x.read_bit(0) == 0
+    assert x.read_bit(1) == 0
+    assert x.read_bit(2) == 1
+    assert x.read_bit(3) == 0
+    # x = GenericBitVector(3, rbigint.fromint(-2))
+    # x = x.arith_shiftr(2)
+    # assert x.read_bit(0) == 1
+    x = GenericBitVector(3, rbigint.fromint(-2))
+    # 1010 --> 1101 --> 1110
+    assert x.read_bit(0) == 0
+    assert x.read_bit(1) == 1
+    assert x.read_bit(2) == 1
+
+
+@given(st.integers(min_value = -2**63, max_value = 2**63-1), st.integers(min_value = 0, max_value = 64), st.integers(min_value = 0, max_value = 65))
+def test_arith_shiftr_smallbitvector_hypothesis(val, size, n):
+    if val < 0:
+        val_new = abs(val)
+        length = len(bin(val_new))-2
+        val_new = (val_new ^ ((1 << len(bin(val_new)[2:])) - 1)) + 1
+        val_bin = "0"*(length-len(bin(val_new)[2:]))+bin(val_new)[2:]
+    else:
+        val_bin = bin(val)[2:]
+    size_zero = size % (63 - len(val_bin)) if len(val_bin) > 63 else 0
+    val_bin = "1"+"0"*size_zero+val_bin if val < 0 else ("0"+"0"*size_zero+val_bin if val > 0 else "0")
+    x = SmallBitVector(len(val_bin), r_uint(val))
+    x = x.arith_shiftr(n)
+    if val == 0:
+        # assert x == SmallBitVector(len(val_bin), r_uint(val))
+        assert x.toint() == 0
+        # assert SmallBitVector(len(val_bin), r_uint(val)) == SmallBitVector(len(val_bin), r_uint(val))
+    elif n > len(val_bin) and val > 0:
+        for i in range(0, len(val_bin)):
+            assert x.read_bit(i) == int(0)
+    elif n > len(val_bin) and val < 0:
+        for i in range(0, len(val_bin)):
+            assert x.read_bit(i) == int(1)
+    else:
+        val_bin = val_bin[0]*n + val_bin[0:(len(val_bin)-n)]
+        for i in range(0, len(val_bin)):
+            assert x.read_bit(i) == int(val_bin[len(val_bin)-1-i])
+
+# @given(st.integers(), st.integers(min_value = 0, max_value = 64), st.integers(min_value = 0))
+# def test_arith_shiftr_genericbitvector_hypothesis(val, size_zero, n):
+#     if val < 0:
+#         val_new = abs(val)
+#         length = len(bin(val_new))-2
+#         val_new = (val_new ^ ((1 << len(bin(val_new)[2:])) - 1)) + 1
+#         val_bin = "0"*(length-len(bin(val_new)[2:]))+bin(val_new)[2:]
+#     else:
+#         val_bin = bin(val)[2:]
+#     val_bin = "1"+"0"*size_zero+val_bin if val < 0 else ("0"+"0"*size_zero+val_bin if val > 0 else "0")
+#     x = GenericBitVector(len(val_bin), rbigint.fromlong(val))
+#     x = x.arith_shiftr(n)
+#     if val == 0:
+#         # assert x == SmallBitVector(len(val_bin), r_uint(val))
+#         assert x.toint() == 0
+#         # assert SmallBitVector(len(val_bin), r_uint(val)) == SmallBitVector(len(val_bin), r_uint(val))
+#     elif n > len(val_bin) and val > 0:
+#         for i in range(0, len(val_bin)):
+#             assert x.read_bit(i) == int(0)
+#     elif n > len(val_bin) and val < 0:
+#         for i in range(0, len(val_bin)):
+#             assert x.read_bit(i) == int(1)
+#     else:
+#         val_bin = val_bin[0]*n + val_bin[0:(len(val_bin)-n)]
+#         for i in range(0, len(val_bin)):
+#             assert x.read_bit(i) == int(val_bin[len(val_bin)-1-i])
+        

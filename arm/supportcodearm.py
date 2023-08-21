@@ -1,16 +1,12 @@
 from rpython.rlib import jit
 from pydrofoil import mem as mem_mod
 from pydrofoil.supportcode import *
+from pydrofoil.supportcode import Globals as BaseGlobals
 
 # globals etc
 
 def get_main(outarm):
-    class Machine(outarm.Machine):
-        _immutable_fields_ = ['g']
-
-        def __init__(self):
-            outarm.Machine.__init__(self)
-            self.g = Globals()
+    Machine = outarm.Machine
 
     def main(argv):
         from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
@@ -25,12 +21,10 @@ def get_main(outarm):
     return main
 
 
-class Globals(object):
+class Globals(BaseGlobals):
     def __init__(self):
+        BaseGlobals.__init__(self)
         self.cycle_count = 0
-        self.mem = mem_mod.BlockMemory()
-
-#
 
 
 def make_dummy(name):
@@ -78,24 +72,3 @@ def get_cycle_count(machine, _):
 
 def sail_get_verbosity(machine, _):
     return r_uint(1)
-
-def read_mem(machine, address):
-    return machine.g.mem.read(address, 1)
-
-def write_mem(machine, address, data):
-    machine.g.mem.write(address, 1, data)
-    return ()
-
-def platform_read_mem(machine, read_kind, addr_size, addr, n):
-    n = n.toint()
-    assert addr_size in (64, 32)
-    res = machine.g.mem.read(addr.touint(), n)
-    return bitvector.SmallBitVector(n*8, res)
-
-def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
-    n = n.toint()
-    assert addr_size in (64, 32)
-    assert data.size() == n * 8
-    jit.promote(machine.g).mem.write(addr.touint(), n, data.touint())
-    return ()
-

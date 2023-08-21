@@ -182,7 +182,10 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit("from pydrofoil.bitvector import Integer")
         c.emit("class Lets(supportcode.LetsBase): pass")
         c.emit("class Machine(supportcode.RegistersBase):")
-        c.emit("    def __init__(self): self.l = Lets(); model_init(self)")
+        c.emit("    _immutable_fields_ = ['g']")
+        c.emit("    def __init__(self):")
+        c.emit("        self.l = Lets(); model_init(self)")
+        c.emit("        self.g = supportcode.Globals()")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     try:
         ast.make_code(c)

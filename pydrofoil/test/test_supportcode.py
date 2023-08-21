@@ -1172,3 +1172,61 @@ def test_real_sqrt_hypothesis(a):
     assert math.sqrt(a) == x.num.truediv(x.den)
     num, den = float_as_rbigint_ratio(math.sqrt(a))
     assert max(len(x.num.str()), len(x.den.str())) >= max(len(num.str()), len(den.str()))
+
+# memory
+
+class FakeMachine(object):
+    def __init__(self):
+        self.g = supportcode.Globals()
+
+def test_read_write_mem():
+    m = FakeMachine()
+    for i in range(100):
+        supportcode.write_mem(m, r_uint(i), r_uint((i * i) & 0xff))
+    for i in range(100):
+        supportcode.write_mem(m, r_uint(i + 0x80000000), r_uint((-i * i) & 0xff))
+    for i in range(100):
+        assert supportcode.read_mem(m, r_uint(i)) == r_uint((i * i) & 0xff)
+    for i in range(100):
+        assert supportcode.read_mem(m, r_uint(i + 0x80000000)) == r_uint((-i * i) & 0xff)
+
+def test_platform_read_write_mem():
+    m = FakeMachine()
+    # here some of the arguments are BitVector/Integer instances
+    read_kind = "read" # they are ignored for now, so use dummy strings
+    write_kind = "write"
+    for i in range(100):
+        supportcode.platform_write_mem(
+            m,
+            write_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i)),
+            Integer.fromint(1),
+            bitvector.from_ruint(8, r_uint((i * i) & 0xff)))
+    for i in range(100):
+        supportcode.platform_write_mem(
+            m,
+            write_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i + 0x80000000)),
+            Integer.fromint(1),
+            bitvector.from_ruint(8, r_uint((-i * i) & 0xff)))
+    for i in range(100):
+        res = supportcode.platform_read_mem(
+            m,
+            read_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i)),
+            Integer.fromint(1))
+        assert res.touint() == r_uint((i * i) & 0xff)
+        assert res.size() == 8
+    for i in range(100):
+        res = supportcode.platform_read_mem(
+            m,
+            read_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i + 0x80000000)),
+            Integer.fromint(1))
+        assert res.touint() == r_uint((-i * i) & 0xff)
+        assert res.size() == 8
+

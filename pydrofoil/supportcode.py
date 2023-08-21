@@ -1,6 +1,6 @@
 import os
 
-from rpython.rlib import objectmodel, unroll
+from rpython.rlib import objectmodel, unroll, jit
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pydrofoil import bitvector
@@ -874,6 +874,30 @@ def softfloat_f64muladd(machine, rm, v1, v2, v3):
     machine._reg_zfloat_fflags = softfloat.get_exception_flags()
     return 0
 
+# memory emulation
+
+
+def read_mem(machine, address):
+    return machine.g.mem.read(address, 1)
+
+def write_mem(machine, address, data):
+    machine.g.mem.write(address, 1, data)
+    return ()
+
+def platform_read_mem(machine, read_kind, addr_size, addr, n):
+    n = n.toint()
+    assert addr_size in (64, 32)
+    res = machine.g.mem.read(addr.touint(), n)
+    return bitvector.SmallBitVector(n*8, res)
+
+def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
+    n = n.toint()
+    assert addr_size in (64, 32)
+    assert data.size() == n * 8
+    jit.promote(machine.g).mem.write(addr.touint(), n, data.touint())
+    return ()
+
+
 # argument handling
 
 def parse_args(argv, shortname, longname="", want_arg=True):
@@ -908,3 +932,9 @@ class ObjectBase(object):
 
 class LetsBase(object):
     _attrs_ = []
+
+class Globals(object):
+    def __init__(self):
+        from pydrofoil import mem as mem_mod
+        self.mem = mem_mod.BlockMemory()
+

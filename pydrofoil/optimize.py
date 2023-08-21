@@ -762,11 +762,10 @@ def split_graph(blocks, min_size=6):
     # split graph, starting from exit edges (ie an edge going to a block
     # ending with End)
     graph1 = {}
+    last_working_graph1 = None
     while 1:
         # approach: from the edge going to the 'End' node, extend by adding
         # predecessors up to fixpoint
-        if not return_edges:
-            raise CantSplitError # didn't manage to split
         source, target = return_edges.pop()
         preds = compute_predecessors(G)
         graph1[target] = blocks[target]
@@ -788,11 +787,20 @@ def split_graph(blocks, min_size=6):
                     graph1[succ] = blocks[succ]
                 else:
                     transfer_nodes.add(succ)
-        if len(graph1) == len(blocks):
+        if len(transfer_nodes) == 1:
+            last_working_graph1 = graph1.copy()
+            last_transfer_nodes = transfer_nodes.copy()
+            if len(graph1) > min_size:
+                break
+        if len(graph1) == len(blocks) or not return_edges:
             # didn't manage to split
+            if last_working_graph1:
+                print "going back to earlier result, size", len(last_working_graph1)
+                graph1 = last_working_graph1
+                transfer_nodes = last_transfer_nodes
+                break
+            import pdb; pdb.set_trace()
             raise CantSplitError
-        if len(graph1) > min_size and len(transfer_nodes) == 1:
-            break
     # compute graph2
     graph2 = {}
     for node in G:

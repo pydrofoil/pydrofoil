@@ -692,9 +692,9 @@ class __extend__(parse.Function):
                     continue
                 with codegen.emit_indent("%sif pc == %s:" % (prefix, blockpc)):
                     self.emit_block_ops(block, codegen, entrycounts, blockpc, blocks)
-                prefix = 'el'
-            with codegen.emit_indent("else:"):
-                codegen.emit("assert 0, 'should be unreachable'")
+                #prefix = 'el'
+            #with codegen.emit_indent("else:"):
+            #    codegen.emit("assert 0, 'should be unreachable'")
 
     def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
         if isinstance(block[0], str):

@@ -478,7 +478,7 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, entrycounts, codegen)
             return
-        if len(blocks) > 2000:
+        if len(blocks) > 200:
             print "splitting", self.name
             try:
                 self._split_function(blocks, entrycounts, codegen)
@@ -650,35 +650,52 @@ class __extend__(parse.Function):
 
     def _split_function(self, blocks, entrycounts, codegen):
         from pydrofoil import optimize
-        g1, g2, transferpc = optimize.split_graph(blocks, len(blocks) * 0.40)
-        next_func_name = self.pyname + "_next_" + str(transferpc)
-        # compute the local variables that are declared in g1 and used in g2,
-        # they become extra arguments
-        declared_variables_g1 = {}
-        for blockpc, op in iterblockops(g1):
-            if isinstance(op, parse.LocalVarDeclaration):
-                declared_variables_g1[op.name] = op
-        needed_args = set()
-        assignment_targets = set()
-        for blockpc, op in iterblockops(g2):
-            needed_args.update(op.find_used_vars())
-            if isinstance(op, parse.Assignment):
-                assignment_targets.add(op.result)
-        extra_args_names = sorted(needed_args.intersection(declared_variables_g1))
-        extra_args = [(name, declared_variables_g1[name].typ.resolve_type(codegen))
-            for name in extra_args_names]
-
-        # which variables are declared in g1, and also assigned to in g2
-        # make a copy to not mutate blocks
-        transferstartblock = g2[transferpc] = g2[transferpc][:]
-        for declvar in assignment_targets.intersection(declared_variables_g1):
-            transferstartblock.insert(0, declared_variables_g1[declvar])
-
+        blocks = {pc: ops[:] for (pc, ops) in blocks.iteritems()}
         with self._scope(codegen, self.pyname):
-            args = self.args + extra_args_names
-            next_call = "return %s(machine, %s)" % (next_func_name, ", ".join(args))
-            g1[transferpc] = [next_call]
-            self._emit_blocks(g1, codegen, entrycounts)
+            args = self.args
+            next_func_name = self.pyname + "_next_0"
+            codegen.emit("return %s(machine, %s)" % (next_func_name, ", ".join(args)))
+        args = self.args
+        prev_extra_args = []
+        startpc = 0
+        while len(blocks) > 100:
+            g1, g2, transferpc = optimize.split_graph(blocks, 80, start_node=startpc)
+            print "previous size", len(blocks), "afterwards:", len(g1), len(g2)
+            # compute the local variables that are declared in g1 and used in g2,
+            # they become extra arguments
+            declared_variables_g1 = {}
+            for blockpc, op in iterblockops(g1):
+                if isinstance(op, parse.LocalVarDeclaration):
+                    declared_variables_g1[op.name] = op.typ.resolve_type(codegen)
+            for argname, typ in prev_extra_args:
+                declared_variables_g1[argname] = typ
+            needed_args = set()
+            assignment_targets = set()
+            for blockpc, op in iterblockops(g2):
+                needed_args.update(op.find_used_vars())
+                if isinstance(op, parse.Assignment):
+                    assignment_targets.add(op.result)
+            extra_args_names = sorted(needed_args.intersection(declared_variables_g1))
+            extra_args = [(name, declared_variables_g1[name]) for name in extra_args_names]
+
+            # which variables are declared in g1, and also assigned to in g2,
+            # but aren't arguments?
+            need_declaration = assignment_targets.intersection(declared_variables_g1) - set(args) - set(extra_args_names)
+            assert not need_declaration
+            # make a copy to not mutate blocks
+            #transferstartblock = g2[transferpc] = g2[transferpc][:]
+            #for declvar in need_declaration:
+            #    transferstartblock.insert(0, declared_variables_g1[declvar])
+
+            with self._scope(codegen, next_func_name, extra_args=prev_extra_args):
+                callargs = args + extra_args_names
+                next_func_name = self.pyname + "_next_" + str(transferpc)
+                next_call = "return %s(machine, %s)" % (next_func_name, ", ".join(callargs))
+                g1[transferpc] = [next_call]
+                self._emit_blocks(g1, codegen, entrycounts, startpc=startpc)
+            prev_extra_args = extra_args
+            blocks = g2
+            startpc = transferpc
         with self._scope(codegen, next_func_name, extra_args=extra_args):
             self._emit_blocks(g2, codegen, entrycounts, startpc=transferpc)
 

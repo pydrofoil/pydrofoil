@@ -753,11 +753,11 @@ def view_blocks(blocks):
 class CantSplitError(Exception):
     pass
 
-def split_graph(blocks, min_size=6):
+def split_graph(blocks, min_size=6, start_node=0):
     G = _extract_graph(blocks)
     return_blocks = {num for (num, block) in blocks.iteritems() if isinstance(block[-1], parse.End)}
     end_blocks = {num for (num, block) in blocks.iteritems() if isinstance(block[-1], parse.FunctionEndingStatement)}
-    return_edges = [(source, target) for (source, target) in bfs_edges(G) if target in return_blocks]
+    return_edges = [(source, target) for (source, target) in bfs_edges(G, start_node) if target in return_blocks]
     return_edges.reverse()
     # split graph, starting from exit edges (ie an edge going to a block
     # ending with End)
@@ -813,7 +813,6 @@ def split_graph(blocks, min_size=6):
                 graph1 = last_working_graph1
                 transfer_nodes = last_transfer_nodes
                 break
-            import pdb; pdb.set_trace()
             raise CantSplitError
     # compute graph2
     graph2 = {}

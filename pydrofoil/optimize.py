@@ -787,6 +787,20 @@ def split_graph(blocks, min_size=6):
                     graph1[succ] = blocks[succ]
                 else:
                     transfer_nodes.add(succ)
+        # try to remove some transfer nodes, if they are themselves only a
+        # single block away from an end_blocks (happens with exceptions)
+        for node in list(transfer_nodes):
+            if len(G[node]) > 1:
+                continue
+            succ, = G[node]
+            if succ not in end_blocks:
+                continue
+            graph1[node] = blocks[node]
+            graph1[succ] = blocks[succ]
+            transfer_nodes.remove(node)
+
+        # if we only have a single transfer_node left, we have a potential
+        # split
         if len(transfer_nodes) == 1:
             last_working_graph1 = graph1.copy()
             last_transfer_nodes = transfer_nodes.copy()

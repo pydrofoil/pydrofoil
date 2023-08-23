@@ -124,7 +124,7 @@ def add_bits_int_bv_i(machine, a, width, b):
     return _add_bits_int_bv_i_slow(a, width, b)
 
 def _add_bits_int_bv_i_slow(a, width, b):
-    return bitvector.from_ruint(width, a).add_int(bitvector.SmallInteger.fromint(b))
+    return bitvector.from_ruint(width, a).add_int(bitvector.SmallInteger.fromint(b)).touint()
 
 @objectmodel.always_inline
 def add_bits(machine, a, b):

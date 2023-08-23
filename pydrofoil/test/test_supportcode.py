@@ -205,6 +205,12 @@ def test_add_int():
         assert bv(6, 0b11).add_int(c(0b111111111)).touint() == (0b11 + 0b111111111) & 0b111111
         assert gbv(6000, 0b11).add_int(c(0b111111111)).touint() == 0b11 + 0b111111111
 
+def test_add_bits_int_bv_i():
+    assert supportcode.add_bits_int_bv_i(None, r_uint(0b11), 6, 0b111111111) == (0b11 + 0b111111111) & 0b111111
+    assert supportcode.add_bits_int_bv_i(None, r_uint(0b11), 6, -0b111111111) == (0b11 - 0b111111111) & 0b111111
+    assert supportcode.add_bits_int_bv_i(None, r_uint(0b1011), 6, -2 ** 63) == (0b1011 - 2**63) & 0b111111
+
+
 def test_bv_bitwise():
     for c in gbv, bv:
         i1 = c(8, 0b11110000)

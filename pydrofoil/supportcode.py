@@ -890,15 +890,43 @@ def write_mem(machine, address, data):
 def platform_read_mem(machine, read_kind, addr_size, addr, n):
     n = n.toint()
     assert addr_size in (64, 32)
-    res = machine.g.mem.read(addr.touint(), n)
-    return bitvector.SmallBitVector(n*8, res)
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        res = mem.read(addr, n)
+        return bitvector.SmallBitVector(n*8, res)
+    else:
+        return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
+
+def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
+    value = None
+    if not objectmodel.we_are_translated():
+        import pdb; pdb.set_trace()
+    for i in range(n - 1, -1, -1):
+        nextbyte = bitvector.SmallBitVector(8, mem.read(addr + i, 1, False)) # XXX executable_flag
+        if value is None:
+            value = nextbyte
+        else:
+            value = value.append(nextbyte)
+    return value
 
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
     n = n.toint()
     assert addr_size in (64, 32)
     assert data.size() == n * 8
-    jit.promote(machine.g).mem.write(addr.touint(), n, data.touint())
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        mem.write(addr, n, data.touint())
+    else:
+        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
     return ()
+
+def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
+    print "write of size", n, "not supported yet!"
+    if not objectmodel.we_are_translated():
+        import pdb; pdb.set_trace()
+    raise TypeError
 
 
 # argument handling

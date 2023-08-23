@@ -1236,3 +1236,32 @@ def test_platform_read_write_mem():
         assert res.touint() == r_uint((-i * i) & 0xff)
         assert res.size() == 8
 
+def test_platform_read_write_mem_large():
+    m = FakeMachine()
+    # here some of the arguments are BitVector/Integer instances
+    read_kind = "read" # they are ignored for now, so use dummy strings
+    write_kind = "write"
+    for i in range(100):
+        supportcode.platform_write_mem(
+            m,
+            write_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i)),
+            Integer.fromint(1),
+            bitvector.from_ruint(8, r_uint((i * i) & 0xff)))
+    res = supportcode.platform_read_mem(
+        m,
+        read_kind,
+        64,
+        bitvector.from_ruint(64, r_uint(0)),
+        Integer.fromint(8))
+    assert res.touint() == r_uint(0x3124191009040100L)
+    assert res.size() == 64
+    res = supportcode.platform_read_mem(
+        m,
+        read_kind,
+        64,
+        bitvector.from_ruint(64, r_uint(0)),
+        Integer.fromint(16))
+    assert res.tobigint().tolong() == 0xe1c4a990796451403124191009040100L
+    assert res.size() == 128

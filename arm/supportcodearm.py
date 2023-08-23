@@ -14,6 +14,8 @@ def get_main(outarm):
         machine = Machine()
         print "loading Linux kernel"
         supportcodearm.load_raw(machine, [r_uint(0x80000000), r_uint(0x81000000), r_uint(0x82080000)], ["arm/bootloader.bin", "arm/sail.dtb", "arm/Image"])
+        armmain.mod.func_z__SetConfig(machine, "cpu.cpu0.RVBAR", bitvector.Integer.fromint(0x80000000))
+        armmain.mod.func_z__SetConfig(machine, "cpu.has_tlb", bitvector.Integer.fromint(0x0))
         print "done, starting main"
         outarm.func_zmain(machine, ())
         return 0

@@ -565,6 +565,7 @@ def vector_update_inplace(machine, res, l, index, element):
     l[index] = element
     return l
 
+@objectmodel.specialize.argtype(2)
 def undefined_vector(machine, size, element):
     return [element] * size.toint()
 

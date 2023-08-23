@@ -478,7 +478,7 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, entrycounts, codegen)
             return
-        if len(blocks) > 200:
+        if len(blocks) > 500:
             print "splitting", self.name
             try:
                 self._split_function(blocks, entrycounts, codegen)
@@ -658,8 +658,8 @@ class __extend__(parse.Function):
         args = self.args
         prev_extra_args = []
         startpc = 0
-        while len(blocks) > 100:
-            g1, g2, transferpc = optimize.split_graph(blocks, 80, start_node=startpc)
+        while len(blocks) > 200:
+            g1, g2, transferpc = optimize.split_graph(blocks, 180, start_node=startpc)
             print "previous size", len(blocks), "afterwards:", len(g1), len(g2)
             # compute the local variables that are declared in g1 and used in g2,
             # they become extra arguments

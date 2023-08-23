@@ -34,7 +34,7 @@ def target(driver, cmdlineargs):
 if __name__ == '__main__':
     import sys
     try:
-        target()(sys.argv)
+        target(None, [])(sys.argv)
     except:
         import pdb;pdb.xpm()
         raise

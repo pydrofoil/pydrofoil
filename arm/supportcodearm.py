@@ -38,9 +38,6 @@ def make_dummy(name):
     globals()[name] = dummy
 
 
-def sail_get_verbosity(machine, _):
-    return 0 # XXX for now
-
 def platform_branch_announce(machine, *args):
     return ()
 
@@ -71,4 +68,4 @@ def get_cycle_count(machine, _):
     return bitvector.Integer.fromint(machine.g.cycle_count)
 
 def sail_get_verbosity(machine, _):
-    return r_uint(1)
+    return r_uint(0xffff)

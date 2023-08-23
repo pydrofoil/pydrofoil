@@ -248,8 +248,8 @@ def vector_update(machine, bv, index, element):
     return bv.update_bit(index, element)
 
 @objectmodel.specialize.argtype(1, 3)
-def _vector_update_list_o_i_o(machine, vec, index, element):
-    res = bv[:] # XXX Sail C does this without a copy
+def helper_vector_update_list_o_i_o(machine, vec, index, element):
+    res = vec[:] # XXX Sail C does this without a copy
     res[index] = element
     return res
 

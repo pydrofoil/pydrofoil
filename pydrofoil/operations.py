@@ -148,4 +148,4 @@ class __extend__(types.Vec):
         return "%s[%s]" % tuple(sargs)
 
     def make_op_code_special_vector_update_o_i_o(self, ast, sargs, argtyps, restyp):
-        return "supportcode._vector_update_list_o_i_o(machine, %s)" % ", ".join(sargs)
+        return "supportcode.helper_vector_update_list_o_i_o(machine, %s)" % ", ".join(sargs)

@@ -143,3 +143,9 @@ class __extend__(types.Real):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
         return "supportcode.eq_real(machine, %s, %s)" % (sarg1, sarg2)
 
+class __extend__(types.Vec):
+    def make_op_code_special_vector_access_o_i(self, ast, sargs, argtyps, restyp):
+        return "%s[%s]" % tuple(sargs)
+
+    def make_op_code_special_vector_update_o_i_o(self, ast, sargs, argtyps, restyp):
+        return "supportcode._vector_update_list_o_i_o(machine, %s)" % ", ".join(sargs)

@@ -245,11 +245,13 @@ def append_64(machine, bv, v):
 @unwrap("o i o")
 @objectmodel.specialize.argtype(1, 3)
 def vector_update(machine, bv, index, element):
-    if isinstance(bv, list):
-        res = bv[:] # XXX Sail C does this without a copy
-        res[index] = element
-        return res
     return bv.update_bit(index, element)
+
+@objectmodel.specialize.argtype(1, 3)
+def _vector_update_list_o_i_o(machine, vec, index, element):
+    res = bv[:] # XXX Sail C does this without a copy
+    res[index] = element
+    return res
 
 @unwrap("o i")
 @objectmodel.specialize.argtype(1)

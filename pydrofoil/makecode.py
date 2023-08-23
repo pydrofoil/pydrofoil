@@ -1019,8 +1019,9 @@ class __extend__(parse.OperationExpr):
             n = codegen.globalnames[name].pyname
             if n == "supportcode.eq_anything":
                 name = "@eq"
-            if n == "supportcode.cons":
+            elif n == "supportcode.cons":
                 return "%s(%s, %s)" % (restyp.pyname, sargs[0], sargs[1])
+
 
         if name.startswith("@"):
             meth = getattr(argtyps[0], "make_op_code_special_" + name[1:], None)

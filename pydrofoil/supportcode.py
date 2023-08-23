@@ -300,8 +300,9 @@ def string_of_bits(machine, gbv):
 def decimal_string_of_bits(machine, sbits):
     return str(sbits)
 
-def uint64c(machine, num):
-    import pdb; pdb.set_trace()
+def uint64c(num):
+    if not objectmodel.we_are_translated():
+        import pdb; pdb.set_trace()
     return bitvector.from_ruint(64, r_uint(num))
 
 def zeros(machine, num):

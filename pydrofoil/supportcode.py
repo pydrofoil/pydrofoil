@@ -900,8 +900,6 @@ def platform_read_mem(machine, read_kind, addr_size, addr, n):
 
 def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
     value = None
-    if not objectmodel.we_are_translated():
-        import pdb; pdb.set_trace()
     for i in range(n - 1, -1, -1):
         nextbyte = bitvector.SmallBitVector(8, mem.read(addr + i, 1, False)) # XXX executable_flag
         if value is None:
@@ -923,10 +921,16 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
     return ()
 
 def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
-    print "write of size", n, "not supported yet!"
-    if not objectmodel.we_are_translated():
-        import pdb; pdb.set_trace()
-    raise TypeError
+    #if not objectmodel.we_are_translated():
+    #    import pdb; pdb.set_trace()
+    start = 0
+    stop = 7
+    for i in range(n):
+        byte = data.subrange(stop, start)
+        mem.write(addr + i, 1, byte.touint())
+        stop += 8
+        start += 8
+    assert start == data.size()
 
 
 # argument handling

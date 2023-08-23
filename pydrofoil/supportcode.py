@@ -249,15 +249,14 @@ def vector_update(machine, bv, index, element):
 
 @objectmodel.specialize.argtype(1, 3)
 def helper_vector_update_list_o_i_o(machine, vec, index, element):
+    if vec is None:
+        raise TypeError
     res = vec[:] # XXX Sail C does this without a copy
     res[index] = element
     return res
 
 @unwrap("o i")
-@objectmodel.specialize.argtype(1)
 def vector_access(machine, vec, index):
-    if isinstance(vec, list):
-        return vec[index]
     return vec.read_bit(index)
 
 def vector_access_bv_i(machine, bv, index):

@@ -8,6 +8,7 @@ from pydrofoil.bitvector import Integer
 import pydrofoil.softfloat as softfloat
 from pydrofoil.real import Real
 
+STDOUT = 1
 STDERR = 2
 
 @objectmodel.specialize.call_location()
@@ -536,6 +537,9 @@ def print_endline(machine, s):
 def prerr_endline(machine, s):
     os.write(STDERR, s + "\n")
     return ()
+
+def sail_putchar(machine, i):
+    os.write(STDOUT, chr(i.toint() & 0xff))
 
 def undefined_bool(machine, _):
     return False

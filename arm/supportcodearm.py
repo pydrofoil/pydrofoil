@@ -1,3 +1,4 @@
+import time
 from rpython.rlib import jit
 from pydrofoil import mem as mem_mod
 from pydrofoil.supportcode import *
@@ -21,6 +22,31 @@ def check_file_missing(fn):
 
 def get_main(outarm):
     Machine = outarm.Machine
+
+    def get_printable_location(pc):
+        return hex(pc)
+
+    driver = jit.JitDriver(
+        get_printable_location=get_printable_location,
+        greens=['pc'],
+        reds='auto',
+        name="arm",
+        is_recursive=True)
+
+    step = outarm.func_zstep_model
+
+    def jitstep(machine, *args):
+        driver.jit_merge_point(pc=machine._reg_z_PC)
+        jit.promote(machine.g)
+        jit.promote(machine._reg_z_PC)
+        return step(machine, *args)
+    outarm.func_zstep_model = jitstep
+
+    setinstr = outarm.func_z__SetThisInstr
+    def jitsetinstr(machine, opcode):
+        jit.promote(opcode)
+        return setinstr(machine, opcode)
+    outarm.func_z__SetThisInstr = jitsetinstr
 
     def main(argv):
         from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
@@ -78,6 +104,7 @@ def get_main(outarm):
 
 
 class Globals(BaseGlobals):
+    _immutable_fields_ = ['max_cycle_count?', 'verbosity?']
     def __init__(self):
         BaseGlobals.__init__(self)
         self.cycle_count = 0

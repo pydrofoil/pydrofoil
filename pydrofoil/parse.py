@@ -1,3 +1,4 @@
+import sys
 from rply import LexerGenerator, LexingError, ParserGenerator, ParsingError
 from rply.token import BaseBox
 
@@ -766,7 +767,8 @@ counter = 0
 @pg.production('function : FN NAME LPAREN args RPAREN LBRACE operations RBRACE')
 def function(p):
     global counter
-    print "FUNCTION", counter, p[1].value
+    print "\033[1K\rFUNCTION", counter, p[1].value,
+    sys.stdout.flush()
     counter += 1
     return Function(p[1].value, p[3].args, p[6].collect())
 

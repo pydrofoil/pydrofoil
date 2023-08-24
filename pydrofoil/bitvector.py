@@ -132,6 +132,17 @@ class SmallBitVector(BitVectorWithSize):
             return self.make(r_uint(0))
         return self.make(self.val >> i)
 
+    def arith_rshift(self, i):
+        assert i >= 0
+        size = self.size()
+        if i >= size:
+            i = size
+        highest_bit = (self.val >> (size - 1)) & 1
+        res = self.val >> i
+        if highest_bit:
+            res |= ((r_uint(1) << i) - 1) << (size - i)
+        return SmallBitVector(size, res)
+
     def lshift_bits(self, other):
         return self.lshift(other.toint())
 
@@ -280,6 +291,18 @@ class GenericBitVector(BitVectorWithSize):
 
     def rshift(self, i):
         return self.make(self._size_mask(self.rval.rshift(i)))
+
+    def arith_rshift(self, i):
+        assert i >= 0
+        size = self.size()
+        if i >= size:
+            i = size
+        rval = self.rval
+        highest_bit = rval.rshift(size - 1).int_and_(1).toint()
+        res = rval.rshift(i)
+        if highest_bit:
+            res = res.or_(rbigint.fromint(1).lshift(i).int_sub(1).lshift(size - i))
+        return GenericBitVector(size, res)
 
     def lshift_bits(self, other):
         return self.make(self._size_mask(self.rval.lshift(other.toint())))

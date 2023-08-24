@@ -193,6 +193,10 @@ def shiftl_bv_i(machine, a, width, i):
 def shiftr(machine, gbv, i):
     return gbv.rshift(i)
 
+@unwrap("o i")
+def arith_shiftr(machine, gbv, i):
+    return gbv.arith_rshift(i)
+
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)
 

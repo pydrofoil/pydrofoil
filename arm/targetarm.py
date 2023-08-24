@@ -1,9 +1,12 @@
+import sys
 import os
 from os.path import dirname
 from pydrofoil.makecode import parse_and_make_code
 toplevel = dirname(dirname(__file__))
 armir = os.path.join(toplevel, "arm", "armv9.ir")
 outarm = os.path.join(toplevel, "arm", "generated", "outarm.py")
+
+sys.setrecursionlimit(20000) # otherwise jitcode writing fails
 
 def make_code(regen=True):
     from arm import supportcodearm

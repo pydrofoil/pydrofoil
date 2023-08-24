@@ -48,6 +48,10 @@ def get_main(outarm):
         return setinstr(machine, opcode)
     outarm.func_z__SetThisInstr = jitsetinstr
 
+    jit.dont_look_inside(outarm.func_zAArch32_AutoGen_ArchitectureReset)
+    jit.dont_look_inside(outarm.func_zAArch64_AutoGen_ArchitectureReset)
+    jit.dont_look_inside(outarm.func_zdecode_ADDVA_ZA_PP_Z_64)
+
     def main(argv):
         from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
         from arm import supportcodearm

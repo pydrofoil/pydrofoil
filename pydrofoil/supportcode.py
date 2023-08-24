@@ -61,8 +61,6 @@ make_dummy('string_take')
 make_dummy('string_startswith')
 make_dummy('sub_nat')
 make_dummy('undefined_int')
-make_dummy("prerr_int")
-make_dummy("sail_putchar")
 make_dummy("wakeup_request")
 make_dummy("set_slice_int")
 make_dummy("undefined_range")
@@ -394,6 +392,10 @@ def safe_rshift(machine, n, shift):
 
 def print_int(machine, s, i):
     print s + i.str()
+    return ()
+
+def prerr_int(machine, s, i):
+    os.write(STDERR, s + i.str() + "\n")
     return ()
 
 def not_(machine, b):

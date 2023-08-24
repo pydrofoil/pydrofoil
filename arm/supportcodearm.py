@@ -97,7 +97,7 @@ def get_main(outarm):
             outarm.func_zmain(machine, ())
         finally:
             t2 = time.time()
-            print "ran for %s(s), KIPS: %s" % (t2 - t1, machine.g.cycle_count / (t2 - t1))
+            print "ran for %s(s), %s instructions, KIPS: %s" % (t2 - t1, machine.g.cycle_count, machine.g.cycle_count / (t2 - t1))
         return 0
     main.mod = outarm
     return main

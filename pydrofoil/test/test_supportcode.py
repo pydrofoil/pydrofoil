@@ -376,6 +376,12 @@ def test_rshift_int():
        assert c(0b1010001).rshift(2).tobigint().tolong() == 0b10100
        assert c(-0b1010001).rshift(3).tobigint().tolong() == -11
 
+def test_emod_ediv_int():
+   for c in bi, si:
+       assert c(123875).emod(si(13)).toint() == 123875 % 13
+       assert c(123875).ediv(si(13)).toint() == 123875 // 13
+   assert bi(0xfffffe00411e0e90L).emod(si(64)).toint() == 16
+
 
 # softfloat
 

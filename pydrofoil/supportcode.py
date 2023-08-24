@@ -540,6 +540,7 @@ def prerr_endline(machine, s):
 
 def sail_putchar(machine, i):
     os.write(STDOUT, chr(i.toint() & 0xff))
+    return ()
 
 def undefined_bool(machine, _):
     return False

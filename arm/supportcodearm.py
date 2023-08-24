@@ -66,7 +66,12 @@ def get_main(outarm):
             outarm.func_z__SetConfig(machine, configname, bitvector.Integer.fromint(value))
         assert len(argv) == 1
         print "done, starting main"
-        outarm.func_zmain(machine, ())
+        t1 = time.time()
+        try:
+            outarm.func_zmain(machine, ())
+        finally:
+            t2 = time.time()
+            print "ran for %s(s), KIPS: %s" % (t2 - t1, machine.g.cycle_count / (t2 - t1))
         return 0
     main.mod = outarm
     return main

@@ -332,6 +332,28 @@ class OptVisitor(parse.Visitor):
         )
         return res
 
+    def optimize_slice_o_i_i(self, expr):
+        arg0, arg1, arg2 = expr.args
+        assert expr.resolved_type is types.GenericBitVector()
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_number(arg1)
+        arg2 = self._extract_number(arg2)
+        start = arg1.number
+        length = arg2.number
+        if length > 64:
+            return
+
+        res = parse.CastExpr(
+            parse.OperationExpr(
+                "@slice_fixed_bv_i_i",
+                [arg0, parse.Number(start + length - 1), parse.Number(start)],
+                types.SmallFixedBitVector(length),
+                expr.sourcepos,
+            ),
+            expr.resolved_type,
+        )
+        return res
+
     def optimize_vector_access_o_i(self, expr):
         arg0, arg1 = expr.args
         if isinstance(arg0.resolved_type, types.Vec):

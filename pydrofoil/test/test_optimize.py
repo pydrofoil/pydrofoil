@@ -965,6 +965,41 @@ def test_vector_access():
     )
 
 
+def test_slice():
+    lv1 = LocalVarDeclaration(
+        name="zv",
+        typ=NamedType(name="%bv32"),
+        value=None,
+        # resolved_type=types.SmallFixedBitVector(32)
+    )
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=Var(name="zv", resolved_type=types.SmallFixedBitVector(32)),
+                    resolved_type=types.GenericBitVector(),
+                ),
+                Number(number=22),
+                Number(number=2),
+            ],
+            name="@slice_o_i_i",
+            resolved_type=types.GenericBitVector(),
+        ),
+        resolved_type=types.SmallFixedBitVector(2),
+    )
+    block = [lv1, op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[1] == OperationExpr(
+        args=[
+            Var(name="zv", resolved_type=types.SmallFixedBitVector(32)),
+            Number(number=23),
+            Number(number=22),
+        ],
+        name="@slice_fixed_bv_i_i",
+        resolved_type=types.SmallFixedBitVector(2),
+    )
+
+
 # optimize_gotos
 
 

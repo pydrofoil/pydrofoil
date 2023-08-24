@@ -282,13 +282,12 @@ def vector_update_subrange(machine, bv, n, m, s):
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n, m)
 
+@unwrap("o i i")
 def slice(machine, bv, start, length):
-    start = start.toint()
-    length = length.toint()
     return bv.subrange(start + length - 1, start)
 
+@unwrap("o o o i o")
 def set_slice(machine, _len, _slen, bv, start, bv_new):
-    start = start.toint()
     return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)
 
 @objectmodel.always_inline
@@ -308,11 +307,13 @@ def uint64c(num):
         import pdb; pdb.set_trace()
     return bitvector.from_ruint(64, r_uint(num))
 
+@unwrap("i")
 def zeros(machine, num):
-    return bitvector.from_ruint(num.toint(), r_uint(0))
+    return bitvector.from_ruint(num, r_uint(0))
 
+@unwrap("i")
 def undefined_bitvector(machine, num):
-    return zeros(machine, num)
+    return bitvector.from_ruint(num, r_uint(0))
 
 @unwrap("o i")
 def sail_truncate(machine, bv, i):
@@ -499,8 +500,8 @@ def lteq_real(machine, a, b):
 def gteq_real(machine, a, b):
     return a.ge(b)
 
-def real_power(machine, r, si):
-    n = si.toint()
+@unwrap("o i")
+def real_power(machine, r, n):
     return r.pow(n)
 
 def sqrt_real(machine, r):

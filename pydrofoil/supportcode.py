@@ -207,7 +207,7 @@ def prerr_bits(machine, s, b):
 
 @unwrap("o i")
 def shiftl(machine, gbv, i):
-    return gbv.lshift(i)
+    return gbv.lshift(abs(i))
 
 def shiftl_bv_i(machine, a, width, i):
     return _mask(width, a << i)

@@ -65,7 +65,6 @@ make_dummy("sail_putchar")
 make_dummy("wakeup_request")
 make_dummy("set_slice_int")
 make_dummy("undefined_range")
-make_dummy("arith_shiftr")
 
 make_dummy("softfloat_f16lt_quiet")
 make_dummy("softfloat_f32lt_quiet")
@@ -215,6 +214,10 @@ def shiftl_bv_i(machine, a, width, i):
 @unwrap("o i")
 def shiftr(machine, gbv, i):
     return gbv.rshift(i)
+
+@unwrap("o i")
+def arith_shiftr(machine, gbv, i):
+    return gbv.arith_rshift(i)
 
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)

@@ -589,7 +589,7 @@ def eq_string(machine, a, b):
 
 def string_length(machine, s):
     return Integer.fromint(len(s))
-    
+
 # softfloat
 
 def softfloat_f16sqrt(machine, rm, v1):
@@ -935,9 +935,14 @@ def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
 
 # argument handling
 
-def parse_args(argv, shortname, longname="", want_arg=True):
+@objectmodel.specialize.arg(4)
+def parse_args(argv, shortname, longname="", want_arg=True, many=False):
     # crappy argument handling
-    for i in range(len(argv)):
+    reslist = []
+    if many:
+        assert want_arg
+    i = 0
+    while i < len(argv):
         if argv[i] == shortname or argv[i] == longname:
             if not want_arg:
                 res = argv[i]
@@ -946,9 +951,17 @@ def parse_args(argv, shortname, longname="", want_arg=True):
             if len(argv) == i + 1:
                 print "missing argument after " + argv[i]
                 raise ValueError
-            jitarg = argv[i + 1]
+            arg = argv[i + 1]
             del argv[i:i+2]
-            return jitarg
+            if many:
+                reslist.append(arg)
+            else:
+                return arg
+            continue
+        i += 1
+    if many:
+        return reslist
+
 
 
 

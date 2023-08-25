@@ -1000,6 +1000,26 @@ def test_slice():
     )
 
 
+def test_zeros():
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[Number(number=32)],
+            name="@zeros_i",
+            resolved_type=types.GenericBitVector(),
+        ),
+        resolved_type=types.SmallFixedBitVector(32),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=BitVectorConstant(
+            constant="0b00000000000000000000000000000000",
+            resolved_type=types.SmallFixedBitVector(32),
+        ),
+        resolved_type=types.SmallFixedBitVector(32),
+    )
+
+
 # optimize_gotos
 
 

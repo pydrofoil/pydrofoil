@@ -571,8 +571,10 @@ class Number(Expression):
         return self
 
 class BitVectorConstant(Expression):
-    def __init__(self, constant):
+    def __init__(self, constant, resolved_type=None):
         self.constant = constant
+        if resolved_type:
+            self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return set()

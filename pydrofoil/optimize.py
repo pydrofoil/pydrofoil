@@ -389,6 +389,19 @@ class OptVisitor(parse.Visitor):
         )
         return res
 
+    def optimize_zeros_i(self, expr):
+        arg0, = expr.args
+        arg0 = self._extract_number(arg0)
+        if arg0.number > 64:
+            return
+        resconst = parse.BitVectorConstant(constant="0b" + "0" * arg0.number)
+        resconst.resolved_type = types.SmallFixedBitVector(arg0.number)
+        res = parse.CastExpr(
+            resconst,
+            expr.resolved_type,
+        )
+        return res
+
     def optimize_append(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)

@@ -66,6 +66,34 @@ def get_main(outarm):
 
 
     def main(argv):
+        try:
+            return _main(argv)
+        except CycleLimitReached:
+            return 0
+        except OSError as e:
+            errno = e.errno
+            try:
+                msg = os.strerror(errno)
+            except ValueError:
+                msg = 'ERROR [errno %d]' % (errno, )
+            else:
+                msg = 'ERROR [errno %d] %s' % (errno, msg)
+            print msg
+            return -1
+        except IOError as e:
+            print "ERROR [errno %s] %s" % (e.errno, e.strerror or '')
+            return -2
+        except BaseException as e:
+            if objectmodel.we_are_translated():
+                from rpython.rlib.debug import debug_print_traceback
+                debug_print_traceback()
+                print "unexpected internal exception (please report a bug): %r" % (e, )
+                print "internal traceback dumped to stderr"
+                return -3
+            else:
+                raise
+
+    def _main(argv):
         from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
         from arm import supportcodearm
         machine = Machine()
@@ -114,7 +142,7 @@ def get_main(outarm):
             outarm.func_zmain(machine, ())
         finally:
             t2 = time.time()
-            print "ran for %s(s), %s instructions, KIPS: %s" % (t2 - t1, machine.g.cycle_count, machine.g.cycle_count / (t2 - t1))
+            print "ran for %s(s), %s instructions, KIPS: %s" % (t2 - t1, machine.g.cycle_count, machine.g.cycle_count / (t2 - t1) / 1000)
         return 0
     main.mod = outarm
     return main
@@ -164,12 +192,15 @@ def load_raw_single(machine, offset, fn):
 def elf_entry(machine, _):
     return bitvector.Integer.fromint(0x80000000)
 
+class CycleLimitReached(Exception):
+    pass
+
 def cycle_count(machine, _):
     machine.g.cycle_count += 1
     max_cycle_count = machine.g.max_cycle_count
     if max_cycle_count and machine.g.cycle_count >= max_cycle_count:
         print "[Sail] TIMEOUT: exceeded %s cycles" % (max_cycle_count, )
-        raise SystemExit
+        raise CycleLimitReached
     return ()
 
 cyclecount = 0

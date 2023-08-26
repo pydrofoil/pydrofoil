@@ -64,6 +64,10 @@ def get_main(outarm):
     jit.unroll_safe(outarm.func_zAArch64_S1Translate)
     jit.unroll_safe(outarm.func_zAArch64_S2Translate)
 
+    for name, func in outarm.__dict__.iteritems():
+        if "IMPDEF_boolean" in name:
+            func = objectmodel.specialize.arg(1)(func)
+            objectmodel.always_inline(func)
 
     def main(argv):
         try:

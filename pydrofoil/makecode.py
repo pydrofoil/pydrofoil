@@ -1018,7 +1018,11 @@ class __extend__(parse.OperationExpr):
         restyp = self.gettyp(codegen)
         if name in codegen.globalnames:
             n = codegen.globalnames[name].pyname
-            if n == "supportcode.eq_anything":
+            if "eq_string" in name:
+                name = "@eq"
+            elif name == "znot_bool":
+                name = "@not"
+            elif n == "supportcode.eq_anything":
                 name = "@eq"
             elif n == "supportcode.cons":
                 return "%s(%s, %s)" % (restyp.pyname, sargs[0], sargs[1])

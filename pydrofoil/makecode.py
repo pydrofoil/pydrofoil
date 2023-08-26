@@ -207,7 +207,8 @@ class __extend__(parse.File):
         import traceback
         failure_count = 0
         for index, decl in enumerate(self.declarations):
-            print "MAKING CODE FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl)
+            print "\033[1K\rMAKING CODE FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl),
+            sys.stdout.flush()
             try:
                 decl.make_code(codegen)
             except Exception as e:

@@ -627,6 +627,25 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
+    def optimize_length(self, expr):
+        arg0, = expr.args
+        res = parse.OperationExpr(
+                "@length_unwrapped_res",
+                [arg0],
+                types.MachineInt(),
+                expr.sourcepos,
+        )
+        if isinstance(arg0, parse.CastExpr):
+            realtyp = arg0.expr.resolved_type
+            if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
+                res = parse.Number(realtyp.width)
+        return parse.OperationExpr(
+            "zz5i64zDzKz5i", # int64_to_int
+            [res],
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
 
 # optimize_gotos
 

@@ -15,7 +15,7 @@ from pydrofoil.optimize import (
 
 
 class dummy_codegen:
-    builtin_names = {}
+    builtin_names = {"zz5i64zDzKz5i": "int64_to_int", "zz5izDzKz5i64": "int_to_int64"}
 
 
 dummy_codegen = dummy_codegen()
@@ -1018,6 +1018,47 @@ def test_zeros():
         ),
         resolved_type=types.SmallFixedBitVector(32),
     )
+
+
+def test_length():
+    lv1 = LocalVarDeclaration(
+        name="zv",
+        typ=NamedType(name="%bv"),
+        value=None,
+    )
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[Var(name="zv", resolved_type=types.GenericBitVector())],
+                name="length",
+                resolved_type=types.Int(),
+            )
+        ],
+        name="zz5izDzKz5i64",
+        resolved_type=types.MachineInt(),
+    )
+    block = [lv1, op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[1] == OperationExpr(
+        args=[Var(name="zv", resolved_type=types.GenericBitVector())],
+        name="@length_unwrapped_res",
+        resolved_type=types.MachineInt(),
+        sourcepos=None,
+    )
+
+def test_length_constant():
+    lv1 = LocalVarDeclaration(
+        name="zv",
+        typ=NamedType(name="%bv"),
+        value=None,
+    )
+    op = OperationExpr(args=[CastExpr(expr=Var(name='zvalue_name',
+        resolved_type=types.SmallFixedBitVector(1)),
+        resolved_type=types.GenericBitVector())], name='length',
+        resolved_type=types.Int(), sourcepos='`7 153307:4-153307:60')
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(args=[Number(number=1)], name='zz5i64zDzKz5i', resolved_type=types.Int(), sourcepos='`7 153307:4-153307:60')
 
 
 # optimize_gotos

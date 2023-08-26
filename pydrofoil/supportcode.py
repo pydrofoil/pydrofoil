@@ -145,6 +145,9 @@ def sub_bits_bv_bv(machine, a, b, width):
 def length(machine, gbv):
     return gbv.size_as_int()
 
+def length_unwrapped_res(machine, gbv):
+    return gbv.size()
+
 @unwrap("o i")
 @objectmodel.always_inline
 def sign_extend(machine, gbv, size):

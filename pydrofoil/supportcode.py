@@ -39,6 +39,7 @@ def unwrap(spec):
                 else:
                     assert 0, "unknown spec"
             return func(machine, *newargs)
+        wrappedfunc.__dict__.update(func.__dict__)
         unwrapped_name = func.func_name + "_" + "_".join(argspecs)
         globals()[unwrapped_name] = func
         wrappedfunc.func_name += "_" + func.func_name
@@ -279,14 +280,17 @@ def vector_update_subrange(machine, bv, n, m, s):
 
 @unwrap("o i i")
 @objectmodel.always_inline
+@objectmodel.specialize.argtype(1)
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n, m)
 
 @unwrap("o i i")
+@objectmodel.specialize.argtype(1)
 def slice(machine, bv, start, length):
     return bv.subrange(start + length - 1, start)
 
 @unwrap("o o o i o")
+@objectmodel.specialize.argtype(3)
 def set_slice(machine, _len, _slen, bv, start, bv_new):
     return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)
 
@@ -322,6 +326,7 @@ def sail_truncate(machine, bv, i):
 
 # integers
 
+@objectmodel.specialize.argtype(1)
 def eq_int(machine, a, b):
     assert isinstance(a, Integer)
     return a.eq(b)
@@ -332,50 +337,63 @@ def eq_int_i_i(machine, a, b):
 def eq_bit(machine, a, b):
     return a == b
 
+@objectmodel.specialize.argtype(1)
 def lteq(machine, ia, ib):
     return ia.le(ib)
 
+@objectmodel.specialize.argtype(1)
 def lt(machine, ia, ib):
     return ia.lt(ib)
 
+@objectmodel.specialize.argtype(1)
 def gt(machine, ia, ib):
     return ia.gt(ib)
 
+@objectmodel.specialize.argtype(1)
 def gteq(machine, ia, ib):
     return ia.ge(ib)
 
+@objectmodel.specialize.argtype(1)
 def add_int(machine, ia, ib):
     return ia.add(ib)
 
 def add_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.add_i_i(a, b)
 
+@objectmodel.specialize.argtype(1)
 def sub_int(machine, ia, ib):
     return ia.sub(ib)
 
 def sub_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.sub_i_i(a, b)
 
+@objectmodel.specialize.argtype(1)
 def mult_int(machine, ia, ib):
     return ia.mul(ib)
 
+@objectmodel.specialize.argtype(1)
 def tdiv_int(machine, ia, ib):
     return ia.tdiv(ib)
 
+@objectmodel.specialize.argtype(1)
 def tmod_int(machine, ia, ib):
     return ia.tmod(ib)
 
+@objectmodel.specialize.argtype(1)
 def ediv_int(machine, a, b):
     return a.ediv(b)
 
+@objectmodel.specialize.argtype(1)
 def emod_int(machine, a, b):
     return a.emod(b)
 
+@objectmodel.specialize.argtype(1)
 def max_int(machine, ia, ib):
     if ia.gt(ib):
         return ia
     return ib
 
+@objectmodel.specialize.argtype(1)
 def min_int(machine, ia, ib):
     if ia.lt(ib):
         return ia

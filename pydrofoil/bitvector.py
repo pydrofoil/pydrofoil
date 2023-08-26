@@ -261,6 +261,8 @@ class SmallBitVector(BitVectorWithSize):
         assert i <= self.size()
         return SmallBitVector(i, self.val, normalize=True)
 
+UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
+
 
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']

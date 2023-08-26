@@ -141,7 +141,7 @@ class BigFixedBitVector(Type):
 
 @unique
 class GenericBitVector(Type):
-    uninitialized_value = "None"
+    uninitialized_value = "bitvector.UNITIALIZED_BV"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )

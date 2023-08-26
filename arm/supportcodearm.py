@@ -29,17 +29,27 @@ def get_main(outarm):
     driver = jit.JitDriver(
         get_printable_location=get_printable_location,
         greens=['pc'],
-        reds='auto',
+        reds=['machine'],
         name="arm",
         is_recursive=True)
 
     step = outarm.func_zstep_model
 
     def jitstep(machine, *args):
-        driver.jit_merge_point(pc=machine._reg_z_PC)
-        jit.promote(machine.g)
-        jit.promote(machine._reg_z_PC)
-        return step(machine, *args)
+        if machine.g.sail_verbosity:
+            return step(machine, *args)
+        # otherwise just do the main work here
+        while 1:
+            driver.jit_merge_point(pc=machine._reg_z_PC, machine=machine)
+            jit.promote(machine.g)
+            prev_pc = jit.promote(machine._reg_z_PC)
+            step(machine, ())
+            if machine.have_exception:
+                return ()
+            cycle_count(machine, ())
+            newpc = machine._reg_z_PC
+            if prev_pc >= newpc: # backward jump
+                driver.can_enter_jit(pc=newpc, machine=machine)
     outarm.func_zstep_model = jitstep
 
     setinstr = outarm.func_z__SetThisInstr
@@ -50,7 +60,10 @@ def get_main(outarm):
 
     jit.dont_look_inside(outarm.func_zAArch32_AutoGen_ArchitectureReset)
     jit.dont_look_inside(outarm.func_zAArch64_AutoGen_ArchitectureReset)
-    jit.dont_look_inside(outarm.func_zdecode_ADDVA_ZA_PP_Z_64)
+    jit.unroll_safe(outarm.func_zAArch64_MemSingle_read__1)
+    jit.unroll_safe(outarm.func_zAArch64_S1Translate)
+    jit.unroll_safe(outarm.func_zAArch64_S2Translate)
+
 
     def main(argv):
         from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck

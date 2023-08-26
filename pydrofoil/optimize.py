@@ -646,6 +646,17 @@ class OptVisitor(parse.Visitor):
             expr.sourcepos,
         )
 
+    def optimize_undefined_bitvector_i(self, expr):
+        arg0, = expr.args
+        num = self._extract_number(arg0)
+        if num.number > 64:
+            return
+        return parse.CastExpr(
+            parse.BitVectorConstant("0b" + "0" * num.number),
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
 
 # optimize_gotos
 

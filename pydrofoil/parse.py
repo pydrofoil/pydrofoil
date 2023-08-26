@@ -697,13 +697,15 @@ class OperationExpr(Expression):
                 self.sourcepos)
 
 class CastExpr(Expression):
-    def __init__(self, expr, resolved_type):
+    def __init__(self, expr, resolved_type, sourcepos=None):
         from pydrofoil import types
         assert isinstance(resolved_type, types.Type)
         while isinstance(expr, CastExpr): # remove double cast
             expr = expr.expr
         self.expr = expr
         self.resolved_type = resolved_type
+        if sourcepos:
+            self.sourcepos = sourcepos
 
     def find_used_vars(self):
         return self.expr.find_used_vars()

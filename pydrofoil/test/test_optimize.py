@@ -1046,19 +1046,53 @@ def test_length():
         sourcepos=None,
     )
 
+
 def test_length_constant():
     lv1 = LocalVarDeclaration(
         name="zv",
         typ=NamedType(name="%bv"),
         value=None,
     )
-    op = OperationExpr(args=[CastExpr(expr=Var(name='zvalue_name',
-        resolved_type=types.SmallFixedBitVector(1)),
-        resolved_type=types.GenericBitVector())], name='length',
-        resolved_type=types.Int(), sourcepos='`7 153307:4-153307:60')
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=Var(
+                    name="zvalue_name", resolved_type=types.SmallFixedBitVector(1)
+                ),
+                resolved_type=types.GenericBitVector(),
+            )
+        ],
+        name="length",
+        resolved_type=types.Int(),
+        sourcepos="`7 153307:4-153307:60",
+    )
     block = [op]
     specialize_ops({0: block}, dummy_codegen)
-    assert block[0] == OperationExpr(args=[Number(number=1)], name='zz5i64zDzKz5i', resolved_type=types.Int(), sourcepos='`7 153307:4-153307:60')
+    assert block[0] == OperationExpr(
+        args=[Number(number=1)],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`7 153307:4-153307:60",
+    )
+
+
+def test_undefined_bv():
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[Number(number=32)],
+            name="@undefined_bitvector_i",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`7 475:21-475:30",
+        ),
+        resolved_type=types.SmallFixedBitVector(32),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    # XXX sourcepos gets lost
+    assert block[0] == CastExpr(
+        expr=BitVectorConstant(constant="0b00000000000000000000000000000000"),
+        resolved_type=types.SmallFixedBitVector(32),
+    )
 
 
 # optimize_gotos

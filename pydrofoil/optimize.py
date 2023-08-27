@@ -394,8 +394,7 @@ class OptVisitor(parse.Visitor):
         arg0 = self._extract_number(arg0)
         if arg0.number > 64:
             return
-        resconst = parse.BitVectorConstant(constant="0b" + "0" * arg0.number)
-        resconst.resolved_type = types.SmallFixedBitVector(arg0.number)
+        resconst = parse.BitVectorConstant("0b" + "0" * arg0.number, types.SmallFixedBitVector(arg0.number))
         res = parse.CastExpr(
             resconst,
             expr.resolved_type,
@@ -652,7 +651,7 @@ class OptVisitor(parse.Visitor):
         if num.number > 64:
             return
         return parse.CastExpr(
-            parse.BitVectorConstant("0b" + "0" * num.number),
+            parse.BitVectorConstant("0b" + "0" * num.number, types.SmallFixedBitVector(num.number)),
             expr.resolved_type,
             expr.sourcepos,
         )

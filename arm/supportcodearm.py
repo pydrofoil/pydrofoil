@@ -62,7 +62,7 @@ def get_main(outarm):
     jit.dont_look_inside(outarm.func_zAArch64_AutoGen_ArchitectureReset)
     jit.unroll_safe(outarm.func_zAArch64_MemSingle_read__1)
     jit.unroll_safe(outarm.func_zAArch64_S1Translate)
-    jit.unroll_safe(outarm.func_zAArch64_S1Walk))
+    jit.unroll_safe(outarm.func_zAArch64_S1Walk)
     jit.unroll_safe(outarm.func_zAArch64_S2Translate)
 
     for name, func in outarm.__dict__.iteritems():

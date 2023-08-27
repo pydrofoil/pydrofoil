@@ -141,6 +141,13 @@ def test_vector_subrange():
     assert x.tolong() == 0x1200
     assert isinstance(x, bitvector.GenericBitVector)
 
+def test_vector_subrange_unwrapped_res():
+    for c in gbv, bv:
+        x = c(6, 0b111)
+        r = x.subrange_unwrapped_res(3, 2)
+        assert r == r_uint(1)
+
+
 def test_vector_update_subrange():
     for c1 in gbv, bv:
         for c2 in gbv, bv:

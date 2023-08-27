@@ -58,6 +58,7 @@ class Codegen(object):
         self.add_global("@sub_bits_bv_bv", "supportcode.sub_bits_bv_bv")
         self.add_global("@shiftl_bv_i", "supportcode.shiftl_bv_i")
         self.add_global("@length_unwrapped_res", "supportcode.length_unwrapped_res")
+        self.add_global("@vector_subrange_o_i_i_unwrapped_res", "supportcode.vector_subrange_o_i_i_unwrapped_res")
         self.add_global("have_exception", "machine.have_exception", types.Bool())
         self.add_global("throw_location", "machine.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")

@@ -1090,8 +1090,67 @@ def test_undefined_bv():
     specialize_ops({0: block}, dummy_codegen)
     # XXX sourcepos gets lost
     assert block[0] == CastExpr(
-        expr=BitVectorConstant(constant="0b00000000000000000000000000000000"),
+        expr=BitVectorConstant(
+            constant="0b00000000000000000000000000000000",
+            resolved_type=types.SmallFixedBitVector(32),
+        ),
         resolved_type=types.SmallFixedBitVector(32),
+    )
+
+
+def test_vector_subrange_small_result():
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[
+                Var(name="zz470", resolved_type=types.GenericBitVector()),
+                Number(number=31),
+                Number(number=0),
+            ],
+            name="@vector_subrange_o_i_i",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`7 118822:87-118822:111",
+        ),
+        resolved_type=types.SmallFixedBitVector(32),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[
+            Var(name="zz470", resolved_type=types.GenericBitVector()),
+            Number(number=31),
+            Number(number=0),
+        ],
+        name="@vector_subrange_o_i_i_unwrapped_res",
+        resolved_type=types.SmallFixedBitVector(32),
+        sourcepos="`7 118822:87-118822:111",
+    )
+
+
+def test_slice_small_result():
+    op = OperationExpr(
+        args=[
+            Var(name="zz425", resolved_type=types.GenericBitVector()),
+            Number(number=0),
+            Number(number=5),
+        ],
+        name="@slice_o_i_i",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`7 51109:17-51109:38",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=OperationExpr(
+            args=[
+                Var(name="zz425", resolved_type=types.GenericBitVector()),
+                Number(number=4),
+                Number(number=0),
+            ],
+            name="@vector_subrange_o_i_i_unwrapped_res",
+            resolved_type=types.SmallFixedBitVector(5),
+            sourcepos="`7 51109:17-51109:38",
+        ),
+        resolved_type=types.GenericBitVector(),
     )
 
 

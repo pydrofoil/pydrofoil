@@ -166,7 +166,11 @@ class SmallBitVector(BitVectorWithSize):
 
     def subrange(self, n, m):
         width = n - m + 1
-        return SmallBitVector(width, self.val >> m, True)
+        return SmallBitVector(width, self.subrange_unwrapped_res(n, m), False)
+
+    def subrange_unwrapped_res(self, n, m):
+        width = n - m + 1
+        return (self.val >> m) & ((r_uint(1) << width) - 1)
 
     @always_inline
     def zero_extend(self, i):
@@ -347,6 +351,10 @@ class GenericBitVector(BitVectorWithSize):
             res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
             return SmallBitVector(width, r_uint(res))
         return from_bigint(width, self.rval.rshift(m))
+
+    def subrange_unwrapped_res(self, n, m):
+        # XXX can be better
+        return self.subrange(n, m).touint()
 
     def zero_extend(self, i):
         if i == self.size():

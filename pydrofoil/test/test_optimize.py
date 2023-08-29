@@ -1154,6 +1154,38 @@ def test_slice_small_result():
     )
 
 
+def test_unsigned_fits_in_smallint():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                Var(name="zVm", resolved_type=types.SmallFixedBitVector(3)),
+                resolved_type=types.GenericBitVector(),
+            ),
+        ],
+        name="sail_unsigned",
+        resolved_type=types.Int(),
+        sourcepos="`11 47056:30-47056:46",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    Var(name="zVm", resolved_type=types.SmallFixedBitVector(3)),
+                    Number(number=3),
+                ],
+                name="@unsigned_bv",
+                resolved_type=types.MachineInt(),
+                sourcepos="`11 47056:30-47056:46",
+            )
+        ],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`11 47056:30-47056:46",
+    )
+
+
 # optimize_gotos
 
 

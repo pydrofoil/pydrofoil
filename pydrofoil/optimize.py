@@ -573,9 +573,24 @@ class OptVisitor(parse.Visitor):
     def optimize_sail_unsigned(self, expr):
         (arg0,) = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        width_as_num = parse.Number(typ0.width)
+        if typ0.width < 64:
+            # will always fit into a machine signed int
+            res = parse.OperationExpr(
+                "@unsigned_bv",
+                [arg0, width_as_num],
+                types.MachineInt(),
+                expr.sourcepos,
+            )
+            return parse.OperationExpr(
+                "zz5i64zDzKz5i", # int64_to_int
+                [res],
+                expr.resolved_type,
+                expr.sourcepos,
+            )
         return parse.OperationExpr(
             "@unsigned_bv_wrapped_res",
-            [arg0, parse.Number(typ0.width)],
+            [arg0, width_as_num],
             expr.resolved_type,
             expr.sourcepos,
         )

@@ -9,6 +9,7 @@ from pydrofoil.optimize import (
     specialize_ops,
     collect_jump_to_jump,
     optimize_gotos,
+    move_regs_into_locals,
 )
 
 
@@ -951,15 +952,18 @@ def test_collect_jump_to_jump():
 
 
 def test_collect_jump_to_jump_to_jump():
-    assert collect_jump_to_jump(
-        {
-            0: [Goto(12)],
-            1: [Goto(12)],
-            2: vector_subrange_example,
-            12: [Goto(13)],
-            13: [End()],
-        }
-    ) == {1: 13, 12: 13}
+    assert (
+        collect_jump_to_jump(
+            {
+                0: [Goto(12)],
+                1: [Goto(12)],
+                2: vector_subrange_example,
+                12: [Goto(13)],
+                13: [End()],
+            }
+        )
+        == {1: 13, 12: 13}
+    )
 
 
 def test_optimize_gotos():
@@ -970,3 +974,66 @@ def test_optimize_gotos():
     }
     optimize_gotos(blocks)
     assert blocks == {0: [ConditionalJump("cond", target=12), Goto(12)], 12: [End()]}
+
+
+# inline registers
+
+
+def test_inline_register():
+    # the important part about this test is that the assignment to reg is not
+    # reordered with the read of reg before
+    blocks = {
+        0: [
+            LocalVarDeclaration("x", typ=NamedType("%bv"), value=None),
+            Assignment(
+                "x",
+                Var("reg", resolved_type=types.SmallFixedBitVector(32)),
+                resolved_type=types.GenericBitVector(),
+            ),
+            Assignment(
+                "reg",
+                BitVectorConstant("0b" + "1" * 32),
+                resolved_type=types.SmallFixedBitVector(32),
+            ),
+            Operation("y", "op", [Var("x", resolved_type=types.GenericBitVector())]),
+        ]
+    }
+
+    class FakeNameInfo(object):
+        typ = "regtype"
+
+    registers = {"reg": FakeNameInfo()}
+    move_regs_into_locals(blocks, registers)
+    replacements = identify_replacements(blocks, registers)
+    do_replacements(replacements)
+    assert blocks[0] == [
+        LocalVarDeclaration(
+            name="local_reg_0_reg", sourcepos=None, typ="regtype", value=None
+        ),
+        Assignment(
+            resolved_type=types.SmallFixedBitVector(32),
+            result="local_reg_0_reg",
+            sourcepos=None,
+            value=Var(name="reg", resolved_type=types.SmallFixedBitVector(32)),
+        ),
+        Assignment(
+            "reg",
+            BitVectorConstant("0b" + "1" * 32),
+            resolved_type=types.SmallFixedBitVector(32),
+        ),
+        Operation(
+            args=[
+                CastExpr(
+                    expr=Var(
+                        name="local_reg_0_reg",
+                        resolved_type=types.SmallFixedBitVector(32),
+                    ),
+                    resolved_type=types.GenericBitVector(),
+                )
+            ],
+            name="op",
+            resolved_type=None,
+            result="y",
+            sourcepos=None,
+        ),
+    ]

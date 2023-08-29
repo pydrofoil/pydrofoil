@@ -34,4 +34,4 @@ def test_stuff(armmain):
     armmain.mod.func_z__SetConfig(machine, "cpu.cpu0.RVBAR", bitvector.Integer.fromint(0x80000000))
     armmain.mod.func_z__SetConfig(machine, "cpu.has_tlb", bitvector.Integer.fromint(0x0))
     print "done"
-    armmain.mod.func_zmain(machine, ())
+    armmain("exe -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0  -l 3 -v 0b11".split())

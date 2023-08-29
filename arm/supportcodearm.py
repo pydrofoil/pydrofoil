@@ -160,6 +160,7 @@ class Globals(BaseGlobals):
         BaseGlobals.__init__(self)
         self.cycle_count = 0
         self.max_cycle_count = 0
+        self.sail_verbosity = 0
 
 
 def make_dummy(name):

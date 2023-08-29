@@ -64,6 +64,7 @@ class Codegen(object):
         self.add_global("UINT64_C", "supportcode.uint64c")
         self.add_global("NULL", "None")
         self.promoted_registers = promoted_registers
+        self.all_registers = {}
         self.inlinable_functions = {}
 
     def add_global(self, name, pyname, typ=None, ast=None):
@@ -425,6 +426,7 @@ class __extend__(parse.Register):
             pyname = "jit.promote(machine.%s)" % self.pyname
         else:
             pyname = "machine.%s" % self.pyname
+        codegen.all_registers[self.name] = self
         codegen.add_global(self.name, pyname, typ, self)
         with codegen.emit_code_type("declarations"):
             codegen.emit("# %s" % (self, ))
@@ -464,7 +466,7 @@ class __extend__(parse.Function):
         typ = codegen.globalnames[self.name].ast.typ
         predefined = {arg: typ.argtype.elements[i] for i, arg in enumerate(self.args)}
         predefined["return"] = typ.restype
-        optimize_blocks(blocks, codegen, predefined)
+        optimize_blocks(blocks, codegen, predefined, codegen.all_registers)
         #vafter = CollectSourceVisitor()
         #for pc, block in blocks.iteritems():
         #    for op in block:

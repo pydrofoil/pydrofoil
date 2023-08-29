@@ -379,7 +379,6 @@ class Tuple_19(supportcode.ObjectBase): # TupleType(elements=[NamedType('%bv16')
         if not (self.utup1 == other.utup1): return False # EnumType(name='zjump')
         return True
 smallintconst0_1 = bitvector.SmallInteger(0)
-smallintconst1_1 = bitvector.SmallInteger(1)
 
 class Tuple_20(supportcode.ObjectBase): # TupleType(elements=[NamedType('%unit')])
     @objectmodel.always_inline
@@ -1146,11 +1145,11 @@ def func_zmaybe_jump(machine, zvalue, zj):
                 return_ = ()
                 pc = 100
                 continue
-            # zz42: NamedType('%bv')
-            # Assignment(resolved_type=GenericBitVector(), result='zz42', sourcepos='`1 166:38-166:44', value=Var(name='zPC', resolved_type=SmallFixedBitVector(16)))
-            zz42 = bitvector.from_ruint(16, machine._reg_zPC)
-            # Assignment(resolved_type=SmallFixedBitVector(16), result='zPC', sourcepos='`1 166:38-166:44', value=OperationExpr(args=[Var(name='zz42', resolved_type=GenericBitVector()), OperationExpr(args=[Number(number=1, resolved_type=MachineInt())], name='zz5i64zDzKz5i', resolved_type=Int(), sourcepos='`1 166:38-166:44')], name='zadd_bits_int', resolved_type=GenericBitVector(), sourcepos='`1 166:38-166:44'))
-            machine._reg_zPC = supportcode.add_bits_int(machine, zz42, smallintconst1_1).touint()
+            # local_reg_0_zPC: NamedType('%bv16')
+            # Assignment(resolved_type=SmallFixedBitVector(16), result='local_reg_0_zPC', sourcepos=None, value=Var(name='zPC', resolved_type=SmallFixedBitVector(16)))
+            local_reg_0_zPC = machine._reg_zPC
+            # Assignment(resolved_type=SmallFixedBitVector(16), result='zPC', sourcepos='`1 166:38-166:44', value=OperationExpr(args=[Var(name='local_reg_0_zPC', resolved_type=SmallFixedBitVector(16)), Number(number=16), Number(number=1, resolved_type=MachineInt())], name='@add_bits_int_bv_i', resolved_type=SmallFixedBitVector(16), sourcepos='`1 166:38-166:44'))
+            machine._reg_zPC = supportcode.add_bits_int_bv_i(machine, local_reg_0_zPC, 16, 1)
             # Assignment(resolved_type=Unit(), result='return', sourcepos='`1 166:33-166:44', value=Unit(resolved_type=Unit()))
             return_ = ()
             pc = 100

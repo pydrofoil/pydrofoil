@@ -4,8 +4,60 @@ from collections import defaultdict
 
 # optimize operation ASTs before generating code
 
+def move_regs_into_locals(blocks, registers):
+    """ Registers cannot easily be put back into more complicated
+    OperationExprs, because the place they are read must not change (they are
+    mutable). This often prevents optimization of bitvector/integer operations.
+    Therefore we insert a new local variable that stores the correct register
+    value, without a cast. Then the operations that operate on that register
+    value (with a cast) can use the local variable, and the optimizations are
+    possible. """
+    if registers is None:
+        return
+    decls, defs, uses = find_decl_defs_uses(blocks)
+    replacements = []
+    for var, varuses in uses.iteritems():
+        if var in decls or var not in registers:
+            continue
+        for useblock, useindex in varuses:
+            op = useblock[useindex]
+            if not isinstance(op, parse.Assignment) or not isinstance(op.value, parse.Var):
+                continue
+            assert op.value.name == var
+            if op.resolved_type == op.value.resolved_type:
+                continue
+            declblock, declindex = decls[op.result]
+            if useblock is not declblock:
+                continue
+            if useindex != declindex + 1:
+                continue
+            replacements.append((var, useblock, declindex))
+    if not replacements:
+        return
+    for index, (var, useblock, declindex) in enumerate(replacements):
+        declop = useblock[declindex]
+        useop = useblock[declindex + 1]
+        name = "local_reg_%s_%s" % (index, var)
+        newdeclop = parse.LocalVarDeclaration(name, registers[var].typ, None)
+        assert useop.value.resolved_type is not None
+        newassignment = parse.Assignment(name, useop.value, resolved_type=useop.value.resolved_type)
+        useop.value = parse.CastExpr(parse.Var(name, useop.value.resolved_type), useop.resolved_type)
+        ops = [newdeclop, newassignment, declop]
+        useblock[declindex] = ops
 
-def identify_replacements(blocks, predefined=None):
+    # flatten
+    for blockpc, block in blocks.iteritems():
+        newcontent = []
+        for op in block:
+            if isinstance(op, list):
+                newcontent.extend(op)
+            else:
+                newcontent.append(op)
+        block[:] = newcontent
+
+def identify_replacements(blocks, predefined=None, registers=None):
+    if registers is None:
+        registers = {}
     decls, defs, uses = find_decl_defs_uses(blocks, predefined)
     replacements = {}
     for var, varuses in uses.iteritems():
@@ -27,7 +79,7 @@ def identify_replacements(blocks, predefined=None):
         useop = useblock[useindex]
         if isinstance(defop, parse.Operation) and defop.name.startswith(("@", "$")):
             continue
-        if any(len(defs[argvar]) != 1 for argvar in defop.find_used_vars()):
+        if any(len(defs[argvar]) != 1 or argvar in registers for argvar in defop.find_used_vars()):
             continue
         replacements[var] = (useblock, declindex, defindex, useindex)
     return replacements
@@ -67,8 +119,9 @@ def do_replacements(replacements):
         block[:] = newblock
 
 
-def optimize_blocks(blocks, codegen, predefined=None):
+def optimize_blocks(blocks, codegen, predefined=None, register_names=None):
     inline(blocks, codegen.inlinable_functions)
+    move_regs_into_locals(blocks, register_names)
     do_replacements(identify_replacements(blocks, predefined))
     specialize_ops(blocks, codegen)
     optimize_gotos(blocks)
@@ -602,3 +655,31 @@ def optimize_gotos(blocks):
                 op.target = jumps[op.target]
     for useless in jumps:
         del blocks[useless]
+
+
+def _get_successors(block):
+    result = set()
+    for op in block:
+        if not hasattr(op, "target"):
+            continue
+        result.add(op.target)
+    return result
+
+
+def view_blocks(blocks):
+    from rpython.translator.tool.make_dot import DotGen
+    from dotviewer import graphclient
+    import pytest
+    dotgen = DotGen('G')
+    G = {num: _get_successors(block) for (num, block) in blocks.iteritems()}
+    for num, block in blocks.iteritems():
+        label = [str(num)] + [str(op)[:100] for op in block]
+        dotgen.emit_node(str(num), label="\n".join(label), shape="box")
+
+    for start, succs in G.iteritems():
+        for finish in succs:
+            dotgen.emit_edge(str(start), str(finish))
+
+    p = pytest.ensuretemp("pyparser").join("temp.dot")
+    p.write(dotgen.generate(target=None))
+    graphclient.display_dot_file(str(p))

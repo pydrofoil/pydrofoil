@@ -287,11 +287,6 @@ def vector_update_subrange(machine, bv, n, m, s):
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n, m)
 
-@objectmodel.always_inline
-@objectmodel.specialize.argtype(1)
-def vector_subrange_o_i_i_unwrapped_res(machine, bv, n, m):
-    return bv.subrange_unwrapped_res(n, m)
-
 @unwrap("o i i")
 @objectmodel.specialize.argtype(1)
 def slice(machine, bv, start, length):

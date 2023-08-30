@@ -836,7 +836,13 @@ class __extend__(parse.Assignment):
         typ = codegen.gettyp(self.result)
         othertyp = self.value.gettyp(codegen)
         rhs = pair(othertyp, typ).convert(self.value, codegen)
-        codegen.emit("%s = %s" % (result, rhs))
+        # hack to make array updates not do a copy
+        if rhs.startswith("supportcode.helper_vector_update_list_o_i_o(machine, " + result):
+            assert rhs.endswith(")")
+            rhs = rhs[:-1] + ", res=%s)" % (result, )
+            codegen.emit(rhs) # the function mutates, no need to do the assignment
+        else:
+            codegen.emit("%s = %s" % (result, rhs))
 
 class __extend__(parse.StructElementAssignment):
     def make_op_code(self, codegen):

@@ -254,10 +254,13 @@ def vector_update(machine, bv, index, element):
     return bv.update_bit(index, element)
 
 @objectmodel.specialize.argtype(1, 3)
-def helper_vector_update_list_o_i_o(machine, vec, index, element):
+def helper_vector_update_list_o_i_o(machine, vec, index, element, res=None):
     if vec is None:
         raise TypeError
-    res = vec[:] # XXX Sail C does this without a copy
+    if res is None:
+        res = vec[:]
+    else:
+        assert res is vec
     res[index] = element
     return res
 

@@ -4,3 +4,6 @@
 [submodule "isla"]
 	path = isla
 	url = https://github.com/rems-project/isla.git
+[submodule "sail-arm"]
+	path = sail-arm
+	url = https://github.com/rems-project/sail-arm.git

@@ -1091,7 +1091,8 @@ def test_undefined_bv():
     specialize_ops({0: block}, dummy_codegen)
     # XXX sourcepos gets lost
     assert block[0] == CastExpr(
-        expr=BitVectorConstant(constant="0b00000000000000000000000000000000"),
+        expr=BitVectorConstant(constant="0b00000000000000000000000000000000",
+            resolved_type=types.SmallFixedBitVector(32)),
         resolved_type=types.SmallFixedBitVector(32),
     )
 

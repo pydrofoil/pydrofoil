@@ -25,7 +25,6 @@ riscv-tools/bin/riscv64-unknown-linux-gnu-gcc:  ## get the riscv-toolchain for U
 	wget https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2022.11.18/riscv64-glibc-ubuntu-20.04-nightly-2022.11.18-nightly.tar.gz -o riscv64-nightly.tar.gz
 	mkdir riscv-tools
 	tar -C riscv-tools --strip-components=1 -xf risc64-nightly.tar.gz
-	## Delete the tarball ???
 
 .PHONY: riscv-tests
 riscv-tests: pypy_binary/bin/python pydrofoil-riscv  ## run risc-v test suite, needs env variable RISCVMODELCHECKOUT set
@@ -201,6 +200,20 @@ endif
 
 pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o:
 	make -C pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/ softfloat.o
+
+# ARM model stuff
+
+sail-arm/arm-v9.3-a/src/v8_base.sail: ## clone the pypy submodule
+	git submodule update --init --depth 1
+
+arm/armv9.ir: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/isla-sail ## build arm IR
+	PATH=${realpath isla/isla-sail/}:${PATH} make -C sail-arm/arm-v9.3-a/ gen_ir
+	mv sail-arm/arm-v9.3-a/ir/armv9.ir arm/
+
+pydrofoil-arm: arm/armv9.ir ## build the arm emulator
+	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -O2 --output=pydrofoil-arm arm/targetarm.py
+
+# various
 
 .PHONY: clean
 clean:  ## remove build artifacts.

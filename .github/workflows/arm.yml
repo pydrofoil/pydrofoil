@@ -1,0 +1,49 @@
+name: Arm
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up PyPy 2.7
+      uses: actions/setup-python@v4
+      with:
+        python-version: "pypy-2.7-v7.3.10"
+
+    - name: Add opam2 PPA and install opam (ubuntu)
+      run: |
+        sudo add-apt-repository -y ppa:avsm/ppa
+        sudo apt install -y opam zlib1g-dev pkg-config libgmp-dev z3
+
+    - name: Init opam
+      run: opam init --disable-sandboxing -y
+
+    - name: Install sail
+      run: |
+        opam pin sail https://github.com/rems-project/sail.git#584641d448961b7120b7b79e66220c53d3d6190c
+        make isla/isla-sail/isla-sail
+
+    - name: build ARM
+      run: |
+        make pydrofoil-arm
+
+    - name: boot linux
+      run: |
+        ./pydrofoil-arm -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0  -l 1_000_000 2> /dev/null
+

@@ -10,6 +10,7 @@ from pydrofoil.optimize import (
     collect_jump_to_jump,
     optimize_gotos,
     _compute_dominators,
+    move_regs_into_locals,
     immediate_dominators,
 )
 
@@ -1175,3 +1176,66 @@ def test_compute_dominators():
         6: {0, 2, 6},
     }
     assert immediate_dominators(G) == {2: 0, 3: 2, 4: 2, 5: 2, 6: 2}
+
+
+# inline registers
+
+
+def test_inline_register():
+    # the important part about this test is that the assignment to reg is not
+    # reordered with the read of reg before
+    blocks = {
+        0: [
+            LocalVarDeclaration("x", typ=NamedType("%bv"), value=None),
+            Assignment(
+                "x",
+                Var("reg", resolved_type=types.SmallFixedBitVector(32)),
+                resolved_type=types.GenericBitVector(),
+            ),
+            Assignment(
+                "reg",
+                BitVectorConstant("0b" + "1" * 32),
+                resolved_type=types.SmallFixedBitVector(32),
+            ),
+            Operation("y", "op", [Var("x", resolved_type=types.GenericBitVector())]),
+        ]
+    }
+
+    class FakeNameInfo(object):
+        typ = "regtype"
+
+    registers = {"reg": FakeNameInfo()}
+    move_regs_into_locals(blocks, registers)
+    replacements = identify_replacements(blocks, registers)
+    do_replacements(replacements)
+    assert blocks[0] == [
+        LocalVarDeclaration(
+            name="local_reg_0_reg", sourcepos=None, typ="regtype", value=None
+        ),
+        Assignment(
+            resolved_type=types.SmallFixedBitVector(32),
+            result="local_reg_0_reg",
+            sourcepos=None,
+            value=Var(name="reg", resolved_type=types.SmallFixedBitVector(32)),
+        ),
+        Assignment(
+            "reg",
+            BitVectorConstant("0b" + "1" * 32),
+            resolved_type=types.SmallFixedBitVector(32),
+        ),
+        Operation(
+            args=[
+                CastExpr(
+                    expr=Var(
+                        name="local_reg_0_reg",
+                        resolved_type=types.SmallFixedBitVector(32),
+                    ),
+                    resolved_type=types.GenericBitVector(),
+                )
+            ],
+            name="op",
+            resolved_type=None,
+            result="y",
+            sourcepos=None,
+        ),
+    ]

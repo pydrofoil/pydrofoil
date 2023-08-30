@@ -1006,6 +1006,7 @@ class LetsBase(object):
     _attrs_ = []
 
 class Globals(object):
+    _immutable_fields_ = ['mem']
     def __init__(self):
         from pydrofoil import mem as mem_mod
         self.mem = mem_mod.BlockMemory()

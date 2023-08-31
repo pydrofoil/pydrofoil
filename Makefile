@@ -2,52 +2,24 @@ RPYTHON_DIR ?= pypy/rpython
 
 ALL: pydrofoil-riscv
 
+## RISC-V targets:
 
-pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build pydrofoil
+pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build the pydrofoil RISC-V emulator
 	pkg-config libffi # if this fails, libffi development headers arent installed
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
-
-pypy_binary/bin/python:  ## download a PyPy binary
-	mkdir -p pypy_binary
-	python3 get_pypy_to_download.py
-	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
-	rm pypy.tar.bz2
-	./pypy_binary/bin/python -m ensurepip
-	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml
-
-pypy/rpython/bin/rpython: ## clone the pypy submodule
-	git submodule update --init --depth 1
 
 pydrofoil-test: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the pydrofoil implementation-level unit tests
 	./pypy_binary/bin/python pypy/pytest.py -v pydrofoil/ riscv/
 
-riscv-tools/bin/riscv64-unknown-linux-gnu-gcc:  ## get the riscv-toolchain for Ubuntu 20.04
-	wget https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2022.11.18/riscv64-glibc-ubuntu-20.04-nightly-2022.11.18-nightly.tar.gz -o riscv64-nightly.tar.gz
-	mkdir riscv-tools
-	tar -C riscv-tools --strip-components=1 -xf risc64-nightly.tar.gz
-
 .PHONY: riscv-tests
-riscv-tests: pypy_binary/bin/python pydrofoil-riscv  ## run risc-v test suite, needs env variable RISCVMODELCHECKOUT set
+riscv-tests: pypy_binary/bin/python pydrofoil-riscv  ## Run risc-v test suite, needs env variable RISCVMODELCHECKOUT set
 ifndef RISCVMODELCHECKOUT
 	$(error RISCVMODELCHECKOUT not set)
 endif
 	./pypy_binary/bin/python run_riscv_tests.py
 
-sail/libsail.opam: ## clone the sail submodule
-	git submodule update --init --depth 1
-
-sail/_opam/bin/sail: sail/libsail.opam ## build sail switch
-	opam switch create sail/ -y
-
-isla/isla-sail/plugin.cmxs: sail/_opam/bin/sail isla/isla-sail/Makefile ## build isla-sail
-	eval `opam config env --switch=sail/ --set-switch` && cd isla/isla-sail && $(MAKE)
-
-isla/isla-sail/Makefile: ## clone the isla submodule
-	git submodule update --init --depth 1
-
-
 .PHONY: regen-sail-ir-files
-regen-sail-ir-files: isla/isla-sail/plugin.cmxs ## regenerate the JIB IR files from a RISC-V Sail model, needs env variable RISCVMODELCHECKOUT set
+regen-sail-ir-files: isla/isla-sail/plugin.cmxs ## Regenerate the JIB IR files from a RISC-V Sail model, needs env variable RISCVMODELCHECKOUT set
 ifndef RISCVMODELCHECKOUT
 	$(error RISCVMODELCHECKOUT not set)
 endif
@@ -205,35 +177,63 @@ endif
 		-o ${PWD}/riscv/riscv_model_RV32 && \
 		git describe --long --dirty --abbrev=10 --always --tags --first-parent > ${PWD}/riscv/riscv_model_version
 
-pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o:
+pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o: ## Build the softfloat library
 	make -C pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/ softfloat.o
 
-# ARM model stuff
+## ARM model targets
 
-sail-arm/arm-v9.3-a/src/v8_base.sail: ## clone the sail-arm submodule
+pydrofoil-arm: pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
+	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -O2 --output=pydrofoil-arm arm/targetarm.py
+
+sail-arm/arm-v9.3-a/src/v8_base.sail: ## Clone the sail-arm submodule
 	git submodule update --init --depth 1
 
-arm/armv9.ir: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## build arm IR
+arm/armv9.ir: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build arm IR
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.3-a/ gen_ir
 	mv sail-arm/arm-v9.3-a/ir/armv9.ir arm/
 
-pydrofoil-arm: pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## build the arm emulator
-	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -O2 --output=pydrofoil-arm arm/targetarm.py
 
-# various
+## Housekeeping targets:
+
+pypy_binary/bin/python:  ## Download a PyPy binary
+	mkdir -p pypy_binary
+	python3 get_pypy_to_download.py
+	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
+	rm pypy.tar.bz2
+	./pypy_binary/bin/python -m ensurepip
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml
+
+pypy/rpython/bin/rpython: ## Clone the PyPy submodule
+	git submodule update --init --depth 1
+
+isla/isla-sail/Makefile: ## Clone the isla submodule
+	git submodule update --init --depth 1
+
+sail/libsail.opam: ## Clone the sail submodule
+	git submodule update --init --depth 1
+
+sail/_opam/bin/sail: sail/libsail.opam ## Build sail switch
+	opam switch create sail/ -y
+
+isla/isla-sail/plugin.cmxs: sail/_opam/bin/sail isla/isla-sail/Makefile ## build isla-sail
+	eval `opam config env --switch=sail/ --set-switch` && cd isla/isla-sail && $(MAKE)
+
+
+## Other
 
 .PHONY: clean
 clean:  ## remove build artifacts.
 	@# Sync with .gitignore. Could be done via git clean -xfdd ?
 	rm -rf usession*
-	rm -rf venv_riscv
 	rm -rf docs/_build
 	rm -rf pypy_binary
 	rm -rf pydrofoil-riscv-tests.xml
 	make -C pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/ clean
+	rm -rf pydrofoil-arm
 
 help:   ## Show this help.
 	@echo "\nHelp for various make targets"
 	@echo "Possible commands are:"
+	@echo
 	@grep -h "##" $(MAKEFILE_LIST) | grep -v grep | sed -e 's/\(.*\):.*##\(.*\)/    \1: \2/'
 

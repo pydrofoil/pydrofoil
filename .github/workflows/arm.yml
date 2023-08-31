@@ -32,12 +32,15 @@ jobs:
         sudo apt install -y opam zlib1g-dev pkg-config libgmp-dev z3
 
     - name: Init opam
-      run: opam init --disable-sandboxing -y
+      run: make sail/_opam/bin/sail
 
-    - name: Install sail
+    - name: Build isla-sail
       run: |
-        opam pin sail https://github.com/rems-project/sail.git#584641d448961b7120b7b79e66220c53d3d6190c
         make isla/isla-sail/isla-sail
+
+    - name: build IR file
+      run: |
+        make arm/armv9.ir
 
     - name: build ARM
       run: |

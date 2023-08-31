@@ -188,7 +188,8 @@ pydrofoil-arm: pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## B
 sail-arm/arm-v9.3-a/src/v8_base.sail: ## Clone the sail-arm submodule
 	git submodule update --init --depth 1
 
-arm/armv9.ir: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build arm IR
+.PHONY: regen-arm-ir-files
+regen-arm-ir-files: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build arm IR
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.3-a/ gen_ir
 	mv sail-arm/arm-v9.3-a/ir/armv9.ir arm/
 

@@ -33,7 +33,10 @@ ifndef RISCVMODELCHECKOUT
 endif
 	./pypy_binary/bin/python run_riscv_tests.py
 
-sail/_opam/bin/sail: ## build sail switch
+sail/libsail.opam: ## clone the sail submodule
+	git submodule update --init --depth 1
+
+sail/_opam/bin/sail: sail/libsail.opam ## build sail switch
 	opam switch create sail/ -y
 
 isla/isla-sail/plugin.cmxs: sail/_opam/bin/sail isla/isla-sail/Makefile ## build isla-sail

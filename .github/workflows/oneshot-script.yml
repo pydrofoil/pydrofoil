@@ -47,7 +47,7 @@ jobs:
       run: |
         wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/main/build-pydrofoil-from-sail.sh
         chmod a+x build-pydrofoil-from-sail.sh
-        eval $(opam env) && ./build-pydrofoil-from-sail.sh
+        ./build-pydrofoil-from-sail.sh
 
     - name: run two tests
       run: |

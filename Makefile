@@ -36,7 +36,7 @@ endif
 sail/_opam/bin/sail: ## build sail switch
 	opam switch create sail/ -y
 
-isla/isla-sail/isla-sail: sail/_opam/bin/sail isla/isla-sail/Makefile ## build isla-sail
+isla/isla-sail/plugin.cmxs: sail/_opam/bin/sail isla/isla-sail/Makefile ## build isla-sail
 	eval `opam config env --switch=sail/ --set-switch` && cd isla/isla-sail && $(MAKE)
 
 isla/isla-sail/Makefile: ## clone the isla submodule
@@ -44,7 +44,7 @@ isla/isla-sail/Makefile: ## clone the isla submodule
 
 
 .PHONY: regen-sail-ir-files
-regen-sail-ir-files: isla/isla-sail/isla-sail ## regenerate the JIB IR files from a RISC-V Sail model, needs env variable RISCVMODELCHECKOUT set
+regen-sail-ir-files: isla/isla-sail/plugin.cmxs ## regenerate the JIB IR files from a RISC-V Sail model, needs env variable RISCVMODELCHECKOUT set
 ifndef RISCVMODELCHECKOUT
 	$(error RISCVMODELCHECKOUT not set)
 endif
@@ -210,7 +210,7 @@ pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o:
 sail-arm/arm-v9.3-a/src/v8_base.sail: ## clone the sail-arm submodule
 	git submodule update --init --depth 1
 
-arm/armv9.ir: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/isla-sail ## build arm IR
+arm/armv9.ir: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## build arm IR
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.3-a/ gen_ir
 	mv sail-arm/arm-v9.3-a/ir/armv9.ir arm/
 

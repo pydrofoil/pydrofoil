@@ -36,10 +36,6 @@ jobs:
         opam init --disable-sandboxing -y
         make sail/_opam/bin/sail
 
-    - name: Build isla-sail
-      run: |
-        make isla/isla-sail/isla-sail
-
     - name: build IR file
       run: |
         make arm/armv9.ir

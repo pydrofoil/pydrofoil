@@ -36,8 +36,9 @@ There is a Makefile in the root of the repo that will rebuild the emulator:
 - Build the emulator
 
 This is done via `make pydrofoil-riscv`. At the moment the Makefile and the
-build scripts only supports x86-64 Linux and WSL, but it should be possible to
-get this to work on any platform [supported by
+build scripts officially support x86-64 Linux. But we have gotten reports that
+it also works on Mac OS, on Windows using WSL, and AArch64 Linux. It should be
+possible to get this to work on any platform [supported by
 PyPy](https://www.pypy.org/features.html).
 
 

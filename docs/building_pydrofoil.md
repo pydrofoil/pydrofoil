@@ -16,7 +16,7 @@ working on the Sail model you likely have all of these already):
 - opam
 - python3
 - libffi and its development headers (package libffi-dev on Ubuntu)
-- Sail 0.15 (see next section).
+- Sail (see next section).
 
 On Ubuntu, you are able to install all of these with `apt` with the following
 command:
@@ -28,35 +28,11 @@ sudo apt install build-essential git opam python3 libffi-dev
 All the other Pydrofoil build requirements are downloaded automatically by the
 build scripts/Makefile.
 
-## Installing Sail 0.15
+## Installing Sail
 
-You can skip this subsection if you already have a Sail binary version 0.15
-installed. Otherwise, keep reading.
-
-At the moment of writing, 0.15 is the most recent Sail version and the version
-that the RISC-V model is built with anyway.
-
-To install Sail 0.15 you need to: First install `opam`, the ocaml package
-manager, if you don't have it already. Then you can run (this assumes a bash
-shell):
-
-```
-opam switch create pydrofoil ocaml.4.13.1
-eval $(opam env --switch=pydrofoil)
-opam install sail=0.15
-```
-
-This will create a new ocaml environment and install Sail 0.15 into it.
-
-```
-sail -v
-```
-
-Which should print:
-
-```
-Sail 0.15 (sail @ opam)
-```
+Pydrofoil needs a very recent unreleased version of Sail. Therefore the build
+scripts will install it automatically in a local subdirectory. This will not
+interfere with any existing sail installation you might have.
 
 ## Building Pydrofoil Starting from a Sail-riscv checkout
 
@@ -79,6 +55,7 @@ chmod a+x build-pydrofoil-from-sail.sh
 ```
 This will
 - clone the pydrofoil repo from github
+- build a local switch with a recent enough sail binary, as well as isla-sail
 - use isla-sail to translate the ISA specifications into JIB files (about 5
   minutes)
 - download and use a pypy2.7 to translate the RPython-based pydrofoil source

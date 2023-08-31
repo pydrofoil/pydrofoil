@@ -295,3 +295,47 @@ files "../../test/c/real.sail"                      ''', support_code)
     d['func_zmain'](machine, ())
     out, err = capsys.readouterr()
 
+
+def test_register_init():
+    s = """
+val zz5i64zDzKz5i = "%i64->%i" : (%i64) ->  %i
+
+val zundefined_bitvector = "undefined_bitvector" : (%i) ->  %bv
+
+val zappend_64 = "append_64" : (%bv, %bv64) ->  %bv
+
+register zPC : %bv16 {
+  zPC = 0xCAFE `0 5:25-5:31;
+}
+
+register zA : %bv16
+
+val zmain : (%unit) ->  %unit
+
+fn zmain(zgsz30) {
+  zPC = 0x0000 `0 11:9-11:15;
+  zz40 : %unit `0 11:4-11:15;
+  zz40 = () `0 11:4-11:15;
+  zA = 0x0000 `0 12:8-12:14;
+  return = () `0 12:4-12:14;
+  end;
+}
+
+val zinitializze_registers : (%unit) ->  %unit
+
+fn zinitializze_registers(zgsz32) {
+  zz40 : %i `1;
+  zz40 = zz5i64zDzKz5i(16) `2;
+  zz41 : %bv `3;
+  zz41 = zundefined_bitvector(zz40) `4;
+  zA = zz41 `5;
+  return = () `6;
+  end;
+}
+
+files "x.sail"
+
+"""
+    support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
+    res = parse_and_make_code(s, support_code)
+    assert "machine._reg_zPC = r_uint(0xCAFE)" in res

@@ -302,3 +302,23 @@ def test_parse_full():
         print s[e.getsourcepos().idx:e.getsourcepos().idx+20]
         assert 0
 
+
+def test_struct_element_assignment_nested():
+    res = parser.parse(lexer.lex("""
+fn zExceptionSyndrome(zexceptype) {
+  zz40.zpaddress.zpaspace = z__UNKNOWN_PASpace(()) `7 1009:25-1009:44;
+  end;
+}
+"""))
+
+def test_uint64c():
+
+    res = parser.parse(lexer.lex("""
+fn zAESSubBytes(zop) {
+  zz4100 : %bv = UINT64_C(0) `7 147407:41-147407:112;
+  zz45 : %unit `7 147409:4-147411:5;
+  zz45 = () `7 147409:4-147411:5;
+  return = zz41 `11868;
+  end;
+}
+"""))

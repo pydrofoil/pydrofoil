@@ -57,11 +57,14 @@ class Codegen(object):
         self.add_global("@add_bits_int_bv_i", "supportcode.add_bits_int_bv_i")
         self.add_global("@sub_bits_bv_bv", "supportcode.sub_bits_bv_bv")
         self.add_global("@shiftl_bv_i", "supportcode.shiftl_bv_i")
+        self.add_global("@length_unwrapped_res", "supportcode.length_unwrapped_res")
         self.add_global("have_exception", "machine.have_exception", types.Bool())
         self.add_global("throw_location", "machine.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
+        self.add_global("UINT64_C", "supportcode.uint64c")
         self.add_global("NULL", "None")
         self.promoted_registers = promoted_registers
+        self.all_registers = {}
         self.inlinable_functions = {}
 
     def add_global(self, name, pyname, typ=None, ast=None):
@@ -79,9 +82,6 @@ class Codegen(object):
 
     def get_named_type(self, name):
         return self.namedtypes[name].typ
-
-    def update_global_pyname(self, name, pyname):
-        self.globalnames[name].pyname = pyname
 
     def add_local(self, name, pyname, typ, ast):
         assert isinstance(typ, types.Type)
@@ -162,9 +162,10 @@ class Codegen(object):
 
     def getcode(self):
         res = ["\n".join(self.declarations)]
+        self.runtimeinit.append("func_zinitializze_registers(machine, ())")
         res.append("@jit.dont_look_inside\ndef model_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
         res.append("\n".join(self.code))
-        return "\n\n\n".join(res)
+        return "\n\n".join(res)
 
 
 def parse_and_make_code(s, support_code, promoted_registers=set()):
@@ -183,13 +184,16 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit("from pydrofoil.bitvector import Integer")
         c.emit("class Lets(supportcode.LetsBase): pass")
         c.emit("class Machine(supportcode.RegistersBase):")
-        c.emit("    def __init__(self): self.l = Lets(); model_init(self)")
+        c.emit("    _immutable_fields_ = ['g']")
         c.emit("    _all_register_names = []")
+        c.emit("    def __init__(self):")
+        c.emit("        self.l = Lets(); model_init(self)")
+        c.emit("        self.g = supportcode.Globals()")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     try:
         ast.make_code(c)
     except Exception:
-        print c.getcode()
+        print c.getcode()[:1024*1024*1024]
         raise
     return c.getcode()
 
@@ -203,8 +207,19 @@ class __extend__(parse.BaseAst):
 
 class __extend__(parse.File):
     def make_code(self, codegen):
-        for decl in self.declarations:
-            decl.make_code(codegen)
+        import traceback
+        failure_count = 0
+        for index, decl in enumerate(self.declarations):
+            print "\033[1K\rMAKING CODE FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl),
+            sys.stdout.flush()
+            try:
+                decl.make_code(codegen)
+            except Exception as e:
+                import pdb; pdb.xpm()
+                print failure_count, "COULDN'T GENERATE CODE FOR", index, getattr(decl, "name", decl)
+                print(traceback.format_exc())
+                failure_count += 1
+                codegen.level = 0
             codegen.emit()
 
 class __extend__(parse.Declaration):
@@ -400,7 +415,7 @@ class __extend__(parse.Struct):
 
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
-        typ = self.typ.resolve_type(codegen)
+        typ = self.typ.resolve_type(codegen) # XXX should use self.resolve_type?
         if self.definition is not None:
             name = eval(self.definition)
             if "->" in name:
@@ -419,16 +434,28 @@ class __extend__(parse.GlobalVal):
             codegen.add_global(self.name, funcname, typ, self)
             codegen.builtin_names[self.name] = name
         else:
-            codegen.add_global(self.name, None,  typ, self)
+            # a sail function, invent the name now
+            pyname = "func_" + self.name
+            codegen.add_global(self.name, pyname,  typ, self)
+
+class __extend__(parse.Abstract):
+    def make_code(self, codegen):
+        typ = self.typ.resolve_type(codegen) # XXX should use self.resolve_type?
+        pyname = "func_" + self.name
+        codegen.add_global(self.name, pyname,  typ, self)
+        codegen.emit("# %s" % self)
+        codegen.emit("def %s(*args): return ()" % (pyname, ))
 
 class __extend__(parse.Register):
     def make_code(self, codegen):
+        from pydrofoil.optimize import optimize_blocks
         self.pyname = "_reg_%s" % (self.name, )
         typ = self.typ.resolve_type(codegen)
         if self.name in codegen.promoted_registers:
             pyname = "jit.promote(machine.%s)" % self.pyname
         else:
             pyname = "machine.%s" % self.pyname
+        codegen.all_registers[self.name] = self
         codegen.add_global(self.name, pyname, typ, self)
         with codegen.emit_code_type("declarations"):
             codegen.emit("# %s" % (self, ))
@@ -437,24 +464,41 @@ class __extend__(parse.Register):
                 self.pyname, self.name, typ.convert_to_pypy, typ.convert_from_pypy,
                 typ.sail_repr()))
 
+        if self.body is None:
+            return
+        with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
+            codegen.emit(" # register %s : %s" % (self.name, self.typ, ))
+            blocks = {0: self.body[:]}
+            optimize_blocks(blocks, codegen)
+            for i, op in enumerate(blocks[0]):
+                codegen.emit("# %s" % (op, ))
+                op.make_op_code(codegen)
+            codegen.emit()
+
+def iterblockops(blocks):
+    for blockpc, block in sorted(blocks.items()):
+        for op in block:
+            yield blockpc, op
+
 
 class __extend__(parse.Function):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks, CollectSourceVisitor
+        from pydrofoil.optimize import optimize_blocks, CollectSourceVisitor, view_blocks
+        from pydrofoil import optimize
         #vbefore = CollectSourceVisitor()
         #vbefore.visit(self)
-        pyname = "func_" + self.name
-        if codegen.globalnames[self.name].pyname is not None:
-            print "duplicate!", self.name, codegen.globalnames[self.name].pyname
-            return
-        codegen.update_global_pyname(self.name, pyname)
+        pyname = codegen.getname(self.name)
+        assert pyname.startswith("func_")
+        #if codegen.globalnames[self.name].pyname is not None:
+        #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
+        #    return
         self.pyname = pyname
         blocks = self._prepare_blocks()
         inlinable = len(blocks) == 1 and len(blocks[0]) <= 40
         typ = codegen.globalnames[self.name].ast.typ
         predefined = {arg: typ.argtype.elements[i] for i, arg in enumerate(self.args)}
         predefined["return"] = typ.restype
-        optimize_blocks(blocks, codegen, predefined)
+        optimize_blocks(blocks, codegen, predefined, codegen.all_registers)
         #vafter = CollectSourceVisitor()
         #for pc, block in blocks.iteritems():
         #    for op in block:
@@ -470,6 +514,15 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, entrycounts, codegen)
             return
+        if len(blocks) > 340:
+            print "splitting", self.name
+            try:
+                self._split_function(blocks, entrycounts, codegen)
+                codegen.emit()
+                return
+            except optimize.CantSplitError:
+                print "didn't manage"
+
         with self._scope(codegen, pyname):
             if entrycounts == {0: 1}:
                 assert self.body[-1].end_of_block
@@ -479,12 +532,18 @@ class __extend__(parse.Function):
         codegen.emit()
 
     @contextmanager
-    def _scope(self, codegen, pyname, method=False):
+    def _scope(self, codegen, pyname, method=False, extra_args=None):
+        # extra_args is a list of tuples (name, typ)
+        args = self.args
+        if extra_args:
+            args = args[:]
+            for name, _ in extra_args:
+                args.append(name)
         if not method:
-            first = "def %s(machine, %s):" % (pyname, ", ".join(self.args))
+            first = "def %s(machine, %s):" % (pyname, ", ".join(args))
         else:
             # bit messy, need the self
-            first = "def %s(%s, machine, %s):" % (pyname, self.args[0], ", ".join(self.args[1:]))
+            first = "def %s(%s, machine, %s):" % (pyname, args[0], ", ".join(args[1:]))
         typ = codegen.globalnames[self.name].typ
         with codegen.enter_scope(self), codegen.emit_indent(first):
             if self.name in codegen.inlinable_functions:
@@ -492,6 +551,9 @@ class __extend__(parse.Function):
             codegen.add_local('return', 'return_', typ.restype, self)
             for i, arg in enumerate(self.args):
                 codegen.add_local(arg, arg, typ.argtype.elements[i], self)
+            if extra_args:
+                for name, typ in extra_args:
+                    codegen.add_local(name, name, typ, self)
             yield
 
     def _prepare_blocks(self):
@@ -622,23 +684,82 @@ class __extend__(parse.Function):
             process(index, current)
         return {k: v for k, v in res}
 
+    def _split_function(self, blocks, entrycounts, codegen):
+        from pydrofoil import optimize
+        blocks = {pc: ops[:] for (pc, ops) in blocks.iteritems()}
+        with self._scope(codegen, self.pyname):
+            args = self.args
+            next_func_name = self.pyname + "_next_0"
+            codegen.emit("return %s(machine, %s)" % (next_func_name, ", ".join(args)))
+        args = self.args
+        prev_extra_args = []
+        startpc = 0
+        while len(blocks) > 150:
+            g1, g2, transferpc = optimize.split_graph(blocks, 120, start_node=startpc)
+            print "previous size", len(blocks), "afterwards:", len(g1), len(g2)
+            # compute the local variables that are declared in g1 and used in g2,
+            # they become extra arguments
+            declared_variables_g1 = {}
+            for blockpc, op in iterblockops(g1):
+                if isinstance(op, parse.LocalVarDeclaration):
+                    declared_variables_g1[op.name] = op.typ.resolve_type(codegen)
+            for argname, typ in prev_extra_args:
+                declared_variables_g1[argname] = typ
+            needed_args = set()
+            assignment_targets = set()
+            for blockpc, op in iterblockops(g2):
+                needed_args.update(op.find_used_vars())
+                if isinstance(op, parse.Assignment):
+                    assignment_targets.add(op.result)
+            extra_args_names = sorted(needed_args.intersection(declared_variables_g1))
+            extra_args = [(name, declared_variables_g1[name]) for name in extra_args_names]
+
+            # which variables are declared in g1, and also assigned to in g2,
+            # but aren't arguments?
+            need_declaration = assignment_targets.intersection(declared_variables_g1) - set(args) - set(extra_args_names)
+            assert not need_declaration
+            # make a copy to not mutate blocks
+            #transferstartblock = g2[transferpc] = g2[transferpc][:]
+            #for declvar in need_declaration:
+            #    transferstartblock.insert(0, declared_variables_g1[declvar])
+
+            with self._scope(codegen, next_func_name, extra_args=prev_extra_args):
+                callargs = args + extra_args_names
+                next_func_name = self.pyname + "_next_" + str(transferpc)
+                next_call = "return %s(machine, %s)" % (next_func_name, ", ".join(callargs))
+                g1[transferpc] = [next_call]
+                self._emit_blocks(g1, codegen, entrycounts, startpc=startpc)
+            prev_extra_args = extra_args
+            blocks = g2
+            startpc = transferpc
+        with self._scope(codegen, next_func_name, extra_args=extra_args):
+            self._emit_blocks(g2, codegen, entrycounts, startpc=transferpc)
 
     def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
         codegen.emit("pc = %s" % startpc)
         with codegen.emit_indent("while 1:"):
+            prefix = ''
             for blockpc, block in sorted(blocks.items()):
                 if block == [None]:
                     # inlined by emit_block_ops
                     continue
-                with codegen.emit_indent("if pc == %s:" % blockpc):
+                with codegen.emit_indent("%sif pc == %s:" % (prefix, blockpc)):
                     self.emit_block_ops(block, codegen, entrycounts, blockpc, blocks)
+                #prefix = 'el'
+            #with codegen.emit_indent("else:"):
+            #    codegen.emit("assert 0, 'should be unreachable'")
 
     def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
+        if isinstance(block[0], str):
+            # bit hacky: just emit it
+            assert len(block) == 1
+            codegen.emit(block[0])
+            return
         for i, op in enumerate(block):
             if (isinstance(op, parse.LocalVarDeclaration) and
                     i + 1 < len(block) and
                     isinstance(block[i + 1], (parse.Assignment, parse.Operation)) and
-                    op.name == block[i + 1].result):
+                    op.name == block[i + 1].result and op.name not in block[i + 1].find_used_vars()):
                 op.make_op_code(codegen, False)
             elif isinstance(op, parse.ConditionalJump):
                 codegen.emit("# %s" % (op, ))
@@ -747,14 +868,22 @@ class __extend__(parse.Assignment):
         typ = codegen.gettyp(self.result)
         othertyp = self.value.gettyp(codegen)
         rhs = pair(othertyp, typ).convert(self.value, codegen)
-        codegen.emit("%s = %s" % (result, rhs))
+        # hack to make array updates not do a copy
+        if rhs.startswith("supportcode.helper_vector_update_list_o_i_o(machine, " + result):
+            assert rhs.endswith(")")
+            rhs = rhs[:-1] + ", res=%s)" % (result, )
+            codegen.emit(rhs) # the function mutates, no need to do the assignment
+        else:
+            codegen.emit("%s = %s" % (result, rhs))
 
 class __extend__(parse.StructElementAssignment):
     def make_op_code(self, codegen):
-        typ = self.obj.gettyp(codegen).fieldtyps[self.field]
+        typ = self.obj.gettyp(codegen)
+        for field in self.fields:
+            typ = typ.fieldtyps[field]
         othertyp = self.value.gettyp(codegen)
         rhs = pair(othertyp, typ).convert(self.value, codegen)
-        codegen.emit("%s.%s = %s" % (self.obj.to_code(codegen), self.field, rhs))
+        codegen.emit("%s.%s = %s" % (self.obj.to_code(codegen), ".".join(self.fields), rhs))
 
 class __extend__(parse.RefAssignment):
     def make_op_code(self, codegen):
@@ -857,7 +986,11 @@ class __extend__(parse.StructConstruction):
     def to_code(self, codegen):
         typ = self.gettyp(codegen)
         ast_type = typ.ast
-        sargs = [arg.to_code(codegen) for arg in self.fieldvalues]
+        sargs = []
+        for name, arg in zip(self.fieldnames, self.fieldvalues):
+            fieldtyp = typ.fieldtyps[name]
+            valuetyp = arg.gettyp(codegen)
+            sargs.append(pair(valuetyp, fieldtyp).convert(arg, codegen))
         assert self.fieldnames == ast_type.names
         return "%s(%s)" % (ast_type.pyname, ", ".join(sargs))
 
@@ -900,8 +1033,10 @@ class __extend__(parse.Cast):
 class __extend__(parse.RefOf):
     def to_code(self, codegen):
         expr = self.expr.to_code(codegen)
-        assert isinstance(self.expr.gettyp(codegen), types.Struct)
-        return expr
+        if isinstance(self.expr.gettyp(codegen), types.Struct):
+            return expr
+        assert isinstance(self.expr, parse.Var)
+        return repr("crashmenow")
 
     def gettyp(self, codegen):
         return types.Ref(self.expr.gettyp(codegen))
@@ -922,15 +1057,22 @@ class __extend__(parse.OperationExpr):
         sargs = [arg.to_code(codegen) for arg in self.args]
         argtyps = [arg.gettyp(codegen) for arg in self.args]
         restyp = self.gettyp(codegen)
-        if name in codegen.globalnames and codegen.globalnames[name].pyname == "supportcode.eq_anything":
-            name = "@eq"
+        if name in codegen.globalnames:
+            n = codegen.globalnames[name].pyname
+            if "eq_string" in name:
+                name = "@eq"
+            elif name == "znot_bool":
+                name = "@not"
+            elif n == "supportcode.eq_anything":
+                name = "@eq"
+            elif n == "supportcode.cons":
+                return "%s(%s, %s)" % (restyp.pyname, sargs[0], sargs[1])
+
 
         if name.startswith("@"):
             meth = getattr(argtyps[0], "make_op_code_special_" + name[1:], None)
             if meth:
                 return meth(self, sargs, argtyps, restyp)
-        elif name.startswith("$zcons"): # magic list cons stuff
-            return "%s(%s, %s)" % (restyp.pyname, sargs[0], sargs[1])
         elif name.startswith("$zinternal_vector_init"): # magic vector stuff
             oftyp = restyp.typ
             return "[%s] * %s" % (oftyp.uninitialized_value, sargs[0])
@@ -942,13 +1084,13 @@ class __extend__(parse.OperationExpr):
         op = codegen.getname(name)
         info = codegen.getinfo(name)
         if isinstance(info.typ, types.Function):
-            # pass machine, even to supportcode functions
             if (op.startswith("supportcode.") and
                     all(arg.is_constant(codegen) for arg in self.args) and
                     can_constfold(op)):
                 folded_result = constfold(op, sargs, self, codegen)
                 return folded_result
             else:
+                # pass machine, even to supportcode functions
                 return "%s(machine, %s)" % (op, args)
         elif isinstance(info.typ, types.Union):
             return info.ast.constructor(info, op, args, argtyps)

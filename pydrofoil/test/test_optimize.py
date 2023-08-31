@@ -9,11 +9,14 @@ from pydrofoil.optimize import (
     specialize_ops,
     collect_jump_to_jump,
     optimize_gotos,
+    _compute_dominators,
+    move_regs_into_locals,
+    immediate_dominators,
 )
 
 
 class dummy_codegen:
-    builtin_names = {}
+    builtin_names = {"zz5i64zDzKz5i": "int64_to_int", "zz5izDzKz5i64": "int_to_int64"}
 
 
 dummy_codegen = dummy_codegen()
@@ -64,6 +67,28 @@ def test_find_used_vars_condition():
 
     u = parse.UnionVariantCheck(v, "X")
     assert u.find_used_vars() == {"abc"}
+
+
+def test_find_used_vars_general_assignment():
+    ast = GeneralAssignment(
+        lhs=StructElementAssignment(
+            fields=["field"], obj=Var("somevarname"), value=None
+        ),
+        rhs=Operation(
+            args=[
+                Var("othervarname"),
+                Var("c"),
+            ],
+            name="op",
+            result=None,
+        ),
+    )
+    assert ast.find_used_vars() == {"somevarname", "othervarname", "c"}
+
+    ast2 = ast.replace_var("somevarname", 1)
+    assert "somevarname" not in repr(ast2)
+    ast2 = ast.replace_var("othervarname", 1)
+    assert "othervarname" not in repr(ast2)
 
 
 # __________________________________________________
@@ -941,6 +966,169 @@ def test_vector_access():
     )
 
 
+def test_slice():
+    lv1 = LocalVarDeclaration(
+        name="zv",
+        typ=NamedType(name="%bv32"),
+        value=None,
+        # resolved_type=types.SmallFixedBitVector(32)
+    )
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=Var(name="zv", resolved_type=types.SmallFixedBitVector(32)),
+                    resolved_type=types.GenericBitVector(),
+                ),
+                Number(number=22),
+                Number(number=2),
+            ],
+            name="@slice_o_i_i",
+            resolved_type=types.GenericBitVector(),
+        ),
+        resolved_type=types.SmallFixedBitVector(2),
+    )
+    block = [lv1, op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[1] == OperationExpr(
+        args=[
+            Var(name="zv", resolved_type=types.SmallFixedBitVector(32)),
+            Number(number=23),
+            Number(number=22),
+        ],
+        name="@slice_fixed_bv_i_i",
+        resolved_type=types.SmallFixedBitVector(2),
+    )
+
+
+def test_zeros():
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[Number(number=32)],
+            name="@zeros_i",
+            resolved_type=types.GenericBitVector(),
+        ),
+        resolved_type=types.SmallFixedBitVector(32),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=BitVectorConstant(
+            constant="0b00000000000000000000000000000000",
+            resolved_type=types.SmallFixedBitVector(32),
+        ),
+        resolved_type=types.SmallFixedBitVector(32),
+    )
+
+
+def test_length():
+    lv1 = LocalVarDeclaration(
+        name="zv",
+        typ=NamedType(name="%bv"),
+        value=None,
+    )
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[Var(name="zv", resolved_type=types.GenericBitVector())],
+                name="length",
+                resolved_type=types.Int(),
+            )
+        ],
+        name="zz5izDzKz5i64",
+        resolved_type=types.MachineInt(),
+    )
+    block = [lv1, op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[1] == OperationExpr(
+        args=[Var(name="zv", resolved_type=types.GenericBitVector())],
+        name="@length_unwrapped_res",
+        resolved_type=types.MachineInt(),
+        sourcepos=None,
+    )
+
+
+def test_length_constant():
+    lv1 = LocalVarDeclaration(
+        name="zv",
+        typ=NamedType(name="%bv"),
+        value=None,
+    )
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=Var(
+                    name="zvalue_name", resolved_type=types.SmallFixedBitVector(1)
+                ),
+                resolved_type=types.GenericBitVector(),
+            )
+        ],
+        name="length",
+        resolved_type=types.Int(),
+        sourcepos="`7 153307:4-153307:60",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[Number(number=1)],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`7 153307:4-153307:60",
+    )
+
+
+def test_undefined_bv():
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[Number(number=32)],
+            name="@undefined_bitvector_i",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`7 475:21-475:30",
+        ),
+        resolved_type=types.SmallFixedBitVector(32),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    # XXX sourcepos gets lost
+    assert block[0] == CastExpr(
+        expr=BitVectorConstant(constant="0b00000000000000000000000000000000",
+            resolved_type=types.SmallFixedBitVector(32)),
+        resolved_type=types.SmallFixedBitVector(32),
+    )
+
+
+def test_unsigned_fits_in_smallint():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                Var(name="zVm", resolved_type=types.SmallFixedBitVector(3)),
+                resolved_type=types.GenericBitVector(),
+            ),
+        ],
+        name="sail_unsigned",
+        resolved_type=types.Int(),
+        sourcepos="`11 47056:30-47056:46",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    Var(name="zVm", resolved_type=types.SmallFixedBitVector(3)),
+                    Number(number=3),
+                ],
+                name="@unsigned_bv",
+                resolved_type=types.MachineInt(),
+                sourcepos="`11 47056:30-47056:46",
+            )
+        ],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`11 47056:30-47056:46",
+    )
+
+
 # optimize_gotos
 
 
@@ -951,15 +1139,18 @@ def test_collect_jump_to_jump():
 
 
 def test_collect_jump_to_jump_to_jump():
-    assert collect_jump_to_jump(
-        {
-            0: [Goto(12)],
-            1: [Goto(12)],
-            2: vector_subrange_example,
-            12: [Goto(13)],
-            13: [End()],
-        }
-    ) == {1: 13, 12: 13}
+    assert (
+        collect_jump_to_jump(
+            {
+                0: [Goto(12)],
+                1: [Goto(12)],
+                2: vector_subrange_example,
+                12: [Goto(13)],
+                13: [End()],
+            }
+        )
+        == {1: 13, 12: 13}
+    )
 
 
 def test_optimize_gotos():
@@ -970,3 +1161,82 @@ def test_optimize_gotos():
     }
     optimize_gotos(blocks)
     assert blocks == {0: [ConditionalJump("cond", target=12), Goto(12)], 12: [End()]}
+
+
+# dominators
+
+
+def test_compute_dominators():
+    G = {0: {2}, 2: {3, 4, 6}, 3: {5}, 4: {5}, 5: {2}, 6: {}}
+    assert _compute_dominators(G) == {
+        0: {0},
+        2: {0, 2},
+        3: {0, 2, 3},
+        4: {0, 2, 4},
+        5: {0, 2, 5},
+        6: {0, 2, 6},
+    }
+    assert immediate_dominators(G) == {2: 0, 3: 2, 4: 2, 5: 2, 6: 2}
+
+
+# inline registers
+
+
+def test_inline_register():
+    # the important part about this test is that the assignment to reg is not
+    # reordered with the read of reg before
+    blocks = {
+        0: [
+            LocalVarDeclaration("x", typ=NamedType("%bv"), value=None),
+            Assignment(
+                "x",
+                Var("reg", resolved_type=types.SmallFixedBitVector(32)),
+                resolved_type=types.GenericBitVector(),
+            ),
+            Assignment(
+                "reg",
+                BitVectorConstant("0b" + "1" * 32),
+                resolved_type=types.SmallFixedBitVector(32),
+            ),
+            Operation("y", "op", [Var("x", resolved_type=types.GenericBitVector())]),
+        ]
+    }
+
+    class FakeNameInfo(object):
+        typ = "regtype"
+
+    registers = {"reg": FakeNameInfo()}
+    move_regs_into_locals(blocks, registers)
+    replacements = identify_replacements(blocks, registers)
+    do_replacements(replacements)
+    assert blocks[0] == [
+        LocalVarDeclaration(
+            name="local_reg_0_reg", sourcepos=None, typ="regtype", value=None
+        ),
+        Assignment(
+            resolved_type=types.SmallFixedBitVector(32),
+            result="local_reg_0_reg",
+            sourcepos=None,
+            value=Var(name="reg", resolved_type=types.SmallFixedBitVector(32)),
+        ),
+        Assignment(
+            "reg",
+            BitVectorConstant("0b" + "1" * 32),
+            resolved_type=types.SmallFixedBitVector(32),
+        ),
+        Operation(
+            args=[
+                CastExpr(
+                    expr=Var(
+                        name="local_reg_0_reg",
+                        resolved_type=types.SmallFixedBitVector(32),
+                    ),
+                    resolved_type=types.GenericBitVector(),
+                )
+            ],
+            name="op",
+            resolved_type=None,
+            result="y",
+            sourcepos=None,
+        ),
+    ]

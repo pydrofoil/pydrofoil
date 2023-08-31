@@ -1,3 +1,4 @@
+import sys
 from rply import LexerGenerator, LexingError, ParserGenerator, ParsingError
 from rply.token import BaseBox
 
@@ -21,6 +22,7 @@ addkeyword('enum')
 addkeyword('union')
 addkeyword('struct')
 addkeyword('val')
+addkeyword('abstract')
 addkeyword('fn')
 addkeyword('end')
 addkeyword('arbitrary')
@@ -173,12 +175,21 @@ class GlobalVal(Declaration):
         self.definition = definition
         self.typ = typ
 
+class Abstract(Declaration):
+    resolved_type = None
+
+    def __init__(self, name, definition, typ, sourcepos=None):
+        self.name = name
+        self.definition = definition
+        self.typ = typ
+
 class Register(Declaration):
     resolved_type = None
 
-    def __init__(self, name, typ):
+    def __init__(self, name, typ, body=None):
         self.name = name
         self.typ = typ
+        self.body = body
 
 class Let(Declaration):
     resolved_type = None
@@ -314,6 +325,26 @@ class LocalVarDeclaration(StatementWithSourcePos):
     def replace_var(self, var, expr):
         xxx
 
+class GeneralAssignment(StatementWithSourcePos):
+    def __init__(self, lhs, rhs, sourcepos=None, resolved_type=None):
+        self.lhs = lhs
+        self.rhs = rhs
+        self.sourcepos = sourcepos
+        self.resolved_type = resolved_type
+
+    def find_used_vars(self):
+        if isinstance(self.lhs, StructElementAssignment):
+            res = self.lhs.obj.find_used_vars()
+        else:
+            res = self.lhs.ref.find_used_vars()
+        for arg in self.rhs.args:
+            res.update(arg.find_used_vars())
+        return res
+
+    def replace_var(self, var, expr):
+        return GeneralAssignment(self.lhs.replace_var(var, expr), self.rhs.replace_var(var, expr), self.sourcepos, self.resolved_type)
+
+
 class Assignment(StatementWithSourcePos):
     def __init__(self, result, value, sourcepos=None, resolved_type=None):
         self.result = result
@@ -424,21 +455,23 @@ class Comparison(Condition):
         return Comparison(self.operation, newargs)
 
 class UnionVariantCheck(Condition):
-    def __init__(self, var, variant):
+    def __init__(self, var, variant, resolved_type=None):
         self.var = var
         self.variant = variant
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return self.var.find_used_vars()
 
     def replace_var(self, var, expr):
-        xxx
+        return UnionVariantCheck(self.var.replace_var(var, expr), self.variant, self.resolved_type)
 
 class StructElementAssignment(StatementWithSourcePos):
-    def __init__(self, obj, field, value, sourcepos=None):
+    def __init__(self, obj, fields, value, resolved_type=None, sourcepos=None):
         self.obj = obj
-        self.field = field
+        self.fields = fields
         self.value = value
+        self.resolved_type = resolved_type
         self.sourcepos = sourcepos
 
     def find_used_vars(self):
@@ -449,16 +482,18 @@ class StructElementAssignment(StatementWithSourcePos):
     def replace_var(self, var, expr):
         return StructElementAssignment(
             self.obj.replace_var(var, expr),
-            self.field,
-            self.value.replace_var(var, expr),
+            self.fields,
+            self.value.replace_var(var, expr) if self.value is not None else self.value,
+            self.resolved_type,
             self.sourcepos)
 
 
 class RefAssignment(StatementWithSourcePos):
-    def __init__(self, ref, value, sourcepos=None):
+    def __init__(self, ref, value, resolved_type=None, sourcepos=None):
         self.ref = ref
         self.value = value
         self.sourcepos = sourcepos
+        self.resolved_type = resolved_type
 
     def find_used_vars(self):
         res = self.value.find_used_vars()
@@ -468,7 +503,10 @@ class RefAssignment(StatementWithSourcePos):
     def replace_var(self, var, expr):
         return RefAssignment(self.ref.replace_var(var, expr), self.value, self.sourcepos)
 
-class End(Statement):
+class FunctionEndingStatement(StatementWithSourcePos):
+    pass
+
+class End(FunctionEndingStatement):
     end_of_block = True
 
     def find_used_vars(self):
@@ -477,7 +515,7 @@ class End(Statement):
     def replace_var(self, var, expr):
         xxx
 
-class Exit(StatementWithSourcePos):
+class Exit(FunctionEndingStatement):
     end_of_block = True
 
     def __init__(self, kind, sourcepos=None):
@@ -490,7 +528,7 @@ class Exit(StatementWithSourcePos):
     def replace_var(self, var, expr):
         xxx
 
-class Arbitrary(Statement):
+class Arbitrary(FunctionEndingStatement):
     end_of_block = True
 
     def find_used_vars(self):
@@ -533,8 +571,10 @@ class Number(Expression):
         return self
 
 class BitVectorConstant(Expression):
-    def __init__(self, constant):
+    def __init__(self, constant, resolved_type=None):
         self.constant = constant
+        if resolved_type:
+            self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return set()
@@ -657,13 +697,15 @@ class OperationExpr(Expression):
                 self.sourcepos)
 
 class CastExpr(Expression):
-    def __init__(self, expr, resolved_type):
+    def __init__(self, expr, resolved_type, sourcepos=None):
         from pydrofoil import types
         assert isinstance(resolved_type, types.Type)
         while isinstance(expr, CastExpr): # remove double cast
             expr = expr.expr
         self.expr = expr
         self.resolved_type = resolved_type
+        if sourcepos:
+            self.sourcepos = sourcepos
 
     def find_used_vars(self):
         return self.expr.find_used_vars()
@@ -683,7 +725,7 @@ def file(p):
         return File(p)
     return File(p[0].declarations + [p[1]])
 
-@pg.production('declaration : enum | union | struct | globalval | function | register | let | pragma | files')
+@pg.production('declaration : enum | union | struct | globalval | function | register | let | pragma | files | abstract')
 def declaration(p):
     return p[0]
 
@@ -721,8 +763,17 @@ def globalval(p):
     else:
         return GlobalVal(p[1].value, p[3].value, p[5])
 
+@pg.production('abstract : ABSTRACT NAME EQUAL STRING COLON type')
+def abstract(p):
+    return Abstract(p[1].value, p[3].value, p[5])
+
+counter = 0
 @pg.production('function : FN NAME LPAREN args RPAREN LBRACE operations RBRACE')
 def function(p):
+    global counter
+    print "\033[1K\rPARSED FUNCTION", counter, p[1].value,
+    sys.stdout.flush()
+    counter += 1
     return Function(p[1].value, p[3].args, p[6].collect())
 
 @pg.production('args : NAME | NAME COMMA args')
@@ -732,9 +783,11 @@ def args(p):
     else:
         return Function(None, [p[0].value] + p[2].args, None)
 
-@pg.production('register : REGISTER NAME COLON type')
+@pg.production('register : REGISTER NAME COLON type | REGISTER NAME COLON type LBRACE operations RBRACE')
 def register(p):
-    return Register(p[1].value, p[3])
+    if len(p) == 4:
+        return Register(p[1].value, p[3])
+    return Register(p[1].value, p[3], p[5].collect())
 
 @pg.production('let : LET LPAREN NAME COLON type RPAREN LBRACE operations RBRACE')
 def let(p):
@@ -778,24 +831,73 @@ def operation(p):
     else:
         return p[0]
 
-@pg.production('operationwithposition : localvardeclaration | op | templatedop | conditionaljump | assignment | exit')
+@pg.production('operationwithposition : localvardeclaration | conditionaljump | generalassign | exit')
 def operationwithposition(p):
     return p[0]
 
-@pg.production('localvardeclaration : NAME COLON type | NAME COLON type EQUAL expr')
+@pg.production("generalassign : lhs EQUAL rhs")
+def generalassign(p):
+    lhs, _, rhs = p
+    if isinstance(lhs, Var):
+        if isinstance(rhs, Operation):
+            return Operation(lhs.name, rhs.name, rhs.args, rhs.sourcepos)
+        if isinstance(rhs, TemplatedOperation):
+            return TemplatedOperation(lhs.name, rhs.name, rhs.templateparam, rhs.args, rhs.sourcepos)
+        if isinstance(rhs, Expression):
+            return Assignment(lhs.name, rhs)
+    if isinstance(lhs, StructElementAssignment):
+        if lhs.obj is None:
+            import pdb; pdb.set_trace()
+        if isinstance(rhs, Expression):
+            return StructElementAssignment(lhs.obj, lhs.fields, rhs, lhs.sourcepos)
+    if isinstance(lhs, RefAssignment):
+        if isinstance(rhs, Expression):
+            return RefAssignment(lhs.ref, rhs)
+    return GeneralAssignment(lhs, rhs)
+
+@pg.production("lhs : NAME | NAME STAR | NAME DOT morenames")
+def lhs(p):
+    if len(p) == 1:
+        return Var(p[0].value)
+    elif len(p) == 2:
+        return RefAssignment(Var(p[0].value), None)
+    else:
+        return StructElementAssignment(Var(p[0].value), p[2].fields, None)
+
+def assignment(p):
+    if len(p) == 3:
+        return Assignment(p[0].value, p[2])
+    if len(p) == 4:
+        return RefAssignment(Var(p[0].value), p[3])
+    else:
+        assert p[1].gettokentype() == "DOT"
+        return StructElementAssignment(Var(p[0].value), p[2].fields, p[4])
+
+@pg.production('morenames : NAME | NAME DOT morenames')
+def morenames(p):
+    if len(p) == 1:
+        return StructElementAssignment(None, [p[0].value], None)
+    return StructElementAssignment(None, [p[0].value] + p[2].fields, None)
+
+
+@pg.production("rhs : oprhs | templatedoprhs | expr")
+def rhs(p):
+    return p[0]
+
+@pg.production('localvardeclaration : NAME COLON type | NAME COLON type EQUAL expr | NAME COLON type EQUAL uint64c')
 def localvardeclaration(p):
     if len(p) == 3:
         return LocalVarDeclaration(p[0].value, p[2])
     return LocalVarDeclaration(p[0].value, p[2], p[4])
 
 
-@pg.production('op : NAME EQUAL NAME LPAREN opargs RPAREN')
-def op(p):
-    return Operation(p[0].value, p[2].value, p[4].args)
+@pg.production('oprhs : NAME LPAREN opargs RPAREN')
+def oprhs(p):
+    return Operation(None, p[0].value, p[2].args)
 
-@pg.production('templatedop : NAME EQUAL NAME LT type GT LPAREN opargs RPAREN')
-def op(p):
-    return TemplatedOperation(p[0].value, p[2].value, p[4], p[7].args)
+@pg.production('templatedoprhs : NAME LT type GT LPAREN opargs RPAREN')
+def templatedoprhs(p):
+    return TemplatedOperation(None, p[0].value, p[2], p[5].args)
 
 @pg.production('opargs : expr | expr COMMA opargs')
 def opargs(p):
@@ -833,6 +935,12 @@ def expr(p):
             return Cast(p[0], p[2].value)
     assert 0
 
+@pg.production('uint64c : NAME LPAREN NUMBER RPAREN')
+def uint64c(p):
+    from pydrofoil import types
+    assert p[0].value == "UINT64_C"
+    return OperationExpr(p[0].value, [Number(int(p[2].value))], types.GenericBitVector())
+
 @pg.production('structconstruction : NAME LBRACE structconstructioncontent RBRACE')
 def structconstruction(p):
     return StructConstruction(p[0].value, p[2].fieldnames, p[2].fieldvalues)
@@ -862,19 +970,8 @@ def condition(p):
     return UnionVariantCheck(p[0], p[2].value)
 
 @pg.production('goto : GOTO NUMBER')
-def op(p):
+def goto(p):
     return Goto(int(p[1].value))
-
-@pg.production('assignment : NAME EQUAL expr | NAME STAR EQUAL expr | NAME DOT NAME EQUAL expr')
-def op(p):
-    if len(p) == 3:
-        return Assignment(p[0].value, p[2])
-    if len(p) == 4:
-        return RefAssignment(Var(p[0].value), p[3])
-    else:
-        assert p[2].gettokentype() == "NAME"
-        return StructElementAssignment(Var(p[0].value), p[2].value, p[4])
-
 
 @pg.production('end : END')
 def end(p):
@@ -935,7 +1032,7 @@ def listtype(p):
 def functiontype(p):
     return FunctionType(p[0], p[2])
 
-@pg.production('reftype : AMPERSAND LPAREN structtype RPAREN')
+@pg.production('reftype : AMPERSAND LPAREN simpletype RPAREN')
 def reftype(p):
     return RefType(p[2])
 

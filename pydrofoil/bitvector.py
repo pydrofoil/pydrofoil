@@ -247,6 +247,22 @@ class SmallBitVector(BitVectorWithSize):
             return BitVector.append(self, other)
         return from_ruint(ressize, (self.val << other.size()) | other.val)
 
+    def replicate(self, i):
+        size = self.size()
+        if size * i <= 64:
+            res = val = self.val
+            for _ in range(i - 1):
+                res = (res << size) | val
+            return SmallBitVector(size * i, res)
+        gbv = GenericBitVector(size, rbigint.fromrarith_int(self.val))
+        return gbv.replicate(i)
+
+    def truncate(self, i):
+        assert i <= self.size()
+        return SmallBitVector(i, self.val, normalize=True)
+
+UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
+
 
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']
@@ -305,10 +321,10 @@ class GenericBitVector(BitVectorWithSize):
         return GenericBitVector(size, res)
 
     def lshift_bits(self, other):
-        return self.make(self._size_mask(self.rval.lshift(other.toint())))
+        return self.lshift(other.toint())
 
     def rshift_bits(self, other):
-        return self.make(self._size_mask(self.rval.rshift(other.toint())))
+        return self.rshift(other.toint())
 
     def xor(self, other):
         return self.make(self._size_mask(self.rval.xor(other.tobigint())))
@@ -395,6 +411,20 @@ class GenericBitVector(BitVectorWithSize):
     def tobigint(self):
         return self.rval
 
+    def replicate(self, i):
+        size = self.size()
+        res = val = self.rval
+        for _ in range(i - 1):
+            res = res.lshift(size).or_(val)
+        return GenericBitVector(size * i, res)
+
+    def truncate(self, i):
+        assert i <= self.size()
+        val = self.rbigint_mask(i, self.rval)
+        if i <= 64:
+            return SmallBitVector(i, val.touint(), normalize=True)
+        return GenericBitVector(i, val)
+
 
 class Integer(object):
     _attrs_ = []
@@ -438,6 +468,9 @@ class SmallInteger(Integer):
 
     def str(self):
         return str(self.val)
+
+    def hex(self):
+        return hex(self.val)
 
     def toint(self):
         return self.val
@@ -530,6 +563,36 @@ class SmallInteger(Integer):
                 return SmallInteger(int_c_mod(self.val, other.val))
         return BigInteger(self.tobigint()).tmod(other)
 
+    def ediv(self, other):
+        # XXX too lazy to figure out negative so far
+        assert isinstance(other, SmallInteger)
+        other = other.val
+        if other <= 0 or self.val < 0:
+            print "ediv_int with negative args not implemented yet", self.val, other
+            raise ValueError
+        return SmallInteger(self.val // other)
+
+    def emod(self, other):
+        assert isinstance(other, SmallInteger)
+        other = other.val
+        if other <= 0 or self.val < 0:
+            print "emod_int with negative args not implemented yet", self.val, other
+            raise ValueError
+        return SmallInteger(self.val % other)
+
+    def rshift(self, i):
+        assert i >= 0
+        return SmallInteger(self.val >> i)
+
+    def lshift(self, i):
+        assert i >= 0
+        if i < 64:
+            try:
+                return SmallInteger(ovfcheck(self.val << i))
+            except OverflowError:
+                pass
+        return BigInteger(rbigint.fromint(self.val).lshift(i))
+
     @staticmethod
     def add_i_i(a, b):
         try:
@@ -556,6 +619,9 @@ class BigInteger(Integer):
 
     def str(self):
         return self.rval.str()
+
+    def hex(self):
+        return self.rval.hex()
 
     def toint(self):
         return self.rval.toint()
@@ -642,3 +708,28 @@ class BigInteger(Integer):
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
         return BigInteger(rem)
+
+    def ediv(self, other):
+        assert isinstance(other, SmallInteger)
+        other = other.val
+        if other <= 0 or self.rval.int_lt(0):
+            print "ediv_int with negative args not implemented yet", self.rval.str(), other
+            raise ValueError
+        return BigInteger(self.rval.int_floordiv(other))
+
+    def emod(self, other):
+        assert isinstance(other, SmallInteger)
+        other = other.val
+        if other <= 0 or self.rval.int_lt(0):
+            print "emod_int with negative args not implemented yet", self.rval.str(), other
+            raise ValueError
+        return SmallInteger(self.rval.int_mod_int_result(other))
+
+    def rshift(self, i):
+        assert i >= 0
+        # XXX should we check whether it fits in a SmallInteger now?
+        return BigInteger(self.rval.rshift(i))
+
+    def lshift(self, i):
+        return BigInteger(self.rval.lshift(i))
+

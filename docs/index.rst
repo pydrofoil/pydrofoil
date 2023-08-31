@@ -22,8 +22,9 @@ To get started, please consult :doc:`building_pydrofoil`.
     Using Pydrofoil <using_pydrofoil>
     Developing Pydrofoil <developing_pydrofoil>
     Background: Optimizations <background_optimizations>
+    Arm <arm>
     Useful links <useful_links>
-	Changelog <changelog>
+    Changelog <changelog>
 
 .. __: https://github.com/riscv/sail-riscv
 .. __: https://www3.hhu.de/stups/downloads/pdf/BoCuFiRi09_246.pdf

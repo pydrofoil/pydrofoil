@@ -62,6 +62,10 @@ class TypeAttachingVisitor(parse.Visitor):
         typ = ast.resolved_type = self.visit(ast.typ)
         self.context.add_global_name(ast.name, typ)
 
+    def visit_Abstract(self, ast):
+        typ = ast.resolved_type = self.visit(ast.typ)
+        self.context.add_global_name(ast.name, typ)
+
     def visit_Let(self, ast):
         typ = ast.resolved_type = self.visit(ast.typ)
         self.context.add_global_name(ast.name, typ)
@@ -129,10 +133,20 @@ class TypeAttachingVisitor(parse.Visitor):
     def visit_Register(self, ast):
         typ = self.visit(ast.typ)
         self.context.add_global_name(ast.name, typ)
+        if ast.body is not None:
+            with self.context.enter_scope():
+                for stmt in ast.body:
+                    self.visit(stmt)
+
 
     def visit_StructElementAssignment(self, ast):
         self.visit(ast.obj)
         self.visit(ast.value)
+        curr = ast.obj.resolved_type
+        for field in ast.fields:
+            index = curr.ast.names.index(field)
+            curr = self.visit(curr.ast.types[index])
+        ast.resolved_type = curr
 
     def visit_RefAssignment(self, ast):
         self.visit(ast.ref)
@@ -149,6 +163,25 @@ class TypeAttachingVisitor(parse.Visitor):
 
     def visit_Arbitrary(self, ast):
         pass
+
+    def visit_GeneralAssignment(self, ast):
+        lhs = ast.lhs # refassignment, structelementassignment with None as value
+        if isinstance(lhs, parse.StructElementAssignment):
+            self.visit(lhs.obj)
+            curr = lhs.obj.resolved_type
+            for field in lhs.fields:
+                index = curr.ast.names.index(field)
+                curr = self.visit(curr.ast.types[index])
+            lhs.resolved_type = curr
+        elif isinstance(lhs, parse.RefAssignment):
+            typ = self.visit(lhs.ref)
+            lhs.resolved_type = typ.typ
+        else:
+            import pdb; pdb.set_trace()
+        rhs = ast.rhs # Operation or TemplatedOperation (with None results)
+        for arg in rhs.args:
+            self.visit(arg)
+        rhs.resolved_type = lhs.resolved_type # what about casts?
 
     # conditions
 

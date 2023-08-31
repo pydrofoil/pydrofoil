@@ -7,6 +7,7 @@ toplevel = dirname(dirname(dirname(__file__)))
 elfdir = os.path.join(toplevel, "input")
 addielf = os.path.join(elfdir, "rv64ui-p-addi.elf")
 mulelf = os.path.join(elfdir, "rv64um-v-mul.elf")
+addielf32 = os.path.join(elfdir, "rv32ui-p-addi.elf")
 
 def test_right_import():
     print(_pydrofoil.__dict__)
@@ -18,6 +19,11 @@ def test_step():
 
 def test_run():
     cpu = _pydrofoil.RISCV64(addielf)
+    cpu.run(100)
+    assert cpu.read_register("pc") == 0x800001e8
+
+def test_run32():
+    cpu = _pydrofoil.RISCV32(addielf32)
     cpu.run(100)
     assert cpu.read_register("pc") == 0x800001e8
 

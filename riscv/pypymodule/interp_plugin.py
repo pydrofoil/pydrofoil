@@ -19,12 +19,13 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None):
     if machinecls64 is None:
         mod64 = _make_code(True)
         machinecls64 = supportcoderiscv.get_main(mod64, True)._machinecls
-    elif machinecls32 is None:
+    if machinecls32 is None:
         mod32 = _make_code(False)
         machinecls32 = supportcoderiscv.get_main(mod32, False)._machinecls
     globals()["machinecls64"] = machinecls64
     globals()["machinecls32"] = machinecls32
-    W_RISCV64._init_register_names(machinecls64._all_register_names)
+    _init_register_names(W_RISCV64, machinecls64._all_register_names)
+    _init_register_names(W_RISCV32, machinecls32._all_register_names)
 
 def wrap_fn(fn):
     def wrapped_fn(space, *args):
@@ -45,11 +46,74 @@ init_sail = wrap_fn(supportcoderiscv.init_sail)
 def run_sail(machine, insn_limit, do_show_times):
     machine.run_sail(insn_limit, do_show_times)
 
-class W_RISCV64(W_Root):
+
+def _init_register_names(cls, _all_register_names):
+    assert cls is not AbstractBase
+    """ NOT_RPYTHON """
+    from rpython.rlib.unroll import unrolling_iterable
+    def make_getter(attrname, name, convert_to_pypy):
+        def getter(space, machine):
+            return convert_to_pypy(space, getattr(machine, attrname))
+        getter.func_name += "_" + name
+        return getter
+    def make_setter(attrname, name, convert_from_pypy):
+        def setter(space, machine, w_value):
+            setattr(machine, attrname, convert_from_pypy(space, w_value))
+        setter.func_name += "_" + name
+        return setter
+    register_info = []
+    applevel_register_info = []
+    for (attrname, name, convert_to_pypy, convert_from_pypy, sailrepr) in _all_register_names:
+        name = name.lower().lstrip("z")
+        getter = make_getter(attrname, name, convert_to_pypy)
+        setter = make_setter(attrname, name, convert_from_pypy)
+        register_info.append((attrname, name, getter, setter, sailrepr))
+        applevel_register_info.append((name, sailrepr))
+
+    unrolling_register_info = unrolling_iterable(register_info)
+    @staticmethod
+    @jit.elidable
+    def lookup_register(space, name):
+        for attrname, pyname, getter, setter, sailrepr in unrolling_register_info:
+            if pyname == name:
+                return getter, setter, sailrepr
+        raise oefmt(space.w_ValueError, "register not found")
+    cls._lookup_register = lookup_register
+
+    def get_register_value(self, name):
+        machine = self.machine
+        space = self.space
+        getter, _, sailrepr = self._lookup_register(space, name)
+        try:
+            return getter(space, self.machine)
+        except ValueError:
+            raise oefmt(space.w_TypeError, "could not convert register value to Python object (Sail type %s)", sailrepr)
+    cls._get_register_value = get_register_value
+
+    def set_register_value(self, name, w_value):
+        machine = self.machine
+        space = self.space
+        _, setter, sailrepr = self._lookup_register(space, name)
+        try:
+            setter(space, self.machine, w_value)
+        except ValueError:
+            raise oefmt(space.w_TypeError, "could not convert Python object to register value (Sail type %s)", sailrepr)
+    cls._set_register_value = set_register_value
+
+    class State:
+        def __init__(self, space):
+            self.w_register_info = space.wrap(applevel_register_info)
+
+    def _get_register_info(self, space):
+        return space.fromcache(State).w_register_info
+    cls._get_register_info = _get_register_info
+
+
+class AbstractBase(object):
     def __init__(self, space, elf=None):
+        self._init_machine()
         self.space = space
         self.elf = elf
-        self.machine = machinecls64()
         init_mem(space, self.machine, MemoryObserver)
         if elf is not None:
             entry = load_sail(space, self.machine, elf)
@@ -59,67 +123,6 @@ class W_RISCV64(W_Root):
         self._step_no = 0
         self._insn_cnt = 0 # used to check whether a tick has been reached
         self._tick = False # should the next step tick
-
-    @classmethod
-    def _init_register_names(cls, _all_register_names):
-        """ NOT_RPYTHON """
-        from rpython.rlib.unroll import unrolling_iterable
-        def make_getter(attrname, name, convert_to_pypy):
-            def getter(space, machine):
-                return convert_to_pypy(space, getattr(machine, attrname))
-            getter.func_name += "_" + name
-            return getter
-        def make_setter(attrname, name, convert_from_pypy):
-            def setter(space, machine, w_value):
-                setattr(machine, attrname, convert_from_pypy(space, w_value))
-            setter.func_name += "_" + name
-            return setter
-        register_info = []
-        applevel_register_info = []
-        for (attrname, name, convert_to_pypy, convert_from_pypy, sailrepr) in _all_register_names:
-            name = name.lower().lstrip("z")
-            getter = make_getter(attrname, name, convert_to_pypy)
-            setter = make_setter(attrname, name, convert_from_pypy)
-            register_info.append((attrname, name, getter, setter, sailrepr))
-            applevel_register_info.append((name, sailrepr))
-
-        unrolling_register_info = unrolling_iterable(register_info)
-        @staticmethod
-        @jit.elidable
-        def lookup_register(space, name):
-            for attrname, pyname, getter, setter, sailrepr in unrolling_register_info:
-                if pyname == name:
-                    return getter, setter, sailrepr
-            raise oefmt(space.w_ValueError, "register not found")
-        cls._lookup_register = lookup_register
-
-        def get_register_value(self, name):
-            machine = self.machine
-            space = self.space
-            getter, _, sailrepr = self._lookup_register(space, name)
-            try:
-                return getter(space, self.machine)
-            except ValueError:
-                raise oefmt(space.w_TypeError, "could not convert register value to Python object (Sail type %s)", sailrepr)
-        cls._get_register_value = get_register_value
-
-        def set_register_value(self, name, w_value):
-            machine = self.machine
-            space = self.space
-            _, setter, sailrepr = self._lookup_register(space, name)
-            try:
-                setter(space, self.machine, w_value)
-            except ValueError:
-                raise oefmt(space.w_TypeError, "could not convert Python object to register value (Sail type %s)", sailrepr)
-        cls._set_register_value = set_register_value
-
-        class State:
-            def __init__(self, space):
-                self.w_register_info = space.wrap(applevel_register_info)
-        
-        def _get_register_info(self, space):
-            return space.fromcache(State).w_register_info
-        cls._get_register_info = _get_register_info
 
     def step(self):
         """ Execute a single instruction. """
@@ -270,6 +273,14 @@ class MemoryObserver(mem_mod.MemBase):
         return self.wrapped.memory_info()
 
 
+class W_RISCV64(W_Root):
+    """ Emulator for a RISC-V 64-bit CPU """
+    objectmodel.import_from_mixin(AbstractBase)
+
+    def _init_machine(self):
+        self.machine = machinecls64()
+
+
 @unwrap_spec(elf="text_or_none")
 def riscv64_descr_new(space, w_subtype, elf=None):
     w_res = space.allocate_instance(W_RISCV64, w_subtype)
@@ -289,4 +300,34 @@ W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     memory_info = interp2app(W_RISCV64.memory_info),
     run = interp2app(W_RISCV64.run),
     set_verbosity = interp2app(W_RISCV64.set_verbosity),
+)
+
+
+class W_RISCV32(W_Root):
+    """ Emulator for a RISC-V 32-bit CPU """
+    objectmodel.import_from_mixin(AbstractBase)
+
+    def _init_machine(self):
+        self.machine = machinecls32()
+
+
+@unwrap_spec(elf="text_or_none")
+def riscv32_descr_new(space, w_subtype, elf=None):
+    w_res = space.allocate_instance(W_RISCV32, w_subtype)
+    W_RISCV32.__init__(w_res, space, elf)
+    return w_res
+
+
+W_RISCV32.typedef = TypeDef("_pydrofoil.RISCV32",
+    __new__ = interp2app(riscv32_descr_new),
+    step = interp2app(W_RISCV32.step),
+    step_monitor_mem = interp2app(W_RISCV32.step_monitor_mem),
+    read_register = interp2app(W_RISCV32.read_register),
+    write_register = interp2app(W_RISCV32.write_register),
+    register_info = interp2app(W_RISCV32.get_register_info),
+    read_memory = interp2app(W_RISCV32.read_memory),
+    write_memory = interp2app(W_RISCV32.write_memory),
+    memory_info = interp2app(W_RISCV32.memory_info),
+    run = interp2app(W_RISCV32.run),
+    set_verbosity = interp2app(W_RISCV32.set_verbosity),
 )

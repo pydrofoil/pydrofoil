@@ -211,3 +211,10 @@ class String(Type):
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
+
+@unique
+class Real(Type):
+    uninitialized_value = "None"
+
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )

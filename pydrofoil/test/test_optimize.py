@@ -7,6 +7,8 @@ from pydrofoil.optimize import (
     identify_replacements,
     do_replacements,
     specialize_ops,
+    collect_jump_to_jump,
+    optimize_gotos,
 )
 
 
@@ -937,3 +939,34 @@ def test_vector_access():
         name="@vector_access_bv_i",
         typ=NamedType("%bit"),
     )
+
+
+# optimize_gotos
+
+
+def test_collect_jump_to_jump():
+    assert collect_jump_to_jump(
+        {0: [Goto(12)], 1: [Goto(12)], 2: vector_subrange_example, 12: [End()]}
+    ) == {1: 12}
+
+
+def test_collect_jump_to_jump_to_jump():
+    assert collect_jump_to_jump(
+        {
+            0: [Goto(12)],
+            1: [Goto(12)],
+            2: vector_subrange_example,
+            12: [Goto(13)],
+            13: [End()],
+        }
+    ) == {1: 13, 12: 13}
+
+
+def test_optimize_gotos():
+    blocks = {
+        0: [ConditionalJump("cond", target=1), Goto(1)],
+        1: [Goto(12)],
+        12: [End()],
+    }
+    optimize_gotos(blocks)
+    assert blocks == {0: [ConditionalJump("cond", target=12), Goto(12)], 12: [End()]}

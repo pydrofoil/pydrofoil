@@ -34,7 +34,6 @@ jobs:
     - name: Init opam
       run: |
         opam init --disable-sandboxing -y
-        make sail/_opam/bin/sail
 
     - name: build IR file
       run: |

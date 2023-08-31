@@ -59,6 +59,8 @@ class Vec(Type):
 
 @unique
 class FVec(Type):
+    uninitialized_value = 'None'
+
     def __init__(self, number, typ):
         assert isinstance(typ, Type)
         self.number = number
@@ -139,7 +141,7 @@ class BigFixedBitVector(Type):
 
 @unique
 class GenericBitVector(Type):
-    uninitialized_value = "None"
+    uninitialized_value = "bitvector.UNITIALIZED_BV"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
@@ -155,6 +157,11 @@ class MachineInt(Type):
 class Int(Type):
     uninitialized_value = "UninitInt"
 
+    def __repr__(self):
+        return "%s()" % (type(self).__name__, )
+
+@unique
+class Real(Type):
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 

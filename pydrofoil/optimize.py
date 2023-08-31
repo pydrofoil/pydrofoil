@@ -310,6 +310,25 @@ class OptVisitor(parse.Visitor):
         index = expr.obj.fieldnames.index(expr.element)
         return expr.obj.fieldvalues[index]
 
+    # def visit_StructElementAssignment(self, assign):
+    #    if assign.resolved_type != assign.value.resolved_type:
+    #        value = parse.CastExpr(assign.value, assign.resolved_type)
+    #        return parse.StructElementAssignment(assign.obj, assign.fields, value, assign.resolved_type, assign.sourcepos)
+
+    def visit_GeneralAssignment(self, assign):
+        lhs = assign.lhs
+        rhs = assign.rhs
+        if isinstance(rhs, parse.Operation):
+            value = parse.OperationExpr(rhs.name, rhs.args, rhs.resolved_type)
+        else:
+            return None
+        if isinstance(lhs, parse.StructElementAssignment):
+            return parse.StructElementAssignment(
+                lhs.obj, lhs.fields, value, lhs.resolved_type, assign.sourcepos
+            )
+        assert isinstance(lhs, parse.RefAssignment)
+        return parse.RefAssignment(lhs.ref, value, lhs.resolved_type, assign.sourcepos)
+
     def _gettyp(self, expr):
         assert expr.resolved_type is not None
         return expr.resolved_type
@@ -366,8 +385,32 @@ class OptVisitor(parse.Visitor):
         )
         return res
 
+    def optimize_slice_o_i_i(self, expr):
+        arg0, arg1, arg2 = expr.args
+        assert expr.resolved_type is types.GenericBitVector()
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_number(arg1)
+        arg2 = self._extract_number(arg2)
+        start = arg1.number
+        length = arg2.number
+        if length > 64:
+            return
+
+        res = parse.CastExpr(
+            parse.OperationExpr(
+                "@slice_fixed_bv_i_i",
+                [arg0, parse.Number(start + length - 1), parse.Number(start)],
+                types.SmallFixedBitVector(length),
+                expr.sourcepos,
+            ),
+            expr.resolved_type,
+        )
+        return res
+
     def optimize_vector_access_o_i(self, expr):
         arg0, arg1 = expr.args
+        if isinstance(arg0.resolved_type, types.Vec):
+            return
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
@@ -396,6 +439,18 @@ class OptVisitor(parse.Visitor):
             return
         res = parse.OperationExpr(
             "@neq_bits_bv_bv", [arg0, arg1], expr.resolved_type, expr.sourcepos
+        )
+        return res
+
+    def optimize_zeros_i(self, expr):
+        arg0, = expr.args
+        arg0 = self._extract_number(arg0)
+        if arg0.number > 64:
+            return
+        resconst = parse.BitVectorConstant("0b" + "0" * arg0.number, types.SmallFixedBitVector(arg0.number))
+        res = parse.CastExpr(
+            resconst,
+            expr.resolved_type,
         )
         return res
 
@@ -549,9 +604,24 @@ class OptVisitor(parse.Visitor):
     def optimize_sail_unsigned(self, expr):
         (arg0,) = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        width_as_num = parse.Number(typ0.width)
+        if typ0.width < 64:
+            # will always fit into a machine signed int
+            res = parse.OperationExpr(
+                "@unsigned_bv",
+                [arg0, width_as_num],
+                types.MachineInt(),
+                expr.sourcepos,
+            )
+            return parse.OperationExpr(
+                "zz5i64zDzKz5i", # int64_to_int
+                [res],
+                expr.resolved_type,
+                expr.sourcepos,
+            )
         return parse.OperationExpr(
             "@unsigned_bv_wrapped_res",
-            [arg0, parse.Number(typ0.width)],
+            [arg0, width_as_num],
             expr.resolved_type,
             expr.sourcepos,
         )
@@ -624,6 +694,36 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
+    def optimize_length(self, expr):
+        arg0, = expr.args
+        res = parse.OperationExpr(
+                "@length_unwrapped_res",
+                [arg0],
+                types.MachineInt(),
+                expr.sourcepos,
+        )
+        if isinstance(arg0, parse.CastExpr):
+            realtyp = arg0.expr.resolved_type
+            if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
+                res = parse.Number(realtyp.width)
+        return parse.OperationExpr(
+            "zz5i64zDzKz5i", # int64_to_int
+            [res],
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
+    def optimize_undefined_bitvector_i(self, expr):
+        arg0, = expr.args
+        num = self._extract_number(arg0)
+        if num.number > 64:
+            return
+        return parse.CastExpr(
+            parse.BitVectorConstant("0b" + "0" * num.number, types.SmallFixedBitVector(num.number)),
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
 
 # optimize_gotos
 
@@ -666,20 +766,202 @@ def _get_successors(block):
     return result
 
 
+def compute_predecessors(G):
+    result = defaultdict(set)
+    for num, succs in G.iteritems():
+        for succ in succs:
+            result[succ].add(num)
+        result[num].add(num)
+    return result
+
+
+def _compute_dominators(G, start=0):
+    preds = compute_predecessors(G)
+    # initialize
+    dominators = {}
+    for node in G:
+        dominators[node] = set(G)
+    dominators[start] = {start}
+
+    # fixpoint
+    changed = True
+    while changed:
+        changed = False
+        for node in G:
+            if node == start:
+                continue
+            dom = set(G).intersection(*[dominators[x] for x in preds[node]])
+            dom.add(node)
+            if dom != dominators[node]:
+                changed = True
+                dominators[node] = dom
+    return dominators
+
+
+def immediate_dominators(G, start=0):
+    if start not in G:
+        return {}
+    res = {}
+    dominators = _compute_dominators(G, start)
+    for node in G:
+        if node == start:
+            continue
+        doms = dominators[node]
+        for candidate in doms:
+            if candidate == node:
+                continue
+            for otherdom in doms:
+                if otherdom == node or otherdom == candidate:
+                    continue
+                if candidate in dominators[otherdom]:
+                    break
+            else:
+                break
+        res[node] = candidate
+    return res
+
+def _extract_graph(blocks):
+    return {num: _get_successors(block) for (num, block) in blocks.iteritems()}
+
+def immediate_dominators_blocks(blocks):
+    G = _extract_graph(blocks)
+    return immediate_dominators(G)
+
+def bfs_graph(G, start=0):
+    from collections import deque
+    todo = deque([start])
+    seen = set()
+    res = []
+    while todo:
+        node = todo.popleft()
+        if node in seen:
+            continue
+        seen.add(node)
+        todo.extend(G[node])
+        res.append(node)
+    return res
+
+def bfs_edges(G, start=0):
+    from collections import deque
+    todo = deque([start])
+    seen = set()
+    res = []
+    while todo:
+        node = todo.popleft()
+        if node in seen:
+            continue
+        seen.add(node)
+        todo.extend(G[node])
+        for succ in G[node]:
+            res.append((node, succ))
+    return res
+
 def view_blocks(blocks):
     from rpython.translator.tool.make_dot import DotGen
     from dotviewer import graphclient
     import pytest
     dotgen = DotGen('G')
     G = {num: _get_successors(block) for (num, block) in blocks.iteritems()}
+    idom = immediate_dominators(G)
     for num, block in blocks.iteritems():
         label = [str(num)] + [str(op)[:100] for op in block]
         dotgen.emit_node(str(num), label="\n".join(label), shape="box")
 
     for start, succs in G.iteritems():
         for finish in succs:
-            dotgen.emit_edge(str(start), str(finish))
+            color = "green"
+            dotgen.emit_edge(str(start), str(finish), color=color)
+    for finish, start in idom.iteritems():
+        color = "red"
+        dotgen.emit_edge(str(start), str(finish), color=color)
 
     p = pytest.ensuretemp("pyparser").join("temp.dot")
     p.write(dotgen.generate(target=None))
     graphclient.display_dot_file(str(p))
+
+
+# graph splitting
+
+class CantSplitError(Exception):
+    pass
+
+def split_graph(blocks, min_size=6, start_node=0):
+    G = _extract_graph(blocks)
+    return_blocks = {num for (num, block) in blocks.iteritems() if isinstance(block[-1], parse.End)}
+    end_blocks = {num for (num, block) in blocks.iteritems() if isinstance(block[-1], parse.FunctionEndingStatement)}
+    return_edges = [(source, target) for (source, target) in bfs_edges(G, start_node) if target in return_blocks]
+    return_edges.reverse()
+    # split graph, starting from exit edges (ie an edge going to a block
+    # ending with End)
+    graph1 = {}
+    last_working_graph1 = None
+    while 1:
+        # approach: from the edge going to the 'End' node, extend by adding
+        # predecessors up to fixpoint
+        source, target = return_edges.pop()
+        preds = compute_predecessors(G)
+        graph1[target] = blocks[target]
+        todo = [source]
+        while todo:
+            node = todo.pop()
+            if node in graph1:
+                continue
+            graph1[node] = blocks[node]
+            todo.extend(preds[node])
+        # add all end nodes that are reachable from the nodes in graph1.
+        # also compute nodes where we need to transfer from graph1 to graph2
+        transfer_nodes = set()
+        for node in list(graph1):
+            for succ in G[node]:
+                if succ in graph1:
+                    continue
+                if succ in end_blocks:
+                    graph1[succ] = blocks[succ]
+                else:
+                    transfer_nodes.add(succ)
+        # try to remove some transfer nodes, if they are themselves only a
+        # single block away from an end_blocks (happens with exceptions)
+        for node in list(transfer_nodes):
+            if len(G[node]) > 1:
+                continue
+            succ, = G[node]
+            if succ not in end_blocks:
+                continue
+            graph1[node] = blocks[node]
+            graph1[succ] = blocks[succ]
+            transfer_nodes.remove(node)
+
+        # if we only have a single transfer_node left, we have a potential
+        # split
+        if len(transfer_nodes) == 1:
+            last_working_graph1 = graph1.copy()
+            last_transfer_nodes = transfer_nodes.copy()
+            if len(graph1) > min_size:
+                break
+        if len(graph1) == len(blocks) or not return_edges:
+            # didn't manage to split
+            if last_working_graph1:
+                print "going back to earlier result, size", len(last_working_graph1)
+                graph1 = last_working_graph1
+                transfer_nodes = last_transfer_nodes
+                break
+            raise CantSplitError
+    # compute graph2
+    graph2 = {}
+    for node in G:
+        if node not in graph1:
+            graph2[node] = blocks[node]
+    # add reachable end nodes
+    for node in list(graph2):
+        for succ in G[node]:
+            if succ in end_blocks:
+                graph2[succ] = blocks[succ]
+    # consistency check:
+    for num, block in blocks.iteritems():
+        assert num in graph1 or num in graph2
+        if num in graph1 and num in graph2:
+            assert num in end_blocks
+    transferpc, = transfer_nodes
+    assert transferpc not in graph1
+    assert transferpc in graph2
+    return graph1, graph2, transferpc

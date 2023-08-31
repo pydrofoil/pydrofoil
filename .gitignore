@@ -9,6 +9,8 @@ docs/_build/
 pydrofoil-riscv
 pypy_binary/
 pydrofoil-riscv-tests.xml
+.hypothesis/
+.cache/
 *.o
 *.so
 *.a

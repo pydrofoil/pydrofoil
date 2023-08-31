@@ -33,13 +33,10 @@ jobs:
     - name: Init opam
       run: opam init --disable-sandboxing -y
 
-    - name: Install sail
-      run: opam install -y sail=0.15
-
     - uses: actions/checkout@v3
       with:
         repository: riscv/sail-riscv
-        ref: fea224f5ed4f8eab3654691484bdb5685151fe07
+        ref: 861bd6f65593013381c905d7a54e538e5382bf31
 
     - uses: actions/checkout@v3
       with:
@@ -50,7 +47,7 @@ jobs:
       run: |
         wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/main/build-pydrofoil-from-sail.sh
         chmod a+x build-pydrofoil-from-sail.sh
-        eval $(opam env) && ./build-pydrofoil-from-sail.sh
+        ./build-pydrofoil-from-sail.sh
 
     - name: run two tests
       run: |

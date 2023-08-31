@@ -29,6 +29,8 @@ def run(cmd, fn, test_cases):
         print stderr
     else:
         print "SUCESS"
+    p.stdout.close()
+    p.stderr.close()
 
 
 def main():

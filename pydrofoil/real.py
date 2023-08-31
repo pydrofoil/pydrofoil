@@ -44,8 +44,8 @@ class Real(object):
         from rpython.rlib.rstring import strip_spaces
         s = strip_spaces(str)
         decimalpos = s.find(".")
-        num = rbigint.fromstr(s[:decimalpos]+s[decimalpos+1:], 10) if decimalpos != -1 else rbigint.fromstr(s, 10)
-        den = rbigint.fromint(10).int_pow(len(s)-1 - decimalpos) if decimalpos != -1 else rbigint.fromint(1)
+        num = rbigint.fromstr(s[:decimalpos]+s[decimalpos+1:], 10) if decimalpos >= 0 else rbigint.fromstr(s, 10)
+        den = rbigint.fromint(10).int_pow(len(s)-1 - decimalpos) if decimalpos >= 0 else rbigint.fromint(1)
         return Real(num, den)
 
 

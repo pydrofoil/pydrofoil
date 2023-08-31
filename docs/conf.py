@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'Pydrofoil'
-copyright = '2022, Pydrofoil Contributors'
+copyright = '2023, Pydrofoil Contributors'
 author = 'Pydrofoil Contributors'
 
 # -- General configuration ---------------------------------------------------

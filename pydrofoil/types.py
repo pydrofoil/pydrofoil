@@ -50,7 +50,7 @@ class Struct(Type):
         ast = self.ast
         if len(ast.names) == 1 and isinstance(self.fieldtyps[ast.names[0]], SmallFixedBitVector):
             return "bitfield %s" % self.ast.name.lstrip('z')
-        return Type(sail_repr(self), )
+        return Type.sail_repr(self)
 
     def __repr__(self):
         return "%s(<%s>)" % (type(self).__name__, self.ast.name)

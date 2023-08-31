@@ -4,29 +4,30 @@ ALL: pydrofoil-riscv
 
 ## RISC-V targets:
 
-pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build the pydrofoil RISC-V emulator
+pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build the Pydrofoil RISC-V emulator
 	pkg-config libffi # if this fails, libffi development headers arent installed
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
 
-.PHONY: pypy-c-pydrofoil
+.PHONY: pypy-c-pydrofoil-riscv
 
-pypy-c-pydrofoil: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build pypy with pydrofoil plugin
+pypy-c-pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build PyPy with Pydrofoil RISC-V plugin
 	pkg-config libffi # if this fails, libffi development headers arent installed
-	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --no-shared --output=pypy/pypy/goal/pypy-c-pydrofoil pypy/pypy/goal/targetpypystandalone.py --ext=riscv.pypymodule
-	rm -f pypy-c-pydrofoil
-	ln -s pypy/pypy/goal/pypy-c-pydrofoil pypy-c-pydrofoil
-	pypy/pypy/goal/pypy-c-pydrofoil pypy/lib_pypy/pypy_tools/build_cffi_imports.py
+	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --no-shared --output=pypy-c-pydrofoil-riscv pypy/pypy/goal/targetpypystandalone.py --ext=riscv.pypymodule
+	mv pypy-c-pydrofoil-riscv pypy/pypy/goal/
+	ln -s pypy/pypy/goal/pypy-c-pydrofoil-riscv pypy-c-pydrofoil-riscv
+	pypy/pypy/goal/pypy-c-pydrofoil-riscv pypy/lib_pypy/pypy_tools/build_cffi_imports.py
 
-pydrofoil-test: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the pydrofoil implementation-level unit tests
+pydrofoil-test: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the Pydrofoil implementation-level unit tests
 	./pypy_binary/bin/python pypy/pytest.py -v pydrofoil/ riscv/
 
-pypy/lib/pypy3.9/site-packages/pytest/__init__.py: pypy-c-pydrofoil
-	./pypy-c-pydrofoil -m ensurepip
-	./pypy-c-pydrofoil -m pip install pytest pdbpp
+pypy/lib/pypy3.9/site-packages/pytest/__init__.py: pypy-c-pydrofoil-riscv
+	./pypy-c-pydrofoil-riscv -m ensurepip
+	./pypy-c-pydrofoil-riscv -m pip install pytest pdbpp
 
-plugin-test: pypy-c-pydrofoil pypy/lib/pypy3.9/site-packages/pytest/__init__.py ## Run the tests for the pydrofoil Python-plugin
-	./pypy-c-pydrofoil -m pytest riscv/plugin/
+.PHONY: plugin-riscv-tests
+plugin-riscv-tests: pypy-c-pydrofoil-riscv pypy/lib/pypy3.9/site-packages/pytest/__init__.py ## Run the tests for the PyPy Pydrofoil RISC-V plugin
+	./pypy-c-pydrofoil-riscv -m pytest riscv/plugin/
 
 .PHONY: riscv-tests
 riscv-tests: pypy_binary/bin/python pydrofoil-riscv  ## Run risc-v test suite, needs env variable RISCVMODELCHECKOUT set

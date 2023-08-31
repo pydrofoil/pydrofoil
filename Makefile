@@ -214,7 +214,7 @@ arm/armv9.ir: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ##
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.3-a/ gen_ir
 	mv sail-arm/arm-v9.3-a/ir/armv9.ir arm/
 
-pydrofoil-arm: arm/armv9.ir ## build the arm emulator
+pydrofoil-arm: pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## build the arm emulator
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -O2 --output=pydrofoil-arm arm/targetarm.py
 
 # various

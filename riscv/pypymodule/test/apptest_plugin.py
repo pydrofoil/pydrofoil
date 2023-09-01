@@ -8,6 +8,7 @@ elfdir = os.path.join(toplevel, "input")
 addielf = os.path.join(elfdir, "rv64ui-p-addi.elf")
 mulelf = os.path.join(elfdir, "rv64um-v-mul.elf")
 addielf32 = os.path.join(elfdir, "rv32ui-p-addi.elf")
+linuxbbl = os.path.join(elfdir, "rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl")
 
 def test_right_import():
     print(_pydrofoil.__dict__)
@@ -135,3 +136,11 @@ def test_set_verbosity():
     cpu.set_verbosity(True)
     cpu.run(10)
 
+def test_dtb():
+    cpu = _pydrofoil.RISCV64(dtb=True)
+    assert cpu.read_memory(0x1020, 4) == 0xEDFE0DD0
+
+def test_linux():
+    cpu = _pydrofoil.RISCV64(linuxbbl, dtb=True)
+    cpu.run(100)
+    assert cpu.read_register("x15") == 0x0000000030030000

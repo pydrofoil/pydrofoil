@@ -110,10 +110,12 @@ def _init_register_names(cls, _all_register_names):
 
 
 class AbstractBase(object):
-    def __init__(self, space, elf=None):
+    def __init__(self, space, elf=None, dtb=False):
         self._init_machine()
         self.space = space
         self.elf = elf
+        if dtb:
+            self.machine.g._create_dtb()
         init_mem(space, self.machine, MemoryObserver)
         if elf is not None:
             entry = load_sail(space, self.machine, elf)
@@ -281,10 +283,12 @@ class W_RISCV64(W_Root):
         self.machine = machinecls64()
 
 
-@unwrap_spec(elf="text_or_none")
-def riscv64_descr_new(space, w_subtype, elf=None):
+@unwrap_spec(elf="text_or_none", dtb=bool)
+def riscv64_descr_new(space, w_subtype, elf=None, dtb=False):
+    """ Create a RISC-V 64-bit CPU. Load elf if given, and create a device tree
+    binary if the flag dtb is set. """
     w_res = space.allocate_instance(W_RISCV64, w_subtype)
-    W_RISCV64.__init__(w_res, space, elf)
+    W_RISCV64.__init__(w_res, space, elf, dtb)
     return w_res
 
 
@@ -311,10 +315,12 @@ class W_RISCV32(W_Root):
         self.machine = machinecls32()
 
 
-@unwrap_spec(elf="text_or_none")
-def riscv32_descr_new(space, w_subtype, elf=None):
+@unwrap_spec(elf="text_or_none", dtb=bool)
+def riscv32_descr_new(space, w_subtype, elf=None, dtb=False):
+    """ Create a RISC-V 32-bit CPU. Load elf if given, and create a device tree
+    binary if the flag dtb is set. """
     w_res = space.allocate_instance(W_RISCV32, w_subtype)
-    W_RISCV32.__init__(w_res, space, elf)
+    W_RISCV32.__init__(w_res, space, elf, dtb)
     return w_res
 
 

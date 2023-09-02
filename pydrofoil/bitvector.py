@@ -34,10 +34,22 @@ def rbigint_fromrarith_int(uint):
     return res
 
 class MaskHolder(object):
-    pass
+    def __init__(self, predefined=128):
+        self.lst = []
+        for i in range(predefined):
+            self.get(i)
+
+    @jit.elidable
+    def get(self, size):
+        if size >= len(self.lst):
+            self.lst.extend([None] * (size - len(self.lst) + 1))
+        mask = self.lst[size]
+        if mask is None:
+            mask = ONERBIGINT.lshift(size).int_sub(1)
+            self.lst[size] = mask
+        return mask
 
 MASKS = MaskHolder()
-MASKS.lst = [ONERBIGINT.lshift(x).int_sub(1) for x in range(128)]
 
 class BitVector(object):
     _attrs_ = []
@@ -68,12 +80,7 @@ class BitVector(object):
     def _rbigint_mask(size, rval):
         if rval.sign >= 0 and rval.bit_length() <= size:
             return rval
-        if size > len(MASKS.lst):
-            MASKS.lst.extend([None] * (size - len(MASKS.lst) + 1))
-        mask = MASKS.lst[size]
-        if mask is None:
-            mask = ONERBIGINT.lshift(size).int_sub(1)
-            MASKS.lst[size] = mask
+        mask = MASKS.get(size)
         return rval.and_(mask)
 
     def tolong(self): # only for tests:
@@ -345,7 +352,7 @@ class GenericBitVector(BitVectorWithSize):
         highest_bit = rval.rshift(size - 1).int_and_(1).toint()
         res = rval.rshift(i)
         if highest_bit:
-            res = res.or_(ONERBIGINT.lshift(i).int_sub(1).lshift(size - i))
+            res = res.or_(MASKS.get(i).lshift(size - i))
         return GenericBitVector(size, res)
 
     def lshift_bits(self, other):
@@ -393,12 +400,12 @@ class GenericBitVector(BitVectorWithSize):
 
     @staticmethod
     def _sign_extend(rval, size, target_size):
-        highest_bit = rval.rshift(size - 1).int_and_(1).toint()
+        highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
         if not highest_bit:
             return GenericBitVector(target_size, rval)
         else:
             extra_bits = target_size - size
-            bits = ONERBIGINT.lshift(extra_bits).int_sub(1).lshift(size)
+            bits = MASKS.get(extra_bits).lshift(size)
             return GenericBitVector(target_size, bits.or_(rval))
 
     def read_bit(self, pos):
@@ -414,7 +421,7 @@ class GenericBitVector(BitVectorWithSize):
     def update_subrange(self, n, m, s):
         width = s.size()
         assert width == n - m + 1
-        mask = ONERBIGINT.lshift(width).int_sub(1).lshift(m).invert()
+        mask = MASKS.get(width).lshift(m).invert()
         return self.make(self.rval.and_(mask).or_(s.tobigint().lshift(m)))
 
     def signed(self):
@@ -423,7 +430,7 @@ class GenericBitVector(BitVectorWithSize):
         u1 = ONERBIGINT
         m = u1.lshift(n - 1)
         op = self.rval
-        op = op.and_((u1.lshift(n)).int_sub(1)) # mask off higher bits to be sure
+        op = op.and_(MASKS.get(n)) # mask off higher bits to be sure
         return Integer.frombigint(op.xor(m).sub(m))
 
     def unsigned(self):

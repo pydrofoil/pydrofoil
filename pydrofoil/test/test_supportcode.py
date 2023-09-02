@@ -158,6 +158,15 @@ def test_hypothesis_vector_subrange(data):
     bvres = bv.subrange(upper, lower)
     assert bvres.tobigint().tolong() == correct_res_as_int
 
+@given(strategies.data())
+def test_hypothesis_sign_extend(data):
+    bitwidth = data.draw(strategies.integers(1, 10000))
+    target_bitwidth = bitwidth + data.draw(strategies.integers(1, 100))
+    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    res = bv.sign_extend(target_bitwidth)
+    print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
+    assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
 
 def test_vector_update_subrange():
     for c1 in gbv, bv:

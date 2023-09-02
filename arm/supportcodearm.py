@@ -71,6 +71,9 @@ def get_main(outarm):
     jit.unroll_safe(outarm.func_zAArch64_S1Translate)
     jit.unroll_safe(outarm.func_zAArch64_S1Walk)
     jit.unroll_safe(outarm.func_zAArch64_S2Translate)
+    jit.unroll_safe(outarm.func_zMaybeZeroSVEUppers)
+    jit.unroll_safe(outarm.func_zAArch64_DataMemZero)
+    jit.unroll_safe(outarm.func_zexecute_aarch64_instrs_integer_arithmetic_rev)
 
     for name, func in outarm.__dict__.iteritems():
         if "IMPDEF_boolean" in name:

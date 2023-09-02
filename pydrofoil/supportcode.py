@@ -1,7 +1,7 @@
 import os
 
 from rpython.rlib import objectmodel, unroll, jit
-from rpython.rlib.rbigint import rbigint
+from rpython.rlib.rbigint import rbigint, ONERBIGINT
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer
@@ -454,7 +454,10 @@ def undefined_int(machine, _):
 
 @unwrap("i")
 def pow2(machine, x):
-    return Integer.frombigint(rbigint.fromint(2).int_pow(x))
+    assert x >= 0
+    if x < 63:
+        return Integer.fromint(1 << x)
+    return Integer.frombigint(ONERBIGINT.lshift(x))
 
 def neg_int(machine, x):
     return Integer.fromint(0).sub(x)
@@ -539,7 +542,7 @@ def print_real(machine, s, r):
     return ()
 
 def to_real(machine, i):
-    return Real(i.tobigint(), rbigint.fromint(1))
+    return Real(i.tobigint(), ONERBIGINT)
 
 def undefined_real(machine, _):
     return Real.fromint(12, 19)

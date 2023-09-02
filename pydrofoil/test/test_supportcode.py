@@ -400,6 +400,12 @@ def test_emod_ediv_int():
        assert c(123875).ediv(si(13)).toint() == 123875 // 13
    assert bi(0xfffffe00411e0e90L).emod(si(64)).toint() == 16
 
+def test_pow2():
+    for i in range(1000):
+        assert supportcode.pow2_i(None, i).tobigint().tolong() == 2 ** i
+    # check that small results use small ints
+    for i in range(63):
+        assert supportcode.pow2_i(None, i).val == 2 ** i
 
 # softfloat
 

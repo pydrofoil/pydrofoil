@@ -1,5 +1,5 @@
 import sys
-from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
+from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
 from rpython.rlib.objectmodel import always_inline, specialize, is_annotation_constant
@@ -37,7 +37,7 @@ class MaskHolder(object):
     pass
 
 MASKS = MaskHolder()
-MASKS.lst = [rbigint.fromint(1).lshift(x).int_sub(1) for x in range(128)]
+MASKS.lst = [ONERBIGINT.lshift(x).int_sub(1) for x in range(128)]
 
 class BitVector(object):
     _attrs_ = []
@@ -72,7 +72,7 @@ class BitVector(object):
             MASKS.lst.extend([None] * (size - len(MASKS.lst) + 1))
         mask = MASKS.lst[size]
         if mask is None:
-            mask = rbigint.fromint(1).lshift(size).int_sub(1)
+            mask = ONERBIGINT.lshift(size).int_sub(1)
             MASKS.lst[size] = mask
         return rval.and_(mask)
 
@@ -345,7 +345,7 @@ class GenericBitVector(BitVectorWithSize):
         highest_bit = rval.rshift(size - 1).int_and_(1).toint()
         res = rval.rshift(i)
         if highest_bit:
-            res = res.or_(rbigint.fromint(1).lshift(i).int_sub(1).lshift(size - i))
+            res = res.or_(ONERBIGINT.lshift(i).int_sub(1).lshift(size - i))
         return GenericBitVector(size, res)
 
     def lshift_bits(self, other):
@@ -398,14 +398,14 @@ class GenericBitVector(BitVectorWithSize):
             return GenericBitVector(target_size, rval)
         else:
             extra_bits = target_size - size
-            bits = rbigint.fromint(1).lshift(extra_bits).int_sub(1).lshift(size)
+            bits = ONERBIGINT.lshift(extra_bits).int_sub(1).lshift(size)
             return GenericBitVector(target_size, bits.or_(rval))
 
     def read_bit(self, pos):
         return bool(self.rval.abs_rshift_and_mask(r_ulonglong(pos), 1))
 
     def update_bit(self, pos, bit):
-        mask = rbigint.fromint(1).lshift(pos)
+        mask = ONERBIGINT.lshift(pos)
         if bit:
             return self.make(self.rval.or_(mask))
         else:
@@ -414,13 +414,13 @@ class GenericBitVector(BitVectorWithSize):
     def update_subrange(self, n, m, s):
         width = s.size()
         assert width == n - m + 1
-        mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m).invert()
+        mask = ONERBIGINT.lshift(width).int_sub(1).lshift(m).invert()
         return self.make(self.rval.and_(mask).or_(s.tobigint().lshift(m)))
 
     def signed(self):
         n = self.size()
         assert n > 0
-        u1 = rbigint.fromint(1)
+        u1 = ONERBIGINT
         m = u1.lshift(n - 1)
         op = self.rval
         op = op.and_((u1.lshift(n)).int_sub(1)) # mask off higher bits to be sure

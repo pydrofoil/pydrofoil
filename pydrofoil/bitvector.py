@@ -5,6 +5,7 @@ from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
 from rpython.rlib.objectmodel import always_inline, specialize, is_annotation_constant
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
+from rpython.rlib import jit
 
 MININT = -sys.maxint - 1
 
@@ -15,7 +16,7 @@ def from_ruint(size, val):
 #        if is_annotation_constant(size) and is_annotation_constant(val):
 #            return _small_bit_vector_memo(size, val)
         return SmallBitVector(size, val, True)
-    return GenericBitVector(size, rbigint.fromrarith_int(val), True)
+    return GenericBitVector(size, rbigint_fromrarith_int(val), True)
 
 @specialize.memo()
 def _small_bit_vector_memo(size, val):
@@ -26,6 +27,17 @@ def from_bigint(size, rval):
     if size <= 64:
         return SmallBitVector(size, BitVector.rbigint_mask(size, rval).touint())
     return GenericBitVector(size, rval, True)
+
+def rbigint_fromrarith_int(uint):
+    res = rbigint.fromrarith_int(uint)
+    jit.record_known_result(uint, rbigint.touint, res)
+    return res
+
+class MaskHolder(object):
+    pass
+
+MASKS = MaskHolder()
+MASKS.lst = [rbigint.fromint(1).lshift(x).int_sub(1) for x in range(128)]
 
 class BitVector(object):
     _attrs_ = []
@@ -46,7 +58,23 @@ class BitVector(object):
 
     @staticmethod
     def rbigint_mask(size, rval):
-        return rval.and_(rbigint.fromint(1).lshift(size).int_sub(1))
+        res = BitVector._rbigint_mask(size, rval)
+        # rbigint_mask is idempotent
+        #jit.record_known_result(res, BitVector._rbigint_mask, size, res)
+        return res
+
+    @staticmethod
+    @jit.elidable
+    def _rbigint_mask(size, rval):
+        if rval.sign >= 0 and rval.bit_length() <= size:
+            return rval
+        if size > len(MASKS.lst):
+            MASKS.lst.extend([None] * (size - len(MASKS.lst) + 1))
+        mask = MASKS.lst[size]
+        if mask is None:
+            mask = rbigint.fromint(1).lshift(size).int_sub(1)
+            MASKS.lst[size] = mask
+        return rval.and_(mask)
 
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
@@ -55,7 +83,7 @@ class BitVector(object):
         return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
 
     def append_64(self, ui):
-        return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
+        return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
 
 class BitVectorWithSize(BitVector):
     _attrs_ = ['_size']
@@ -174,7 +202,7 @@ class SmallBitVector(BitVectorWithSize):
             return self
         assert i > self.size()
         if i > 64:
-            return GenericBitVector(i, rbigint.fromrarith_int(self.val))
+            return GenericBitVector(i, rbigint_fromrarith_int(self.val))
         return SmallBitVector(i, self.val)
 
     @always_inline
@@ -182,7 +210,7 @@ class SmallBitVector(BitVectorWithSize):
         if i == self.size():
             return self
         if i > 64:
-            return GenericBitVector._sign_extend(rbigint.fromrarith_int(self.val), self.size(), i)
+            return GenericBitVector._sign_extend(rbigint_fromrarith_int(self.val), self.size(), i)
         assert i > self.size()
         highest_bit = (self.val >> (self.size() - 1)) & 1
         if not highest_bit:
@@ -239,7 +267,7 @@ class SmallBitVector(BitVectorWithSize):
         return self.val
 
     def tobigint(self):
-        return rbigint.fromrarith_int(self.val)
+        return rbigint_fromrarith_int(self.val)
 
     def append(self, other):
         ressize = self.size() + other.size()
@@ -254,7 +282,7 @@ class SmallBitVector(BitVectorWithSize):
             for _ in range(i - 1):
                 res = (res << size) | val
             return SmallBitVector(size * i, res)
-        gbv = GenericBitVector(size, rbigint.fromrarith_int(self.val))
+        gbv = GenericBitVector(size, rbigint_fromrarith_int(self.val))
         return gbv.replicate(i)
 
     def truncate(self, i):
@@ -340,13 +368,16 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange(self, n, m):
         width = n - m + 1
-        if m == 0:
-            return from_bigint(width, self.rval)
         if width < 64: # somewhat annoying that 64 doesn't work
             mask = (r_uint(1) << width) - 1
             res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
             return SmallBitVector(width, r_uint(res))
-        return from_bigint(width, self.rval.rshift(m))
+        if m == 0:
+            return from_bigint(width, self.rval)
+        rval = self.rval.rshift(m)
+        if n == self.size():
+            return GenericBitVector(width, rval) # no need to mask
+        return from_bigint(width, rval)
 
     def zero_extend(self, i):
         if i == self.size():
@@ -450,7 +481,7 @@ class Integer(object):
     def from_ruint(val):
         if val & (r_uint(1)<<63):
             # bigger than biggest signed int
-            return BigInteger(rbigint.fromrarith_int(val))
+            return BigInteger(rbigint_fromrarith_int(val))
         return SmallInteger(intmask(val))
 
     def tolong(self): # only for tests:
@@ -598,14 +629,14 @@ class SmallInteger(Integer):
         try:
             return SmallInteger(ovfcheck(a + b))
         except OverflowError:
-            return BigInteger(rbigint.fromrarith_int(a).int_add(b))
+            return BigInteger(rbigint.fromint(a).int_add(b))
 
     @staticmethod
     def sub_i_i(a, b):
         try:
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
-            return BigInteger(rbigint.fromrarith_int(b).int_sub(a).neg())
+            return BigInteger(rbigint.fromint(b).int_sub(a).neg())
 
 
 class BigInteger(Integer):
@@ -641,7 +672,7 @@ class BigInteger(Integer):
             n = rval
         else:
             n = rval.rshift(start)
-        return from_bigint(len, n.and_(rbigint.fromint(1).lshift(len).int_sub(1)))
+        return from_bigint(len, n)
 
     def eq(self, other):
         if isinstance(other, SmallInteger):

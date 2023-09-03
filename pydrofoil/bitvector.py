@@ -1,5 +1,6 @@
 import sys
-from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT
+from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, \
+        _divrem1, intsign, int_in_valid_range
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
 from rpython.rlib.objectmodel import always_inline, specialize, is_annotation_constant
@@ -8,6 +9,18 @@ from rpython.rlib.rstring import (
 from rpython.rlib import jit
 
 MININT = -sys.maxint - 1
+
+@jit.elidable
+def bigint_divrem1(a, n):
+    assert n != MININT
+    div, rem = _divrem1(a, abs(n))
+    # _divrem1 leaves the sign always positive, fix
+    if a.sign != intsign(n):
+        div.sign = -div.sign
+    if a.sign < 0 and rem > 0:
+        rem = -rem
+    return div, rem
+
 
 @always_inline
 #@specialize.arg_or_var(0, 1)
@@ -499,6 +512,7 @@ class SmallInteger(Integer):
     _immutable_fields_ = ['val']
 
     def __init__(self, val):
+        assert isinstance(val, int)
         self.val = val
 
     def __repr__(self):
@@ -734,6 +748,13 @@ class BigInteger(Integer):
 
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python
+        if isinstance(other, SmallInteger) and int_in_valid_range(other.val):
+            other = other.val
+            if other == 0:
+                raise ZeroDivisionError
+            div, rem = bigint_divrem1(self.rval, other)
+            return BigInteger(div)
+
         other = other.tobigint()
         if other.sign == 0:
             raise ZeroDivisionError
@@ -741,6 +762,13 @@ class BigInteger(Integer):
         return BigInteger(div)
 
     def tmod(self, other):
+        if isinstance(other, SmallInteger) and int_in_valid_range(other.val):
+            other = other.val
+            if other == 0:
+                raise ZeroDivisionError
+            div, rem = bigint_divrem1(self.rval, other)
+            return SmallInteger(rem)
+
         other = other.tobigint()
         if other.sign == 0:
             raise ZeroDivisionError

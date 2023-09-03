@@ -11,6 +11,22 @@ from fractions import Fraction
 from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
 from rpython.rlib.rbigint import rbigint
 
+
+def make_int(data):
+    if data.draw(strategies.booleans()):
+        # big ints
+        return BigInteger(rbigint.fromlong(data.draw(strategies.integers())))
+    else:
+        # small ints
+        return SmallInteger(data.draw(ints))
+
+ints = strategies.integers(-sys.maxint-1, sys.maxint)
+wrapped_ints = strategies.builds(
+        make_int,
+        strategies.data())
+
+
+
 def gbv(size, val):
     return bitvector.GenericBitVector(size, rbigint.fromlong(val))
 
@@ -326,7 +342,35 @@ def test_op_int():
                     assert a.ge(b) == (v1 >= v2)
                 with pytest.raises(ZeroDivisionError):
                     c1(v1).tdiv(c2(0))
+                with pytest.raises(ZeroDivisionError):
                     c1(v1).tmod(c2(0))
+
+@given(wrapped_ints, wrapped_ints)
+def test_op_int_hypothesis(a, b):
+    v1 = a.tobigint().tolong()
+    v2 = b.tobigint().tolong()
+    assert a.add(b).tolong() == v1 + v2
+    assert a.sub(b).tolong() == v1 - v2
+    assert a.mul(b).tolong() == v1 * v2
+    if v2:
+        assert a.abs().tdiv(b.abs()).tolong() == abs(v1) // abs(v2)
+        assert a.abs().tmod(b.abs()).tolong() == abs(v1) % abs(v2)
+        # (a/b) * b + a%b == a
+        assert a.tdiv(b).mul(b).add(a.tmod(b)).eq(a)
+
+    assert a.eq(b) == (v1 == v2)
+    assert a.lt(b) == (v1 < v2)
+    assert a.gt(b) == (v1 > v2)
+    assert a.le(b) == (v1 <= v2)
+    assert a.ge(b) == (v1 >= v2)
+    with pytest.raises(ZeroDivisionError):
+        a.tdiv(si(0))
+    with pytest.raises(ZeroDivisionError):
+        a.tdiv(si(0))
+    with pytest.raises(ZeroDivisionError):
+        a.tmod(bi(0))
+    with pytest.raises(ZeroDivisionError):
+        a.tmod(bi(0))
 
 def test_op_int_div_mod():
     for c1 in bi, si:

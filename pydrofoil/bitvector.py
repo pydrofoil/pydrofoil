@@ -349,7 +349,7 @@ class GenericBitVector(BitVectorWithSize):
         if i >= size:
             i = size
         rval = self.rval
-        highest_bit = rval.rshift(size - 1).int_and_(1).toint()
+        highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
         res = rval.rshift(i)
         if highest_bit:
             res = res.or_(MASKS.get(i).lshift(size - i))

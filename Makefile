@@ -203,7 +203,7 @@ plugin-riscv-tests: pypy-c-pydrofoil-riscv pypy/lib/pypy3.9/site-packages/pytest
 ## ARM model targets
 
 pydrofoil-arm: pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
-	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -O2 --output=pydrofoil-arm arm/targetarm.py
+	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py
 
 sail-arm/arm-v9.3-a/src/v8_base.sail: ## Clone the sail-arm submodule
 	git submodule update --init --depth 1

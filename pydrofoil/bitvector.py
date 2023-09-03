@@ -3,7 +3,8 @@ from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, 
         _divrem1, intsign, int_in_valid_range
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
-from rpython.rlib.objectmodel import always_inline, specialize, is_annotation_constant
+from rpython.rlib.objectmodel import always_inline, specialize, \
+        we_are_translated, is_annotation_constant
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 from rpython.rlib import jit
@@ -512,7 +513,8 @@ class SmallInteger(Integer):
     _immutable_fields_ = ['val']
 
     def __init__(self, val):
-        assert isinstance(val, int)
+        if not objectmodel.we_are_translated():
+            assert MININT <= val <= sys.maxint
         self.val = val
 
     def __repr__(self):

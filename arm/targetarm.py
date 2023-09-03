@@ -9,33 +9,10 @@ outarm = os.path.join(toplevel, "arm", "generated", "outarm.py")
 sys.setrecursionlimit(20000) # otherwise jitcode writing fails
 
 PROMOTED_REGISTERS = set("""
-zTCR_EL1
 z__empam_implemented
-zMAIR_EL3
-zMPAMIDR_EL1
 z__mpam_implemented
-zSCTLR_EL3
-zTCR_EL3
-zDBGEN
-z_EDSCR_0_28
-z_EDSCR_31_31
-zMDCCSR_EL0
-zMPAM3_EL3
-zOSLSR_EL1
 z__supported_pa_sizze
-zTSTATE
-zCNTCR
-zCNTHP_CTL_EL2
-zCNTHPS_CTL_EL2
-zCNTHV_CTL_EL2
-zCNTHVS_CTL_EL2
-zCNTP_CTL_EL0
-zCNTPS_CTL_EL1
-zMDCR_EL2
-zPSTATE
-zMDSCR_EL1
-zHCR_EL2
-zSCR_EL3
+z__block_bbm_implemented
 """.split())
 
 def make_code(regen=True):

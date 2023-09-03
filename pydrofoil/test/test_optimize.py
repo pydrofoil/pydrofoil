@@ -1266,6 +1266,34 @@ def test_struct_element_assignment_cast():
     )
 
 
+def test_constfold_int():
+    from pydrofoil import bitvector
+
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[Number(number=127, resolved_type=types.MachineInt())],
+                name="zz5i64zDzKz5i",
+                resolved_type=types.Int(),
+                sourcepos="`7 495:24-495:47",
+            ),
+            OperationExpr(
+                args=[Number(number=0, resolved_type=types.MachineInt())],
+                name="zz5i64zDzKz5i",
+                resolved_type=types.Int(),
+                sourcepos="`7 495:24-495:47",
+            ),
+        ],
+        name="sub_int",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:60",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+
+    assert block[0] == OperationExpr(args=[Number(number=127)], name='zz5i64zDzKz5i', resolved_type=types.Int(), sourcepos='`5 176:53-176:60')
+
+
 # optimize_gotos
 
 

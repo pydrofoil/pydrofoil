@@ -263,7 +263,7 @@ def vector_access(machine, vec, index):
 def vector_access_bv_i(machine, bv, index):
     if index == 0:
         return bv & r_uint(1)
-    return r_uint(1) & safe_rshift(None, bv, r_uint(index))
+    return r_uint(1) & safe_rshift(None, bv, index)
 
 def update_fbits(machine, fb, index, element):
     assert 0 <= index < 64

@@ -8,6 +8,13 @@ outarm = os.path.join(toplevel, "arm", "generated", "outarm.py")
 
 sys.setrecursionlimit(20000) # otherwise jitcode writing fails
 
+PROMOTED_REGISTERS = set("""
+z__empam_implemented
+z__mpam_implemented
+z__supported_pa_sizze
+z__block_bbm_implemented
+""".split())
+
 def make_code(regen=True):
     from arm import supportcodearm
     outarm = _make_code(regen)
@@ -19,7 +26,7 @@ def _make_code(regen=True):
         with open(armir, "rb") as f:
             s = f.read()
         support_code = "from arm import supportcodearm as supportcode"
-        res = parse_and_make_code(s, support_code)
+        res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS)
         with open(outarm, "w") as f:
             f.write(res)
         print "written file", outarm, "importing now"

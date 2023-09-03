@@ -1,12 +1,27 @@
 import sys
-from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem
+from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, \
+        _divrem1, intsign, int_in_valid_range
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
-from rpython.rlib.objectmodel import always_inline, specialize, is_annotation_constant
+from rpython.rlib.objectmodel import always_inline, specialize, \
+        we_are_translated, is_annotation_constant
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
+from rpython.rlib import jit
 
 MININT = -sys.maxint - 1
+
+@jit.elidable
+def bigint_divrem1(a, n):
+    assert n != MININT
+    div, rem = _divrem1(a, abs(n))
+    # _divrem1 leaves the sign always positive, fix
+    if a.sign != intsign(n):
+        div.sign = -div.sign
+    if a.sign < 0 and rem > 0:
+        rem = -rem
+    return div, rem
+
 
 @always_inline
 #@specialize.arg_or_var(0, 1)
@@ -15,7 +30,7 @@ def from_ruint(size, val):
 #        if is_annotation_constant(size) and is_annotation_constant(val):
 #            return _small_bit_vector_memo(size, val)
         return SmallBitVector(size, val, True)
-    return GenericBitVector(size, rbigint.fromrarith_int(val), True)
+    return GenericBitVector(size, rbigint_fromrarith_int(val), True)
 
 @specialize.memo()
 def _small_bit_vector_memo(size, val):
@@ -36,6 +51,29 @@ def ruint_mask(width, val):
     return val & mask
 
 
+def rbigint_fromrarith_int(uint):
+    res = rbigint.fromrarith_int(uint)
+    jit.record_known_result(uint, rbigint.touint, res)
+    return res
+
+class MaskHolder(object):
+    def __init__(self, predefined=128):
+        self.lst = []
+        for i in range(predefined):
+            self.get(i)
+
+    @jit.elidable
+    def get(self, size):
+        if size >= len(self.lst):
+            self.lst.extend([None] * (size - len(self.lst) + 1))
+        mask = self.lst[size]
+        if mask is None:
+            mask = ONERBIGINT.lshift(size).int_sub(1)
+            self.lst[size] = mask
+        return mask
+
+MASKS = MaskHolder()
+
 class BitVector(object):
     _attrs_ = []
 
@@ -55,7 +93,18 @@ class BitVector(object):
 
     @staticmethod
     def rbigint_mask(size, rval):
-        return rval.and_(rbigint.fromint(1).lshift(size).int_sub(1))
+        res = BitVector._rbigint_mask(size, rval)
+        # rbigint_mask is idempotent
+        #jit.record_known_result(res, BitVector._rbigint_mask, size, res)
+        return res
+
+    @staticmethod
+    @jit.elidable
+    def _rbigint_mask(size, rval):
+        if rval.sign >= 0 and rval.bit_length() <= size:
+            return rval
+        mask = MASKS.get(size)
+        return rval.and_(mask)
 
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
@@ -64,7 +113,7 @@ class BitVector(object):
         return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
 
     def append_64(self, ui):
-        return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint.fromrarith_int(ui)))
+        return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
 
 class BitVectorWithSize(BitVector):
     _attrs_ = ['_size']
@@ -189,7 +238,7 @@ class SmallBitVector(BitVectorWithSize):
             return self
         assert i > self.size()
         if i > 64:
-            return GenericBitVector(i, rbigint.fromrarith_int(self.val))
+            return GenericBitVector(i, rbigint_fromrarith_int(self.val))
         return SmallBitVector(i, self.val)
 
     @always_inline
@@ -197,7 +246,7 @@ class SmallBitVector(BitVectorWithSize):
         if i == self.size():
             return self
         if i > 64:
-            return GenericBitVector._sign_extend(rbigint.fromrarith_int(self.val), self.size(), i)
+            return GenericBitVector._sign_extend(rbigint_fromrarith_int(self.val), self.size(), i)
         assert i > self.size()
         highest_bit = (self.val >> (self.size() - 1)) & 1
         if not highest_bit:
@@ -254,7 +303,7 @@ class SmallBitVector(BitVectorWithSize):
         return self.val
 
     def tobigint(self):
-        return rbigint.fromrarith_int(self.val)
+        return rbigint_fromrarith_int(self.val)
 
     def append(self, other):
         ressize = self.size() + other.size()
@@ -269,7 +318,7 @@ class SmallBitVector(BitVectorWithSize):
             for _ in range(i - 1):
                 res = (res << size) | val
             return SmallBitVector(size * i, res)
-        gbv = GenericBitVector(size, rbigint.fromrarith_int(self.val))
+        gbv = GenericBitVector(size, rbigint_fromrarith_int(self.val))
         return gbv.replicate(i)
 
     def truncate(self, i):
@@ -329,10 +378,10 @@ class GenericBitVector(BitVectorWithSize):
         if i >= size:
             i = size
         rval = self.rval
-        highest_bit = rval.rshift(size - 1).int_and_(1).toint()
+        highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
         res = rval.rshift(i)
         if highest_bit:
-            res = res.or_(rbigint.fromint(1).lshift(i).int_sub(1).lshift(size - i))
+            res = res.or_(MASKS.get(i).lshift(size - i))
         return GenericBitVector(size, res)
 
     def lshift_bits(self, other):
@@ -355,13 +404,16 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange(self, n, m):
         width = n - m + 1
-        if m == 0:
-            return from_bigint(width, self.rval)
         if width < 64: # somewhat annoying that 64 doesn't work
             mask = (r_uint(1) << width) - 1
             res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
             return SmallBitVector(width, r_uint(res))
-        return from_bigint(width, self.rval.rshift(m))
+        if m == 0:
+            return from_bigint(width, self.rval)
+        rval = self.rval.rshift(m)
+        if n == self.size():
+            return GenericBitVector(width, rval) # no need to mask
+        return from_bigint(width, rval)
 
     def subrange_unwrapped_res(self, n, m):
         # XXX can be better
@@ -381,19 +433,19 @@ class GenericBitVector(BitVectorWithSize):
 
     @staticmethod
     def _sign_extend(rval, size, target_size):
-        highest_bit = rval.rshift(size - 1).int_and_(1).toint()
+        highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
         if not highest_bit:
             return GenericBitVector(target_size, rval)
         else:
             extra_bits = target_size - size
-            bits = rbigint.fromint(1).lshift(extra_bits).int_sub(1).lshift(size)
+            bits = MASKS.get(extra_bits).lshift(size)
             return GenericBitVector(target_size, bits.or_(rval))
 
     def read_bit(self, pos):
         return bool(self.rval.abs_rshift_and_mask(r_ulonglong(pos), 1))
 
     def update_bit(self, pos, bit):
-        mask = rbigint.fromint(1).lshift(pos)
+        mask = ONERBIGINT.lshift(pos)
         if bit:
             return self.make(self.rval.or_(mask))
         else:
@@ -402,16 +454,16 @@ class GenericBitVector(BitVectorWithSize):
     def update_subrange(self, n, m, s):
         width = s.size()
         assert width == n - m + 1
-        mask = rbigint.fromint(1).lshift(width).int_sub(1).lshift(m).invert()
+        mask = MASKS.get(width).lshift(m).invert()
         return self.make(self.rval.and_(mask).or_(s.tobigint().lshift(m)))
 
     def signed(self):
         n = self.size()
         assert n > 0
-        u1 = rbigint.fromint(1)
+        u1 = ONERBIGINT
         m = u1.lshift(n - 1)
         op = self.rval
-        op = op.and_((u1.lshift(n)).int_sub(1)) # mask off higher bits to be sure
+        op = op.and_(MASKS.get(n)) # mask off higher bits to be sure
         return Integer.frombigint(op.xor(m).sub(m))
 
     def unsigned(self):
@@ -469,7 +521,7 @@ class Integer(object):
     def from_ruint(val):
         if val & (r_uint(1)<<63):
             # bigger than biggest signed int
-            return BigInteger(rbigint.fromrarith_int(val))
+            return BigInteger(rbigint_fromrarith_int(val))
         return SmallInteger(intmask(val))
 
     def tolong(self): # only for tests:
@@ -480,6 +532,8 @@ class SmallInteger(Integer):
     _immutable_fields_ = ['val']
 
     def __init__(self, val):
+        if not we_are_translated():
+            assert MININT <= val <= sys.maxint
         self.val = val
 
     def __repr__(self):
@@ -617,14 +671,14 @@ class SmallInteger(Integer):
         try:
             return SmallInteger(ovfcheck(a + b))
         except OverflowError:
-            return BigInteger(rbigint.fromrarith_int(a).int_add(b))
+            return BigInteger(rbigint.fromint(a).int_add(b))
 
     @staticmethod
     def sub_i_i(a, b):
         try:
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
-            return BigInteger(rbigint.fromrarith_int(b).int_sub(a).neg())
+            return BigInteger(rbigint.fromint(b).int_sub(a).neg())
 
 
 class BigInteger(Integer):
@@ -660,7 +714,7 @@ class BigInteger(Integer):
             n = rval
         else:
             n = rval.rshift(start)
-        return from_bigint(len, n.and_(rbigint.fromint(1).lshift(len).int_sub(1)))
+        return from_bigint(len, n)
 
     def eq(self, other):
         if isinstance(other, SmallInteger):
@@ -715,6 +769,13 @@ class BigInteger(Integer):
 
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python
+        if isinstance(other, SmallInteger) and int_in_valid_range(other.val):
+            other = other.val
+            if other == 0:
+                raise ZeroDivisionError
+            div, rem = bigint_divrem1(self.rval, other)
+            return BigInteger(div)
+
         other = other.tobigint()
         if other.sign == 0:
             raise ZeroDivisionError
@@ -722,6 +783,13 @@ class BigInteger(Integer):
         return BigInteger(div)
 
     def tmod(self, other):
+        if isinstance(other, SmallInteger) and int_in_valid_range(other.val):
+            other = other.val
+            if other == 0:
+                raise ZeroDivisionError
+            div, rem = bigint_divrem1(self.rval, other)
+            return SmallInteger(rem)
+
         other = other.tobigint()
         if other.sign == 0:
             raise ZeroDivisionError

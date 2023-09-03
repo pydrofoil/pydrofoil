@@ -1009,8 +1009,8 @@ def test_slice():
                     expr=Var(name="zv", resolved_type=types.SmallFixedBitVector(32)),
                     resolved_type=types.GenericBitVector(),
                 ),
-                Number(number=22),
-                Number(number=2),
+                Number(number=22, resolved_type=types.MachineInt()),
+                Number(number=2, resolved_type=types.MachineInt()),
             ],
             name="@slice_o_i_i",
             resolved_type=types.GenericBitVector(),
@@ -1022,11 +1022,49 @@ def test_slice():
     assert block[1] == OperationExpr(
         args=[
             Var(name="zv", resolved_type=types.SmallFixedBitVector(32)),
-            Number(number=23),
-            Number(number=22),
+            Number(number=22, resolved_type=types.MachineInt()),
+            Number(number=2, resolved_type=types.MachineInt()),
         ],
-        name="@vector_subrange_fixed_bv_i_i",
+        name="@slice_fixed_bv_i_i",
         resolved_type=types.SmallFixedBitVector(2),
+    )
+
+
+def test_slice2():
+    op = Assignment(
+        resolved_type=types.SmallFixedBitVector(16),
+        result="zz41",
+        sourcepos="`101256",
+        value=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=Var(name="zm", resolved_type=types.SmallFixedBitVector(32)),
+                    resolved_type=types.GenericBitVector(),
+                ),
+                Var(name="zlowbit", resolved_type=types.MachineInt()),
+                Number(number=16, resolved_type=types.MachineInt()),
+            ],
+            name="@slice_o_i_i",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`101255",
+        ),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == Assignment(
+        resolved_type=types.SmallFixedBitVector(16),
+        result="zz41",
+        sourcepos="`101256",
+        value=OperationExpr(
+            args=[
+                Var(name="zm", resolved_type=types.SmallFixedBitVector(32)),
+                Var(name="zlowbit", resolved_type=types.MachineInt()),
+                Number(number=16, resolved_type=types.MachineInt()),
+            ],
+            name="@slice_fixed_bv_i_i",
+            resolved_type=types.SmallFixedBitVector(16),
+            sourcepos="`101255",
+        ),
     )
 
 
@@ -1034,8 +1072,8 @@ def test_slice_unwrapped_res():
     op = OperationExpr(
         args=[
             Var(name="zz426", resolved_type=types.GenericBitVector()),
-            Number(number=2),
-            Number(number=32),
+            Number(number=2, resolved_type=types.MachineInt()),
+            Number(number=32, resolved_type=types.MachineInt()),
         ],
         name="@slice_o_i_i",
         resolved_type=types.GenericBitVector(),
@@ -1047,10 +1085,10 @@ def test_slice_unwrapped_res():
         expr=OperationExpr(
             args=[
                 Var(name="zz426", resolved_type=types.GenericBitVector()),
-                Number(number=33),
-                Number(number=2),
+                Number(number=2, resolved_type=types.MachineInt()),
+                Number(number=32, resolved_type=types.MachineInt()),
             ],
-            name="@vector_subrange_o_i_i_unwrapped_res",
+            name="@vector_slice_o_i_i_unwrapped_res",
             resolved_type=types.SmallFixedBitVector(32),
             sourcepos="`90253",
         ),

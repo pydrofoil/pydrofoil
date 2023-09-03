@@ -292,6 +292,11 @@ def vector_subrange_o_i_i_unwrapped_res(machine, bv, n, m):
 def slice(machine, bv, start, length):
     return bv.subrange(start + length - 1, start)
 
+@objectmodel.always_inline
+@objectmodel.specialize.argtype(1)
+def vector_slice_o_i_i_unwrapped_res(machine, bv, start, length):
+    return bv.subrange_unwrapped_res(start + length - 1, start)
+
 @unwrap("o o o i o")
 @objectmodel.specialize.argtype(3)
 def set_slice(machine, _len, _slen, bv, start, bv_new):
@@ -301,7 +306,12 @@ def set_slice(machine, _len, _slen, bv, start, bv_new):
 def vector_subrange_fixed_bv_i_i(machine, v, n, m):
     res = safe_rshift(None, v, m)
     width = n - m + 1
+    # XXX if we pass in the width of v here, we can not do the mask
     return _mask(width, res)
+
+@objectmodel.always_inline
+def slice_fixed_bv_i_i(machine, v, start, length):
+    return vector_subrange_fixed_bv_i_i(machine, v, start + length - 1, start)
 
 def string_of_bits(machine, gbv):
     return gbv.string_of_bits()

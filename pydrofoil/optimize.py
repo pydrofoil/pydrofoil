@@ -396,29 +396,26 @@ class OptVisitor(parse.Visitor):
 
     def optimize_slice_o_i_i(self, expr):
         arg0, arg1, arg2 = expr.args
-        arg1 = self._extract_number(arg1)
+        arg1 = self._extract_machineint(arg1)
         arg2 = self._extract_number(arg2)
-        start = arg1.number
         length = arg2.number
         if length > 64:
             return
-
-        upper = parse.Number(start + length - 1)
 
         try:
             assert expr.resolved_type is types.GenericBitVector()
             arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         except NoMatchException:
             res = parse.OperationExpr(
-                "@vector_subrange_o_i_i_unwrapped_res",
-                [arg0, upper, arg1],
+                "@vector_slice_o_i_i_unwrapped_res",
+                [arg0, arg1, arg2],
                 types.SmallFixedBitVector(length),
                 expr.sourcepos,
             )
         else:
             res = parse.OperationExpr(
-                "@vector_subrange_fixed_bv_i_i",
-                [arg0, upper, arg1],
+                "@slice_fixed_bv_i_i",
+                [arg0, arg1, arg2],
                 types.SmallFixedBitVector(length),
                 expr.sourcepos,
             )

@@ -1160,6 +1160,46 @@ def test_unsigned_fits_in_smallint():
     )
 
 
+def test_struct_element_assignment_cast():
+    op = StructElementAssignment(
+        fields=["zV"],
+        obj=Var(name="zPSTATE"),
+        resolved_type=types.SmallFixedBitVector(1),
+        sourcepos="`100340",
+        value=CastExpr(
+            expr=OperationExpr(
+                name="@vector_subrange_o_i_i_unwrapped_res",
+                args=[
+                    Var(name="zz47", resolved_type=types.GenericBitVector()),
+                    Number(number=0),
+                    Number(number=0),
+                ],
+                resolved_type=types.SmallFixedBitVector(1),
+                sourcepos="`100339",
+            ),
+            resolved_type=types.GenericBitVector(),
+        ),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == StructElementAssignment(
+        fields=["zV"],
+        obj=Var(name="zPSTATE"),
+        resolved_type=types.SmallFixedBitVector(1),
+        sourcepos="`100340",
+        value=OperationExpr(
+            args=[
+                Var(name="zz47", resolved_type=types.GenericBitVector()),
+                Number(number=0),
+                Number(number=0),
+            ],
+            name="@vector_subrange_o_i_i_unwrapped_res",
+            resolved_type=types.SmallFixedBitVector(1),
+            sourcepos="`100339",
+        ),
+    )
+
+
 # optimize_gotos
 
 

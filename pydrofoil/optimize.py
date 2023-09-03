@@ -310,10 +310,10 @@ class OptVisitor(parse.Visitor):
         index = expr.obj.fieldnames.index(expr.element)
         return expr.obj.fieldvalues[index]
 
-    # def visit_StructElementAssignment(self, assign):
-    #    if assign.resolved_type != assign.value.resolved_type:
-    #        value = parse.CastExpr(assign.value, assign.resolved_type)
-    #        return parse.StructElementAssignment(assign.obj, assign.fields, value, assign.resolved_type, assign.sourcepos)
+    def visit_StructElementAssignment(self, assign):
+       if assign.resolved_type != assign.value.resolved_type:
+           value = parse.CastExpr(assign.value, assign.resolved_type)
+           return parse.StructElementAssignment(assign.obj, assign.fields, value, assign.resolved_type, assign.sourcepos)
 
     def visit_GeneralAssignment(self, assign):
         lhs = assign.lhs

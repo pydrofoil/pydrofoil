@@ -513,7 +513,7 @@ class SmallInteger(Integer):
     _immutable_fields_ = ['val']
 
     def __init__(self, val):
-        if not objectmodel.we_are_translated():
+        if not we_are_translated():
             assert MININT <= val <= sys.maxint
         self.val = val
 

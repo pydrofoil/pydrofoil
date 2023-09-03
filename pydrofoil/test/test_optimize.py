@@ -1030,6 +1030,34 @@ def test_slice():
     )
 
 
+def test_slice_unwrapped_res():
+    op = OperationExpr(
+        args=[
+            Var(name="zz426", resolved_type=types.GenericBitVector()),
+            Number(number=2),
+            Number(number=32),
+        ],
+        name="@slice_o_i_i",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`90253",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=OperationExpr(
+            args=[
+                Var(name="zz426", resolved_type=types.GenericBitVector()),
+                Number(number=33),
+                Number(number=2),
+            ],
+            name="@vector_subrange_o_i_i_unwrapped_res",
+            resolved_type=types.SmallFixedBitVector(32),
+            sourcepos="`90253",
+        ),
+        resolved_type=types.GenericBitVector(),
+    )
+
+
 def test_zeros():
     op = CastExpr(
         expr=OperationExpr(

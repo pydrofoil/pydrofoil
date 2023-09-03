@@ -37,7 +37,8 @@ class __extend__(pairtype(types.GenericBitVector, types.BigFixedBitVector)):
 
 class __extend__(pairtype(types.BigFixedBitVector, types.GenericBitVector)):
     def convert((from_, to), ast, codegen):
-        return "bitvector.from_bigint(%s, %s)" % (from_.width, ast.to_code(codegen))
+        # call the constructor directly, no need to mask
+        return "bitvector.GenericBitVector(%s, %s)" % (from_.width, ast.to_code(codegen))
 
 class __extend__(pairtype(types.Int, types.SmallFixedBitVector)):
     def convert((from_, to), ast, codegen):

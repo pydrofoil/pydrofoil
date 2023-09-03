@@ -23,12 +23,8 @@ def check_file_missing(fn):
 def get_main(outarm):
     Machine = outarm.Machine
 
-    def get_printable_location(pc):
-        return hex(pc)
-
     driver = jit.JitDriver(
-        get_printable_location=get_printable_location,
-        greens=['pc'],
+        greens=[],
         reds=['machine'],
         name="arm",
         is_recursive=True)
@@ -40,31 +36,44 @@ def get_main(outarm):
             return step(machine, *args)
         # otherwise just do the main work here
         while 1:
-            driver.jit_merge_point(pc=machine._reg_z_PC, machine=machine)
+            driver.jit_merge_point(machine=machine)
             jit.promote(machine.g)
-            prev_pc = jit.promote(machine._reg_z_PC)
             step(machine, ())
             if machine.have_exception:
                 return ()
             cycle_count(machine, ())
-            newpc = machine._reg_z_PC
-            if prev_pc >= newpc: # backward jump
-                driver.can_enter_jit(pc=newpc, machine=machine)
     outarm.func_zstep_model = jitstep
 
     setinstr = outarm.func_z__SetThisInstr
     def jitsetinstr(machine, opcode):
+        # approach: promote opcode, but do it 4 bits at a time, to make sure we
+        # don't just get a linear search. start from the highest bits, because
+        # that's where the instruction-specific bits are
+        jit.jit_debug("arm-opcode", opcode)
+        jit.promote(opcode & 0xf0000000)
+        jit.promote(opcode & 0x0f000000)
+        jit.promote(opcode & 0x00f00000)
+        jit.promote(opcode & 0x000f0000)
+        jit.promote(opcode & 0x0000f000)
+        jit.promote(opcode & 0x00000f00)
+        jit.promote(opcode & 0x000000f0)
+        jit.promote(opcode & 0x0000000f)
         jit.promote(opcode)
         return setinstr(machine, opcode)
     outarm.func_z__SetThisInstr = jitsetinstr
 
     jit.dont_look_inside(outarm.func_zAArch32_AutoGen_ArchitectureReset)
     jit.dont_look_inside(outarm.func_zAArch64_AutoGen_ArchitectureReset)
-    jit.unroll_safe(outarm.func_zAArch64_MemSingle_read__1)
     jit.unroll_safe(outarm.func_zMem_read__1)
+    jit.unroll_safe(outarm.func_zAArch64_MemSingle_read__1)
+    jit.unroll_safe(outarm.func_zMem_set__1)
+    jit.unroll_safe(outarm.func_zAArch64_MemSingle_set__1)
     jit.unroll_safe(outarm.func_zAArch64_S1Translate)
     jit.unroll_safe(outarm.func_zAArch64_S1Walk)
     jit.unroll_safe(outarm.func_zAArch64_S2Translate)
+    jit.unroll_safe(outarm.func_zMaybeZeroSVEUppers)
+    jit.unroll_safe(outarm.func_zAArch64_DataMemZero)
+    jit.unroll_safe(outarm.func_zexecute_aarch64_instrs_integer_arithmetic_rev)
 
     for name, func in outarm.__dict__.iteritems():
         if "IMPDEF_boolean" in name:

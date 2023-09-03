@@ -384,7 +384,7 @@ class OptVisitor(parse.Visitor):
             )
         else:
             res = parse.OperationExpr(
-                "@slice_fixed_bv_i_i",
+                "@vector_subrange_fixed_bv_i_i",
                 [arg0, arg1, arg2],
                 types.SmallFixedBitVector(width),
                 expr.sourcepos,
@@ -417,7 +417,7 @@ class OptVisitor(parse.Visitor):
             )
         else:
             res = parse.OperationExpr(
-                "@slice_fixed_bv_i_i",
+                "@vector_subrange_fixed_bv_i_i",
                 [arg0, upper, arg1],
                 types.SmallFixedBitVector(length),
                 expr.sourcepos,

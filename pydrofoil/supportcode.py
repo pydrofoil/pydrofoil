@@ -298,7 +298,7 @@ def set_slice(machine, _len, _slen, bv, start, bv_new):
     return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)
 
 @objectmodel.always_inline
-def slice_fixed_bv_i_i(machine, v, n, m):
+def vector_subrange_fixed_bv_i_i(machine, v, n, m):
     res = safe_rshift(None, v, m)
     width = n - m + 1
     return _mask(width, res)

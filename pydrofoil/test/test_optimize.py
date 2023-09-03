@@ -323,7 +323,7 @@ def test_specialize_ops():
             Number(number=31),
             Number(number=0),
         ],
-        name="@slice_fixed_bv_i_i",
+        name="@vector_subrange_fixed_bv_i_i",
         resolved_type=types.SmallFixedBitVector(32),
     )
 
@@ -370,7 +370,7 @@ def test_specialize_eq_bits():
                                 Number(number=31),
                                 Number(number=26),
                             ],
-                            name="@slice_fixed_bv_i_i",
+                            name="@vector_subrange_fixed_bv_i_i",
                             resolved_type=types.SmallFixedBitVector(6),
                         ),
                         resolved_type=types.GenericBitVector(),
@@ -399,7 +399,7 @@ def test_specialize_eq_bits():
                             Number(number=31),
                             Number(number=26),
                         ],
-                        name="@slice_fixed_bv_i_i",
+                        name="@vector_subrange_fixed_bv_i_i",
                         resolved_type=types.SmallFixedBitVector(6),
                     ),
                     BitVectorConstant(constant="0b000000"),
@@ -425,7 +425,7 @@ def test_optimize_operation():
             CastExpr(
                 expr=OperationExpr(
                     args=[Var(name="zz410258"), Number(number=6), Number(number=0)],
-                    name="@slice_fixed_bv_i_i",
+                    name="@vector_subrange_fixed_bv_i_i",
                     resolved_type=types.SmallFixedBitVector(7),
                 ),
                 resolved_type=types.GenericBitVector(),
@@ -449,7 +449,7 @@ def test_optimize_operation():
             args=[
                 OperationExpr(
                     args=[Var(name="zz410258"), Number(number=6), Number(number=0)],
-                    name="@slice_fixed_bv_i_i",
+                    name="@vector_subrange_fixed_bv_i_i",
                     typ=NamedType("%bv7"),
                 ),
                 BitVectorConstant(constant="0b0010011"),
@@ -712,7 +712,7 @@ def test_structconstruction_fieldread():
     assert block[1] == CastExpr(
         expr=OperationExpr(
             args=[Var(name="var"), Number(number=1), Number(number=0)],
-            name="@slice_fixed_bv_i_i",
+            name="@vector_subrange_fixed_bv_i_i",
             typ=NamedType("%bv2"),
         ),
         typ=NamedType("%bv"),
@@ -1025,7 +1025,7 @@ def test_slice():
             Number(number=23),
             Number(number=22),
         ],
-        name="@slice_fixed_bv_i_i",
+        name="@vector_subrange_fixed_bv_i_i",
         resolved_type=types.SmallFixedBitVector(2),
     )
 

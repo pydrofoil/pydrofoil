@@ -142,6 +142,23 @@ def test_vector_subrange():
     assert isinstance(x, bitvector.GenericBitVector)
 
 @given(strategies.data())
+def test_hypothesis_vector_subrange(data):
+    bitwidth = data.draw(strategies.integers(1, 10000))
+    lower = data.draw(strategies.integers(0, bitwidth-1))
+    upper = data.draw(strategies.integers(lower, bitwidth-1))
+    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    as_bit_string = bin(value)[2:]
+    assert len(as_bit_string) <= bitwidth
+    as_bit_string = as_bit_string.rjust(bitwidth, '0')[::-1]
+    correct_res = as_bit_string[lower:upper+1] # sail is inclusive
+    correct_res_as_int = int(correct_res[::-1], 2)
+
+    # now do the sail computation
+    bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    bvres = bv.subrange(upper, lower)
+    assert bvres.tobigint().tolong() == correct_res_as_int
+
+@given(strategies.data())
 def test_hypothesis_vector_subrange_unwrapped_res(data):
     if data.draw(strategies.booleans()):
         bitwidth = data.draw(strategies.integers(65, 10000))

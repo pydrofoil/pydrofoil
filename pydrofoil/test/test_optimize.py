@@ -328,6 +328,35 @@ def test_specialize_ops():
     )
 
 
+def test_subrange_unwrapped_res():
+    op = OperationExpr(
+        args=[
+            Var(name="zdata", resolved_type=types.GenericBitVector()),
+            Number(number=15),
+            Number(number=0),
+        ],
+        name="@vector_subrange_o_i_i",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`26 404:17-404:30",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+
+    assert block[0] == CastExpr(
+        expr=OperationExpr(
+            args=[
+                Var(name="zdata", resolved_type=types.GenericBitVector()),
+                Number(number=15),
+                Number(number=0),
+            ],
+            name="@vector_subrange_o_i_i_unwrapped_res",
+            resolved_type=types.SmallFixedBitVector(16),
+            sourcepos="`26 404:17-404:30",
+        ),
+        resolved_type=types.GenericBitVector(),
+    )
+
+
 @pytest.mark.xfail()
 def test_specialize_eq_bits():
     op = ConditionalJump(
@@ -1091,8 +1120,10 @@ def test_undefined_bv():
     specialize_ops({0: block}, dummy_codegen)
     # XXX sourcepos gets lost
     assert block[0] == CastExpr(
-        expr=BitVectorConstant(constant="0b00000000000000000000000000000000",
-            resolved_type=types.SmallFixedBitVector(32)),
+        expr=BitVectorConstant(
+            constant="0b00000000000000000000000000000000",
+            resolved_type=types.SmallFixedBitVector(32),
+        ),
         resolved_type=types.SmallFixedBitVector(32),
     )
 

@@ -4,7 +4,7 @@ from rpython.rlib import objectmodel, unroll, jit
 from rpython.rlib.rbigint import rbigint
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer
+from pydrofoil.bitvector import Integer, ruint_mask as _mask
 import pydrofoil.softfloat as softfloat
 from pydrofoil.real import Real
 
@@ -84,14 +84,6 @@ def raise_type_error():
 
 
 # bit vectors
-
-@objectmodel.always_inline
-def _mask(width, val):
-    if width == 64:
-        return val
-    assert width < 64
-    mask = (r_uint(1) << width) - 1
-    return val & mask
 
 def signed_bv(machine, op, n):
     if n == 64:
@@ -289,6 +281,11 @@ def vector_update_subrange(machine, bv, n, m, s):
 @objectmodel.specialize.argtype(1)
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n, m)
+
+@objectmodel.always_inline
+@objectmodel.specialize.argtype(1)
+def vector_subrange_o_i_i_unwrapped_res(machine, bv, n, m):
+    return bv.subrange_unwrapped_res(n, m)
 
 @unwrap("o i i")
 @objectmodel.specialize.argtype(1)

@@ -470,10 +470,45 @@ def test_rshift_int():
        assert c(-0b1010001).rshift(3).tobigint().tolong() == -11
 
 def test_emod_ediv_int():
-   for c in bi, si:
-       assert c(123875).emod(si(13)).toint() == 123875 % 13
-       assert c(123875).ediv(si(13)).toint() == 123875 // 13
+   for c1 in bi, si:
+        for c2 in bi, si:
+            assert c1(123875).emod(si(13)).toint() == 123875 % 13
+            assert c1(123875).ediv(c2(13)).toint() == 123875 // 13
+            assert c1(-2 ** 63).ediv(c2(2)).toint() == -2**62
+            assert c1(-2 ** 63).ediv(c2(-2)).toint() == 2**62
+            assert c1(-2 ** 63 + 1).ediv(c2(2 ** 63 - 1)).toint() == -1
+            assert c1(-2 ** 63).ediv(c2(-2**63)).toint() == 1
+            assert c1(7).ediv(c2(5)).toint() == 1
+            assert c1(7).ediv(c2(-5)).toint() == -1
+            assert c1(-7).ediv(c2(-5)).toint() == 2
+            assert c1(-7).ediv(c2(5)).toint() == -2
+            assert c1(12).ediv(c2(3)).toint() == 4
+            assert c1(12).ediv(c2(-3)).toint() == -4
+            assert c1(-12).ediv(c2(3)).toint() == -4
+            assert c1(-12).ediv(c2(-3)).toint() == 4
+            assert c1(-2 ** 63).emod(c2(2)).toint() == 0
+            assert c1(-2 ** 63).emod(c2(- 2)).toint() == 0
+            assert c1(-2 ** 63).emod(c2(- 2 ** 63)).toint() == 0
+            assert c1(2 ** 63 - 1).emod(c2(2 ** 63 - 1)).toint() == 0
+            assert c1(7).emod(c2(5)).toint() == 2
+            assert c1(7).emod(c2(-5)).toint() == 2
+            assert c1(-7).emod(c2(5)).toint() == 3
+            assert c1(-7).emod(c2(-5)).toint() == 3
+            assert c1(12).emod(c2(3)).toint() == 0
+            assert c1(12).emod(c2(-3)).toint() == 0
+            assert c1(-12).emod(c2(3)).toint() == 0
+            assert c1(-12).emod(c2(-3)).toint() == 0
+
+
    assert bi(0xfffffe00411e0e90L).emod(si(64)).toint() == 16
+   assert bi(98765432109876543210).ediv(bi(12345678901234567890)).toint() == 8
+   assert bi(98765432109876543210).emod(bi(12345678901234567890)).toint() == 900000000090
+   assert bi(12345678901234567890).ediv(bi(-10000000000000000000)).toint() == -1
+   assert bi(12345678901234567890).emod(bi(-10000000000000000000)).toint() == 2345678901234567890
+   assert bi(-12345678901234567890).ediv(bi(-10000000000000000000)).toint() == 2
+   assert bi(-12345678901234567890).ediv(bi(10000000000000000000)).toint() == -2
+   assert bi(-12345678901234567890).emod(bi(10000000000000000000)).toint() == 7654321098765432110
+   assert bi(-12345678901234567890).emod(bi(-10000000000000000000)).toint() == 7654321098765432110
 
 def test_pow2():
     for i in range(1000):

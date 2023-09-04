@@ -637,21 +637,27 @@ class SmallInteger(Integer):
         return BigInteger(self.tobigint()).tmod(other)
 
     def ediv(self, other):
-        # XXX too lazy to figure out negative so far
-        assert isinstance(other, SmallInteger)
+        if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
+            return BigInteger(self.tobigint()).ediv(other)
         other = other.val
-        if other <= 0 or self.val < 0:
-            print "ediv_int with negative args not implemented yet", self.val, other
-            raise ValueError
-        return SmallInteger(self.val // other)
+        if other == 0:
+            raise ZeroDivisionError
+        if other > 0:
+            return SmallInteger(self.val // other)
+        else:
+            return SmallInteger(-(self.val // -other))
 
     def emod(self, other):
-        assert isinstance(other, SmallInteger)
+        if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
+            return BigInteger(self.tobigint()).emod(other)
         other = other.val
-        if other <= 0 or self.val < 0:
-            print "emod_int with negative args not implemented yet", self.val, other
-            raise ValueError
-        return SmallInteger(self.val % other)
+        if other == 0:
+            raise ZeroDivisionError
+        res = self.val % other
+        if res < 0:
+            res -= other
+            assert res >= 0
+        return SmallInteger(res)
 
     def rshift(self, i):
         assert i >= 0
@@ -797,20 +803,22 @@ class BigInteger(Integer):
         return BigInteger(rem)
 
     def ediv(self, other):
-        assert isinstance(other, SmallInteger)
-        other = other.val
-        if other <= 0 or self.rval.int_lt(0):
-            print "ediv_int with negative args not implemented yet", self.rval.str(), other
-            raise ValueError
-        return BigInteger(self.rval.int_floordiv(other))
+        other = other.tobigint()
+        if other.int_eq(0):
+            raise ZeroDivisionError
+        if other.int_gt(0):
+            return BigInteger(self.rval.floordiv(other))
+        else:
+            return BigInteger(self.rval.floordiv(other.neg()).neg())
 
     def emod(self, other):
-        assert isinstance(other, SmallInteger)
-        other = other.val
-        if other <= 0 or self.rval.int_lt(0):
-            print "emod_int with negative args not implemented yet", self.rval.str(), other
-            raise ValueError
-        return SmallInteger(self.rval.int_mod_int_result(other))
+        other = other.tobigint()
+        if other.int_eq(0):
+            raise ZeroDivisionError
+        res = self.rval.mod(other)
+        if res.int_lt(0):
+            res = res.sub(other)
+        return BigInteger(res)
 
     def rshift(self, i):
         assert i >= 0

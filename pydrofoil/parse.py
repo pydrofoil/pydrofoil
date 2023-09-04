@@ -561,8 +561,10 @@ class Var(Expression):
 
 
 class Number(Expression):
-    def __init__(self, number):
+    def __init__(self, number, resolved_type=None):
         self.number = number
+        if resolved_type:
+            self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return set()

@@ -42,6 +42,15 @@ def from_bigint(size, rval):
         return SmallBitVector(size, BitVector.rbigint_mask(size, rval).touint())
     return GenericBitVector(size, rval, True)
 
+@always_inline
+def ruint_mask(width, val):
+    if width == 64:
+        return val
+    assert width < 64
+    mask = (r_uint(1) << width) - 1
+    return val & mask
+
+
 def rbigint_fromrarith_int(uint):
     res = rbigint.fromrarith_int(uint)
     jit.record_known_result(uint, rbigint.touint, res)
@@ -214,8 +223,14 @@ class SmallBitVector(BitVectorWithSize):
         return self.make(~self.val, True)
 
     def subrange(self, n, m):
+        assert 0 <= m <= n < self.size()
         width = n - m + 1
-        return SmallBitVector(width, self.val >> m, True)
+        return SmallBitVector(width, self.subrange_unwrapped_res(n, m))
+
+    def subrange_unwrapped_res(self, n, m):
+        assert 0 <= m <= n < self.size()
+        width = n - m + 1
+        return ruint_mask(width, self.val >> m)
 
     @always_inline
     def zero_extend(self, i):
@@ -399,6 +414,10 @@ class GenericBitVector(BitVectorWithSize):
         if n == self.size():
             return GenericBitVector(width, rval) # no need to mask
         return from_bigint(width, rval)
+
+    def subrange_unwrapped_res(self, n, m):
+        # XXX can be better
+        return self.subrange(n, m).touint()
 
     def zero_extend(self, i):
         if i == self.size():

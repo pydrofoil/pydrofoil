@@ -238,6 +238,12 @@ def test_add_int():
         assert bv(6, 0b11).add_int(c(0b111111111)).touint() == (0b11 + 0b111111111) & 0b111111
         assert gbv(6000, 0b11).add_int(c(0b111111111)).touint() == 0b11 + 0b111111111
 
+def test_add_bits_int_bv_i():
+    assert supportcode.add_bits_int_bv_i(None, r_uint(0b11), 6, 0b111111111) == (0b11 + 0b111111111) & 0b111111
+    assert supportcode.add_bits_int_bv_i(None, r_uint(0b11), 6, -0b111111111) == (0b11 - 0b111111111) & 0b111111
+    assert supportcode.add_bits_int_bv_i(None, r_uint(0b1011), 6, -2 ** 63) == (0b1011 - 2**63) & 0b111111
+
+
 def test_bv_bitwise():
     for c in gbv, bv:
         i1 = c(8, 0b11110000)
@@ -321,6 +327,31 @@ def test_op_gv_int():
             assert c1(16, 4).add_int(c2(9)).touint() == 13
             assert c1(16, 4).sub_int(c2(9)).touint() == r_uint((-5) & 0xffff)
 
+def test_int_shift():
+    for c in bi, si:
+        assert c(0b1010001).rshift(2).tobigint().tolong() == 0b10100
+        assert c(-0b1010001).rshift(3).tobigint().tolong() == -0b1011
+        assert c(0b1010001).lshift(2).tobigint().tolong() == 0b101000100
+        assert c(-0b1010001).lshift(3).tobigint().tolong() == -0b1010001000
+
+def test_replicate_bits():
+    for c1 in gbv, bv:
+        res = c1(3, 0b011).replicate(10)
+        assert res.size() == 3 * 10
+        assert res.touint() == 0b011011011011011011011011011011
+        res = c1(8, 0xe7).replicate(15)
+        assert res.size() == 8*15
+        assert res.tobigint().tolong() == 0xe7e7e7e7e7e7e7e7e7e7e7e7e7e7e7
+
+def test_truncate():
+    for c1 in gbv, bv:
+        res = c1(10, 0b1011010100).truncate(2)
+        assert res.size() == 2
+        assert res.touint() == 0b00
+        res = c1(10, 0b1011010100).truncate(6)
+        assert res.size() == 6
+        assert res.touint() == 0b010100
+
 
 def test_string_of_bits():
     for c in gbv, bv:
@@ -339,6 +370,53 @@ def test_abs_int():
     for c in si, bi:
         for value in [-2**63, -6, 10, 2**63-1]:
             assert c(value).abs().tobigint().tolong() == abs(value)
+
+def test_rshift_int():
+   for c in bi, si:
+       assert c(0b1010001).rshift(2).tobigint().tolong() == 0b10100
+       assert c(-0b1010001).rshift(3).tobigint().tolong() == -11
+
+def test_emod_ediv_int():
+   for c1 in bi, si:
+        for c2 in bi, si:
+            assert c1(123875).emod(si(13)).toint() == 123875 % 13
+            assert c1(123875).ediv(c2(13)).toint() == 123875 // 13
+            assert c1(-2 ** 63).ediv(c2(2)).toint() == -2**62
+            assert c1(-2 ** 63).ediv(c2(- 2)).toint() == 2**62
+            assert c1(-2 ** 63 + 1).ediv(c2(2 ** 63 - 1)).toint() == - 1
+            assert c1(-2 ** 63).ediv(c2(-2**63)).toint() == 1
+            assert c1(7).ediv(c2(5)).toint() == 1
+            assert c1(7).ediv(c2(-5)).toint() == -1
+            assert c1(-7).ediv(c2(-5)).toint() == 2
+            assert c1(-7).ediv(c2(5)).toint() == -2
+            assert c1(12).ediv(c2(3)).toint() == 4
+            assert c1(12).ediv(c2(-3)).toint() == -4
+            assert c1(-12).ediv(c2(3)).toint() == -4
+            assert c1(-12).ediv(c2(-3)).toint() == 4
+            assert c1(-2 ** 63).emod(c2(2)).toint() == 0
+            assert c1(-2 ** 63).emod(c2(- 2)).toint() == 0
+            assert c1(-2 ** 63).emod(c2(- 2 ** 63)).toint() == 0
+            assert c1(2 ** 63 - 1).emod(c2(2 ** 63 - 1)).toint() == 0
+            assert c1(7).emod(c2(5)).toint() == 2
+            assert c1(7).emod(c2(-5)).toint() == 2
+            assert c1(-7).emod(c2(5)).toint() == 3
+            assert c1(-7).emod(c2(-5)).toint() == 3
+            assert c1(12).emod(c2(3)).toint() == 0
+            assert c1(12).emod(c2(-3)).toint() == 0
+            assert c1(-12).emod(c2(3)).toint() == 0
+            assert c1(-12).emod(c2(-3)).toint() == 0
+
+
+   assert bi(0xfffffe00411e0e90L).emod(si(64)).toint() == 16
+   assert bi(98765432109876543210).ediv(bi(12345678901234567890)).toint() == 8
+   assert bi(98765432109876543210).emod(bi(12345678901234567890)).toint() == 900000000090
+   assert bi(12345678901234567890).ediv(bi(-10000000000000000000)).toint() == -1
+   assert bi(12345678901234567890).emod(bi(-10000000000000000000)).toint() == 2345678901234567890
+   assert bi(-12345678901234567890).ediv(bi(-10000000000000000000)).toint() == 2
+   assert bi(-12345678901234567890).ediv(bi(10000000000000000000)).toint() == -2
+   assert bi(-12345678901234567890).emod(bi(10000000000000000000)).toint() == 7654321098765432110
+   assert bi(-12345678901234567890).emod(bi(-10000000000000000000)).toint() == 7654321098765432110
+
 
 
 # softfloat
@@ -1173,3 +1251,118 @@ def test_real_sqrt_hypothesis(a):
     assert math.sqrt(a) == x.num.truediv(x.den)
     num, den = float_as_rbigint_ratio(math.sqrt(a))
     assert max(len(x.num.str()), len(x.den.str())) >= max(len(num.str()), len(den.str()))
+
+# memory
+
+class FakeMachine(object):
+    def __init__(self):
+        self.g = supportcode.Globals()
+
+def test_read_write_mem():
+    m = FakeMachine()
+    for i in range(100):
+        supportcode.write_mem(m, r_uint(i), r_uint((i * i) & 0xff))
+    for i in range(100):
+        supportcode.write_mem(m, r_uint(i + 0x80000000), r_uint((-i * i) & 0xff))
+    for i in range(100):
+        assert supportcode.read_mem(m, r_uint(i)) == r_uint((i * i) & 0xff)
+    for i in range(100):
+        assert supportcode.read_mem(m, r_uint(i + 0x80000000)) == r_uint((-i * i) & 0xff)
+
+def test_platform_read_write_mem():
+    m = FakeMachine()
+    # here some of the arguments are BitVector/Integer instances
+    read_kind = "read" # they are ignored for now, so use dummy strings
+    write_kind = "write"
+    for i in range(100):
+        supportcode.platform_write_mem(
+            m,
+            write_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i)),
+            Integer.fromint(1),
+            bitvector.from_ruint(8, r_uint((i * i) & 0xff)))
+    for i in range(100):
+        supportcode.platform_write_mem(
+            m,
+            write_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i + 0x80000000)),
+            Integer.fromint(1),
+            bitvector.from_ruint(8, r_uint((-i * i) & 0xff)))
+    for i in range(100):
+        res = supportcode.platform_read_mem(
+            m,
+            read_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i)),
+            Integer.fromint(1))
+        assert res.touint() == r_uint((i * i) & 0xff)
+        assert res.size() == 8
+    for i in range(100):
+        res = supportcode.platform_read_mem(
+            m,
+            read_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i + 0x80000000)),
+            Integer.fromint(1))
+        assert res.touint() == r_uint((-i * i) & 0xff)
+        assert res.size() == 8
+
+def test_platform_read_mem_large():
+    m = FakeMachine()
+    read_kind = "read"
+    write_kind = "write"
+    for i in range(100):
+        supportcode.platform_write_mem(
+            m,
+            write_kind,
+            64,
+            bitvector.from_ruint(64, r_uint(i)),
+            Integer.fromint(1),
+            bitvector.from_ruint(8, r_uint((i * i) & 0xff)))
+    res = supportcode.platform_read_mem(
+        m,
+        read_kind,
+        64,
+        bitvector.from_ruint(64, r_uint(0)),
+        Integer.fromint(8))
+    assert res.touint() == r_uint(0x3124191009040100L)
+    assert res.size() == 64
+    res = supportcode.platform_read_mem(
+        m,
+        read_kind,
+        64,
+        bitvector.from_ruint(64, r_uint(0)),
+        Integer.fromint(16))
+    assert res.tobigint().tolong() == 0xe1c4a990796451403124191009040100L
+    assert res.size() == 128
+
+def test_platform_write_mem_large():
+    m = FakeMachine()
+    read_kind = "read"
+    write_kind = "write"
+    supportcode.platform_write_mem(
+        m,
+        write_kind,
+        64,
+        bitvector.from_ruint(64, r_uint(0)),
+        Integer.fromint(16),
+        bitvector.from_bigint(128, rbigint.fromlong(0xe1c4a990796451403124191009040100L))
+    )
+    res = supportcode.platform_read_mem(
+        m,
+        read_kind,
+        64,
+        bitvector.from_ruint(64, r_uint(0)),
+        Integer.fromint(8))
+    assert res.touint() == r_uint(0x3124191009040100L)
+    assert res.size() == 64
+    res = supportcode.platform_read_mem(
+        m,
+        read_kind,
+        64,
+        bitvector.from_ruint(64, r_uint(0)),
+        Integer.fromint(16))
+    assert res.tobigint().tolong() == 0xe1c4a990796451403124191009040100L
+    assert res.size() == 128

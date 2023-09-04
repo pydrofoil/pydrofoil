@@ -3,7 +3,7 @@ import math
 
 from pydrofoil import supportcode
 from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
+from pydrofoil.bitvector import Integer, SmallInteger, BigInteger, MININT
 from pydrofoil.real import *
 from hypothesis import given, strategies, assume, example, settings
 from fractions import Fraction
@@ -474,10 +474,13 @@ def test_emod_ediv_int():
         for c2 in bi, si:
             assert c1(123875).emod(si(13)).toint() == 123875 % 13
             assert c1(123875).ediv(c2(13)).toint() == 123875 // 13
-            assert c1(-2 ** 63).ediv(c2(2)).toint() == -2**62
-            assert c1(-2 ** 63).ediv(c2(-2)).toint() == 2**62
-            assert c1(-2 ** 63 + 1).ediv(c2(2 ** 63 - 1)).toint() == -1
-            assert c1(-2 ** 63).ediv(c2(-2**63)).toint() == 1
+            assert c1(MININT).ediv(c2(2)).toint() == -2**62
+            assert c1(MININT).ediv(c2(-2)).toint() == 2**62
+            assert c1(MININT).ediv(c2(MININT)).toint() == 1
+            assert c1(5).ediv(c2(MININT)).toint() == 0
+            assert c1(-5).ediv(c2(MININT)).toint() == 1
+            assert c1(MININT + 1).ediv(c2(sys.maxint)).toint() == -1
+            assert c1(MININT).ediv(c2(MININT)).toint() == 1
             assert c1(7).ediv(c2(5)).toint() == 1
             assert c1(7).ediv(c2(-5)).toint() == -1
             assert c1(-7).ediv(c2(-5)).toint() == 2
@@ -486,10 +489,10 @@ def test_emod_ediv_int():
             assert c1(12).ediv(c2(-3)).toint() == -4
             assert c1(-12).ediv(c2(3)).toint() == -4
             assert c1(-12).ediv(c2(-3)).toint() == 4
-            assert c1(-2 ** 63).emod(c2(2)).toint() == 0
-            assert c1(-2 ** 63).emod(c2(- 2)).toint() == 0
-            assert c1(-2 ** 63).emod(c2(- 2 ** 63)).toint() == 0
-            assert c1(2 ** 63 - 1).emod(c2(2 ** 63 - 1)).toint() == 0
+            assert c1(MININT).emod(c2(2)).toint() == 0
+            assert c1(MININT).emod(c2(- 2)).toint() == 0
+            assert c1(MININT).emod(c2(- 2 ** 63)).toint() == 0
+            assert c1(sys.maxint).emod(c2(sys.maxint)).toint() == 0
             assert c1(7).emod(c2(5)).toint() == 2
             assert c1(7).emod(c2(-5)).toint() == 2
             assert c1(-7).emod(c2(5)).toint() == 3

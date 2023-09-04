@@ -637,35 +637,27 @@ class SmallInteger(Integer):
         return BigInteger(self.tobigint()).tmod(other)
 
     def ediv(self, other):
-        if not isinstance(other, SmallInteger):
+        if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
             return BigInteger(self.tobigint()).ediv(other)
         other = other.val
         if other == 0:
             raise ZeroDivisionError
-        if self.val < 0 and other > 0:
+        if other > 0:
             return SmallInteger(self.val // other)
-        if self.val > 0 and other < 0:
+        else:
             return SmallInteger(-(self.val // -other))
-        if self.val < 0 and other < 0:
-            return SmallInteger(-(self.val // -other))
-        if self.val > 0 and other > 0:
-            return SmallInteger(self.val // other)
 
     def emod(self, other):
-        if not isinstance(other, SmallInteger):
+        if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
             return BigInteger(self.tobigint()).emod(other)
         other = other.val
         if other == 0:
             raise ZeroDivisionError
-
-        if self.val > 0 and other > 0:
-            return SmallInteger(self.val % other)
-        if self.val > 0 and other < 0:
-            return SmallInteger(self.val % (-other))
-        if self.val < 0 and other > 0:
-            return SmallInteger(-((-self.val) % (-other)))
-        if self.val < 0 and other < 0:
-            return SmallInteger(-((-self.val) % (other)))
+        res = self.val % other
+        if res < 0:
+            res -= other
+            assert res >= 0
+        return SmallInteger(res)
 
     def rshift(self, i):
         assert i >= 0
@@ -814,28 +806,19 @@ class BigInteger(Integer):
         other = other.tobigint()
         if other.int_eq(0):
             raise ZeroDivisionError
-        if self.rval.int_lt(0) and other.int_gt(0):
+        if other.int_gt(0):
             return BigInteger(self.rval.floordiv(other))
-        if self.rval.int_gt(0) and other.int_lt(0):
+        else:
             return BigInteger(self.rval.floordiv(other.neg()).neg())
-        if self.rval.int_lt(0) and other.int_lt(0):
-            return BigInteger(self.rval.floordiv(other.neg()).neg())
-        if self.rval.int_gt(0) and other.int_gt(0):
-            return BigInteger(self.rval.floordiv(other))
-
 
     def emod(self, other):
         other = other.tobigint()
         if other.int_eq(0):
             raise ZeroDivisionError
-        if self.rval.int_gt(0) and other.int_gt(0):
-            return BigInteger(self.rval.mod(other))
-        if self.rval.int_gt(0) and other.int_lt(0):
-            return BigInteger(self.rval.mod(other.neg()))
-        if self.rval.int_lt(0) and other.int_gt(0):
-            return BigInteger(self.rval.neg().mod(other.neg()).neg())
-        if self.rval.int_lt(0) and other.int_lt(0):
-            return BigInteger(self.rval.neg().mod(other).neg())
+        res = self.rval.mod(other)
+        if res.int_lt(0):
+            res = res.sub(other)
+        return BigInteger(res)
 
     def rshift(self, i):
         assert i >= 0

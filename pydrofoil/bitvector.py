@@ -827,4 +827,3 @@ class BigInteger(Integer):
 
     def lshift(self, i):
         return BigInteger(self.rval.lshift(i))
-

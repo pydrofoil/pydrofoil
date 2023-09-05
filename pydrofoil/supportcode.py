@@ -20,7 +20,7 @@ def bigint_divrem1(a, n):
         div.sign = -div.sign
     if a.sign < 0 and rem > 0:
         rem = -rem
-    return div, rem
+    return div, rem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
 
 
 @always_inline
@@ -327,7 +327,7 @@ class SmallBitVector(BitVectorWithSize):
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
-print("dumy")
+
 class SparseBitVector(BitVectorWithSize):
     _immutable_fields_ = ['val']
 

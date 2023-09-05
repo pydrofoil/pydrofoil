@@ -314,12 +314,17 @@ class SmallBitVector(BitVectorWithSize):
     def replicate(self, i):
         size = self.size()
         if size * i <= 64:
-            res = val = self.val
-            for _ in range(i - 1):
-                res = (res << size) | val
-            return SmallBitVector(size * i, res)
+            return SmallBitVector(size * i, self._replicate(self.val, size, i))
         gbv = GenericBitVector(size, rbigint_fromrarith_int(self.val))
         return gbv.replicate(i)
+
+    @staticmethod
+    @jit.look_inside_iff(lambda val, size, i: jit.isconstant(i))
+    def _replicate(val, size, i):
+        res = val
+        for _ in range(i - 1):
+            res = (res << size) | val
+        return res
 
     def truncate(self, i):
         assert i <= self.size()

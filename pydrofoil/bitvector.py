@@ -621,7 +621,7 @@ class SmallInteger(Integer):
                 return BigInteger(self.tobigint().int_mul(other.val))
         else:
             assert isinstance(other, BigInteger)
-            return BigInteger(other.rval.int_mul(self.val))
+            return other.mul(self)
 
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python
@@ -774,6 +774,15 @@ class BigInteger(Integer):
 
     def mul(self, other):
         if isinstance(other, SmallInteger):
+            val = other.val
+            if not val:
+                return SmallInteger(0)
+            if val == 1:
+                return self
+            if val & (val - 1) == 0:
+                # power of two, replace by lshift
+                shift = self._shift_amount(val)
+                return self.lshift(shift)
             return BigInteger(self.rval.int_mul(other.val))
         assert isinstance(other, BigInteger)
         return BigInteger(self.rval.mul(other.rval))

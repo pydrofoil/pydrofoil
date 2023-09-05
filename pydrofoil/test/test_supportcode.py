@@ -413,6 +413,18 @@ def test_op_int_div_mod():
             assert c1(-2**63).tdiv(c2(-1)).tolong() == 2 ** 63
             assert c1(-2**63).tmod(c2(-1)).tolong() == 0
 
+def test_shift_amount():
+    for i in range(63):
+        assert BigInteger._shift_amount(2 ** i) == i
+
+def test_mul_optimized(monkeypatch):
+    monkeypatch.setattr(rbigint, "mul", None)
+    monkeypatch.setattr(rbigint, "int_mul", None)
+    res = bi(3 ** 100).mul(si(16))
+    assert res.tolong() == 3 ** 100 * 16
+    res = si(1024).mul(bi(-5 ** 60))
+    assert res.tolong() == -5 ** 60 * 1024
+
 
 def test_op_gv_int():
     for c1 in gbv, bv:

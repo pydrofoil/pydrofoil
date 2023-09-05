@@ -380,7 +380,7 @@ class SparseBitVector(BitVectorWithSize):
         return self._to_generic().lshift_bits(other)
 
     def rshift_bits(self, other):
-        return self._to_generic().rshift_bits(other)
+        return self.rshift(other.toint())
 
     def xor(self, other):
         return self._to_generic().xor(other)
@@ -408,7 +408,7 @@ class SparseBitVector(BitVectorWithSize):
 
     def read_bit(self, pos):
         assert pos < self.size()
-
+        
         if pos >= 64:
             return False
         mask = r_uint(1) << pos

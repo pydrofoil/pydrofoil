@@ -327,7 +327,7 @@ class SmallBitVector(BitVectorWithSize):
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
-
+print("dumy")
 class SparseBitVector(BitVectorWithSize):
     _immutable_fields_ = ['val']
 

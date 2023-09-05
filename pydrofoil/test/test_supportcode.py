@@ -1497,7 +1497,7 @@ def test_sparse_vector_shift():
     assert res.size() == 100
     assert res.toint() == 0b00000100
 
-    res = v.rshift(101)
+    res = v.rshift(100)
     assert res.size() == 100
     assert res.toint() == 0
     
@@ -1505,5 +1505,27 @@ def test_sparse_vector_shift():
     assert res.size() == 100
     assert res.toint() == 0
 
+def test_sparse_arith_shiftr():
+
+    v = SparseBitVector(100, 0b00101101)
+    res = v.arith_rshift(3)
+    assert res.size() == 100
+    assert res.toint() == 0b101
+
+    v = SparseBitVector(100, 0b1000100)
+    res = v.arith_rshift(6)
+    assert res.size() == 100
+    assert res.toint() == 0b1
+
+@given(strategies.data())
+def test_sparse_arith_shiftr_hypothesis(data):
+
+    size = data.draw(strategies.integers(65, 5000))
+    value = data.draw(strategies.integers(0, 2**size-1))
+    v = bitvector.SparseBitVector(size, r_uint(value))
+    shift = data.draw(strategies.integers(0, size+10))
+    res = v.arith_rshift(shift)
+    intres = v.signed().tobigint().tolong() >> shift
+    assert res.tobigint().tolong() == intres & ((1 << size) - 1)
 
 

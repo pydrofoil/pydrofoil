@@ -370,7 +370,11 @@ class SparseBitVector(BitVectorWithSize):
         return SparseBitVector(self.size(), self.val >> i)
 
     def arith_rshift(self, i):
-        return self._to_generic().arith_rshift(i)
+        #essentially the same as rshift since it must be positive
+        assert i >= 0
+        if i >= self.size():
+            return SparseBitVector(self.size(), 0)
+        return SparseBitVector(self.size(), self.val >> i)
 
     def lshift_bits(self, other):
         return self._to_generic().lshift_bits(other)

@@ -784,14 +784,25 @@ class BigInteger(Integer):
             other = other.val
             if other == 0:
                 raise ZeroDivisionError
+            if other > 0 and other & (other - 1) == 0 and self.rval.sign >= 0:
+                # can use shift
+                return self.rshift(self._shift_amount(other))
             div, rem = bigint_divrem1(self.rval, other)
             return BigInteger(div)
-
         other = other.tobigint()
         if other.sign == 0:
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
         return BigInteger(div)
+
+    @staticmethod
+    @jit.elidable
+    def _shift_amount(poweroftwo):
+        assert poweroftwo & (poweroftwo - 1) == 0
+        shift = 0
+        while 1 << shift != poweroftwo:
+            shift += 1
+        return shift
 
     def tmod(self, other):
         if isinstance(other, SmallInteger) and int_in_valid_range(other.val):

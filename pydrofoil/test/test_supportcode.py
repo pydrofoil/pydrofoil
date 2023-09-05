@@ -3,7 +3,7 @@ import math
 
 from pydrofoil import supportcode
 from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer, SmallInteger, BigInteger, MININT
+from pydrofoil.bitvector import Integer, SmallInteger, BigInteger, MININT, SparseBitVector
 from pydrofoil.real import *
 from hypothesis import given, strategies, assume, example, settings
 from fractions import Fraction
@@ -1467,3 +1467,27 @@ def test_platform_write_mem_large():
         Integer.fromint(16))
     assert res.tobigint().tolong() == 0xe1c4a990796451403124191009040100L
     assert res.size() == 128
+
+#section for test file for sparse bitvectors
+
+
+def test_sparse_add_int():
+    v = SparseBitVector(100, r_uint(0b111))
+    res = v.add_int(Integer.fromint(0b1))
+    assert res.touint() == 0b1000
+
+def test_sparse_read_bit():
+    v = SparseBitVector(100, r_uint(0b10101))
+    assert v.read_bit(4) == True
+    assert v.read_bit(3) == False
+    assert v.read_bit(2) == True
+    assert v.read_bit(1) == False
+    assert v.read_bit(0) == True
+    assert v.read_bit(65) == False
+    assert v.read_bit(99) == False
+    with pytest.raises(AssertionError):
+        v.read_bit(100) 
+
+
+
+

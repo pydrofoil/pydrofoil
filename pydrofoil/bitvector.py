@@ -30,7 +30,7 @@ def from_ruint(size, val):
 #        if is_annotation_constant(size) and is_annotation_constant(val):
 #            return _small_bit_vector_memo(size, val)
         return SmallBitVector(size, val, True)
-    return GenericBitVector(size, rbigint_fromrarith_int(val), True)
+    return SparseBitVector(size, val)
 
 @specialize.memo()
 def _small_bit_vector_memo(size, val):
@@ -326,6 +326,119 @@ class SmallBitVector(BitVectorWithSize):
         return SmallBitVector(i, self.val, normalize=True)
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
+
+
+class SparseBitVector(BitVectorWithSize):
+    _immutable_fields_ = ['val']
+
+    def __init__(self, size, val):
+        assert size > 64
+        self._size = size
+        self.val = val
+
+    def __repr__(self):
+        return "<SparseBitVector %s %r" %(self.size(), self.val)
+
+    def _to_generic(self):
+        return GenericBitVector(self._size, rbigint_fromrarith_int(self.val))
+
+    def _size_mask(self, val):
+        return self._to_generic()._size_mask(self.size(), val)
+
+    def add_int(self, i):
+        return self._to_generic().add_int(i)
+    
+    def add_bits(self, other):
+        return self._to_generic().add_bits(other)
+
+    def sub_bits(self, other):
+        return self._to_generic().sub_bits(other)
+
+    def sub_int(self, i):
+        return self._to_generic().sub_int(i)
+
+    def print_bits(self):
+        print "SparseBitVector<%s, %s>" % (self.size(), self.val.hex())
+
+    def lshift(self, i):
+        return self._to_generic().lshift(i)
+
+    def rshift(self, i):
+        return self._to_generic().rshift(i)
+
+    def arith_rshift(self, i):
+        return self._to_generic().arith_rshift(i)
+
+    def lshift_bits(self, other):
+        return self._to_generic().lshift_bits(other)
+
+    def rshift_bits(self, other):
+        return self._to_generic().rshift_bits(other)
+
+    def xor(self, other):
+        return self._to_generic().xor(other)
+
+    def or_(self, other):
+        return self._to_generic().or_(other)
+    
+    def and_(self, other):
+        return self._to_generic().and_(other)
+    
+    def invert(self):
+        return self._to_generic().invert()
+
+    def subrange(self,n,m):
+        return self._to_generic().subrange(n,m)
+
+    def subrange_unwrapped_res(self, n, m):
+        return self._to_generic().subrange_unwrapped_res(n, m)
+
+    def zero_extend(self, i):
+        return self._to_generic().zero_extend(i)
+
+    def sign_extend(self, i):
+        return self._to_generic().sign_extend(i)
+
+    def read_bit(self, pos):
+        assert pos < self.size()
+
+        if pos >= 64:
+            return False
+        mask = r_uint(1) << pos
+        return bool(self.val & mask)
+    
+    def update_bit(self, pos, bit):
+        return self._to_generic().update_bit(pos, bit)
+
+    def update_subrange(self, n, m, s):
+        return self._to_generic().update_subrange(n, m ,s)
+    
+    def signed(self):
+        return self._to_generic().signed()
+    
+    def unsigned(self):
+        return self._to_generic().unsigned()
+    
+    def eq(self, other):
+        return self._to_generic().eq()
+
+    def toint(self):
+        return self._to_generic().toint()
+    
+    def touint(self):
+        return self._to_generic().touint()
+    
+    def tobigint(self):
+        return self._to_generic().tobigint()
+    
+    def replicate(self, i):
+        return self._to_generic().replicate(i)
+    
+    def truncate(self, i):
+        return self._to_generic().truncate(i)
+
+
+
 
 
 class GenericBitVector(BitVectorWithSize):
@@ -827,3 +940,4 @@ class BigInteger(Integer):
 
     def lshift(self, i):
         return BigInteger(self.rval.lshift(i))
+

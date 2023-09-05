@@ -1488,6 +1488,22 @@ def test_sparse_read_bit():
     with pytest.raises(AssertionError):
         v.read_bit(100) 
 
+def test_sparse_vector_shift():
+
+
+    v = SparseBitVector(100, 0b10001101)
+
+    res = v.rshift(5)
+    assert res.size() == 100
+    assert res.toint() == 0b00000100
+
+    res = v.rshift(101)
+    assert res.size() == 100
+    assert res.toint() == 0
+    
+    res = v.rshift(65)
+    assert res.size() == 100
+    assert res.toint() == 0
 
 
 

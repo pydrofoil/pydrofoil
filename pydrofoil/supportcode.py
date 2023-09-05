@@ -549,7 +549,7 @@ def print_real(machine, s, r):
     return ()
 
 def to_real(machine, i):
-    return Real(i.tobigint(), ONERBIGINT)
+    return Real(i.tobigint(), ONERBIGINT, normalized=True)
 
 def undefined_real(machine, _):
     return Real.fromint(12, 19)

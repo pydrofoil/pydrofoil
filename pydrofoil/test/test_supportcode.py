@@ -1525,7 +1525,7 @@ def test_sparse_arith_shiftr_hypothesis(data):
     assert res.tobigint().tolong() == intres & ((1 << size) - 1)
 
 
-def test_vector_shift_bits():
+def test_sparse_vector_shift_bits():
     v = SparseBitVector(100, 0b10001101)
     res = v.rshift_bits(SparseBitVector(100, 5))
     assert res.size() == 100
@@ -1535,3 +1535,13 @@ def test_vector_shift_bits():
     res = v.rshift_bits(SparseBitVector(100, 65))
     assert res.size() == 100
     assert res.toint() == 0
+
+def test_sparse_bv_bitwise():
+    v1 = SparseBitVector(100, 0b11110000)
+    v2 = SparseBitVector(100, 0b11001100)
+    res = v1.and_(v2)
+    assert res.toint() == 0b11110000 & 0b11001100
+    res = v1.or_(v2)
+    assert res.toint() == 0b11110000 | 0b11001100
+    res = v1.xor(v2)
+    assert res.toint() == 0b11110000 ^ 0b11001100

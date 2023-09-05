@@ -383,13 +383,16 @@ class SparseBitVector(BitVectorWithSize):
         return self.rshift(other.toint())
 
     def xor(self, other):
-        return self._to_generic().xor(other)
+        assert isinstance(other, SparseBitVector)
+        return SparseBitVector(self.size(), self.val ^ other.val)
 
     def or_(self, other):
-        return self._to_generic().or_(other)
+        assert isinstance(other, SparseBitVector)
+        return SparseBitVector(self.size(), self.val | other.val)
     
     def and_(self, other):
-        return self._to_generic().and_(other)
+        assert isinstance(other, SparseBitVector)
+        return SparseBitVector(self.size(), self.val & other.val)
     
     def invert(self):
         return self._to_generic().invert()

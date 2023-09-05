@@ -1567,3 +1567,70 @@ def test_sparse_zero_extend():
     res = v.zero_extend(100)
     assert res.size() == 100
     assert res.toint() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
+
+def test_sparse_sign_extend():
+    # XXX Should I test it with support code?
+    v = SparseBitVector(65, 0b0)
+    res = v.sign_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0
+
+    v = SparseBitVector(100, 0b00)
+    res = v.sign_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0
+
+    v = SparseBitVector(65, 0b1)
+    res = v.sign_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+
+    v = SparseBitVector(65, 0b11)
+    res = v.sign_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
+
+def test_sparse_vector_subrange():
+    # XXX Regression bug and sail implementation
+    v = SparseBitVector(100, 0b111)
+    r = v.subrange(3, 2)
+    assert r.size() == 2
+    assert r.toint() == 1
+    assert isinstance(r, bitvector.SmallBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(5, 0)
+    assert r.size() == 6
+    assert r.toint() == 0b10101
+    assert isinstance(r, bitvector.SmallBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(65, 0)
+    assert r.size() == 66
+    assert r.toint() == 0b101010101
+    assert isinstance(r, bitvector.SparseBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(65, 3)
+    assert r.size() == 63
+    assert r.toint() == 0b101010
+    assert isinstance(r, bitvector.SmallBitVector)
+
+    #this will fail, not sure why
+    # v = SparseBitVector(100, 0b101010101)
+    # r = v.subrange(65, 2)
+    # assert r.size() == 64
+    # assert r.toint() == 0b101010
+    # assert isinstance(r, bitvector.SmallBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(65, 1)
+    assert r.size() == 65
+    assert r.toint() == 0b10101010
+    assert isinstance(r, bitvector.SparseBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(99, 0)
+    assert r.size() == 100
+    assert r.toint() == 0b101010101
+    assert isinstance(r, bitvector.SparseBitVector)

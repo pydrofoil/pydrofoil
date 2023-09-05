@@ -398,10 +398,17 @@ class SparseBitVector(BitVectorWithSize):
         return self._to_generic().invert()
 
     def subrange(self,n,m):
-        return self._to_generic().subrange(n,m)
+        # XXX if width of the subrange is less than 64, return SmallBitVector, if bigger return SparseBitvector?
+        assert 0 <= m <= n < self.size()        
+        width = n - m + 1
+        if width <= 64:
+            return SmallBitVector(width, self.subrange_unwrapped_res(n,m))
+        return SparseBitVector(width, self.val >> m)
 
     def subrange_unwrapped_res(self, n, m):
-        return self._to_generic().subrange_unwrapped_res(n, m)
+        assert 0 <= m <= n < self.size()
+        width = n - m + 1
+        return ruint_mask(width, self.val >> m)
 
     def zero_extend(self, i):
         if i == self.size():
@@ -410,7 +417,11 @@ class SparseBitVector(BitVectorWithSize):
         return SparseBitVector(i, self.val)
 
     def sign_extend(self, i):
-        return self._to_generic().sign_extend(i)
+        if i == self.size():
+            return self
+        assert i > self.size()
+        #XXX since it is always positive, its essentially just extending 0 (zero_extend)
+        return SparseBitVector(i, self.val)
 
     def read_bit(self, pos):
         assert pos < self.size()

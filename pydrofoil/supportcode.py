@@ -1,1026 +1,943 @@
-import os
+import sys
+from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, \
+        _divrem1, intsign, int_in_valid_range
+from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
+        int_c_div, int_c_mod, r_ulonglong
+from rpython.rlib.objectmodel import always_inline, specialize, \
+        we_are_translated, is_annotation_constant
+from rpython.rlib.rstring import (
+    ParseStringError, ParseStringOverflowError)
+from rpython.rlib import jit
 
-from rpython.rlib import objectmodel, unroll, jit
-from rpython.rlib.rbigint import rbigint, ONERBIGINT
-from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
-from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer, ruint_mask as _mask
-import pydrofoil.softfloat as softfloat
-from pydrofoil.real import Real
+MININT = -sys.maxint - 1
 
-STDOUT = 1
-STDERR = 2
-
-@objectmodel.specialize.call_location()
-def make_dummy(name):
-    def dummy(machine, *args):
-        if objectmodel.we_are_translated():
-            print "not implemented!", name
-            raise ValueError
-        import pdb; pdb.set_trace()
-        return 123
-    dummy.func_name += name
-    globals()[name] = dummy
-
-all_unwraps = {}
-
-def unwrap(spec):
-    argspecs = tuple(spec.split())
-    it = unroll.unrolling_iterable(enumerate(argspecs))
-    def wrap(func):
-        def wrappedfunc(machine, *args):
-            newargs = ()
-            for i, spec in it:
-                arg = args[i]
-                if spec == "o":
-                    newargs += (arg, )
-                elif spec == "i":
-                    newargs += (arg.toint(), )
-                else:
-                    assert 0, "unknown spec"
-            return func(machine, *newargs)
-        wrappedfunc.__dict__.update(func.__dict__)
-        unwrapped_name = func.func_name + "_" + "_".join(argspecs)
-        globals()[unwrapped_name] = func
-        wrappedfunc.func_name += "_" + func.func_name
-        all_unwraps[func.func_name] = (argspecs, unwrapped_name)
-        return wrappedfunc
-    return wrap
-
-# unimplemented
-
-make_dummy('plat_enable_dirty_update')
-make_dummy('plat_enable_misaligned_access')
-make_dummy('plat_enable_pmp')
-make_dummy('platform_barrier')
-make_dummy('print_mem_access')
-make_dummy('print_platform')
-make_dummy('print_reg')
-make_dummy('print_string')
-make_dummy('string_drop')
-make_dummy('string_take')
-make_dummy('string_startswith')
-make_dummy('sub_nat')
-make_dummy('undefined_int')
-make_dummy("wakeup_request")
-make_dummy("set_slice_int")
-make_dummy("undefined_range")
-
-make_dummy("softfloat_f16lt_quiet")
-make_dummy("softfloat_f32lt_quiet")
-make_dummy("softfloat_f64lt_quiet")
-make_dummy("softfloat_f16le_quiet")
-make_dummy("softfloat_f32le_quiet")
-make_dummy("softfloat_f64le_quiet")
-make_dummy("softfloat_f16roundToInt")
-make_dummy("softfloat_f32roundToInt")
-make_dummy("softfloat_f64roundToInt")
+@jit.elidable
+def bigint_divrem1(a, n):
+    assert n != MININT
+    div, rem = _divrem1(a, abs(n))
+    # _divrem1 leaves the sign always positive, fix
+    if a.sign != intsign(n):
+        div.sign = -div.sign
+    if a.sign < 0 and rem > 0:
+        rem = -rem
+    return div, rem
 
 
-# generic helpers
+@always_inline
+#@specialize.arg_or_var(0, 1)
+def from_ruint(size, val):
+    if size <= 64:
+#        if is_annotation_constant(size) and is_annotation_constant(val):
+#            return _small_bit_vector_memo(size, val)
+        return SmallBitVector(size, val, True)
+    return SparseBitVector(size, val)
 
-def raise_type_error():
-    raise TypeError
+@specialize.memo()
+def _small_bit_vector_memo(size, val):
+    return SmallBitVector(size, val)
 
+@always_inline
+def from_bigint(size, rval):
+    if size <= 64:
+        return SmallBitVector(size, BitVector.rbigint_mask(size, rval).touint())
+    return GenericBitVector(size, rval, True)
 
-# bit vectors
-
-def signed_bv(machine, op, n):
-    if n == 64:
-        return intmask(op)
-    assert n > 0
-    u1 = r_uint(1)
-    m = u1 << (n - 1)
-    op = op & ((u1 << n) - 1) # mask off higher bits to be sure
-    return intmask((op ^ m) - m)
-
-@objectmodel.always_inline
-def unsigned_bv_wrapped_res(machine, op, n):
-    return bitvector.Integer.from_ruint(op)
-
-@objectmodel.always_inline
-def unsigned_bv(machine, op, n):
-    if n == 64 and (op & (r_uint(1) << 63)):
-        raise ValueError
-    return intmask(op)
-
-@objectmodel.always_inline
-def add_bits_int(machine, a, b):
-    return a.add_int(b)
-
-@objectmodel.always_inline
-def add_bits_int_bv_i(machine, a, width, b):
-    if b >= 0:
-        return _mask(width, a + r_uint(b))
-    return _add_bits_int_bv_i_slow(a, width, b)
-
-def _add_bits_int_bv_i_slow(a, width, b):
-    return bitvector.from_ruint(width, a).add_int(bitvector.SmallInteger.fromint(b)).touint()
-
-@objectmodel.always_inline
-def add_bits(machine, a, b):
-    return a.add_bits(b)
-
-def add_bits_bv_bv(machine, a, b, width):
-    return _mask(width, a + b)
-
-def sub_bits_int(machine, a, b):
-    return a.sub_int(b)
-
-@objectmodel.always_inline
-def sub_bits(machine, a, b):
-    return a.sub_bits(b)
-
-def sub_bits_bv_bv(machine, a, b, width):
-    return _mask(width, a - b)
-
-def length(machine, gbv):
-    return gbv.size_as_int()
-
-def length_unwrapped_res(machine, gbv):
-    return gbv.size()
-
-@unwrap("o i")
-@objectmodel.always_inline
-def sign_extend(machine, gbv, size):
-    return gbv.sign_extend(size)
-
-@unwrap("o i")
-@objectmodel.always_inline
-def zero_extend(machine, gbv, size):
-    return gbv.zero_extend(size)
-
-@objectmodel.always_inline
-def zero_extend_bv_i_i(machine, bv, width, targetwidth):
-    return bv # XXX correct?
-
-def eq_bits(machine, gvba, gvbb):
-    return gvba.eq(gvbb)
-
-def eq_bits_bv_bv(machine, bva, bvb):
-    return bva == bvb
-
-def neq_bits(machine, gvba, gvbb):
-    return not gvba.eq(gvbb)
-
-def neq_bits_bv_bv(machine, bva, bvb):
-    return bva != bvb
-
-def xor_bits(machine, gvba, gvbb):
-    return gvba.xor(gvbb)
-
-def xor_vec_bv_bv(machine, bva, bvb):
-    return bva ^ bvb
-
-def and_bits(machine, gvba, gvbb):
-    return gvba.and_(gvbb)
-
-def and_vec_bv_bv(machine, bva, bvb):
-    return bva & bvb
-
-def or_bits(machine, gvba, gvbb):
-    return gvba.or_(gvbb)
-
-def or_vec_bv_bv(machine, bva, bvb):
-    return bva | bvb
-
-def not_bits(machine, gvba):
-    return gvba.invert()
-
-def not_vec_bv(machine, bva, width):
-    return _mask(width, ~bva)
-
-def print_bits(machine, s, b):
-    print s + b.string_of_bits()
-    return ()
-
-def prerr_bits(machine, s, b):
-    os.write(STDERR, "%s%s\n" % (s, b.string_of_bits()))
-    return ()
+@always_inline
+def ruint_mask(width, val):
+    if width == 64:
+        return val
+    assert width < 64
+    mask = (r_uint(1) << width) - 1
+    return val & mask
 
 
-@unwrap("o i")
-def shiftl(machine, gbv, i):
-    return gbv.lshift(abs(i))
-
-def shiftl_bv_i(machine, a, width, i):
-    return _mask(width, a << i)
-
-@unwrap("o i")
-def shiftr(machine, gbv, i):
-    return gbv.rshift(i)
-
-@unwrap("o i")
-def arith_shiftr(machine, gbv, i):
-    return gbv.arith_rshift(i)
-
-def shift_bits_left(machine, gbv, gbva):
-    return gbv.lshift_bits(gbva)
-
-def shift_bits_right(machine, gbv, gbva):
-    return gbv.rshift_bits(gbva)
-
-@unwrap("o i")
-def replicate_bits(machine, bv, repetition):
-    return bv.replicate(repetition)
-
-
-def sail_unsigned(machine, gbv):
-    return gbv.unsigned()
-
-def sail_signed(machine, gbv):
-    return gbv.signed()
-
-def append(machine, bv1, bv2):
-    return bv1.append(bv2)
-
-def bitvector_concat_bv_bv(machine, bv1, width, bv2):
-    return (bv1 << width) | bv2
-
-def append_64(machine, bv, v):
-    return bv.append_64(v)
-
-@unwrap("o i o")
-@objectmodel.specialize.argtype(1, 3)
-def vector_update(machine, bv, index, element):
-    return bv.update_bit(index, element)
-
-@objectmodel.specialize.argtype(1, 3)
-def helper_vector_update_list_o_i_o(machine, vec, index, element, res=None):
-    if vec is None:
-        raise TypeError
-    if res is None:
-        res = vec[:]
-    else:
-        assert res is vec
-    res[index] = element
+def rbigint_fromrarith_int(uint):
+    res = rbigint.fromrarith_int(uint)
+    jit.record_known_result(uint, rbigint.touint, res)
     return res
 
-@unwrap("o i")
-def vector_access(machine, vec, index):
-    return vec.read_bit(index)
-
-def vector_access_bv_i(machine, bv, index):
-    if index == 0:
-        return bv & r_uint(1)
-    return r_uint(1) & safe_rshift(None, bv, index)
-
-def update_fbits(machine, fb, index, element):
-    assert 0 <= index < 64
-    if element:
-        return fb | (r_uint(1) << index)
-    else:
-        return fb & ~(r_uint(1) << index)
-
-@unwrap("o i i o")
-def vector_update_subrange(machine, bv, n, m, s):
-    return bv.update_subrange(n, m, s)
-
-@unwrap("o i i")
-@objectmodel.always_inline
-@objectmodel.specialize.argtype(1)
-def vector_subrange(machine, bv, n, m):
-    return bv.subrange(n, m)
-
-@objectmodel.always_inline
-@objectmodel.specialize.argtype(1)
-def vector_subrange_o_i_i_unwrapped_res(machine, bv, n, m):
-    return bv.subrange_unwrapped_res(n, m)
-
-@unwrap("o i i")
-@objectmodel.specialize.argtype(1)
-def slice(machine, bv, start, length):
-    return bv.subrange(start + length - 1, start)
-
-@objectmodel.always_inline
-@objectmodel.specialize.argtype(1)
-def vector_slice_o_i_i_unwrapped_res(machine, bv, start, length):
-    return bv.subrange_unwrapped_res(start + length - 1, start)
-
-@unwrap("o o o i o")
-@objectmodel.specialize.argtype(3)
-def set_slice(machine, _len, _slen, bv, start, bv_new):
-    return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)
-
-@objectmodel.always_inline
-def vector_subrange_fixed_bv_i_i(machine, v, n, m):
-    res = safe_rshift(None, v, m)
-    width = n - m + 1
-    # XXX if we pass in the width of v here, we can not do the mask
-    return _mask(width, res)
-
-@objectmodel.always_inline
-def slice_fixed_bv_i_i(machine, v, start, length):
-    return vector_subrange_fixed_bv_i_i(machine, v, start + length - 1, start)
-
-def string_of_bits(machine, gbv):
-    return gbv.string_of_bits()
-
-def decimal_string_of_bits(machine, sbits):
-    return str(sbits)
-
-def uint64c(num):
-    if not objectmodel.we_are_translated():
-        import pdb; pdb.set_trace()
-    return bitvector.from_ruint(64, r_uint(num))
-
-@unwrap("i")
-def zeros(machine, num):
-    return bitvector.from_ruint(num, r_uint(0))
-
-@unwrap("i")
-def undefined_bitvector(machine, num):
-    return bitvector.from_ruint(num, r_uint(0))
-
-@unwrap("o i")
-def sail_truncate(machine, bv, i):
-    return bv.truncate(i)
-
-
-# integers
-
-@objectmodel.specialize.argtype(1)
-def eq_int(machine, a, b):
-    assert isinstance(a, Integer)
-    return a.eq(b)
-
-def eq_int_i_i(machine, a, b):
-    return a == b
-
-def eq_bit(machine, a, b):
-    return a == b
-
-@objectmodel.specialize.argtype(1)
-def lteq(machine, ia, ib):
-    return ia.le(ib)
-
-@objectmodel.specialize.argtype(1)
-def lt(machine, ia, ib):
-    return ia.lt(ib)
-
-@objectmodel.specialize.argtype(1)
-def gt(machine, ia, ib):
-    return ia.gt(ib)
-
-@objectmodel.specialize.argtype(1)
-def gteq(machine, ia, ib):
-    return ia.ge(ib)
-
-@objectmodel.specialize.argtype(1)
-def add_int(machine, ia, ib):
-    return ia.add(ib)
-
-def add_i_i_wrapped_res(machine, a, b):
-    return bitvector.SmallInteger.add_i_i(a, b)
-
-@objectmodel.specialize.argtype(1)
-def sub_int(machine, ia, ib):
-    return ia.sub(ib)
-
-def sub_i_i_wrapped_res(machine, a, b):
-    return bitvector.SmallInteger.sub_i_i(a, b)
-
-@objectmodel.specialize.argtype(1)
-def mult_int(machine, ia, ib):
-    return ia.mul(ib)
-
-@objectmodel.specialize.argtype(1)
-def tdiv_int(machine, ia, ib):
-    return ia.tdiv(ib)
-
-@objectmodel.specialize.argtype(1)
-def tmod_int(machine, ia, ib):
-    return ia.tmod(ib)
-
-@objectmodel.specialize.argtype(1)
-def ediv_int(machine, a, b):
-    return a.ediv(b)
-
-@objectmodel.specialize.argtype(1)
-def emod_int(machine, a, b):
-    return a.emod(b)
-
-@objectmodel.specialize.argtype(1)
-def max_int(machine, ia, ib):
-    if ia.gt(ib):
-        return ia
-    return ib
-
-@objectmodel.specialize.argtype(1)
-def min_int(machine, ia, ib):
-    if ia.lt(ib):
-        return ia
-    return ib
-
-@unwrap("i o i")
-def get_slice_int(machine, len, n, start):
-    return n.slice(len, start)
-
-def safe_rshift(machine, n, shift):
-    assert shift >= 0
-    if shift >= 64:
-        return r_uint(0)
-    return n >> shift
-
-def print_int(machine, s, i):
-    print s + i.str()
-    return ()
-
-def prerr_int(machine, s, i):
-    os.write(STDERR, s + i.str() + "\n")
-    return ()
-
-def not_(machine, b):
-    return not b
-
-def eq_bool(machine, a, b):
-    return a == b
-
-def string_of_int(machine, r):
-    return r.str()
-
-@objectmodel.specialize.arg_or_var(1)
-def int_to_int64(machine, r):
-    if objectmodel.is_annotation_constant(r):
-        return _int_to_int64_memo(r)
-    return r.toint()
-
-@objectmodel.specialize.memo()
-def _int_to_int64_memo(r):
-    return r.toint()
-
-def int64_to_int(machine, i):
-    return Integer.fromint(i)
-
-def string_to_int(machine, s):
-    return Integer.fromstr(s)
-
-
-def undefined_int(machine, _):
-    return Integer.fromint(0)
-
-@unwrap("i")
-def pow2(machine, x):
-    assert x >= 0
-    if x < 63:
-        return Integer.fromint(1 << x)
-    return Integer.frombigint(ONERBIGINT.lshift(x))
-
-def neg_int(machine, x):
-    return Integer.fromint(0).sub(x)
-
-def dec_str(machine, x):
-    return x.str()
-
-def hex_str(machine, x):
-    return x.hex()
-
-@unwrap("o i")
-def shl_int(machine, i, shift):
-    return i.lshift(shift)
-
-@unwrap("o i")
-def shr_int(machine, i, shift):
-    return i.rshift(shift)
-
-def shl_mach_int(machine, i, shift):
-    return i << shift
-
-def shr_mach_int(machine, i, shift):
-    return i >> shift
-
-def abs_int(machine, i):
-    return i.abs()
-
-
-# real
-
-def neg_real(machine, r):
-    return r.neg()
-
-def abs_real(machine, r):
-    return r.abs()
-
-def add_real(machine, a, b):
-    return a.add(b)
-
-def sub_real(machine, a, b):
-    return a.sub(b)
-
-def mult_real(machine, a, b):
-    return a.mul(b)
-
-def div_real(machine, a, b):
-    return a.div(b)
-
-def round_up(machine, r):
-    return Integer.frombigint(r.ceil())
-
-def round_down(machine, r):
-    return Integer.frombigint(r.floor())
-
-def eq_real(machine, a, b):
-    return a.eq(b)
-
-def lt_real(machine, a, b):
-    return a.lt(b)
-
-def gt_real(machine, a, b):
-    return a.gt(b)
-
-def lteq_real(machine, a, b):
-    return a.le(b)
-
-def gteq_real(machine, a, b):
-    return a.ge(b)
-
-@unwrap("o i")
-def real_power(machine, r, n):
-    return r.pow(n)
-
-def sqrt_real(machine, r):
-    return r.sqrt()
-
-def string_to_real(machine, str):
-    return Real.fromstr(str)
-
-def print_real(machine, s, r):
-    print s + r.num.str()+"/"+r.den.str()
-    return ()
-
-def to_real(machine, i):
-    return Real(i.tobigint(), ONERBIGINT)
-
-def undefined_real(machine, _):
-    return Real.fromint(12, 19)
-
-
-# various
-
-@objectmodel.specialize.argtype(1)
-def reg_deref(machine, s):
-    return s
-
-def sail_assert(cond, st):
-    if not objectmodel.we_are_translated() and not cond:
-        import pdb; pdb.set_trace()
-    assert cond, st
-    return ()
-
-def print_endline(machine, s):
-    print s
-    return ()
-
-def prerr_endline(machine, s):
-    os.write(STDERR, s + "\n")
-    return ()
-
-def sail_putchar(machine, i):
-    os.write(STDOUT, chr(i.toint() & 0xff))
-    return ()
-
-def undefined_bool(machine, _):
-    return False
-
-def undefined_unit(machine, _):
-    return ()
-
-# list weirdnesses
-
-@objectmodel.specialize.argtype(1)
-def internal_pick(machine, lst):
-    return lst.head
-
-# vector stuff
-
-@objectmodel.specialize.argtype(1, 2, 4)
-def vector_update_inplace(machine, res, l, index, element):
-    # super weird, the C backend does the same
-    if res is not l:
-        l = l[:]
-    l[index] = element
-    return l
-
-@objectmodel.specialize.argtype(2)
-def undefined_vector(machine, size, element):
-    return [element] * size.toint()
-
-
-def elf_tohost(machine, _):
-    return Integer.fromint(0)
-
-def platform_barrier(machine, _):
-    return ()
-
-def platform_write_mem_ea(machine, write_kind, addr_size, addr, n):
-    return ()
-
-
-# strings
-
-def concat_str(machine, a, b):
-    return a + b
-
-def eq_string(machine, a, b):
-    return a == b
-
-def string_length(machine, s):
-    return Integer.fromint(len(s))
-
-# softfloat
-
-def softfloat_f16sqrt(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f16sqrt(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32sqrt(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f32sqrt(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64sqrt(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f64sqrt(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16tof32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f16tof32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16tof64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f16tof64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16toi32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f16toi32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16toi64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f16toi64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16toui32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f16toui32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16toui64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f16toui64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32tof16(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f32tof16(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32tof64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f32tof64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32toi32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f32toi32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32toi64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f32toi64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32toui32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f32toui32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32toui64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f32toui64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64tof16(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f64tof16(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64tof32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f64tof32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64toui64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f64toui64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64toi32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f64toi32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64toi64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f64toi64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64toui32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.f64toui32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_i32tof16(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.i32tof16(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_i32tof32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.i32tof32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_i32tof64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.i32tof64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_i64tof16(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.i64tof16(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_i64tof32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.i64tof32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_i64tof64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.i64tof64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_ui32tof16(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.ui32tof16(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_ui32tof32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.ui32tof32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_ui32tof64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.ui32tof64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_ui64tof16(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.ui64tof16(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_ui64tof32(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.ui64tof32(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_ui64tof64(machine, rm, v1):
-    machine._reg_zfloat_result = softfloat.ui64tof64(rm, v1)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16add(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f16add(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16sub(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f16sub(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16mul(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f16mul(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16div(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f16div(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32add(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f32add(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32sub(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f32sub(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32mul(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f32mul(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32div(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f32div(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64add(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f64add(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64sub(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f64sub(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64mul(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f64mul(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64div(machine, rm, v1, v2):
-    machine._reg_zfloat_result = softfloat.f64div(rm, v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16eq(machine, v1, v2):
-    machine._reg_zfloat_result = softfloat.f16eq(v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16le(machine, v1, v2):
-    machine._reg_zfloat_result = softfloat.f16le(v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16lt(machine, v1, v2):
-    machine._reg_zfloat_result = softfloat.f16lt(v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32eq(machine, v1, v2):
-    machine._reg_zfloat_result = softfloat.f32eq(v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32le(machine, v1, v2):
-    machine._reg_zfloat_result = softfloat.f32le(v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32lt(machine, v1, v2):
-    machine._reg_zfloat_result = softfloat.f32lt(v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64eq(machine, v1, v2):
-    machine._reg_zfloat_result = softfloat.f64eq(v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64le(machine, v1, v2):
-    machine._reg_zfloat_result = softfloat.f64le(v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64lt(machine, v1, v2):
-    machine._reg_zfloat_result = softfloat.f64lt(v1, v2)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f16muladd(machine, rm, v1, v2, v3):
-    machine._reg_zfloat_result = softfloat.f16muladd(rm, v1, v2, v3)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f32muladd(machine, rm, v1, v2, v3):
-    machine._reg_zfloat_result = softfloat.f32muladd(rm, v1, v2, v3)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-def softfloat_f64muladd(machine, rm, v1, v2, v3):
-    machine._reg_zfloat_result = softfloat.f64muladd(rm, v1, v2, v3)
-    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
-    return 0
-
-# memory emulation
-
-
-def read_mem(machine, address):
-    return machine.g.mem.read(address, 1)
-
-def write_mem(machine, address, data):
-    machine.g.mem.write(address, 1, data)
-    return ()
-
-def platform_read_mem(machine, read_kind, addr_size, addr, n):
-    n = n.toint()
-    assert addr_size in (64, 32)
-    mem = jit.promote(machine.g).mem
-    addr = addr.touint()
-    if n == 1 or n == 2 or n == 4 or n == 8:
-        res = mem.read(addr, n)
-        return bitvector.SmallBitVector(n*8, res)
-    else:
-        return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
-
-def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
-    value = None
-    for i in range(n - 1, -1, -1):
-        nextbyte = bitvector.SmallBitVector(8, mem.read(addr + i, 1, False)) # XXX executable_flag
-        if value is None:
-            value = nextbyte
+class MaskHolder(object):
+    def __init__(self, predefined=128):
+        self.lst = []
+        for i in range(predefined):
+            self.get(i)
+
+    @jit.elidable
+    def get(self, size):
+        if size >= len(self.lst):
+            self.lst.extend([None] * (size - len(self.lst) + 1))
+        mask = self.lst[size]
+        if mask is None:
+            mask = ONERBIGINT.lshift(size).int_sub(1)
+            self.lst[size] = mask
+        return mask
+
+MASKS = MaskHolder()
+
+class BitVector(object):
+    _attrs_ = []
+
+    def size(self):
+        raise NotImplementedError("abstract base class")
+
+    def size_as_int(self):
+        return Integer.fromint(self.size())
+
+    def string_of_bits(self):
+        if self.size() % 4 == 0:
+            res = self.tobigint().format("0123456789ABCDEF")
+            return "0x%s%s" % ("0" * max(0, self.size() // 4 - len(res)), res)
         else:
-            value = value.append(nextbyte)
-    return value
+            res = self.tobigint().format("01")
+            return "0b%s%s" % ("0" * max(0, self.size() - len(res)), res)
 
-def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
-    n = n.toint()
-    assert addr_size in (64, 32)
-    assert data.size() == n * 8
-    mem = jit.promote(machine.g).mem
-    addr = addr.touint()
-    if n == 1 or n == 2 or n == 4 or n == 8:
-        mem.write(addr, n, data.touint())
-    else:
-        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
-    return ()
+    @staticmethod
+    def rbigint_mask(size, rval):
+        res = BitVector._rbigint_mask(size, rval)
+        # rbigint_mask is idempotent
+        #jit.record_known_result(res, BitVector._rbigint_mask, size, res)
+        return res
 
-def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
-    #if not objectmodel.we_are_translated():
-    #    import pdb; pdb.set_trace()
-    start = 0
-    stop = 7
-    for i in range(n):
-        byte = data.subrange(stop, start)
-        mem.write(addr + i, 1, byte.touint())
-        stop += 8
-        start += 8
-    assert start == data.size()
+    @staticmethod
+    @jit.elidable
+    def _rbigint_mask(size, rval):
+        if rval.sign >= 0 and rval.bit_length() <= size:
+            return rval
+        mask = MASKS.get(size)
+        return rval.and_(mask)
 
+    def tolong(self): # only for tests:
+        return self.tobigint().tolong()
 
-# argument handling
+    def append(self, other):
+        return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
 
-@objectmodel.specialize.arg(4)
-def parse_args(argv, shortname, longname="", want_arg=True, many=False):
-    # crappy argument handling
-    reslist = []
-    if many:
-        assert want_arg
-    i = 0
-    while i < len(argv):
-        if argv[i] == shortname or argv[i] == longname:
-            if not want_arg:
-                res = argv[i]
-                del argv[i]
-                return res
-            if len(argv) == i + 1:
-                print "missing argument after " + argv[i]
-                raise ValueError
-            arg = argv[i + 1]
-            del argv[i:i+2]
-            if many:
-                reslist.append(arg)
-            else:
-                return arg
-            continue
-        i += 1
-    if many:
-        return reslist
+    def append_64(self, ui):
+        return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
+
+class BitVectorWithSize(BitVector):
+    _attrs_ = ['_size']
+    _immutable_fields_ = ['_size']
+
+    def __init__(self, size):
+        self._size = size
+
+    def size(self):
+        return self._size
 
 
+class SmallBitVector(BitVectorWithSize):
+    _immutable_fields_ = ['val']
+
+    def __init__(self, size, val, normalize=False):
+        self._size = size # number of bits
+        assert isinstance(val, r_uint)
+        if normalize and size != 64:
+            val = val & ((r_uint(1) << size) - 1)
+        self.val = val # r_uint
+
+    def __repr__(self):
+        return "<SmallBitVector %s 0x%x>" % (self.size(), self.val)
+
+    def make(self, val, normalize=False):
+        return SmallBitVector(self.size(), val, normalize)
+
+    def _check_size(self, other):
+        assert other.size() == self.size()
+        assert isinstance(other, SmallBitVector)
+        return other
+
+    @always_inline
+    def add_int(self, i):
+        if isinstance(i, SmallInteger):
+            if i.val > 0:
+                return self.make(self.val + r_uint(i.val), True)
+        return self._add_int_slow(i)
+
+    def _add_int_slow(self, i):
+        # XXX can be better
+        return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().add(i.tobigint())))
+
+    def add_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, SmallBitVector)
+        return self.make(self.val + other.val, True)
+
+    def sub_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, SmallBitVector)
+        return self.make(self.val - other.val, True)
+
+    def sub_int(self, i):
+        if isinstance(i, SmallInteger):
+            if i.val > 0:
+                return self.make(self.val - r_uint(i.val), True)
+        # XXX can be better
+        return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().sub(i.tobigint())))
+
+    def print_bits(self):
+        print self.__repr__()
+
+    def lshift(self, i):
+        assert i >= 0
+        if i >= 64:
+            return self.make(r_uint(0))
+        return self.make(self.val << i, True)
+
+    def rshift(self, i):
+        assert i >= 0
+        if i >= self.size():
+            return self.make(r_uint(0))
+        return self.make(self.val >> i)
+
+    def arith_rshift(self, i):
+        assert i >= 0
+        size = self.size()
+        if i >= size:
+            i = size
+        highest_bit = (self.val >> (size - 1)) & 1
+        res = self.val >> i
+        if highest_bit:
+            res |= ((r_uint(1) << i) - 1) << (size - i)
+        return SmallBitVector(size, res)
+
+    def lshift_bits(self, other):
+        return self.lshift(other.toint())
+
+    def rshift_bits(self, other):
+        return self.rshift(other.toint())
+
+    def xor(self, other):
+        assert isinstance(other, SmallBitVector)
+        return self.make(self.val ^ other.val, True)
+
+    def and_(self, other):
+        assert isinstance(other, SmallBitVector)
+        return self.make(self.val & other.val, True)
+
+    def or_(self, other):
+        assert isinstance(other, SmallBitVector)
+        return self.make(self.val | other.val, True)
+
+    def invert(self):
+        return self.make(~self.val, True)
+
+    def subrange(self, n, m):
+        assert 0 <= m <= n < self.size()
+        width = n - m + 1
+        return SmallBitVector(width, self.subrange_unwrapped_res(n, m))
+
+    def subrange_unwrapped_res(self, n, m):
+        assert 0 <= m <= n < self.size()
+        width = n - m + 1
+        return ruint_mask(width, self.val >> m)
+
+    @always_inline
+    def zero_extend(self, i):
+        if i == self.size():
+            return self
+        assert i > self.size()
+        if i > 64:
+            return GenericBitVector(i, rbigint_fromrarith_int(self.val))
+        return SmallBitVector(i, self.val)
+
+    @always_inline
+    def sign_extend(self, i):
+        if i == self.size():
+            return self
+        if i > 64:
+            return GenericBitVector._sign_extend(rbigint_fromrarith_int(self.val), self.size(), i)
+        assert i > self.size()
+        highest_bit = (self.val >> (self.size() - 1)) & 1
+        if not highest_bit:
+            return from_ruint(i, self.val)
+        else:
+            extra_bits = i - self.size()
+            bits = ((r_uint(1) << extra_bits) - 1) << self.size()
+            return from_ruint(i, bits | self.val)
+
+    def read_bit(self, pos):
+        assert pos < self.size()
+        mask = r_uint(1) << pos
+        return r_uint(bool(self.val & mask))
+
+    def update_bit(self, pos, bit):
+        assert pos < self.size()
+        mask = r_uint(1) << pos
+        if bit:
+            return self.make(self.val | mask)
+        else:
+            return self.make(self.val & ~mask, True)
+
+    def update_subrange(self, n, m, s):
+        width = s.size()
+        assert width <= self.size()
+        if width == self.size():
+            return s
+        assert width == n - m + 1
+        # width cannot be 64 in the next line because of the if above
+        mask = ~(((r_uint(1) << width) - 1) << m)
+        return self.make((self.val & mask) | (s.touint() << m), True)
+
+    def signed(self):
+        n = self.size()
+        if n == 64:
+            return Integer.fromint(intmask(self.val))
+        assert n > 0
+        u1 = r_uint(1)
+        m = u1 << (n - 1)
+        op = self.val & ((u1 << n) - 1) # mask off higher bits to be sure
+        return Integer.fromint(intmask((op ^ m) - m))
+
+    def unsigned(self):
+        return Integer.from_ruint(self.val)
+
+    def eq(self, other):
+        other = self._check_size(other)
+        return self.val == other.val
+
+    def toint(self):
+        return intmask(self.val)
+
+    def touint(self):
+        return self.val
+
+    def tobigint(self):
+        return rbigint_fromrarith_int(self.val)
+
+    def append(self, other):
+        ressize = self.size() + other.size()
+        if ressize > 64 or not isinstance(other, SmallBitVector):
+            return BitVector.append(self, other)
+        return from_ruint(ressize, (self.val << other.size()) | other.val)
+
+    def replicate(self, i):
+        size = self.size()
+        if size * i <= 64:
+            res = val = self.val
+            for _ in range(i - 1):
+                res = (res << size) | val
+            return SmallBitVector(size * i, res)
+        gbv = GenericBitVector(size, rbigint_fromrarith_int(self.val))
+        return gbv.replicate(i)
+
+    def truncate(self, i):
+        assert i <= self.size()
+        return SmallBitVector(i, self.val, normalize=True)
+
+UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
 
-class RegistersBase(object):
-    _immutable_fields_ = []
+class SparseBitVector(BitVectorWithSize):
+    _immutable_fields_ = ['val']
 
-    have_exception = False
-    throw_location = None
-    current_exception = None
+    def __init__(self, size, val):
+        assert size > 64
+        self._size = size
+        self.val = val
 
-    def __init__(self):
-        pass
+    def __repr__(self):
+        return "<SparseBitVector %s %r" %(self.size(), self.val)
 
-class ObjectBase(object):
+    def _to_generic(self):
+        return GenericBitVector(self._size, rbigint_fromrarith_int(self.val))
+
+    def _size_mask(self, val):
+        return self._to_generic()._size_mask(self.size(), val)
+
+    def add_int(self, i):
+        return self._to_generic().add_int(i)
+    
+    def add_bits(self, other):
+        return self._to_generic().add_bits(other)
+
+    def sub_bits(self, other):
+        return self._to_generic().sub_bits(other)
+
+    def sub_int(self, i):
+        return self._to_generic().sub_int(i)
+
+    def print_bits(self):
+        print "SparseBitVector<%s, %s>" % (self.size(), self.val.hex())
+
+    def lshift(self, i):
+        return self._to_generic().lshift(i)
+
+    def rshift(self, i):
+        return self._to_generic().rshift(i)
+
+    def arith_rshift(self, i):
+        return self._to_generic().arith_rshift(i)
+
+    def lshift_bits(self, other):
+        return self._to_generic().lshift_bits(other)
+
+    def rshift_bits(self, other):
+        return self._to_generic().rshift_bits(other)
+
+    def xor(self, other):
+        return self._to_generic().xor(other)
+
+    def or_(self, other):
+        return self._to_generic().or_(other)
+    
+    def and_(self, other):
+        return self._to_generic().and_(other)
+    
+    def invert(self):
+        return self._to_generic().invert()
+
+    def subrange(self,n,m):
+        return self._to_generic().subrange(n,m)
+
+    def subrange_unwrapped_res(self, n, m):
+        return self._to_generic().subrange_unwrapped_res(n, m)
+
+    def zero_extend(self, i):
+        return self._to_generic().zero_extend(i)
+
+    def sign_extend(self, i):
+        return self._to_generic().sign_extend(i)
+
+    def read_bit(self, pos):
+        assert pos < self.size()
+
+        if pos >= 64:
+            return False
+        mask = r_uint(1) << pos
+        return bool(self.val & mask)
+    
+    def update_bit(self, pos, bit):
+        return self._to_generic().update_bit(pos, bit)
+
+    def update_subrange(self, n, m, s):
+        return self._to_generic().update_subrange(n, m ,s)
+    
+    def signed(self):
+        return self._to_generic().signed()
+    
+    def unsigned(self):
+        return self._to_generic().unsigned()
+    
+    def eq(self, other):
+        return self._to_generic().eq()
+
+    def toint(self):
+        return self._to_generic().toint()
+    
+    def touint(self):
+        return self._to_generic().touint()
+    
+    def tobigint(self):
+        return self._to_generic().tobigint()
+    
+    def replicate(self, i):
+        return self._to_generic().replicate(i)
+    
+    def truncate(self, i):
+        return self._to_generic().truncate(i)
+
+
+
+
+
+class GenericBitVector(BitVectorWithSize):
+    _immutable_fields_ = ['rval']
+
+    def __init__(self, size, rval, normalize=False):
+        assert size > 0
+        self._size = size
+        if normalize:
+            rval = self._size_mask(rval)
+        self.rval = rval # rbigint
+
+    def make(self, rval, normalize=False):
+        return GenericBitVector(self.size(), rval, normalize)
+
+    def __repr__(self):
+        return "<GenericBitVector %s %r>" % (self.size(), self.rval)
+
+    def _size_mask(self, val):
+        return self.rbigint_mask(self.size(), val)
+
+    def add_int(self, i):
+        return self.make(self._size_mask(self.rval.add(i.tobigint())))
+
+    def add_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, GenericBitVector)
+        return self.make(self._size_mask(self.rval.add(other.rval)))
+
+    def sub_bits(self, other):
+        assert self.size() == other.size()
+        assert isinstance(other, GenericBitVector)
+        return self.make(self._size_mask(self.rval.sub(other.rval)))
+
+    def sub_int(self, i):
+        return self.make(self._size_mask(self.rval.sub(i.tobigint())))
+
+    def print_bits(self):
+        print "GenericBitVector<%s, %s>" % (self.size(), self.rval.hex())
+
+    def lshift(self, i):
+        return self.make(self._size_mask(self.rval.lshift(i)))
+
+    def rshift(self, i):
+        return self.make(self._size_mask(self.rval.rshift(i)))
+
+    def arith_rshift(self, i):
+        assert i >= 0
+        size = self.size()
+        if i >= size:
+            i = size
+        rval = self.rval
+        highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
+        res = rval.rshift(i)
+        if highest_bit:
+            res = res.or_(MASKS.get(i).lshift(size - i))
+        return GenericBitVector(size, res)
+
+    def lshift_bits(self, other):
+        return self.lshift(other.toint())
+
+    def rshift_bits(self, other):
+        return self.rshift(other.toint())
+
+    def xor(self, other):
+        return self.make(self._size_mask(self.rval.xor(other.tobigint())))
+
+    def or_(self, other):
+        return self.make(self._size_mask(self.rval.or_(other.tobigint())))
+
+    def and_(self, other):
+        return self.make(self._size_mask(self.rval.and_(other.tobigint())))
+
+    def invert(self):
+        return self.make(self._size_mask(self.rval.invert()))
+
+    def subrange(self, n, m):
+        width = n - m + 1
+        if width < 64: # somewhat annoying that 64 doesn't work
+            mask = (r_uint(1) << width) - 1
+            res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
+            return SmallBitVector(width, r_uint(res))
+        if m == 0:
+            return from_bigint(width, self.rval)
+        rval = self.rval.rshift(m)
+        if n == self.size():
+            return GenericBitVector(width, rval) # no need to mask
+        return from_bigint(width, rval)
+
+    def subrange_unwrapped_res(self, n, m):
+        # XXX can be better
+        return self.subrange(n, m).touint()
+
+    def zero_extend(self, i):
+        if i == self.size():
+            return self
+        assert i > self.size()
+        return GenericBitVector(i, self.rval)
+
+    def sign_extend(self, i):
+        if i == self.size():
+            return self
+        assert i > self.size()
+        return self._sign_extend(self.rval, self.size(), i)
+
+    @staticmethod
+    def _sign_extend(rval, size, target_size):
+        highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
+        if not highest_bit:
+            return GenericBitVector(target_size, rval)
+        else:
+            extra_bits = target_size - size
+            bits = MASKS.get(extra_bits).lshift(size)
+            return GenericBitVector(target_size, bits.or_(rval))
+
+    def read_bit(self, pos):
+        return bool(self.rval.abs_rshift_and_mask(r_ulonglong(pos), 1))
+
+    def update_bit(self, pos, bit):
+        mask = ONERBIGINT.lshift(pos)
+        if bit:
+            return self.make(self.rval.or_(mask))
+        else:
+            return self.make(self._size_mask(self.rval.and_(mask.invert())))
+
+    def update_subrange(self, n, m, s):
+        width = s.size()
+        assert width == n - m + 1
+        mask = MASKS.get(width).lshift(m).invert()
+        return self.make(self.rval.and_(mask).or_(s.tobigint().lshift(m)))
+
+    def signed(self):
+        n = self.size()
+        assert n > 0
+        u1 = ONERBIGINT
+        m = u1.lshift(n - 1)
+        op = self.rval
+        op = op.and_(MASKS.get(n)) # mask off higher bits to be sure
+        return Integer.frombigint(op.xor(m).sub(m))
+
+    def unsigned(self):
+        return Integer.frombigint(self.rval)
+
+    def eq(self, other):
+        assert self.size() == other.size()
+        return self.rval.eq(other.tobigint())
+
+    def toint(self):
+        return self.rval.toint()
+
+    def touint(self):
+        return self.rval.touint()
+
+    def tobigint(self):
+        return self.rval
+
+    def replicate(self, i):
+        size = self.size()
+        res = val = self.rval
+        for _ in range(i - 1):
+            res = res.lshift(size).or_(val)
+        return GenericBitVector(size * i, res)
+
+    def truncate(self, i):
+        assert i <= self.size()
+        val = self.rbigint_mask(i, self.rval)
+        if i <= 64:
+            return SmallBitVector(i, val.touint(), normalize=True)
+        return GenericBitVector(i, val)
+
+
+class Integer(object):
     _attrs_ = []
 
-class LetsBase(object):
-    _attrs_ = []
+    @staticmethod
+    def fromint(val):
+        return SmallInteger(val)
 
-class Globals(object):
-    _immutable_fields_ = ['mem']
-    def __init__(self):
-        from pydrofoil import mem as mem_mod
-        self.mem = mem_mod.BlockMemory()
+    @staticmethod
+    def frombigint(rval):
+        return BigInteger(rval)
+
+    @staticmethod
+    def fromstr(val):
+        value = 0
+        try:
+            return SmallInteger(string_to_int(val, 10))
+        except ParseStringOverflowError as e:
+            return BigInteger(rbigint._from_numberstring_parser(e.parser))
+
+    @staticmethod
+    @always_inline
+    def from_ruint(val):
+        if val & (r_uint(1)<<63):
+            # bigger than biggest signed int
+            return BigInteger(rbigint_fromrarith_int(val))
+        return SmallInteger(intmask(val))
+
+    def tolong(self): # only for tests:
+        return self.tobigint().tolong()
+
+
+class SmallInteger(Integer):
+    _immutable_fields_ = ['val']
+
+    def __init__(self, val):
+        if not we_are_translated():
+            assert MININT <= val <= sys.maxint
+        self.val = val
+
+    def __repr__(self):
+        return "<SmallInteger %s>" % (self.val, )
+
+    def str(self):
+        return str(self.val)
+
+    def hex(self):
+        return hex(self.val)
+
+    def toint(self):
+        return self.val
+
+    def touint(self):
+        return r_uint(self.val)
+
+    def tobigint(self):
+        return rbigint.fromint(self.val)
+
+    def slice(self, len, start):
+        if len > 64 or start >= 64: # XXX can be more efficient
+            return BigInteger._slice(self.tobigint(), len, start)
+        n = self.val >> start
+        if len == 64:
+            return from_ruint(64, r_uint(n))
+        return from_ruint(len, r_uint(n) & ((1 << len) - 1))
+
+    def eq(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val == other.val
+        return other.eq(self)
+
+    def lt(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val < other.val
+        assert isinstance(other, BigInteger)
+        return other.rval.int_gt(self.val)
+
+    def le(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val <= other.val
+        assert isinstance(other, BigInteger)
+        return other.rval.int_ge(self.val)
+
+    def gt(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val > other.val
+        assert isinstance(other, BigInteger)
+        return other.rval.int_lt(self.val)
+
+    def ge(self, other):
+        if isinstance(other, SmallInteger):
+            return self.val >= other.val
+        assert isinstance(other, BigInteger)
+        return other.rval.int_le(self.val)
+
+    def abs(self):
+        if self.val == MININT:
+            return BigInteger(rbigint.fromint(self.val).abs())
+        return SmallInteger(abs(self.val))
+
+    def add(self, other):
+        if isinstance(other, SmallInteger):
+            return SmallInteger.add_i_i(self.val, other.val)
+        else:
+            assert isinstance(other, BigInteger)
+            return BigInteger(other.rval.int_add(self.val))
+
+    def sub(self, other):
+        if isinstance(other, SmallInteger):
+            return SmallInteger.sub_i_i(self.val, other.val)
+        return BigInteger((other.tobigint().int_sub(self.val)).neg()) # XXX can do better
+
+    def mul(self, other):
+        if isinstance(other, SmallInteger):
+            try:
+                return SmallInteger(ovfcheck(self.val * other.val))
+            except OverflowError:
+                return BigInteger(self.tobigint().int_mul(other.val))
+        else:
+            assert isinstance(other, BigInteger)
+            return BigInteger(other.rval.int_mul(self.val))
+
+    def tdiv(self, other):
+        # rounds towards zero, like in C, not like in python
+        if isinstance(other, SmallInteger):
+            if other.val == 0:
+                raise ZeroDivisionError
+            if not (self.val == -2**63 and other.val == -1):
+                return SmallInteger(int_c_div(self.val, other.val))
+        return BigInteger(self.tobigint()).tdiv(other)
+
+    def tmod(self, other):
+        # C behaviour
+        if isinstance(other, SmallInteger):
+            if other.val == 0:
+                raise ZeroDivisionError
+            if not (self.val == -2**63 and other.val == -1):
+                return SmallInteger(int_c_mod(self.val, other.val))
+        return BigInteger(self.tobigint()).tmod(other)
+
+    def ediv(self, other):
+        if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
+            return BigInteger(self.tobigint()).ediv(other)
+        other = other.val
+        if other == 0:
+            raise ZeroDivisionError
+        if other > 0:
+            return SmallInteger(self.val // other)
+        else:
+            return SmallInteger(-(self.val // -other))
+
+    def emod(self, other):
+        if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
+            return BigInteger(self.tobigint()).emod(other)
+        other = other.val
+        if other == 0:
+            raise ZeroDivisionError
+        res = self.val % other
+        if res < 0:
+            res -= other
+            assert res >= 0
+        return SmallInteger(res)
+
+    def rshift(self, i):
+        assert i >= 0
+        return SmallInteger(self.val >> i)
+
+    def lshift(self, i):
+        assert i >= 0
+        if i < 64:
+            try:
+                return SmallInteger(ovfcheck(self.val << i))
+            except OverflowError:
+                pass
+        return BigInteger(rbigint.fromint(self.val).lshift(i))
+
+    @staticmethod
+    def add_i_i(a, b):
+        try:
+            return SmallInteger(ovfcheck(a + b))
+        except OverflowError:
+            return BigInteger(rbigint.fromint(a).int_add(b))
+
+    @staticmethod
+    def sub_i_i(a, b):
+        try:
+            return SmallInteger(ovfcheck(a - b))
+        except OverflowError:
+            return BigInteger(rbigint.fromint(b).int_sub(a).neg())
+
+
+class BigInteger(Integer):
+    _immutable_fields_ = ['rval']
+
+    def __init__(self, rval):
+        self.rval = rval
+
+    def __repr__(self):
+        return "<BigInteger %s>" % (self.rval.str(), )
+
+    def str(self):
+        return self.rval.str()
+
+    def hex(self):
+        return self.rval.hex()
+
+    def toint(self):
+        return self.rval.toint()
+
+    def touint(self):
+        return self.rval.touint()
+
+    def tobigint(self):
+        return self.rval
+
+    def slice(self, len, start):
+        return self._slice(self.rval, len, start)
+
+    @staticmethod
+    def _slice(rval, len, start):
+        if start == 0:
+            n = rval
+        else:
+            n = rval.rshift(start)
+        return from_bigint(len, n)
+
+    def eq(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_eq(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.eq(other.rval)
+
+    def lt(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_lt(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.lt(other.rval)
+
+    def le(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_le(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.le(other.rval)
+
+    def gt(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_gt(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.gt(other.rval)
+
+    def ge(self, other):
+        if isinstance(other, SmallInteger):
+            return self.rval.int_ge(other.val)
+        assert isinstance(other, BigInteger)
+        return self.rval.ge(other.rval)
+
+    def abs(self):
+        return BigInteger(self.rval.abs())
+
+    def add(self, other):
+        if isinstance(other, SmallInteger):
+            return BigInteger(self.rval.int_add(other.val))
+        assert isinstance(other, BigInteger)
+        return BigInteger(self.rval.add(other.rval))
+
+    def sub(self, other):
+        if isinstance(other, SmallInteger):
+            return BigInteger(self.rval.int_sub(other.val))
+        assert isinstance(other, BigInteger)
+        return BigInteger(self.rval.sub(other.rval))
+
+    def mul(self, other):
+        if isinstance(other, SmallInteger):
+            return BigInteger(self.rval.int_mul(other.val))
+        assert isinstance(other, BigInteger)
+        return BigInteger(self.rval.mul(other.rval))
+
+    def tdiv(self, other):
+        # rounds towards zero, like in C, not like in python
+        if isinstance(other, SmallInteger) and int_in_valid_range(other.val):
+            other = other.val
+            if other == 0:
+                raise ZeroDivisionError
+            div, rem = bigint_divrem1(self.rval, other)
+            return BigInteger(div)
+
+        other = other.tobigint()
+        if other.sign == 0:
+            raise ZeroDivisionError
+        div, rem = bigint_divrem(self.tobigint(), other)
+        return BigInteger(div)
+
+    def tmod(self, other):
+        if isinstance(other, SmallInteger) and int_in_valid_range(other.val):
+            other = other.val
+            if other == 0:
+                raise ZeroDivisionError
+            div, rem = bigint_divrem1(self.rval, other)
+            return SmallInteger(rem)
+
+        other = other.tobigint()
+        if other.sign == 0:
+            raise ZeroDivisionError
+        div, rem = bigint_divrem(self.tobigint(), other)
+        return BigInteger(rem)
+
+    def ediv(self, other):
+        other = other.tobigint()
+        if other.int_eq(0):
+            raise ZeroDivisionError
+        if other.int_gt(0):
+            return BigInteger(self.rval.floordiv(other))
+        else:
+            return BigInteger(self.rval.floordiv(other.neg()).neg())
+
+    def emod(self, other):
+        other = other.tobigint()
+        if other.int_eq(0):
+            raise ZeroDivisionError
+        res = self.rval.mod(other)
+        if res.int_lt(0):
+            res = res.sub(other)
+        return BigInteger(res)
+
+    def rshift(self, i):
+        assert i >= 0
+        # XXX should we check whether it fits in a SmallInteger now?
+        return BigInteger(self.rval.rshift(i))
+
+    def lshift(self, i):
+        return BigInteger(self.rval.lshift(i))
 

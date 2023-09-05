@@ -1545,3 +1545,25 @@ def test_sparse_bv_bitwise():
     assert res.toint() == 0b11110000 | 0b11001100
     res = v1.xor(v2)
     assert res.toint() == 0b11110000 ^ 0b11001100
+
+def test_sparse_zero_extend():
+    # XXX Should I test it with support code?
+    v = SparseBitVector(65, 0b0)
+    res = v.zero_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0
+
+    v = SparseBitVector(100, 0b00)
+    res = v.zero_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0
+
+    v = SparseBitVector(65, 0b1)
+    res = v.zero_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+
+    v = SparseBitVector(65, 0b11)
+    res = v.zero_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011

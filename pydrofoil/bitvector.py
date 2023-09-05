@@ -404,7 +404,10 @@ class SparseBitVector(BitVectorWithSize):
         return self._to_generic().subrange_unwrapped_res(n, m)
 
     def zero_extend(self, i):
-        return self._to_generic().zero_extend(i)
+        if i == self.size():
+            return self
+        assert i > self.size()
+        return SparseBitVector(i, self.val)
 
     def sign_extend(self, i):
         return self._to_generic().sign_extend(i)

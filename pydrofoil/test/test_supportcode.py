@@ -1676,9 +1676,9 @@ def test_sparse_vector_update():
 
 def test_sparse_signed():
     # XXX Machine?
-    v = SparseBitVector(100, 0b0)
+    v = SparseBitVector(65, 0b0)
     assert v.signed().toint() == 0 
-    assert isinstance(v.signed(), BigInteger)
+    assert isinstance(v.signed(), SmallInteger)
 
 def test_sparse_unsigned():
     v = SparseBitVector(100, 0b10001101)
@@ -1706,3 +1706,7 @@ def test_sparse_truncate():
 def test_sparse_eq():
     assert SparseBitVector(100, -12331).eq(SparseBitVector(100, -12331))
     assert not SparseBitVector(100, -12331).eq(SparseBitVector(100, 12331))
+    # FIXME : Generic eq doesnt work
+    # assert SparseBitVector(100, 0b10111).eq(bitvector.GenericBitVector(100, 0b10111))
+    # assert bitvector.GenericBitVector(100, 0b10111).eq(bitvector.GenericBitVector(100, 0b10111))
+    

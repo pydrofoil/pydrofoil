@@ -470,16 +470,13 @@ class SparseBitVector(BitVectorWithSize):
         return rbigint_fromrarith_int(self.val)
     
     def replicate(self, i):
-        size = self.size()
-        if size * i <= 64:
-            return SmallBitVector(size * i, self._replicate(self.val, size, i))
-        gbv = GenericBitVector(size, rbigint_fromrarith_int(self.val))
-        return gbv.replicate(i)
+        return self._to_generic().replicate(i)
     
     def truncate(self, i):
         assert i <= self.size()
-        return SmallBitVector(i, self.val, normalize=True)
-
+        if i < 64:
+            return SmallBitVector(i, ruint_mask(i, self.val), normalize=True)
+        return SparseBitVector(i, self.val)
 
 
 

@@ -1686,3 +1686,19 @@ def test_sparse_unsigned():
 
     v = SparseBitVector(100, r_uint(-1))
     assert v.unsigned().tolong() == (1<<64)-1
+
+def test_sparse_replicate_bits():
+    # XXX not sure how to test
+    pass
+
+def test_sparse_truncate():
+    res = SparseBitVector(100, 0b1011010100).truncate(2)
+    assert isinstance(res, bitvector.SmallBitVector)
+    assert res.size() == 2
+    assert res.touint() == 0b00
+    res = SparseBitVector(100, 0b1011010100).truncate(6)
+    assert res.size() == 6
+    assert res.touint() == 0b010100
+    res = SparseBitVector(100, 0b1011010100).truncate(100)
+    assert isinstance(res, bitvector.SparseBitVector)
+    assert res.touint() == 0b1011010100

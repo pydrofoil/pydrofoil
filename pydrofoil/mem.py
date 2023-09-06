@@ -205,19 +205,33 @@ class BlockMemory(MemBase):
         self.last_block_addr_executable = r_uint(-1)
 
     def get_block(self, block_addr, executable_flag):
+        if jit.isconstant(block_addr):
+            return self._get_block(block_addr)
         if executable_flag:
-            if block_addr == self.last_block_addr_executable:
-                return self.last_block_executable
-            block = self._get_block(block_addr)
-            self.last_block_executable = block
-            self.last_block_addr_executable = block_addr
+            jit.conditional_call(
+                block_addr != self.last_block_addr_executable,
+                self._fetch_and_set_block_executable,
+                block_addr
+            )
+            return self.last_block_executable
         else:
-            if block_addr == self.last_block_addr:
-                return self.last_block
-            block = self._get_block(block_addr)
-            self.last_block = block
-            self.last_block_addr = block_addr
+            jit.conditional_call(
+                block_addr != self.last_block_addr,
+                self._fetch_and_set_block,
+                block_addr
+            )
+            return self.last_block
         return block
+
+    def _fetch_and_set_block(self, block_addr):
+        block = self._get_block(block_addr)
+        self.last_block = block
+        self.last_block_addr = block_addr
+
+    def _fetch_and_set_block_executable(self, block_addr):
+        block = self._get_block(block_addr)
+        self.last_block_executable = block
+        self.last_block_addr_executable = block_addr
 
     @jit.elidable
     def _get_block(self, block_addr):
@@ -241,12 +255,8 @@ class BlockMemory(MemBase):
         return block, block_offset, inword_addr, mask
 
     def _aligned_read(self, start_addr, num_bytes, executable_flag):
-        if executable_flag:
-            jit.promote(start_addr)
         block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes, executable_flag)
         data = block[block_offset]
-        if executable_flag:
-            jit.promote(data)
         if num_bytes == 8:
             assert inword_addr == 0
             return data

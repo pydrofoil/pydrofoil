@@ -196,11 +196,13 @@ class BlockMemory(MemBase):
     def __init__(self):
         self.blocks = {}
         self.last_block = None
-        self.last_block_addr = r_uint(0)
+        # invalid block address because higher bits than ADDRESS_BITS_BLOCK are
+        # set
+        self.last_block_addr = r_uint(-1)
 
     def get_block(self, block_addr):
         last_block = self.last_block
-        if last_block is not None and block_addr == self.last_block_addr:
+        if block_addr == self.last_block_addr:
             block = last_block
         else:
             block = self._get_block(block_addr)

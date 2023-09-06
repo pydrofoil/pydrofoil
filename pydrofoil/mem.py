@@ -210,14 +210,16 @@ class BlockMemory(MemBase):
         if executable_flag:
             jit.conditional_call(
                 block_addr != self.last_block_addr_executable,
-                self._fetch_and_set_block_executable,
+                BlockMemory._fetch_and_set_block_executable,
+                self,
                 block_addr
             )
             return self.last_block_executable
         else:
             jit.conditional_call(
                 block_addr != self.last_block_addr,
-                self._fetch_and_set_block,
+                BlockMemory._fetch_and_set_block,
+                self,
                 block_addr
             )
             return self.last_block

@@ -4,7 +4,7 @@ from rpython.rlib import objectmodel, unroll, jit
 from rpython.rlib.rbigint import rbigint, ONERBIGINT
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer
+from pydrofoil.bitvector import Integer, ruint_mask as _mask
 import pydrofoil.softfloat as softfloat
 from pydrofoil.real import Real
 
@@ -84,14 +84,6 @@ def raise_type_error():
 
 
 # bit vectors
-
-@objectmodel.always_inline
-def _mask(width, val):
-    if width == 64:
-        return val
-    assert width < 64
-    mask = (r_uint(1) << width) - 1
-    return val & mask
 
 def signed_bv(machine, op, n):
     if n == 64:
@@ -271,7 +263,7 @@ def vector_access(machine, vec, index):
 def vector_access_bv_i(machine, bv, index):
     if index == 0:
         return bv & r_uint(1)
-    return r_uint(1) & safe_rshift(None, bv, r_uint(index))
+    return r_uint(1) & safe_rshift(None, bv, index)
 
 def update_fbits(machine, fb, index, element):
     assert 0 <= index < 64
@@ -290,10 +282,20 @@ def vector_update_subrange(machine, bv, n, m, s):
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n, m)
 
+@objectmodel.always_inline
+@objectmodel.specialize.argtype(1)
+def vector_subrange_o_i_i_unwrapped_res(machine, bv, n, m):
+    return bv.subrange_unwrapped_res(n, m)
+
 @unwrap("o i i")
 @objectmodel.specialize.argtype(1)
 def slice(machine, bv, start, length):
     return bv.subrange(start + length - 1, start)
+
+@objectmodel.always_inline
+@objectmodel.specialize.argtype(1)
+def vector_slice_o_i_i_unwrapped_res(machine, bv, start, length):
+    return bv.subrange_unwrapped_res(start + length - 1, start)
 
 @unwrap("o o o i o")
 @objectmodel.specialize.argtype(3)
@@ -301,10 +303,15 @@ def set_slice(machine, _len, _slen, bv, start, bv_new):
     return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)
 
 @objectmodel.always_inline
-def slice_fixed_bv_i_i(machine, v, n, m):
+def vector_subrange_fixed_bv_i_i(machine, v, n, m):
     res = safe_rshift(None, v, m)
     width = n - m + 1
+    # XXX if we pass in the width of v here, we can not do the mask
     return _mask(width, res)
+
+@objectmodel.always_inline
+def slice_fixed_bv_i_i(machine, v, start, length):
+    return vector_subrange_fixed_bv_i_i(machine, v, start + length - 1, start)
 
 def string_of_bits(machine, gbv):
     return gbv.string_of_bits()
@@ -542,7 +549,7 @@ def print_real(machine, s, r):
     return ()
 
 def to_real(machine, i):
-    return Real(i.tobigint(), ONERBIGINT)
+    return Real(i.tobigint(), ONERBIGINT, normalized=True)
 
 def undefined_real(machine, _):
     return Real.fromint(12, 19)

@@ -3,7 +3,7 @@ import math
 
 from pydrofoil import supportcode
 from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer, SmallInteger, BigInteger
+from pydrofoil.bitvector import Integer, SmallInteger, BigInteger, MININT
 from pydrofoil.real import *
 from hypothesis import given, strategies, assume, example, settings
 from fractions import Fraction
@@ -184,6 +184,28 @@ def test_hypothesis_sign_extend(data):
     print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
 
+@given(strategies.data())
+def test_hypothesis_vector_subrange_unwrapped_res(data):
+    if data.draw(strategies.booleans()):
+        bitwidth = data.draw(strategies.integers(65, 10000))
+    else:
+        bitwidth = data.draw(strategies.integers(1, 64))
+    lower = data.draw(strategies.integers(0, bitwidth-1))
+    upper = data.draw(strategies.integers(lower, min(bitwidth-1, lower + 63)))
+    assert 1 <= upper - lower + 1 <= 64
+    assert 0 <= lower <= upper < bitwidth
+    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    as_bit_string = bin(value)[2:]
+    assert len(as_bit_string) <= bitwidth
+    as_bit_string = as_bit_string.rjust(bitwidth, '0')[::-1]
+    correct_res = as_bit_string[lower:upper+1] # sail is inclusive
+    correct_res_as_int = int(correct_res[::-1], 2)
+
+    # now do the sail computation
+    bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    bvres = bv.subrange_unwrapped_res(upper, lower)
+    assert bvres == correct_res_as_int
+
 def test_vector_update_subrange():
     for c1 in gbv, bv:
         for c2 in gbv, bv:
@@ -324,7 +346,7 @@ def test_op_int():
         for c2 in bi, si:
             for v1 in [-10, 223, 12311, 0, 1, 2**63-1]:
                 a = c1(v1)
-                for v2 in [-10, 223, 12311, 0, 1, 2**63-1, -2**45]:
+                for v2 in [-10, 223, 12311, 0, 1, 8, 2**63-1, -2**45]:
                     b = c2(v2)
                     assert a.add(b).tolong() == v1 + v2
                     assert a.sub(b).tolong() == v1 - v2
@@ -391,6 +413,18 @@ def test_op_int_div_mod():
             assert c1(-2**63).tdiv(c2(-1)).tolong() == 2 ** 63
             assert c1(-2**63).tmod(c2(-1)).tolong() == 0
 
+def test_shift_amount():
+    for i in range(63):
+        assert BigInteger._shift_amount(2 ** i) == i
+
+def test_mul_optimized(monkeypatch):
+    monkeypatch.setattr(rbigint, "mul", None)
+    monkeypatch.setattr(rbigint, "int_mul", None)
+    res = bi(3 ** 100).mul(si(16))
+    assert res.tolong() == 3 ** 100 * 16
+    res = si(1024).mul(bi(-5 ** 60))
+    assert res.tolong() == -5 ** 60 * 1024
+
 
 def test_op_gv_int():
     for c1 in gbv, bv:
@@ -448,10 +482,48 @@ def test_rshift_int():
        assert c(-0b1010001).rshift(3).tobigint().tolong() == -11
 
 def test_emod_ediv_int():
-   for c in bi, si:
-       assert c(123875).emod(si(13)).toint() == 123875 % 13
-       assert c(123875).ediv(si(13)).toint() == 123875 // 13
+   for c1 in bi, si:
+        for c2 in bi, si:
+            assert c1(123875).emod(si(13)).toint() == 123875 % 13
+            assert c1(123875).ediv(c2(13)).toint() == 123875 // 13
+            assert c1(MININT).ediv(c2(2)).toint() == -2**62
+            assert c1(MININT).ediv(c2(-2)).toint() == 2**62
+            assert c1(MININT).ediv(c2(MININT)).toint() == 1
+            assert c1(5).ediv(c2(MININT)).toint() == 0
+            assert c1(-5).ediv(c2(MININT)).toint() == 1
+            assert c1(MININT + 1).ediv(c2(sys.maxint)).toint() == -1
+            assert c1(MININT).ediv(c2(MININT)).toint() == 1
+            assert c1(7).ediv(c2(5)).toint() == 1
+            assert c1(7).ediv(c2(-5)).toint() == -1
+            assert c1(-7).ediv(c2(-5)).toint() == 2
+            assert c1(-7).ediv(c2(5)).toint() == -2
+            assert c1(12).ediv(c2(3)).toint() == 4
+            assert c1(12).ediv(c2(-3)).toint() == -4
+            assert c1(-12).ediv(c2(3)).toint() == -4
+            assert c1(-12).ediv(c2(-3)).toint() == 4
+            assert c1(MININT).emod(c2(2)).toint() == 0
+            assert c1(MININT).emod(c2(- 2)).toint() == 0
+            assert c1(MININT).emod(c2(- 2 ** 63)).toint() == 0
+            assert c1(sys.maxint).emod(c2(sys.maxint)).toint() == 0
+            assert c1(7).emod(c2(5)).toint() == 2
+            assert c1(7).emod(c2(-5)).toint() == 2
+            assert c1(-7).emod(c2(5)).toint() == 3
+            assert c1(-7).emod(c2(-5)).toint() == 3
+            assert c1(12).emod(c2(3)).toint() == 0
+            assert c1(12).emod(c2(-3)).toint() == 0
+            assert c1(-12).emod(c2(3)).toint() == 0
+            assert c1(-12).emod(c2(-3)).toint() == 0
+
+
    assert bi(0xfffffe00411e0e90L).emod(si(64)).toint() == 16
+   assert bi(98765432109876543210).ediv(bi(12345678901234567890)).toint() == 8
+   assert bi(98765432109876543210).emod(bi(12345678901234567890)).toint() == 900000000090
+   assert bi(12345678901234567890).ediv(bi(-10000000000000000000)).toint() == -1
+   assert bi(12345678901234567890).emod(bi(-10000000000000000000)).toint() == 2345678901234567890
+   assert bi(-12345678901234567890).ediv(bi(-10000000000000000000)).toint() == 2
+   assert bi(-12345678901234567890).ediv(bi(10000000000000000000)).toint() == -2
+   assert bi(-12345678901234567890).emod(bi(10000000000000000000)).toint() == 7654321098765432110
+   assert bi(-12345678901234567890).emod(bi(-10000000000000000000)).toint() == 7654321098765432110
 
 def test_pow2():
     for i in range(1000):

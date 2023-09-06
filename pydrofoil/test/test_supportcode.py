@@ -1702,3 +1702,7 @@ def test_sparse_truncate():
     res = SparseBitVector(100, 0b1011010100).truncate(100)
     assert isinstance(res, bitvector.SparseBitVector)
     assert res.touint() == 0b1011010100
+
+def test_sparse_eq():
+    assert SparseBitVector(100, -12331).eq(SparseBitVector(100, -12331))
+    assert not SparseBitVector(100, -12331).eq(SparseBitVector(100, 12331))

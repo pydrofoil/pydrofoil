@@ -457,7 +457,9 @@ class SparseBitVector(BitVectorWithSize):
         return Integer.from_ruint(self.val)
     
     def eq(self, other):
-        return self._to_generic().eq()
+        assert other.size() == self.size()
+        assert isinstance(other, SparseBitVector)
+        return self.val == other.val
 
     def toint(self):
         #not sure how this work, I will come back later

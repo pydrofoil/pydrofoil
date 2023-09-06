@@ -1,8 +1,8 @@
-import pydrofoil
+import pyrudder
 import pytest
 
 def test_read_write_ram():
-    cpu = pydrofoil.RISCV64()
+    cpu = pyrudder.RISCV64()
     ram_base = 0x80000000
     instr = 0b1001010010111 # auipc x5, 1
     cpu.write_memory(ram_base, instr)
@@ -13,7 +13,7 @@ def test_read_write_ram():
     assert cpu.read_register("x5") == ram_base + (1 << 12)
 
 def test_step_callback():
-    cpu = pydrofoil.RISCV64()
+    cpu = pyrudder.RISCV64()
     has_been_called = False
     def step_callback(cpu):
         nonlocal has_been_called
@@ -27,12 +27,12 @@ def test_step_callback():
     assert has_been_called
 
 def test_unknown_register_name():
-    cpu = pydrofoil.RISCV64()
+    cpu = pyrudder.RISCV64()
     with pytest.raises(ValueError):
         cpu.read_register("not_a_register")
 
 def test_alt_register_names_read():
-    cpu = pydrofoil.RISCV64()
+    cpu = pyrudder.RISCV64()
 
     ALT_NAMES = ["zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
                  "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
@@ -48,7 +48,7 @@ def test_alt_register_names_read():
         assert cpu.read_register(ALT_NAMES[i]) == cpu.read_register("x" + str(i))
 
 def test_alt_register_names_write():
-    cpu = pydrofoil.RISCV64()
+    cpu = pyrudder.RISCV64()
 
     ALT_NAMES = ["zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
                  "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
@@ -64,7 +64,7 @@ def test_alt_register_names_write():
         assert cpu.read_register("x" + str(i)) == cpu.read_register(ALT_NAMES[i])
 
 def test_memory_read_callback():
-    cpu = pydrofoil.RISCV64()
+    cpu = pyrudder.RISCV64()
     ram_base = 0x80000000
     has_been_called = False
     def read_callback(cpu, addr, size, value):
@@ -85,7 +85,7 @@ def test_memory_read_callback():
     assert has_been_called
 
 def test_memory_write_callback():
-    cpu = pydrofoil.RISCV64()
+    cpu = pyrudder.RISCV64()
     ram_base = 0x80000000
     has_been_called = False
     def write_callback(cpu, addr, size, value):
@@ -107,4 +107,3 @@ def test_memory_write_callback():
     cpu.step()
     assert cpu.read_register("x1") == 7
     assert has_been_called
-    

@@ -298,8 +298,8 @@ class GDBServer:
 
 
 def start_gdb_server(elf, port=1234):
-    import pydrofoil
-    machine = pydrofoil.RISCV64(elf)
+    import pyrudder
+    machine = pyrudder.RISCV64(elf)
     global server
     server = GDBServer(machine)
     server.eventloop(port)

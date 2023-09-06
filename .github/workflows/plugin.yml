@@ -1,0 +1,40 @@
+name: Pydrofoil
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/checkout@v3
+      with:
+        repository: riscv/sail-riscv
+        path: sail-riscv
+
+    - name: install dependencies and create virtualenv
+      run: |
+        make pypy_binary/bin/python
+        make pypy/rpython/bin/rpython
+
+    - name: Translate pypy with plugin
+      run: |
+        make pypy-c-pydrofoil-riscv
+
+    - name: Run plugin tests
+      run: |
+        make plugin-riscv-tests

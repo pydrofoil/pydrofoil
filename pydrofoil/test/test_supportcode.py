@@ -346,7 +346,7 @@ def test_op_int():
         for c2 in bi, si:
             for v1 in [-10, 223, 12311, 0, 1, 2**63-1]:
                 a = c1(v1)
-                for v2 in [-10, 223, 12311, 0, 1, 2**63-1, -2**45]:
+                for v2 in [-10, 223, 12311, 0, 1, 8, 2**63-1, -2**45]:
                     b = c2(v2)
                     assert a.add(b).tolong() == v1 + v2
                     assert a.sub(b).tolong() == v1 - v2
@@ -412,6 +412,18 @@ def test_op_int_div_mod():
             # ovf correctly
             assert c1(-2**63).tdiv(c2(-1)).tolong() == 2 ** 63
             assert c1(-2**63).tmod(c2(-1)).tolong() == 0
+
+def test_shift_amount():
+    for i in range(63):
+        assert BigInteger._shift_amount(2 ** i) == i
+
+def test_mul_optimized(monkeypatch):
+    monkeypatch.setattr(rbigint, "mul", None)
+    monkeypatch.setattr(rbigint, "int_mul", None)
+    res = bi(3 ** 100).mul(si(16))
+    assert res.tolong() == 3 ** 100 * 16
+    res = si(1024).mul(bi(-5 ** 60))
+    assert res.tolong() == -5 ** 60 * 1024
 
 
 def test_op_gv_int():

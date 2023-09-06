@@ -154,6 +154,9 @@ class BigFixedBitVector(Type):
         assert width > 64
         self.width = width
 
+    def sail_repr(self):
+        return "bits(%s)" % (self.width, )
+
     def __repr__(self):
         return "BigFixedBitVector(%s)" % (self.width, )
 

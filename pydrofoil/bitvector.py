@@ -437,7 +437,13 @@ class SparseBitVector(BitVectorWithSize):
         return bool(self.val & mask)
     
     def update_bit(self, pos, bit):
-        return self._to_generic().update_bit(pos, bit)
+        assert pos < self.size()
+        if pos >= 64: return self._to_generic().update_bit(pos, bit)
+        mask = r_uint(1) << pos
+        if bit:
+            return SparseBitVector(self.size(), self.val | mask)
+        else:
+            return SparseBitVector(self.size(), self.val & ~mask)
 
     def update_subrange(self, n, m, s):
         return self._to_generic().update_subrange(n, m ,s)

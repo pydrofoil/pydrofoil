@@ -1646,3 +1646,31 @@ def test_sparse_vector_subrange():
     assert r.size() == 100
     assert r.toint() == 0b101010101
     assert isinstance(r, bitvector.SparseBitVector)
+
+
+def test_sparse_vector_update():
+    v = SparseBitVector(100, 1)
+    res = v.update_bit(2, 1)
+    assert res.size() == 100
+    assert res.toint() == 0b101
+
+    v = SparseBitVector(100, 1)
+    res = v.update_bit(0, 1)
+    assert res.size() == 100
+    assert res.toint() == 0b1
+
+    v = SparseBitVector(100, 0b11)
+    res = v.update_bit(2, 0)
+    assert res.size() == 100
+    assert res.toint() == 0b011
+
+    v = SparseBitVector(100, 0b111)
+    res = v.update_bit(1, 0)
+    assert res.size() == 100
+    assert res.toint() == 0b101
+
+    v = SparseBitVector(100, 0b111)
+    res = v.update_bit(65, 0)
+    assert res.size() == 100
+    assert res.toint() == 0b111
+    assert isinstance(res, bitvector.GenericBitVector)

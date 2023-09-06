@@ -195,16 +195,25 @@ class BlockMemory(MemBase):
 
     def __init__(self):
         self.blocks = {}
+        # we cache two different last blocks, one for instruction fetches, one
+        # for other reads and writes
         self.last_block = None
+        self.last_block_executable = None
         # invalid block address because higher bits than ADDRESS_BITS_BLOCK are
         # set
         self.last_block_addr = r_uint(-1)
+        self.last_block_addr_executable = r_uint(-1)
 
-    def get_block(self, block_addr):
-        last_block = self.last_block
-        if block_addr == self.last_block_addr:
-            block = last_block
+    def get_block(self, block_addr, executable_flag):
+        if executable_flag:
+            if block_addr == self.last_block_addr_executable:
+                return self.last_block_executable
+            block = self._get_block(block_addr)
+            self.last_block_executable = block
+            self.last_block_addr_executable = block_addr
         else:
+            if block_addr == self.last_block_addr:
+                return self.last_block
             block = self._get_block(block_addr)
             self.last_block = block
             self.last_block_addr = block_addr
@@ -218,9 +227,9 @@ class BlockMemory(MemBase):
         return res
 
     @always_inline
-    def _split_addr(self, start_addr, num_bytes):
+    def _split_addr(self, start_addr, num_bytes, executable_flag=False):
         block_addr = start_addr >> self.ADDRESS_BITS_BLOCK
-        block = self.get_block(block_addr)
+        block = self.get_block(block_addr, executable_flag)
         start_addr = start_addr & self.BLOCK_MASK
         block_offset = start_addr >> 3
         inword_addr = start_addr & 0b111
@@ -234,7 +243,7 @@ class BlockMemory(MemBase):
     def _aligned_read(self, start_addr, num_bytes, executable_flag):
         if executable_flag:
             jit.promote(start_addr)
-        block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+        block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes, executable_flag)
         data = block[block_offset]
         if executable_flag:
             jit.promote(data)
@@ -244,7 +253,7 @@ class BlockMemory(MemBase):
         return (data >> (inword_addr * 8)) & mask
 
     def _aligned_write(self, start_addr, num_bytes, value):
-        block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+        block, block_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes, False)
         if num_bytes == 8:
             assert inword_addr == 0
             block[block_offset] = value

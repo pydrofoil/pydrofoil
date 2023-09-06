@@ -112,3 +112,28 @@ def test_immutable_reads():
     m.write(0, 8, 17)
     assert m.read(0, 8, True) == 17
     assert read_offsets == []
+
+def test_block_caching():
+    m = TBM()
+    assert m.last_block_addr == r_uint(-1)
+    m.write(r_uint(8), 8, r_uint(0x0102030405060708))
+    assert m.last_block_addr == r_uint(0)
+    assert m.last_block[8 >> 3] == r_uint(0x0102030405060708)
+    block1 = m.last_block
+
+    m.write(r_uint(0x10000008), 8, r_uint(0xfa11))
+    assert m.last_block_addr == r_uint(0x200000)
+    assert m.last_block[8 >> 3] == r_uint(0xfa11)
+    block2 = m.last_block
+    assert block2 is not block1
+
+    assert m.read(r_uint(8), 8, False) == r_uint(0x0102030405060708)
+    assert m.last_block_addr == r_uint(0)
+    assert m.last_block is block1
+
+    assert m.read(r_uint(0x10000008), 8, True) == r_uint(0xfa11)
+    assert m.last_block_addr == r_uint(0)
+    assert m.last_block is block1
+    assert m.last_block_addr_executable == r_uint(0x200000)
+    assert m.last_block_executable is block2
+

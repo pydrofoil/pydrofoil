@@ -449,28 +449,36 @@ class SparseBitVector(BitVectorWithSize):
         return self._to_generic().update_subrange(n, m ,s)
     
     def signed(self):
+        # XXX I am thinking if you signed a Sparsevector it will change to a GenericBitVector's operation?
         return self._to_generic().signed()
     
     def unsigned(self):
-        return self._to_generic().unsigned()
+        # XXX since its always positive, should I just return self?
+        return Integer.from_ruint(self.val)
     
     def eq(self, other):
         return self._to_generic().eq()
 
     def toint(self):
-        return self._to_generic().toint()
+        #not sure how this work, I will come back later
+        return intmask(self.val)
     
     def touint(self):
-        return self._to_generic().touint()
+        return self.val
     
     def tobigint(self):
-        return self._to_generic().tobigint()
+        return rbigint_fromrarith_int(self.val)
     
     def replicate(self, i):
-        return self._to_generic().replicate(i)
+        size = self.size()
+        if size * i <= 64:
+            return SmallBitVector(size * i, self._replicate(self.val, size, i))
+        gbv = GenericBitVector(size, rbigint_fromrarith_int(self.val))
+        return gbv.replicate(i)
     
     def truncate(self, i):
-        return self._to_generic().truncate(i)
+        assert i <= self.size()
+        return SmallBitVector(i, self.val, normalize=True)
 
 
 

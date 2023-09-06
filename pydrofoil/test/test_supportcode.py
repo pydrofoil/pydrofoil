@@ -1647,7 +1647,6 @@ def test_sparse_vector_subrange():
     assert r.toint() == 0b101010101
     assert isinstance(r, bitvector.SparseBitVector)
 
-
 def test_sparse_vector_update():
     v = SparseBitVector(100, 1)
     res = v.update_bit(2, 1)
@@ -1674,3 +1673,16 @@ def test_sparse_vector_update():
     assert res.size() == 100
     assert res.toint() == 0b111
     assert isinstance(res, bitvector.GenericBitVector)
+
+def test_sparse_signed():
+    # XXX Machine?
+    v = SparseBitVector(100, 0b0)
+    assert v.signed().toint() == 0 
+    assert isinstance(v.signed(), BigInteger)
+
+def test_sparse_unsigned():
+    v = SparseBitVector(100, 0b10001101)
+    assert v.unsigned().tolong() == 0b10001101
+
+    v = SparseBitVector(100, r_uint(-1))
+    assert v.unsigned().tolong() == (1<<64)-1

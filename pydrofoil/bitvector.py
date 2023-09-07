@@ -195,7 +195,7 @@ class SmallBitVector(BitVectorWithSize):
         size = self.size()
         if i >= size:
             i = size
-        highest_bit = (self.val >> (size - 1)) & 1
+        highest_bit = self.read_bit(self.size() - 1)
         res = self.val >> i
         if highest_bit:
             res |= ((r_uint(1) << i) - 1) << (size - i)
@@ -238,17 +238,21 @@ class SmallBitVector(BitVectorWithSize):
             return self
         assert i > self.size()
         if i > 64:
-            return GenericBitVector(i, rbigint_fromrarith_int(self.val))
+            return SparseBitVector(i, self.val)
         return SmallBitVector(i, self.val)
 
     @always_inline
     def sign_extend(self, i):
         if i == self.size():
             return self
+
         if i > 64:
-            return GenericBitVector._sign_extend(rbigint_fromrarith_int(self.val), self.size(), i)
+            if self.read_bit(self.size() - 1):
+                return GenericBitVector._sign_extend(rbigint_fromrarith_int(self.val), self.size(), i)
+            else:
+                return SparseBitVector(i, self.val) 
         assert i > self.size()
-        highest_bit = (self.val >> (self.size() - 1)) & 1
+        highest_bit = self.read_bit(self.size() - 1)
         if not highest_bit:
             return from_ruint(i, self.val)
         else:

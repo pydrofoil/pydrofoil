@@ -375,7 +375,6 @@ class SparseBitVector(BitVectorWithSize):
         return SparseBitVector(self.size(), self.val >> i)
 
     def arith_rshift(self, i):
-        #essentially the same as rshift since it must be positive
         assert i >= 0
         if i >= self.size():
             return SparseBitVector(self.size(), 0)
@@ -403,7 +402,6 @@ class SparseBitVector(BitVectorWithSize):
         return self._to_generic().invert()
 
     def subrange(self,n,m):
-        # XXX if width of the subrange is less than 64, return SmallBitVector, if bigger return SparseBitvector?
         assert 0 <= m <= n < self.size()        
         width = n - m + 1
         if width <= 64:
@@ -425,12 +423,10 @@ class SparseBitVector(BitVectorWithSize):
         if i == self.size():
             return self
         assert i > self.size()
-        #XXX since it is always positive, its essentially just extending 0 (zero_extend)
         return SparseBitVector(i, self.val)
 
     def read_bit(self, pos):
         assert pos < self.size()
-        
         if pos >= 64:
             return False
         mask = r_uint(1) << pos
@@ -438,7 +434,8 @@ class SparseBitVector(BitVectorWithSize):
     
     def update_bit(self, pos, bit):
         assert pos < self.size()
-        if pos >= 64: return self._to_generic().update_bit(pos, bit)
+        if pos >= 64: 
+            return self._to_generic().update_bit(pos, bit)
         mask = r_uint(1) << pos
         if bit:
             return SparseBitVector(self.size(), self.val | mask)

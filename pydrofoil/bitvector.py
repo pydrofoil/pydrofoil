@@ -301,8 +301,7 @@ class SmallBitVector(BitVectorWithSize):
         return self.val == other.val
 
     def toint(self):
-        if self.size() == 64:
-            if self.read_bit(63):
+        if self.size() == 64 and self.read_bit(63):
                 raise OverflowError
         return intmask(self.val)
 
@@ -370,7 +369,11 @@ class SparseBitVector(BitVectorWithSize):
         print "SparseBitVector<%s, %s>" % (self.size(), self.val.hex())
 
     def lshift(self, i):
-        return self._to_generic().lshift(i)
+        if (self.val >> (64 - i)) == 0:
+            return SparseBitVector(self.size(), self.val << i)
+        else:
+            return self._to_generic().lshift(i)
+            
 
     def rshift(self, i):
         assert i >= 0
@@ -489,6 +492,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def __init__(self, size, rval, normalize=False):
         assert size > 0
+        assert isinstance(rval, rbigint)
         self._size = size
         if normalize:
             rval = self._size_mask(rval)

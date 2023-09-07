@@ -1707,7 +1707,17 @@ def test_sparse_truncate():
 def test_sparse_eq():
     assert SparseBitVector(100, -12331).eq(SparseBitVector(100, -12331))
     assert not SparseBitVector(100, -12331).eq(SparseBitVector(100, 12331))
-    # FIXME : Generic eq doesnt work
-    # assert SparseBitVector(100, 0b10111).eq(bitvector.GenericBitVector(100, 0b10111))
-    # assert bitvector.GenericBitVector(100, 0b10111).eq(bitvector.GenericBitVector(100, 0b10111))
-    
+    assert SparseBitVector(100, 0b10111).eq(bitvector.GenericBitVector(100, rbigint.fromlong(0b10111)))
+
+def test_sparse_lshift():
+    v = SparseBitVector(100, 0b10001101)
+    res = v.lshift(5)
+    assert res.size() == 100
+    assert res.toint() == 0b1000110100000
+    assert isinstance(res, SparseBitVector)
+
+    # v = SparseBitVector(100, 0b1000000000000000000000000000000000000000000000000000000000000000)
+    # res = v.lshift(1)
+    # assert res.size() == 100
+    # assert res.tolong() == 0b10000000000000000000000000000000000000000000000000000000000000000
+    # assert isinstance(res, GenericBitVector)

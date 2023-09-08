@@ -1716,8 +1716,21 @@ def test_sparse_lshift():
     assert res.toint() == 0b1000110100000
     assert isinstance(res, SparseBitVector)
 
+    
+    v = SparseBitVector(100, 0b0010000000000000000000000000000000000000000000000000000000000000)
+    res = v.lshift(1)
+    assert res.size() == 100
+    assert res.toint() == 0b00100000000000000000000000000000000000000000000000000000000000000
+
+    # FIXME Shifting doesnt work correctly, 64 bits Integer wil go out of bound
     # v = SparseBitVector(100, 0b1000000000000000000000000000000000000000000000000000000000000000)
     # res = v.lshift(1)
     # assert res.size() == 100
-    # assert res.tolong() == 0b10000000000000000000000000000000000000000000000000000000000000000
-    # assert isinstance(res, GenericBitVector)
+    # assert isinstance(res, bitvector.GenericBitVector)
+    
+
+def test_sparse_add_int():
+    for c in bi, si:
+        assert SparseBitVector(6000, 0b11).add_int(c(0b111111111)).touint() == 0b11 + 0b111111111
+        assert SparseBitVector(6000, 0b111111111111111111111111111111111111111111111111111111111111111).add_int(c(0b111111111)).touint() == 0b111111111111111111111111111111111111111111111111111111111111111 + 0b111111111
+        

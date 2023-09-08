@@ -353,7 +353,13 @@ class SparseBitVector(BitVectorWithSize):
     def _to_generic(self):
         return GenericBitVector(self._size, rbigint_fromrarith_int(self.val))
 
-    def add_int(self, i):
+    def add_int(self, i): 
+        if isinstance(i, SmallInteger):
+            if i.val > 0:
+                return SparseBitVector(self.size(), self.val + r_uint(i.val))
+        return self._add_int_slow(i)
+
+    def _add_int_slow(self, i):
         return self._to_generic().add_int(i)
     
     def add_bits(self, other):
@@ -374,7 +380,6 @@ class SparseBitVector(BitVectorWithSize):
         else:
             return self._to_generic().lshift(i)
             
-
     def rshift(self, i):
         assert i >= 0
         if i >= self.size():

@@ -355,7 +355,7 @@ class SparseBitVector(BitVectorWithSize):
 
     def add_int(self, i): 
         if isinstance(i, SmallInteger):
-            carry =self.check_carry( r_uint(i.val))
+            carry = self.check_carry( r_uint(i.val))
             if not carry:
                 return SparseBitVector(self.size(), self.val + r_uint(i.val))
         return self._add_int_slow(i)
@@ -369,6 +369,11 @@ class SparseBitVector(BitVectorWithSize):
         return self._to_generic().add_int(i)
     
     def add_bits(self, other):
+        assert self.size() == other.size()
+        if isinstance(other, SparseBitVector):
+            carry = self.check_carry(r_uint(other.val))
+            if not carry:
+                return SparseBitVector(self.size(), self.val + r_uint(other.val))
         return self._to_generic().add_bits(other)
 
     def sub_bits(self, other):

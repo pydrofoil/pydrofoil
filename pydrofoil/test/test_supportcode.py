@@ -1722,15 +1722,44 @@ def test_sparse_lshift():
     assert res.size() == 100
     assert res.toint() == 0b00100000000000000000000000000000000000000000000000000000000000000
 
-    # FIXME Shifting doesnt work correctly, 64 bits Integer wil go out of bound
-    # v = SparseBitVector(100, 0b1000000000000000000000000000000000000000000000000000000000000000)
-    # res = v.lshift(1)
-    # assert res.size() == 100
-    # assert isinstance(res, bitvector.GenericBitVector)
+
+    v = SparseBitVector(100, r_uint(1) << 63)
+    res = v.lshift(1)
+    assert res.size() == 100
+    assert isinstance(res, bitvector.GenericBitVector)
     
+def test_sparse_check_carry():
+    v = SparseBitVector(100, r_uint(0xffffffffffffffff))
+    assert v.check_carry(r_uint(0b1)) == 1
+    v = SparseBitVector(100, r_uint(0xfffffffffffffffe))
+    assert v.check_carry(r_uint(0b1)) == 0
+    v = SparseBitVector(100, r_uint(0xfffffffffffffffe))
+    assert v.check_carry(r_uint(0b10)) == 1
+    v = SparseBitVector(100, r_uint(0xffffffffffffffee))
+    assert v.check_carry(r_uint(0xffffffff)) == 1
+    v = SparseBitVector(100, r_uint(0xffffffffffffffee))
+    assert v.check_carry(r_uint(0x1)) == 0
+    v = SparseBitVector(100, r_uint(0x0))
+    assert v.check_carry(r_uint(0x1)) == 0
+
 
 def test_sparse_add_int():
     for c in bi, si:
         assert SparseBitVector(6000, 0b11).add_int(c(0b111111111)).touint() == 0b11 + 0b111111111
-        assert SparseBitVector(6000, 0b111111111111111111111111111111111111111111111111111111111111111).add_int(c(0b111111111)).touint() == 0b111111111111111111111111111111111111111111111111111111111111111 + 0b111111111
-        
+        assert SparseBitVector(6000, r_uint(0xffffffffffffffff)).add_int(c(0b1)).tolong() == 0xffffffffffffffff + 1
+        assert isinstance (SparseBitVector(100, r_uint(0xffffffffffffffff)).add_int(c(0b1)), bitvector.GenericBitVector)
+        assert isinstance (SparseBitVector(100, r_uint(0xfffffffffffffffee)).add_int(c(0xfff)), bitvector.GenericBitVector)
+
+def test_sparse_add_bv():
+    for c in gbv, bv:
+        assert supportcode.add_bits(None, c(6, 0b11), c(6, 0b111)).touint() == (0b11 + 0b111) & 0b111111
+        assert supportcode.add_bits(None, c(6, 0b10000), c(6, 0b10001)).touint() == (0b10000 + 0b10001) & 0b111111
+        assert supportcode.add_bits(None, c(6, 0b100000), c(6, 0b100001)).touint() == (0b100000 + 0b100001) & 0b111111
+
+
+def test_sparse_sub_bv():
+    for c in gbv, bv:
+        assert supportcode.sub_bits(None, c(6, 0b111), c(6, 0b11)).touint() == (0b111 - 0b11) & 0b111111
+        assert supportcode.sub_bits(None, c(6, 0b10000), c(6, 0b10001)).touint() == (0b10000 - 0b10001) & 0b111111
+        assert supportcode.sub_bits(None, c(6, 0b100000), c(6, 0b100001)).touint() == (0b100000 - 0b100001) & 0b111111
+

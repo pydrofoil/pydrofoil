@@ -112,3 +112,62 @@ def test_immutable_reads():
     m.write(0, 8, 17)
     assert m.read(0, 8, True) == 17
     assert read_offsets == []
+
+def test_block_caching():
+    m = TBM()
+    assert m.last_block_addr == r_uint(-1)
+    m.write(r_uint(8), 8, r_uint(0x0102030405060708))
+    assert m.last_block_addr == r_uint(0)
+    assert m.last_block[8 >> 3] == r_uint(0x0102030405060708)
+    block1 = m.last_block
+
+    m.write(r_uint(0x10000008), 8, r_uint(0xfa11))
+    assert m.last_block_addr == r_uint(0x200000)
+    assert m.last_block[8 >> 3] == r_uint(0xfa11)
+    block2 = m.last_block
+    assert block2 is not block1
+
+    assert m.read(r_uint(8), 8, False) == r_uint(0x0102030405060708)
+    assert m.last_block_addr == r_uint(0)
+    assert m.last_block is block1
+
+    assert m.read(r_uint(0x10000008), 8, True) == r_uint(0xfa11)
+    assert m.last_block_addr == r_uint(0)
+    assert m.last_block is block1
+    assert m.last_block_addr_executable == r_uint(0x200000)
+    assert m.last_block_executable is block2
+
+def test_block_caching_platform():
+    from pydrofoil import supportcode, bitvector
+    class FakeMachine(object):
+        class g(object):
+            _pydrofoil_enum_read_ifetch_value = 1
+            mem = TBM()
+    machine = FakeMachine()
+    m = machine.g.mem
+    m.write(r_uint(8), 8, r_uint(0x0102030405060708))
+    block1 = m.last_block
+    m.write(r_uint(0x10000008), 8, r_uint(0xfa11))
+    block2 = m.last_block
+
+    read_kind_normal = 0
+    read_kind_ifetch = machine.g._pydrofoil_enum_read_ifetch_value
+    assert supportcode.platform_read_mem(
+        machine,
+        read_kind_normal,
+        64,
+        bitvector.from_ruint(64, r_uint(8)),
+        bitvector.Integer.fromint(8)).touint() == r_uint(0x0102030405060708)
+    assert m.last_block_addr == r_uint(0)
+    assert m.last_block is block1
+
+    assert supportcode.platform_read_mem(
+        machine,
+        read_kind_ifetch,
+        64,
+        bitvector.from_ruint(64, r_uint(0x10000008)),
+        bitvector.Integer.fromint(8)).touint() == r_uint(0xfa11)
+    assert m.last_block_addr == r_uint(0)
+    assert m.last_block is block1
+    assert m.last_block_addr_executable == r_uint(0x200000)
+    assert m.last_block_executable is block2

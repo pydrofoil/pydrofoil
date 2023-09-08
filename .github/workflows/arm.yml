@@ -56,5 +56,8 @@ jobs:
 
     - name: boot linux
       run: |
-        ./pydrofoil-arm -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0  -l 1_000_000 2> /dev/null
+        PYPYLOG=jit-summary:summary ./pydrofoil-arm -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0  -l 23_000_000 2> /dev/null
 
+    - name: show jit summary booting
+      run: |
+        cat summary

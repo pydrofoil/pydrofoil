@@ -930,15 +930,17 @@ def platform_read_mem(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
     addr = addr.touint()
     if n == 1 or n == 2 or n == 4 or n == 8:
-        res = mem.read(addr, n)
+        res = mem.read(addr, n, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
         return bitvector.SmallBitVector(n*8, res)
     else:
         return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
 
+@jit.unroll_safe
 def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
     value = None
     for i in range(n - 1, -1, -1):
-        nextbyte = bitvector.SmallBitVector(8, mem.read(addr + i, 1, False)) # XXX executable_flag
+        byteval = mem.read(addr + i, 1, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
+        nextbyte = bitvector.SmallBitVector(8, byteval)
         if value is None:
             value = nextbyte
         else:
@@ -957,6 +959,7 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
         _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
     return ()
 
+@jit.unroll_safe
 def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
     #if not objectmodel.we_are_translated():
     #    import pdb; pdb.set_trace()
@@ -1020,6 +1023,8 @@ class LetsBase(object):
 
 class Globals(object):
     _immutable_fields_ = ['mem']
+    _pydrofoil_enum_read_ifetch_value = -1
+
     def __init__(self):
         from pydrofoil import mem as mem_mod
         self.mem = mem_mod.BlockMemory()

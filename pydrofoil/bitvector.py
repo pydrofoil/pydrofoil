@@ -284,10 +284,8 @@ class SmallBitVector(BitVectorWithSize):
         if n == 64:
             return Integer.fromint(intmask(self.val))
         assert n > 0
-        u1 = r_uint(1)
-        m = u1 << (n - 1)
-        op = self.val & ((u1 << n) - 1) # mask off higher bits to be sure
-        return Integer.fromint(intmask((op ^ m) - m))
+        m = r_uint(1) << (n - 1)
+        return Integer.fromint(intmask((self.val ^ m) - m))
 
     def unsigned(self):
         return Integer.from_ruint(self.val)
@@ -465,11 +463,8 @@ class GenericBitVector(BitVectorWithSize):
     def signed(self):
         n = self.size()
         assert n > 0
-        u1 = ONERBIGINT
-        m = u1.lshift(n - 1)
-        op = self.rval
-        op = op.and_(MASKS.get(n)) # mask off higher bits to be sure
-        return Integer.frombigint(op.xor(m).sub(m))
+        m = ONERBIGINT.lshift(n - 1)
+        return Integer.frombigint(self.rval.xor(m).sub(m))
 
     def unsigned(self):
         return Integer.frombigint(self.rval)

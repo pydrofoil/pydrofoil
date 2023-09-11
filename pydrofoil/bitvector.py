@@ -370,16 +370,23 @@ class SparseBitVector(BitVectorWithSize):
     
     def add_bits(self, other):
         assert self.size() == other.size()
-        if isinstance(other, SparseBitVector):
-            carry = self.check_carry(r_uint(other.val))
-            if not carry:
-                return SparseBitVector(self.size(), self.val + r_uint(other.val))
+        assert isinstance(other, SparseBitVector)
+        carry = self.check_carry(r_uint(other.val))
+        if not carry:
+            return SparseBitVector(self.size(), self.val + r_uint(other.val))
+        other = GenericBitVector(self.size(), rbigint_fromrarith_int(other.val))
+        # XXX bad workaround as add_bit assert isinstance to be the same
         return self._to_generic().add_bits(other)
-
+       
     def sub_bits(self, other):
-        return self._to_generic().sub_bits(other)
+        assert self.size() == other.size()
+        assert isinstance(other, SparseBitVector)
+        return SparseBitVector(self.size(), self.val - other.val)
 
     def sub_int(self, i):
+        if isinstance(i, SmallInteger):
+            if i.val > 0:
+                return SparseBitVector(self.size(), self.val - r_uint(i.val))
         return self._to_generic().sub_int(i)
 
     def print_bits(self):

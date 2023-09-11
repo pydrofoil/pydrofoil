@@ -1752,16 +1752,20 @@ def test_sparse_add_int():
         assert isinstance (SparseBitVector(100, r_uint(0xfffffffffffffffee)).add_int(c(0xfff)), bitvector.GenericBitVector)
 
 def test_sparse_add_bits():
-    for c in gbv, SparseBitVector:
-        assert SparseBitVector(100, 0b11).add_bits(c(100, 0b111111111)).touint() == 0b11 + 0b111111111
-        assert SparseBitVector(6000, r_uint(0xffffffffffffffff)).add_int(c(100, 0b1)).tolong() == 0xffffffffffffffff + 1
-        assert isinstance(SparseBitVector(100, r_uint(0xffffffffffffffff)).add_int(c(100,0b1)), bitvector.GenericBitVector)
+    assert SparseBitVector(100, 0b11).add_bits(SparseBitVector(100, 0b111111111)).touint() == 0b11 + 0b111111111
+    assert SparseBitVector(100, r_uint(0xffffffffffffffff)).add_bits(SparseBitVector(100, 0b1)).tolong() == 0xffffffffffffffff + 1
+    assert isinstance(SparseBitVector(100, r_uint(0xffffffffffffffff)).add_bits(SparseBitVector(100,0b1)), bitvector.GenericBitVector)
 
 
 
 def test_sparse_sub_bv():
-    for c in gbv, bv:
-        assert supportcode.sub_bits(None, c(6, 0b111), c(6, 0b11)).touint() == (0b111 - 0b11) & 0b111111
-        assert supportcode.sub_bits(None, c(6, 0b10000), c(6, 0b10001)).touint() == (0b10000 - 0b10001) & 0b111111
-        assert supportcode.sub_bits(None, c(6, 0b100000), c(6, 0b100001)).touint() == (0b100000 - 0b100001) & 0b111111
+    assert SparseBitVector(100, 0b111).sub_bits(SparseBitVector(100, 0b11)).touint() == 0b111 - 0b11
+    assert SparseBitVector(100, r_uint(0b10000)).sub_bits(SparseBitVector(100, 0b1)).tolong() == 0b10000 - 1
+
+def test_sparse_sub_int():
+    for c in bi, si:
+        assert SparseBitVector(6000, 0b11).sub_int(c(0b11)).touint() == 0b11 - 0b11
+        assert SparseBitVector(6000, r_uint(0xffffffffffffffff)).sub_int(c(0b1)).tolong() == 0xffffffffffffffff -1 
+        assert SparseBitVector(100, 4).sub_int(si(9)).touint() == r_uint((-5))
+    assert isinstance(SparseBitVector(6000, r_uint(0xffffffffffffffff)).sub_int(bi(0b1)), bitvector.GenericBitVector)
 

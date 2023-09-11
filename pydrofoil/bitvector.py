@@ -330,6 +330,22 @@ class SmallBitVector(BitVectorWithSize):
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
+def rbigint_extract_ruint(self, int_other):
+    from rpython.rlib.rbigint import SHIFT
+    from rpython.rlib.rbigint import NULLDIGIT, _load_unsigned_digit
+    assert int_other >= 0
+    assert SHIFT * 2 > 64
+
+    # wordshift, remshift = divmod(int_other, SHIFT)
+    wordshift = int_other // SHIFT
+    remshift = int_other - wordshift * SHIFT
+    numdigits = self.numdigits()
+    if wordshift >= numdigits:
+        return r_uint(0)
+    res = self.udigit(wordshift) >> remshift
+    if wordshift + 1 >= numdigits:
+        return res
+    return res | (self.udigit(wordshift + 1) << (SHIFT - remshift))
 
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']
@@ -407,7 +423,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange(self, n, m):
         width = n - m + 1
-        if width < 64: # somewhat annoying that 64 doesn't work
+        if width <= 64:
             return SmallBitVector(width, self.subrange_unwrapped_res(n, m))
         if m == 0:
             return from_bigint(width, self.rval)
@@ -418,13 +434,8 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange_unwrapped_res(self, n, m):
         width = n - m + 1
-        if width < 64:
-            mask = (r_uint(1) << width) - 1
-            res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
-            return r_uint(res)
-        assert width == 64
-        # XXX can be better
-        return self.subrange(n, m).touint()
+        mask = (r_uint(1) << width) - 1
+        return rbigint_extract_ruint(self.rval, m) & mask
 
     def zero_extend(self, i):
         if i == self.size():

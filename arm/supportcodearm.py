@@ -21,6 +21,8 @@ def check_file_missing(fn):
 
 
 def get_main(outarm):
+    Globals._pydrofoil_enum_read_ifetch_value = outarm.Enum_zread_kind.zRead_ifetch
+
     Machine = outarm.Machine
 
     driver = jit.JitDriver(

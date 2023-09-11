@@ -1371,6 +1371,7 @@ def test_real_sqrt_hypothesis(a):
 class FakeMachine(object):
     def __init__(self):
         self.g = supportcode.Globals()
+        self._pydrofoil_enum_read_ifetch_value = 1
 
 def test_read_write_mem():
     m = FakeMachine()

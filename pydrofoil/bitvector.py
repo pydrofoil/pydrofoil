@@ -408,9 +408,7 @@ class GenericBitVector(BitVectorWithSize):
     def subrange(self, n, m):
         width = n - m + 1
         if width < 64: # somewhat annoying that 64 doesn't work
-            mask = (r_uint(1) << width) - 1
-            res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
-            return SmallBitVector(width, r_uint(res))
+            return SmallBitVector(width, self.subrange_unwrapped_res(n, m))
         if m == 0:
             return from_bigint(width, self.rval)
         rval = self.rval.rshift(m)
@@ -419,6 +417,12 @@ class GenericBitVector(BitVectorWithSize):
         return from_bigint(width, rval)
 
     def subrange_unwrapped_res(self, n, m):
+        width = n - m + 1
+        if width < 64:
+            mask = (r_uint(1) << width) - 1
+            res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
+            return r_uint(res)
+        assert width == 64
         # XXX can be better
         return self.subrange(n, m).touint()
 

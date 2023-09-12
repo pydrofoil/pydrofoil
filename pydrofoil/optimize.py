@@ -696,15 +696,21 @@ class OptVisitor(parse.Visitor):
     def optimize_sub_int(self, expr):
         arg0, arg1 = expr.args
         try:
-            arg0 = self._extract_number(arg0)
-            arg1 = self._extract_number(arg1)
+            num1 = self._extract_number(arg1)
         except NoMatchException:
             pass
         else:
-            # can const-fold
-            res = arg0.number - arg1.number
-            if isinstance(res, int): # no overflow
-                return self._make_int64_to_int(parse.Number(res), expr.sourcepos)
+            if num1.number == 0:
+                return arg0
+            try:
+                num0 = self._extract_number(arg0)
+            except NoMatchException:
+                pass
+            else:
+                # can const-fold
+                res = num0.number - num1.number
+                if isinstance(res, int): # no overflow
+                    return self._make_int64_to_int(parse.Number(res), expr.sourcepos)
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
@@ -716,8 +722,10 @@ class OptVisitor(parse.Visitor):
 
     def optimize_sub_i_i_wrapped_res(self, expr):
         arg0, arg1 = expr.args
-        arg0 = self._extract_number(arg0)
         arg1 = self._extract_number(arg1)
+        if arg1.number == 0:
+            return self._make_int64_to_int(arg0, expr.sourcepos)
+        arg0 = self._extract_number(arg0)
         # can const-fold
         res = arg0.number - arg1.number
         if isinstance(res, int): # no overflow

@@ -1189,6 +1189,26 @@ def test_length_constant_later():
     assert block[0] == Number(64)
 
 
+def test_sub_0():
+    op = OperationExpr(
+        args=[
+            Var(name="zx", resolved_type=types.MachineInt()),
+            Number(number=0, resolved_type=types.MachineInt()),
+        ],
+        name="@sub_i_i_wrapped_res",
+        resolved_type=types.Int(),
+        sourcepos="`4 218:73-218:79",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[Var(name="zx", resolved_type=types.MachineInt())],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`4 218:73-218:79",
+    )
+
+
 def test_undefined_bv():
     op = CastExpr(
         expr=OperationExpr(
@@ -1314,6 +1334,29 @@ def test_constfold_int():
         resolved_type=types.Int(),
         sourcepos="`5 176:53-176:60",
     )
+
+
+def test_sub_int_0():
+    from pydrofoil import bitvector
+
+    op = OperationExpr(
+        args=[
+            Var("a", types.Int()),
+            OperationExpr(
+                args=[Number(number=0, resolved_type=types.MachineInt())],
+                name="zz5i64zDzKz5i",
+                resolved_type=types.Int(),
+                sourcepos="`7 495:24-495:47",
+            ),
+        ],
+        name="sub_int",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:60",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+
+    assert block[0] == Var("a", types.Int())
 
 
 # optimize_gotos

@@ -374,19 +374,20 @@ class SparseBitVector(BitVectorWithSize):
             carry = self.check_carry(r_uint(other.val))
             if not carry:
                 return SparseBitVector(self.size(), self.val + r_uint(other.val))
-            other = GenericBitVector(self.size(), rbigint_fromrarith_int (self.val))
+            other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
         return self._to_generic().add_bits(other)
        
     def sub_bits(self, other):
         assert self.size() == other.size()
         if isinstance(other, SparseBitVector):
-            if other.val <= self.val: #check for underflow
+            if 0 <= other.val <= self.val: #check for underflow
                 return SparseBitVector(self.size(), self.val - r_uint(other.val))
+            other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
         return self._to_generic().sub_bits(other)
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
-            if 0<= i.val <= self.val: #check for underflow
+            if 0 <= i.val <= self.val: #check for underflow
                 return SparseBitVector(self.size(), self.val - r_uint(i.val))
         return self._to_generic().sub_int(i)
 
@@ -541,7 +542,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def sub_bits(self, other):
         assert self.size() == other.size()
-        assert isinstance(other, GenericBitVector)
+        assert isinstance(other, GenericBitVector) or isinstance(other, SparseBitVector)
         return self.make(self._size_mask(self.rval.sub(other.rval)))
 
     def sub_int(self, i):

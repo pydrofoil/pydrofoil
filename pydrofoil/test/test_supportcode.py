@@ -1785,12 +1785,13 @@ def test_sparse_add_bits():
 
 def test_sparse_sub_bits():
     for c in gbv, SparseBitVector:
-        assert SparseBitVector(100, 0b11).sub_bits(c(100, 0b11)).touint() == 0b11 - 0b11
+        assert (SparseBitVector(100, (0b0)).sub_bits(c(100, r_uint(0b1))), bitvector.GenericBitVector)
+        assert SparseBitVector(100, 0b0).sub_bits(c(100, 0b1)).tolong() == -1 % (2 ** 100)
         assert SparseBitVector(100, r_uint(0xffffffffffffffff)).sub_bits(c(100, 0b1)).tolong() == 0xffffffffffffffff - 1
 
 def test_sparse_sub_int():
     for c in bi, si:
-        assert SparseBitVector(6000, 0b11).sub_int(c(0b11)).touint() == 0b11 - 0b11
+        assert SparseBitVector(100, 0b0).sub_int(c(0b1)).tolong() == -1 % (2 ** 100)
         assert SparseBitVector(6000, r_uint(0xffffffffffffffff)).sub_int(c(0b1)).tolong() == 0xffffffffffffffff -1 
         assert SparseBitVector(68, 4).sub_int(c(9)).tolong() == -5 % (2 ** 68)
         assert SparseBitVector(100, r_uint(18446744073709486081)).sub_int(c(-65535)).tolong() == 18446744073709551616
@@ -1809,8 +1810,43 @@ def test_sparse_hypothesis_sub_int(data):
 
 @given(strategies.data())
 def test_sparse_hypothesis_sub_bits(data):
-    bitwidth = data.draw(strategies.integers(1, 10000))
-    lower = data.draw(strategies.integers(0, 62))
-    upper = data.draw(strategies.integers(lower, 62))
-    value = data.draw(strategies.integers(0, 2**63 - 1))
+    value1 = data.draw(strategies.integers(0, 2**64 - 1))
+    value2 = data.draw(strategies.integers(0, sys.maxint))
+    ans = value1 - value2
+    for c in gbv, SparseBitVector:
+        assert SparseBitVector(100, r_uint(value1)).sub_bits(c(100, r_uint(value2))).tolong() == ans % (2 ** 100)
 
+@given(strategies.data())
+def test_sparse_hypothesis_add_bits(data):
+    value1 = data.draw(strategies.integers(0, 2**64 - 1))
+    value2 = data.draw(strategies.integers(0, sys.maxint))
+    ans = value1 + value2
+    for c in gbv, SparseBitVector:
+        assert SparseBitVector(100, r_uint(value1)).add_bits(c(100, r_uint(value2))).tolong() == ans 
+
+        
+@given(strategies.data())
+def test_sparse_hypothesis_add_int(data):
+    value1 = data.draw(strategies.integers(0, 2**64 - 1))
+    value2 = data.draw(strategies.integers(0, sys.maxint))
+    ans = value1 + value2
+    for c in bi, si:
+        assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans 
+
+@given(strategies.data())
+# TODO
+def test_sparse_hypothesis_truncate(data):
+    if not data.draw(strategies.booleans()):
+        bitwidth = data.draw(strategies.integers(1, 64))
+        truncatewidth = data.draw(strategies.integers(1, bitwidth))
+    else:
+        bitwidth = data.draw(strategies.integers(65, 10000))
+        if not data.draw(strategies.booleans()):
+            truncatewidth = data.draw(strategies.integers(1, 64))
+        else:
+            truncatewidth = data.draw(strategies.integers(1, bitwidth))
+    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    as_bit_string = bin(value)[2:]
+    bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    res = bv.truncate(truncatewidth)
+    assert bin(bv.tolong())[2:].rjust(bitwidth, '0')[-truncatewidth:] == bin(res.tolong())[2:].rjust(truncatewidth, '0')

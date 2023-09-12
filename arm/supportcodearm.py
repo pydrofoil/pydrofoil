@@ -173,7 +173,9 @@ def get_main(outarm):
             value = parseint(value)
             print "setting config value", configname, "to", hex(value)
             outarm.func_z__SetConfig(machine, configname, bitvector.Integer.fromint(value))
-        assert len(argv) == 1
+        if len(argv) != 1:
+            print "unrecognized option:", argv[1]
+            return 1
         print "done, starting main"
         t1 = time.time()
         try:

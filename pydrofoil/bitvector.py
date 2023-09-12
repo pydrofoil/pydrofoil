@@ -288,8 +288,10 @@ class SmallBitVector(BitVectorWithSize):
         if n == 64:
             return Integer.fromint(intmask(self.val))
         assert n > 0
-        m = r_uint(1) << (n - 1)
-        return Integer.fromint(intmask((self.val ^ m) - m))
+        u1 = r_uint(1)
+        m = u1 << (n - 1)
+        op = self.val & ((u1 << n) - 1) # mask off higher bits to be sure
+        return Integer.fromint(intmask((op ^ m) - m))
 
     def unsigned(self):
         return Integer.from_ruint(self.val)
@@ -336,22 +338,6 @@ class SmallBitVector(BitVectorWithSize):
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
-def rbigint_extract_ruint(self, int_other):
-    from rpython.rlib.rbigint import SHIFT
-    from rpython.rlib.rbigint import NULLDIGIT, _load_unsigned_digit
-    assert int_other >= 0
-    assert SHIFT * 2 > 64
-
-    # wordshift, remshift = divmod(int_other, SHIFT)
-    wordshift = int_other // SHIFT
-    remshift = int_other - wordshift * SHIFT
-    numdigits = self.numdigits()
-    if wordshift >= numdigits:
-        return r_uint(0)
-    res = self.udigit(wordshift) >> remshift
-    if wordshift + 1 >= numdigits:
-        return res
-    return res | (self.udigit(wordshift + 1) << (SHIFT - remshift))
 
 class SparseBitVector(BitVectorWithSize):
     _immutable_fields_ = ['val']
@@ -362,7 +348,7 @@ class SparseBitVector(BitVectorWithSize):
         self.val = val
 
     def __repr__(self):
-        return "<SparseBitVector %s %r" %(self.size(), self.val)
+        return "<SparseBitVector %s %r>"%(self.size(), self.val)
 
     def _to_generic(self):
         return GenericBitVector(self._size, rbigint_fromrarith_int(self.val))
@@ -388,17 +374,19 @@ class SparseBitVector(BitVectorWithSize):
             carry = self.check_carry(r_uint(other.val))
             if not carry:
                 return SparseBitVector(self.size(), self.val + r_uint(other.val))
-        other.rval = rbigint_fromrarith_int(other.val)
+        other = GenericBitVector(self.size(), rbigint_fromrarith_int (self.val))
         return self._to_generic().add_bits(other)
        
     def sub_bits(self, other):
         assert self.size() == other.size()
-        assert isinstance(other, SparseBitVector)
-        return SparseBitVector(self.size(), self.val - other.val)
+        if isinstance(other, SparseBitVector):
+            if other.val <= self.val: #check for underflow
+                return SparseBitVector(self.size(), self.val - r_uint(other.val))
+        return self._to_generic().sub_bits(other)
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
-            if i.val > 0:
+            if i.val <= self.val: #check for underflow
                 return SparseBitVector(self.size(), self.val - r_uint(i.val))
         return self._to_generic().sub_int(i)
 
@@ -548,6 +536,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def add_bits(self, other):
         assert self.size() == other.size()
+        assert isinstance(other, SparseBitVector) or isinstance(other, GenericBitVector)
         return self.make(self._size_mask(self.rval.add(other.rval)))
 
     def sub_bits(self, other):
@@ -599,8 +588,10 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange(self, n, m):
         width = n - m + 1
-        if width <= 64:
-            return SmallBitVector(width, self.subrange_unwrapped_res(n, m))
+        if width < 64: # somewhat annoying that 64 doesn't work
+            mask = (r_uint(1) << width) - 1
+            res = self.rval.abs_rshift_and_mask(r_ulonglong(m), intmask(mask))
+            return SmallBitVector(width, r_uint(res))
         if m == 0:
             return from_bigint(width, self.rval)
         rval = self.rval.rshift(m)
@@ -609,9 +600,8 @@ class GenericBitVector(BitVectorWithSize):
         return from_bigint(width, rval)
 
     def subrange_unwrapped_res(self, n, m):
-        width = n - m + 1
-        mask = (r_uint(1) << width) - 1
-        return rbigint_extract_ruint(self.rval, m) & mask
+        # XXX can be better
+        return self.subrange(n, m).touint()
 
     def zero_extend(self, i):
         if i == self.size():
@@ -654,8 +644,11 @@ class GenericBitVector(BitVectorWithSize):
     def signed(self):
         n = self.size()
         assert n > 0
-        m = ONERBIGINT.lshift(n - 1)
-        return Integer.frombigint(self.rval.xor(m).sub(m))
+        u1 = ONERBIGINT
+        m = u1.lshift(n - 1)
+        op = self.rval
+        op = op.and_(MASKS.get(n)) # mask off higher bits to be sure
+        return Integer.frombigint(op.xor(m).sub(m))
 
     def unsigned(self):
         return Integer.frombigint(self.rval)

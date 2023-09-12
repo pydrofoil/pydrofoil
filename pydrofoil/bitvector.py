@@ -434,8 +434,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange_unwrapped_res(self, n, m):
         width = n - m + 1
-        mask = (r_uint(1) << width) - 1
-        return rbigint_extract_ruint(self.rval, m) & mask
+        return ruint_mask(width, rbigint_extract_ruint(self.rval, m))
 
     def zero_extend(self, i):
         if i == self.size():

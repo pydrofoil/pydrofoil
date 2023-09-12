@@ -505,11 +505,12 @@ class GenericBitVector(BitVectorWithSize):
         return GenericBitVector(size * i, res)
 
     def truncate(self, i):
+        size = self.size()
         assert i <= self.size()
-        val = self.rbigint_mask(i, self.rval)
         if i <= 64:
-            return SmallBitVector(i, val.touint(), normalize=True)
-        return GenericBitVector(i, val, normalize=i < self.size())
+            val = rbigint_extract_ruint(self.rval, 0)
+            return SmallBitVector(i, val, normalize=i < 64)
+        return GenericBitVector(i, self.rval, normalize=i < size)
 
 
 class Integer(object):

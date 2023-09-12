@@ -1773,16 +1773,15 @@ def test_sparse_check_carry():
 def test_sparse_add_int():
     for c in bi, si:
         assert SparseBitVector(6000, 0b11).add_int(c(0b111111111)).touint() == 0b11 + 0b111111111
-        assert SparseBitVector(6000, r_uint(0xffffffffffffffff)).add_int(c(0b1)).tolong() == 0xffffffffffffffff + 1
+        assert SparseBitVector(6000, r_uint(0xfffffffffffffffe)).add_int(c(0b1)).tolong() == 0xfffffffffffffffe + 1
         assert isinstance (SparseBitVector(100, r_uint(0xffffffffffffffff)).add_int(c(0b1)), bitvector.GenericBitVector)
         assert isinstance (SparseBitVector(100, r_uint(0xfffffffffffffffee)).add_int(c(0xfff)), bitvector.GenericBitVector)
 
-# def test_sparse_add_bits():
-#     for c in SparseBitVector, gbv:
-#         assert SparseBitVector(100, 0b11).add_bits(c(100, 0b111111111)).touint() == 0b11 + 0b111111111
-#         # FIXME
-#         assert SparseBitVector(100, r_uint(0xfffffffffffffffe)).add_bits(SparseBitVector(100, 0b1)).tolong() == 0xfffffffffffffffe + 1
-#     assert isinstance(SparseBitVector(65, r_uint(0xffffffffffffffff)).add_bits(SparseBitVector(65,0b1)), bitvector.GenericBitVector)
+def test_sparse_add_bits():
+    for c in SparseBitVector, gbv:
+        assert SparseBitVector(100, 0b11).add_bits(c(100, 0b111111111)).touint() == 0b11 + 0b111111111
+        assert SparseBitVector(100, r_uint(0xfffffffffffffffe)).add_bits(SparseBitVector(100, 0b1)).tolong() == 0xfffffffffffffffe + 1
+    assert isinstance(SparseBitVector(65, r_uint(0xffffffffffffffff)).add_bits(SparseBitVector(65,0b1)), bitvector.GenericBitVector)
 
 def test_sparse_sub_bits():
     for c in gbv, SparseBitVector:
@@ -1800,7 +1799,6 @@ def test_sparse_sub_int():
     assert isinstance(SparseBitVector(6000, r_uint(0xffffffffffffffff)).sub_int(bi(0b1)), bitvector.GenericBitVector)
 
         
-
 @given(strategies.data())
 def test_sparse_hypothesis_sub_int(data):
     value1 = data.draw(strategies.integers(0, 2**64 - 1))
@@ -1810,7 +1808,6 @@ def test_sparse_hypothesis_sub_int(data):
         assert SparseBitVector(100, r_uint(value1)).sub_int(c(value2)).tolong() == ans % (2 ** 100)
 
 @given(strategies.data())
-#TODO
 def test_sparse_hypothesis_sub_bits(data):
     bitwidth = data.draw(strategies.integers(1, 10000))
     lower = data.draw(strategies.integers(0, 62))

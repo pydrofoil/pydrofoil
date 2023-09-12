@@ -325,8 +325,9 @@ class SmallBitVector(BitVectorWithSize):
         return res
 
     def truncate(self, i):
-        assert i <= self.size()
-        return SmallBitVector(i, self.val, normalize=True)
+        size = self.size()
+        assert i <= size
+        return SmallBitVector(i, self.val, normalize=i < size)
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
@@ -434,8 +435,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange_unwrapped_res(self, n, m):
         width = n - m + 1
-        mask = (r_uint(1) << width) - 1
-        return rbigint_extract_ruint(self.rval, m) & mask
+        return ruint_mask(width, rbigint_extract_ruint(self.rval, m))
 
     def zero_extend(self, i):
         if i == self.size():
@@ -505,11 +505,12 @@ class GenericBitVector(BitVectorWithSize):
         return GenericBitVector(size * i, res)
 
     def truncate(self, i):
+        size = self.size()
         assert i <= self.size()
-        val = self.rbigint_mask(i, self.rval)
         if i <= 64:
-            return SmallBitVector(i, val.touint(), normalize=True)
-        return GenericBitVector(i, val)
+            val = rbigint_extract_ruint(self.rval, 0)
+            return SmallBitVector(i, val, normalize=i < 64)
+        return GenericBitVector(i, self.rval, normalize=i < size)
 
 
 class Integer(object):

@@ -19,6 +19,19 @@ def check_file_missing(fn):
         return True
     return False
 
+PARAMETERS = jit.PARAMETERS.copy()
+PARAMETERS['trace_limit'] = 50000
+PARAMETERS['enable_opts'] = "intbounds:rewrite:virtualize:string:pure:earlyforce:heap"
+PARAMETERS['pureop_historylength'] = 256
+
+JIT_HELP = ["Advanced JIT options:", '', '']
+JIT_HELP.extend([" %s=<value>\n     %s (default: %s)\n" % (
+    key, jit.PARAMETER_DOCS[key], value)
+    for key, value in PARAMETERS.items()]
+)
+JIT_HELP.extend([" off", "    turn JIT off", "", " help", "    print this page"])
+JIT_HELP = "\n".join(JIT_HELP)
+
 
 def get_main(outarm):
     Globals._pydrofoil_enum_read_ifetch_value = outarm.Enum_zread_kind.zRead_ifetch
@@ -113,6 +126,11 @@ def get_main(outarm):
     def _main(argv):
         from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
         from arm import supportcodearm
+
+        jit.set_param(driver, "enable_opts", "intbounds:rewrite:virtualize:string:pure:earlyforce:heap")
+        jit.set_param(driver, "trace_limit", 50000)
+        jit.set_param(driver, "pureop_historylength", 256)
+
         machine = Machine()
 
         limit = 0
@@ -140,6 +158,9 @@ def get_main(outarm):
 
         jitopts = parse_args(argv, "--jit")
         if jitopts:
+            if jitopts == "help":
+                print JIT_HELP
+                return 0
             try:
                 jit.set_user_param(None, jitopts)
             except ValueError:
@@ -152,7 +173,9 @@ def get_main(outarm):
             value = parseint(value)
             print "setting config value", configname, "to", hex(value)
             outarm.func_z__SetConfig(machine, configname, bitvector.Integer.fromint(value))
-        assert len(argv) == 1
+        if len(argv) != 1:
+            print "unrecognized option:", argv[1]
+            return 1
         print "done, starting main"
         t1 = time.time()
         try:

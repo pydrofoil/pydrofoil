@@ -113,6 +113,11 @@ def get_main(outarm):
     def _main(argv):
         from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
         from arm import supportcodearm
+
+        jit.set_param(driver, "enable_opts", "intbounds:rewrite:virtualize:string:pure:earlyforce:heap")
+        jit.set_param(driver, "trace_limit", 50000)
+        jit.set_param(driver, "pureop_historylength", 256)
+
         machine = Machine()
 
         limit = 0

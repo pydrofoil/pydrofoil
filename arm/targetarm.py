@@ -37,9 +37,10 @@ def _make_code(regen=True):
     return mod
 
 def target(driver, cmdlineargs):
-    driver.config.translation.suggest(jit_opencoder_model="big")
-    driver.config.translation.suggest(withsmallfuncsets=0)
-    driver.config.translation.suggest(output="pydrofoil-arm")
+    if driver is not None:
+        driver.config.translation.suggest(jit_opencoder_model="big")
+        driver.config.translation.suggest(withsmallfuncsets=0)
+        driver.config.translation.suggest(output="pydrofoil-arm")
     main = make_code(regen="--no-arm-regen" not in cmdlineargs)
     print "translating to C!"
     return main

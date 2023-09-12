@@ -325,8 +325,9 @@ class SmallBitVector(BitVectorWithSize):
         return res
 
     def truncate(self, i):
-        assert i <= self.size()
-        return SmallBitVector(i, self.val, normalize=True)
+        size = self.size()
+        assert i <= size
+        return SmallBitVector(i, self.val, normalize=i < size)
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
@@ -508,7 +509,7 @@ class GenericBitVector(BitVectorWithSize):
         val = self.rbigint_mask(i, self.rval)
         if i <= 64:
             return SmallBitVector(i, val.touint(), normalize=True)
-        return GenericBitVector(i, val)
+        return GenericBitVector(i, val, normalize=i < self.size())
 
 
 class Integer(object):

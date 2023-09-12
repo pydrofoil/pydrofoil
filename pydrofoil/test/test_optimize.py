@@ -1315,7 +1315,7 @@ def test_constfold_int():
                 sourcepos="`7 495:24-495:47",
             ),
             OperationExpr(
-                args=[Number(number=0, resolved_type=types.MachineInt())],
+                args=[Number(number=5, resolved_type=types.MachineInt())],
                 name="zz5i64zDzKz5i",
                 resolved_type=types.Int(),
                 sourcepos="`7 495:24-495:47",
@@ -1329,7 +1329,7 @@ def test_constfold_int():
     specialize_ops({0: block}, dummy_codegen)
 
     assert block[0] == OperationExpr(
-        args=[Number(number=127)],
+        args=[Number(number=122)],
         name="zz5i64zDzKz5i",
         resolved_type=types.Int(),
         sourcepos="`5 176:53-176:60",
@@ -1357,6 +1357,63 @@ def test_sub_int_0():
     specialize_ops({0: block}, dummy_codegen)
 
     assert block[0] == Var("a", types.Int())
+
+
+def test_a_sub_b_add_b():
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    OperationExpr(
+                        args=[
+                            OperationExpr(
+                                args=[
+                                    Var(
+                                        name="zx",
+                                        resolved_type=types.GenericBitVector(),
+                                    )
+                                ],
+                                name="@length_unwrapped_res",
+                                resolved_type=types.MachineInt(),
+                                sourcepos="`7 2890:32-2890:34",
+                            ),
+                            Number(number=1, resolved_type=types.MachineInt()),
+                        ],
+                        name="@sub_i_i_wrapped_res",
+                        resolved_type=types.Int(),
+                        sourcepos="`7 2890:32-2890:38",
+                    ),
+                    OperationExpr(
+                        args=[Number(number=0, resolved_type=types.MachineInt())],
+                        name="zz5i64zDzKz5i",
+                        resolved_type=types.Int(),
+                        sourcepos="`7 2890:11-2890:44",
+                    ),
+                ],
+                name="sub_int",
+                resolved_type=types.Int(),
+                sourcepos="`5 176:53-176:60",
+            ),
+            OperationExpr(
+                args=[Number(number=1, resolved_type=types.MachineInt())],
+                name="zz5i64zDzKz5i",
+                resolved_type=types.Int(),
+                sourcepos="`5 176:53-176:64",
+            ),
+        ],
+        name="add_int",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:64",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+
+    assert block[0] == OperationExpr(
+        args=[Var(name="zx", resolved_type=types.GenericBitVector())],
+        name="@length_unwrapped_res",
+        resolved_type=types.MachineInt(),
+        sourcepos="`7 2890:32-2890:34",
+    )
 
 
 # optimize_gotos

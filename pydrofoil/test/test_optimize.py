@@ -1172,6 +1172,23 @@ def test_length_constant():
     )
 
 
+def test_length_constant_later():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=Var(name="zvaddress", resolved_type=types.SmallFixedBitVector(64)),
+                resolved_type=types.GenericBitVector(),
+            )
+        ],
+        name="@length_unwrapped_res",
+        resolved_type=types.MachineInt(),
+        sourcepos="`11",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == Number(64)
+
+
 def test_undefined_bv():
     op = CastExpr(
         expr=OperationExpr(
@@ -1291,7 +1308,12 @@ def test_constfold_int():
     block = [op]
     specialize_ops({0: block}, dummy_codegen)
 
-    assert block[0] == OperationExpr(args=[Number(number=127)], name='zz5i64zDzKz5i', resolved_type=types.Int(), sourcepos='`5 176:53-176:60')
+    assert block[0] == OperationExpr(
+        args=[Number(number=127)],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:60",
+    )
 
 
 # optimize_gotos

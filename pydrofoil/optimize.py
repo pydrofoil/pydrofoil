@@ -767,6 +767,14 @@ class OptVisitor(parse.Visitor):
                 res = parse.Number(realtyp.width)
         return self._make_int64_to_int(res, expr.sourcepos)
 
+    def optimize_length_unwrapped_res(self, expr):
+        arg0, = expr.args
+        if isinstance(arg0, parse.CastExpr):
+            realtyp = arg0.expr.resolved_type
+            if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
+                return parse.Number(realtyp.width)
+
+
     def optimize_undefined_bitvector_i(self, expr):
         arg0, = expr.args
         num = self._extract_number(arg0)

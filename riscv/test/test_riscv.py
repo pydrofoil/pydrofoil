@@ -90,3 +90,35 @@ def test_compare_dtbs():
         target = f.read()
     assert target == g.dtb
 
+# testing disassembly
+
+def test_dis_instructions(riscvmain):
+    from riscv import supportcoderiscv
+    from riscv.generated import outriscv
+    elf = elfs[0]
+    m = riscvmain._machinecls()
+    entry = supportcoderiscv.load_sail(m, elf)
+    supportcoderiscv.init_sail(m, entry)
+    m.g.config_print_instr = False
+    m.g.config_print_reg = False
+    m.g.config_print_mem_access = False
+    m.g.config_print_platform = False
+
+    expected = [
+        "auipc t0, 0",
+        "addi a1, t0, 32",
+        "csrrs a0, mhartid, zero",
+        "ld t0, 24(t0)",
+        "jalr zero, t0, 0",
+        "jal zero, 76",
+        "csrrs a0, mhartid, zero",
+        "bne a0, zero, 0"
+    ]
+    for instr in expected:
+        m.run_sail(1, False)
+        assert outriscv.func_zassembly_forwards(m, outriscv.func_zext_decode(m, m._reg_zinstbits)) == instr
+    res = []
+    for i in range(258 - len(expected)):
+        m.run_sail(1, False)
+        res.append(outriscv.func_zassembly_forwards(m, outriscv.func_zext_decode(m, m._reg_zinstbits)))
+    assert "illegal" not in "\n".join(res)

@@ -208,14 +208,17 @@ class SmallBitVector(BitVectorWithSize):
         return self.rshift(other.toint())
 
     def xor(self, other):
+        assert self.size() == other.size()
         assert isinstance(other, SmallBitVector)
         return self.make(self.val ^ other.val, True)
 
     def and_(self, other):
+        assert self.size() == other.size()
         assert isinstance(other, SmallBitVector)
         return self.make(self.val & other.val, True)
 
     def or_(self, other):
+        assert self.size() == other.size()
         assert isinstance(other, SmallBitVector)
         return self.make(self.val | other.val, True)
 
@@ -297,7 +300,9 @@ class SmallBitVector(BitVectorWithSize):
     def toint(self):
         return intmask(self.val)
 
-    def touint(self):
+    def touint(self, expected_width=0):
+        if expected_width:
+            self.size() == expected_width
         return self.val
 
     def tobigint(self):
@@ -492,6 +497,8 @@ class GenericBitVector(BitVectorWithSize):
         return self.rval.toint()
 
     def touint(self):
+        if expected_width:
+            self.size() == expected_width
         return self.rval.touint()
 
     def tobigint(self):

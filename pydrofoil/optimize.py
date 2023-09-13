@@ -235,6 +235,7 @@ class OptVisitor(parse.Visitor):
     def __init__(self, codegen):
         self.codegen = codegen
 
+
     def visit_CastExpr(self, cast):
         if isinstance(cast.expr, parse.CastExpr):
             return parse.CastExpr(cast.expr.expr, cast.resolved_type)
@@ -280,9 +281,15 @@ class OptVisitor(parse.Visitor):
         if not meth:
             return None
         try:
-            return meth(expr)
+            res = meth(expr)
         except NoMatchException:
             return None
+        if res is None:
+            return
+        restypold = getattr(expr, 'resolved_type', None)
+        restypnew = getattr(res, 'resolved_type', None)
+        assert restypold is restypnew or restypold is types.MachineInt() and isinstance(res, parse.Number)
+        return res
 
     def _convert_to_machineint(self, arg):
         try:
@@ -692,7 +699,8 @@ class OptVisitor(parse.Visitor):
         if (isinstance(arg0, parse.OperationExpr) and
                 arg0.name == "@sub_i_i_wrapped_res" and
                 arg0.args[1] == num1):
-            return arg0.args[0]
+            # (a - b) + b == a
+            return self._make_int64_to_int(arg0.args[0], expr.sourcepos)
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(

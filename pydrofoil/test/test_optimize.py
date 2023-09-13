@@ -1409,10 +1409,17 @@ def test_a_sub_b_add_b():
     specialize_ops({0: block}, dummy_codegen)
 
     assert block[0] == OperationExpr(
-        args=[Var(name="zx", resolved_type=types.GenericBitVector())],
-        name="@length_unwrapped_res",
-        resolved_type=types.MachineInt(),
-        sourcepos="`7 2890:32-2890:34",
+        args=[
+            OperationExpr(
+                args=[Var(name="zx", resolved_type=types.GenericBitVector())],
+                name="@length_unwrapped_res",
+                resolved_type=types.MachineInt(),
+                sourcepos="`7 2890:32-2890:34",
+            )
+        ],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:64",
     )
 
 

@@ -458,6 +458,23 @@ def test_truncate():
         assert res.size() == 6
         assert res.touint() == 0b010100
 
+@given(strategies.data())
+def test_hypothesis_truncate(data):
+    if not data.draw(strategies.booleans()):
+        bitwidth = data.draw(strategies.integers(1, 64))
+        truncatewidth = data.draw(strategies.integers(1, bitwidth))
+    else:
+        bitwidth = data.draw(strategies.integers(65, 10000))
+        if not data.draw(strategies.booleans()):
+            truncatewidth = data.draw(strategies.integers(1, 64))
+        else:
+            truncatewidth = data.draw(strategies.integers(1, bitwidth))
+    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    as_bit_string = bin(value)[2:]
+    bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    res = bv.truncate(truncatewidth)
+    assert bin(bv.tolong())[2:].rjust(bitwidth, '0')[-truncatewidth:] == bin(res.tolong())[2:].rjust(truncatewidth, '0')
+
 
 def test_string_of_bits():
     for c in gbv, bv:

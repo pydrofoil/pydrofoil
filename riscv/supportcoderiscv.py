@@ -416,7 +416,7 @@ Run the Pydrofoil RISC-V emulator on elf_file.
 --instructions-per-tick <num>   tick the emulated clock every num instructions (default: 100)
 --verbose                       print a detailed trace of every instruction executed
 --print-kips                    print kip/s every 2**20 instructions
---jit <options>                 set JIT options
+--jit <options>                 set JIT options (try --jit help for details)
 --dump <file>                   load elf file disassembly from file
 -b/--device-tree-blob <file>    load dtb from file (usually not needed, Pydrofoil has a dtb built-in)
 --version                       print the version of pydrofoil-riscv

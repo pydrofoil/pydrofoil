@@ -110,12 +110,7 @@ def add_bits_int(machine, a, b):
 
 @objectmodel.always_inline
 def add_bits_int_bv_i(machine, a, width, b):
-    if b >= 0:
-        return _mask(width, a + r_uint(b))
-    return _add_bits_int_bv_i_slow(a, width, b)
-
-def _add_bits_int_bv_i_slow(a, width, b):
-    return bitvector.from_ruint(width, a).add_int(bitvector.SmallInteger.fromint(b)).touint()
+    return _mask(width, a + r_uint(b))
 
 @objectmodel.always_inline
 def add_bits(machine, a, b):
@@ -126,6 +121,10 @@ def add_bits_bv_bv(machine, a, b, width):
 
 def sub_bits_int(machine, a, b):
     return a.sub_int(b)
+
+@objectmodel.always_inline
+def sub_bits_int_bv_i(machine, a, width, b):
+    return _mask(width, a - r_uint(b))
 
 @objectmodel.always_inline
 def sub_bits(machine, a, b):

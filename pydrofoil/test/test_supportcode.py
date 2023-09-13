@@ -327,6 +327,15 @@ def test_add_bits_int_bv_i():
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b11), 6, -0b111111111) == (0b11 - 0b111111111) & 0b111111
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b1011), 6, -2 ** 63) == (0b1011 - 2**63) & 0b111111
 
+@given(strategies.data())
+def test_hypothesis_add_bits_int_bv_i(data):
+    bitwidth = data.draw(strategies.integers(1, 64))
+    value = r_uint(data.draw(strategies.integers(0, 2**bitwidth - 1)))
+    rhs = data.draw(ints)
+    res = supportcode.add_bits_int_bv_i(None, value, bitwidth, rhs)
+    assert res == supportcode._mask(bitwidth, value + r_uint(rhs))
+    res = supportcode.sub_bits_int_bv_i(None, value, bitwidth, rhs)
+    assert res == supportcode._mask(bitwidth, value - r_uint(rhs))
 
 def test_bv_bitwise():
     for c in gbv, bv:

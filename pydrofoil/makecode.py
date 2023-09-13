@@ -60,6 +60,7 @@ class Codegen(object):
         self.add_global("@add_bits_bv_bv", "supportcode.add_bits_bv_bv")
         self.add_global("@add_bits_int_bv_i", "supportcode.add_bits_int_bv_i")
         self.add_global("@sub_bits_bv_bv", "supportcode.sub_bits_bv_bv")
+        self.add_global("@sub_bits_int_bv_i", "supportcode.sub_bits_int_bv_i")
         self.add_global("@shiftl_bv_i", "supportcode.shiftl_bv_i")
         self.add_global("@length_unwrapped_res", "supportcode.length_unwrapped_res")
         self.add_global("have_exception", "machine.have_exception", types.Bool())

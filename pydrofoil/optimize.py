@@ -810,6 +810,22 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
+    def optimize_sub_bits_int(self, expr):
+        arg0, arg1 = expr.args
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_machineint(arg1)
+
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@sub_bits_int_bv_i",
+                [arg0, parse.Number(typ0.width), arg1],
+                typ0,
+                expr.sourcepos,
+            ),
+            expr.resolved_type,
+        )
+
+
     def optimize_shiftl_o_i(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)

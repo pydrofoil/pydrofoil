@@ -1510,6 +1510,53 @@ def test_a_sub_b_add_b():
     )
 
 
+def test_sub_ints_int_small():
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=Var(
+                        name="ztarget_el", resolved_type=types.SmallFixedBitVector(2)
+                    ),
+                    resolved_type=types.GenericBitVector(),
+                ),
+                OperationExpr(
+                    args=[Number(number=1, resolved_type=types.MachineInt())],
+                    name="zz5i64zDzKz5i",
+                    resolved_type=types.Int(),
+                    sourcepos="`7 3991:38-3991:51",
+                ),
+            ],
+            name="zsub_bits_int",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`7 3991:38-3991:51",
+        ),
+        resolved_type=types.SmallFixedBitVector(2),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=Var(name="ztarget_el", resolved_type=types.SmallFixedBitVector(2)),
+                    resolved_type=types.GenericBitVector(),
+                ),
+                OperationExpr(
+                    args=[Number(number=1, resolved_type=types.MachineInt())],
+                    name="zz5i64zDzKz5i",
+                    resolved_type=types.Int(),
+                    sourcepos="`7 3991:38-3991:51",
+                ),
+            ],
+            name="zsub_bits_int",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`7 3991:38-3991:51",
+        ),
+        resolved_type=types.SmallFixedBitVector(2),
+    )
+
+
 # optimize_gotos
 
 

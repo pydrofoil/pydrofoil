@@ -1945,3 +1945,12 @@ def test_sparse_hypothesis_eq(data):
 #     v = SparseBitVector(bitwidth, r_uint(value))
 #     assert v.update_bit(pos, bit).tolong() == int(value)
 
+@given(strategies.data())
+def test_sparse_hypothesis_read_bit(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    pos = data.draw(strategies.integers(0, bitwidth -1))
+    value_as_str = str(bin(value))
+    formatted_value = value_as_str[2:]
+    v = SparseBitVector(bitwidth, r_uint(value))
+    assert v.read_bit(pos) == int((str(0)* (bitwidth - len(formatted_value)) + formatted_value)[bitwidth-pos -1])

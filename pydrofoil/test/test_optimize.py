@@ -940,6 +940,7 @@ def test_sign_extend():
         resolved_type=types.GenericBitVector(),
     )
 
+
 def test_sign_extend_same_size():
     op = OperationExpr(
         args=[
@@ -960,7 +961,44 @@ def test_sign_extend_same_size():
         resolved_type=types.GenericBitVector(),
     )
 
-@pytest.mark.xfail()
+
+def test_bv_binary_only_one_known_small():
+    for before, after in [
+        ("and_bits", "@and_vec_bv_bv"),
+        ("or_bits", "@or_vec_bv_bv"),
+        ("xor_bits", "@xor_vec_bv_bv"),
+    ]:
+        arg0 = (Var(name="zz44441", resolved_type=types.GenericBitVector()),)
+        arg1 = CastExpr(
+            expr=Var(name="zz44432", resolved_type=types.SmallFixedBitVector(64)),
+            resolved_type=types.GenericBitVector(),
+        )
+        for args in ([arg0, arg1], [arg1, arg0]):
+            op = OperationExpr(
+                args=args,
+                name=before,
+                resolved_type=types.GenericBitVector(),
+                sourcepos="`39 271:17-271:37",
+            )
+            block = [op]
+            specialize_ops({0: block}, dummy_codegen)
+            assert block[0] == CastExpr(
+                expr=OperationExpr(
+                    args=[
+                        arg1.expr,
+                        CastExpr(
+                            expr=arg0,
+                            resolved_type=types.SmallFixedBitVector(64),
+                        ),
+                    ],
+                    name=after,
+                    resolved_type=types.SmallFixedBitVector(64),
+                    sourcepos="`39 271:17-271:37",
+                ),
+                resolved_type=types.GenericBitVector(),
+            )
+
+
 def test_add_bits():
     lv1 = LocalVarDeclaration(
         name="zbase",
@@ -972,49 +1010,49 @@ def test_add_bits():
         typ=NamedType(name="%bv64"),
         value=None,
     )
-    op = OperationExpr(
-        args=[
-            CastExpr(
-                expr=OperationExpr(
-                    args=[
-                        CastExpr(
-                            expr=OperationExpr(
-                                args=[Var(name="zbase")],
-                                name="zrX_bits",
-                                typ=NamedType("%bv64"),
-                            ),
-                            typ=NamedType("%bv"),
-                        ),
-                        CastExpr(expr=Var(name="zoffset"), typ=NamedType("%bv")),
-                    ],
-                    name="zadd_bits",
-                    typ=NamedType("%bv"),
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=OperationExpr(
+                        args=[
+                            Var(
+                                name="zbase", resolved_type=types.SmallFixedBitVector(5)
+                            )
+                        ],
+                        name="zrX_bits",
+                        resolved_type=types.SmallFixedBitVector(64),
+                    ),
+                    resolved_type=types.GenericBitVector(),
                 ),
-                typ=NamedType("%bv64"),
-            )
-        ],
-        name="zExt_DataAddr_OKzIuzK",
-        typ=UnionType(name="zExt_DataAddr_CheckzIuzK"),
+                Var(
+                    name="zoffset",
+                    resolved_type=types.GenericBitVector(),
+                ),
+            ],
+            name="add_bits",
+            resolved_type=types.GenericBitVector(),
+        ),
+        resolved_type=types.SmallFixedBitVector(64),
     )
-    block = [lv1, lv2, op]
+    block = [op]
     specialize_ops({0: block}, dummy_codegen)
-    assert block[2] == OperationExpr(
+
+    assert block[0] == OperationExpr(
         args=[
             OperationExpr(
-                args=[
-                    OperationExpr(
-                        args=[Var(name="zbase")],
-                        name="zrX_bits",
-                        typ=NamedType("%bv64"),
-                    ),
-                    Var(name="zoffset"),
-                ],
-                name="@add_bits_bv_bv",
-                typ=NamedType("%bv64"),
-            )
+                args=[Var(name="zbase", resolved_type=types.SmallFixedBitVector(5))],
+                name="zrX_bits",
+                resolved_type=types.SmallFixedBitVector(64),
+            ),
+            CastExpr(
+                expr=Var(name="zoffset", resolved_type=types.GenericBitVector()),
+                resolved_type=types.SmallFixedBitVector(64),
+            ),
+            Number(number=64),
         ],
-        name="zExt_DataAddr_OKzIuzK",
-        typ=UnionType(name="zExt_DataAddr_CheckzIuzK"),
+        name="@add_bits_bv_bv",
+        resolved_type=types.SmallFixedBitVector(64),
     )
 
 

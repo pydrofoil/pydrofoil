@@ -497,7 +497,7 @@ class GenericBitVector(BitVectorWithSize):
     def toint(self):
         return self.rval.toint()
 
-    def touint(self):
+    def touint(self, expected_width=0):
         if expected_width:
             self.size() == expected_width
         return self.rval.touint()

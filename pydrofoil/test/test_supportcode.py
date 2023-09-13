@@ -328,6 +328,21 @@ def test_add_bits_int_bv_i():
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b1011), 6, -2 ** 63) == (0b1011 - 2**63) & 0b111111
 
 @given(strategies.data())
+def test_hypothesis_add_bits_int(data):
+    if not data.draw(strategies.booleans()):
+        bitwidth = data.draw(strategies.integers(1, 64))
+    else:
+        bitwidth = data.draw(strategies.integers(65, 10000))
+    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    bvvalue = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    rhs = data.draw(ints)
+    irhs = Integer.frombigint(rbigint.fromlong(rhs))
+    bvres = bvvalue.add_int(irhs)
+    assert bvres.tolong() == (value + rhs) % (2 ** bitwidth)
+    bvres = bvvalue.sub_int(irhs)
+    assert bvres.tolong() == (value - rhs) % (2 ** bitwidth)
+
+@given(strategies.data())
 def test_hypothesis_add_bits_int_bv_i(data):
     bitwidth = data.draw(strategies.integers(1, 64))
     value = r_uint(data.draw(strategies.integers(0, 2**bitwidth - 1)))

@@ -150,9 +150,11 @@ class SmallBitVector(BitVectorWithSize):
     @always_inline
     def add_int(self, i):
         if isinstance(i, SmallInteger):
-            if i.val > 0:
-                return self.make(self.val + r_uint(i.val), True)
-        return self._add_int_slow(i)
+            rhs = r_uint(i.val)
+        else:
+            assert isinstance(i, BigInteger)
+            rhs = rbigint_extract_ruint(i.rval, 0)
+        return self.make(self.val + rhs, True)
 
     def _add_int_slow(self, i):
         # XXX can be better
@@ -170,8 +172,7 @@ class SmallBitVector(BitVectorWithSize):
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
-            if i.val > 0:
-                return self.make(self.val - r_uint(i.val), True)
+            return self.make(self.val - r_uint(i.val), True)
         # XXX can be better
         return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().sub(i.tobigint())))
 
@@ -351,8 +352,8 @@ def rbigint_extract_ruint(self, int_other):
         return r_uint(0)
     res = self.udigit(wordshift) >> remshift
     if wordshift + 1 >= numdigits:
-        return res
-    return res | (self.udigit(wordshift + 1) << (SHIFT - remshift))
+        return self.sign * res
+    return self.sign * (res | (self.udigit(wordshift + 1) << (SHIFT - remshift)))
 
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']
@@ -374,6 +375,8 @@ class GenericBitVector(BitVectorWithSize):
         return self.rbigint_mask(self.size(), val)
 
     def add_int(self, i):
+        if isinstance(i, SmallInteger):
+            return self.make(self._size_mask(self.rval.int_add(i.val)))
         return self.make(self._size_mask(self.rval.add(i.tobigint())))
 
     def add_bits(self, other):
@@ -387,6 +390,8 @@ class GenericBitVector(BitVectorWithSize):
         return self.make(self._size_mask(self.rval.sub(other.rval)))
 
     def sub_int(self, i):
+        if isinstance(i, SmallInteger):
+            return self.make(self._size_mask(self.rval.int_sub(i.val)))
         return self.make(self._size_mask(self.rval.sub(i.tobigint())))
 
     def print_bits(self):

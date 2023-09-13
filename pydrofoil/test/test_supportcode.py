@@ -1632,23 +1632,6 @@ def test_sparse_sign_extend():
     assert res.size() == 100
     assert res.toint() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
 
-@given(strategies.data())
-def test_sparse_hypothesis_vector_subrange(data):
-    bitwidth = data.draw(strategies.integers(65, 10000))
-    # TODO m- n + 1 = 64 wont work
-    lower = data.draw(strategies.integers(0, 62))
-    upper = data.draw(strategies.integers(lower, 62))
-    value = data.draw(strategies.integers(0, 2**63 - 1))
-    as_bit_string = bin(value)[2:]
-    assert len(as_bit_string) <= bitwidth
-    as_bit_string = as_bit_string.rjust(bitwidth, '0')[::-1]
-    correct_res = as_bit_string[lower:upper+1] # sail is inclusive
-    correct_res_as_int = int(correct_res[::-1], 2)
-
-    # now do the sail computation
-    v = SparseBitVector(bitwidth, value)
-    vres = v.subrange(upper, lower)
-    assert vres.tobigint().tolong() == correct_res_as_int
 
 def test_sparse_vector_subrange():
     # XXX Regression bug and sail implementation
@@ -1706,6 +1689,16 @@ def test_sparse_vector_update():
     res = v.update_bit(2, 1)
     assert res.size() == 100
     assert res.toint() == 0b101
+    
+    v = SparseBitVector(65, r_uint(1))
+    res = v.update_bit(0, 0)
+    assert res.size() == 65
+    assert res.toint() == 0b0
+
+    v = SparseBitVector(65, r_uint(0))
+    res = v.update_bit(1, 1)
+    assert res.size() == 65
+    assert res.toint() == 0b10
 
     v = SparseBitVector(100, 1)
     res = v.update_bit(0, 1)
@@ -1872,3 +1865,83 @@ def test_sparse_hypothesis_truncate(data):
     bv = SparseBitVector(bitwidth, r_uint(value))
     res = bv.truncate(truncatewidth)
     assert bin(bv.tolong())[2:].rjust(bitwidth, '0')[-truncatewidth:] == bin(res.tolong())[2:].rjust(truncatewidth, '0')
+
+@given(strategies.data())
+def test_sparse_hypothesis_vector_subrange(data):
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    # TODO m- n + 1 = 64 wont work
+    lower = data.draw(strategies.integers(0, 62))
+    upper = data.draw(strategies.integers(lower, 62))
+    value = data.draw(strategies.integers(0, 2**63 - 1))
+    as_bit_string = bin(value)[2:]
+    assert len(as_bit_string) <= bitwidth
+    as_bit_string = as_bit_string.rjust(bitwidth, '0')[::-1]
+    correct_res = as_bit_string[lower:upper+1] # sail is inclusive
+    correct_res_as_int = int(correct_res[::-1], 2)
+
+    # now do the sail computation
+    v = SparseBitVector(bitwidth, value)
+    vres = v.subrange(upper, lower)
+    assert vres.tobigint().tolong() == correct_res_as_int
+
+@settings(deadline=1000)
+@given(strategies.data())
+def test_sparse_hypothesis_sign_extend(data):
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    target_bitwidth = bitwidth + data.draw(strategies.integers(1, 100))
+    value = data.draw(strategies.integers(0, 2**64 - 1))
+    bv = SparseBitVector(bitwidth, r_uint(value))
+    res = bv.sign_extend(target_bitwidth)
+    print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
+    assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
+
+@settings(deadline=1000)
+@given(strategies.data())
+def test_sparse_hypothesis_zero_extend(data):
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    target_bitwidth = bitwidth + data.draw(strategies.integers(1, 100))
+    value = data.draw(strategies.integers(0, 2**64 - 1))
+    bv = SparseBitVector(bitwidth, r_uint(value))
+    res = bv.zero_extend(target_bitwidth)
+    print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
+    assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
+
+# @given(strategies.data())
+# def test_sparse_hypothesis_replicate(data):
+#     bitwidth = data.draw(strategies.integers(65, 10000))
+#     repeats = data.draw(strategies.integers(1, 10))
+#     value = data.draw(strategies.integers(0, 2 **64 - 1))
+#     bv = SparseBitVector(bitwidth, r_uint(value))
+#     res = bv.replicate(repeats)
+#     ans_as_int = bin(value)
+#     ans = int((str(ans_as_int)[2:].format(bitwidth)) * repeats)
+
+#     assert bv.tolong() == ans 
+
+
+@given(strategies.data())
+def test_sparse_hypothesis_eq(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    if not data.draw(strategies.booleans()):
+        bv = SparseBitVector(bitwidth, r_uint(value))
+    else:
+        bv = gbv(bitwidth, r_uint(value))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    assert v.eq(bv)
+
+# @given(strategies.data())
+# def test_sparse_hypothesis_update_bit(data):
+#     bitwidth = data.draw(strategies.integers(65,10000))
+#     value = data.draw(strategies.integers(0, 2**64- 1))
+#     pos = data.draw(strategies.integers(0, bitwidth -1))
+#     bit = data.draw(strategies.integers(0, 1))
+#     value = str(bin(value))[2:]
+#     if pos == 0: 
+#         value = value[:-1]+ str(bit)
+#     else:
+#         value = value[:pos - 1] + str(bit) + value[pos:]
+
+#     v = SparseBitVector(bitwidth, r_uint(value))
+#     assert v.update_bit(pos, bit).tolong() == int(value)
+

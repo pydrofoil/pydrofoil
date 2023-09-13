@@ -145,6 +145,11 @@ def length_unwrapped_res(machine, gbv):
 def sign_extend(machine, gbv, size):
     return gbv.sign_extend(size)
 
+@objectmodel.always_inline
+def sign_extend_bv_i_i(machine, bv, width, targetwidth):
+    m = r_uint(1) << (width - 1)
+    return _mask(targetwidth, (bv ^ m) - m)
+
 @unwrap("o i")
 @objectmodel.always_inline
 def zero_extend(machine, gbv, size):

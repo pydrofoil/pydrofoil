@@ -246,6 +246,7 @@ class SmallBitVector(BitVectorWithSize):
 
     @always_inline
     def sign_extend(self, i):
+        # XXX can be improved with xor etc
         if i == self.size():
             return self
         if i > 64:

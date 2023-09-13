@@ -660,13 +660,37 @@ class OptVisitor(parse.Visitor):
         arg1 = self._extract_number(arg1)
         if arg1.number > 64:
             return
-        return parse.CastExpr(
-            parse.OperationExpr(
+        if typ0.width == arg1.number:
+            res = arg0
+        else:
+            res = parse.OperationExpr(
                 "@zero_extend_bv_i_i",
                 [arg0, parse.Number(typ0.width), arg1],
                 types.SmallFixedBitVector(arg1.number),
                 expr.sourcepos,
-            ),
+            )
+        return parse.CastExpr(
+            res,
+            expr.resolved_type,
+        )
+
+    def optimize_sign_extend_o_i(self, expr):
+        arg0, arg1 = expr.args
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_number(arg1)
+        if arg1.number > 64:
+            return
+        if typ0.width == arg1.number:
+            res = arg0
+        else:
+            res = parse.OperationExpr(
+                "@sign_extend_bv_i_i",
+                [arg0, parse.Number(typ0.width), arg1],
+                types.SmallFixedBitVector(arg1.number),
+                expr.sourcepos,
+            )
+        return parse.CastExpr(
+            res,
             expr.resolved_type,
         )
 

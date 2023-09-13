@@ -911,6 +911,55 @@ def test_vector_update_subrange():
     )
 
 
+def test_sign_extend():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=Var(name="zz42299", resolved_type=types.SmallFixedBitVector(60)),
+                resolved_type=types.GenericBitVector(),
+            ),
+            Number(number=64, resolved_type=types.MachineInt()),
+        ],
+        name="@sign_extend_o_i",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`1 193:29-193:51",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=OperationExpr(
+            args=[
+                Var(name="zz42299", resolved_type=types.SmallFixedBitVector(60)),
+                Number(number=60),
+                Number(number=64, resolved_type=types.MachineInt()),
+            ],
+            name="@sign_extend_bv_i_i",
+            resolved_type=types.SmallFixedBitVector(64),
+            sourcepos="`1 193:29-193:51",
+        ),
+        resolved_type=types.GenericBitVector(),
+    )
+
+def test_sign_extend_same_size():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=Var(name="zz42299", resolved_type=types.SmallFixedBitVector(64)),
+                resolved_type=types.GenericBitVector(),
+            ),
+            Number(number=64, resolved_type=types.MachineInt()),
+        ],
+        name="@sign_extend_o_i",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`1 193:29-193:51",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=Var(name="zz42299", resolved_type=types.SmallFixedBitVector(64)),
+        resolved_type=types.GenericBitVector(),
+    )
+
 @pytest.mark.xfail()
 def test_add_bits():
     lv1 = LocalVarDeclaration(

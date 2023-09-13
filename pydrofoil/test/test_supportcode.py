@@ -182,8 +182,16 @@ def test_hypothesis_sign_extend(data):
     value = data.draw(strategies.integers(0, 2**bitwidth - 1))
     bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
     res = bv.sign_extend(target_bitwidth)
-    print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
+
+@given(strategies.data())
+def test_hypothesis_sign_extend_ruint(data):
+    bitwidth = data.draw(strategies.integers(1, 63))
+    targetwidth = data.draw(strategies.integers(bitwidth, 64))
+    value = data.draw(strategies.integers(-2**(bitwidth-1), 2**(bitwidth-1)-1))
+    bv = supportcode._mask(bitwidth, r_uint(value))
+    res = supportcode.sign_extend_bv_i_i(machine, bv, bitwidth, targetwidth)
+    assert res == supportcode._mask(targetwidth, r_uint(value))
 
 @given(strategies.data())
 def test_hypothesis_vector_subrange_unwrapped_res(data):

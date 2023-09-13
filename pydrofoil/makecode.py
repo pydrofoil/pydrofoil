@@ -55,6 +55,7 @@ class Codegen(object):
         self.add_global("@unsigned_bv_wrapped_res", "supportcode.unsigned_bv_wrapped_res")
         self.add_global("@unsigned_bv", "supportcode.unsigned_bv")
         self.add_global("@zero_extend_bv_i_i", "supportcode.zero_extend_bv_i_i")
+        self.add_global("@sign_extend_bv_i_i", "supportcode.sign_extend_bv_i_i")
         self.add_global("@vector_access_bv_i", "supportcode.vector_access_bv_i")
         self.add_global("@add_bits_bv_bv", "supportcode.add_bits_bv_bv")
         self.add_global("@add_bits_int_bv_i", "supportcode.add_bits_int_bv_i")

@@ -490,25 +490,19 @@ class OptVisitor(parse.Visitor):
             expr.sourcepos,
         )
 
-    def optimize_eq_bits(self, expr):
-        arg0, arg1 = expr.args
-        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        if typ0 is not typ1:
-            import pdb; pdb.set_trace()
-            return
+    @symmetric
+    def optimize_eq_bits(self, expr, arg0, arg1):
+        arg0, typ = self._extract_smallfixedbitvector(arg0)
+        arg1 = parse.CastExpr(arg1, typ)
         res = parse.OperationExpr(
             "@eq_bits_bv_bv", [arg0, arg1], expr.resolved_type, expr.sourcepos
         )
         return res
 
-    def optimize_neq_bits(self, expr):
-        arg0, arg1 = expr.args
-        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        if typ0 is not typ1:
-            import pdb; pdb.set_trace()
-            return
+    @symmetric
+    def optimize_neq_bits(self, expr, arg0, arg1):
+        arg0, typ = self._extract_smallfixedbitvector(arg0)
+        arg1 = parse.CastExpr(arg1, typ)
         res = parse.OperationExpr(
             "@neq_bits_bv_bv", [arg0, arg1], expr.resolved_type, expr.sourcepos
         )

@@ -363,6 +363,9 @@ def eq_int(machine, a, b):
 def eq_int_i_i(machine, a, b):
     return a == b
 
+def eq_int_o_i(machine, a, b):
+    return a.int_eq(b)
+
 def eq_bit(machine, a, b):
     return a == b
 

@@ -1635,6 +1635,34 @@ def test_not_ones():
     )
 
 
+def test_eq_int():
+    op = OperationExpr(
+        args=[
+            Var(name="zn", resolved_type=types.Int()),
+            OperationExpr(
+                args=[Number(number=31, resolved_type=types.MachineInt())],
+                name="zz5i64zDzKz5i",
+                resolved_type=types.Int(),
+                sourcepos="`7 3427:7-3427:14",
+            ),
+        ],
+        name="eq_int",
+        resolved_type=types.Bool(),
+        sourcepos="`0 100:35-100:47",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[
+            Var(name="zn", resolved_type=types.Int()),
+            Number(number=31, resolved_type=types.MachineInt()),
+        ],
+        name="@eq_int_o_i",
+        resolved_type=types.Bool(),
+        sourcepos="`0 100:35-100:47",
+    )
+
+
 # optimize_gotos
 
 

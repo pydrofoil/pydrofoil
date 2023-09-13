@@ -596,6 +596,9 @@ class SmallInteger(Integer):
             return self.val == other.val
         return other.eq(self)
 
+    def int_eq(self, other):
+        return self.val == other
+
     def lt(self, other):
         if isinstance(other, SmallInteger):
             return self.val < other.val
@@ -756,6 +759,9 @@ class BigInteger(Integer):
             return self.rval.int_eq(other.val)
         assert isinstance(other, BigInteger)
         return self.rval.eq(other.rval)
+
+    def int_eq(self, other):
+        return self.rval.int_eq(other)
 
     def lt(self, other):
         if isinstance(other, SmallInteger):

@@ -538,10 +538,16 @@ class OptVisitor(parse.Visitor):
         )
         return res
 
-    def optimize_eq_int(self, expr):
+    @symmetric
+    def optimize_eq_int(self, expr, arg0, arg1):
+        arg1 = self._extract_machineint(arg1)
+        return parse.OperationExpr(
+            "@eq_int_o_i", [arg0, arg1], expr.resolved_type, expr.sourcepos
+        )
+
+    def optimize_eq_int_o_i(self, expr):
         arg0, arg1 = expr.args
         arg0 = self._extract_machineint(arg0)
-        arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
             "@eq_int_i_i", [arg0, arg1], expr.resolved_type, expr.sourcepos
         )

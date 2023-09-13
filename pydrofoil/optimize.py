@@ -607,6 +607,8 @@ class OptVisitor(parse.Visitor):
 
     def optimize_not_bits(self, expr):
         (arg0,) = expr.args
+        if isinstance(arg0, parse.OperationExpr) and arg0.name == "@zeros_i":
+            return parse.OperationExpr("@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         return parse.CastExpr(

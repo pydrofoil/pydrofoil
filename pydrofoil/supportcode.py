@@ -338,6 +338,13 @@ def zeros(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 
 @unwrap("i")
+def ones(machine, num):
+    if num <= 64:
+        return bitvector.from_ruint(num, r_uint(-1))
+    else:
+        return bitvector.from_bigint(num, rbigint.fromint(-1))
+
+@unwrap("i")
 def undefined_bitvector(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 

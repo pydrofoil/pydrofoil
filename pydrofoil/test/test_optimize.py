@@ -1595,6 +1595,46 @@ def test_vector_update_subrange():
     )
 
 
+def test_not_ones():
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    OperationExpr(
+                        args=[
+                            Var(name="zoperand", resolved_type=types.GenericBitVector())
+                        ],
+                        name="@length_unwrapped_res",
+                        resolved_type=types.MachineInt(),
+                        sourcepos="`7 147559:22-147559:24",
+                    )
+                ],
+                name="@zeros_i",
+                resolved_type=types.GenericBitVector(),
+                sourcepos="`2 320:32-320:45",
+            )
+        ],
+        name="not_bits",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`2 320:24-320:46",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[
+            OperationExpr(
+                args=[Var(name="zoperand", resolved_type=types.GenericBitVector())],
+                name="@length_unwrapped_res",
+                resolved_type=types.MachineInt(),
+                sourcepos="`7 147559:22-147559:24",
+            )
+        ],
+        name="@ones_i",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`2 320:32-320:45",
+    )
+
+
 # optimize_gotos
 
 

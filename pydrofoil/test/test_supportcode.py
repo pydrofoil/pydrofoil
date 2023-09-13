@@ -1862,20 +1862,13 @@ def test_sparse_hypothesis_add_int(data):
         if ans >= 0:
             assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans 
         assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans % (2 ** 100)
+
 @given(strategies.data())
-# TODO
 def test_sparse_hypothesis_truncate(data):
-    if not data.draw(strategies.booleans()):
-        bitwidth = data.draw(strategies.integers(1, 64))
-        truncatewidth = data.draw(strategies.integers(1, bitwidth))
-    else:
-        bitwidth = data.draw(strategies.integers(65, 10000))
-        if not data.draw(strategies.booleans()):
-            truncatewidth = data.draw(strategies.integers(1, 64))
-        else:
-            truncatewidth = data.draw(strategies.integers(1, bitwidth))
-    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    truncatewidth = data.draw(strategies.integers(1, bitwidth))
+    value = data.draw(strategies.integers(0, 2**64 - 1))
     as_bit_string = bin(value)[2:]
-    bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    bv = SparseBitVector(bitwidth, r_uint(value))
     res = bv.truncate(truncatewidth)
     assert bin(bv.tolong())[2:].rjust(bitwidth, '0')[-truncatewidth:] == bin(res.tolong())[2:].rjust(truncatewidth, '0')

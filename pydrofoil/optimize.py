@@ -422,6 +422,30 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
+    def optimize_vector_update_subrange_o_i_i_o(self, expr):
+        arg0, arg1, arg2, arg3 = expr.args
+
+        arg1 = self._extract_number(arg1)
+        arg2 = self._extract_number(arg2)
+        width = arg1.number - arg2.number + 1
+        if width > 64:
+            return
+
+        assert expr.resolved_type is types.GenericBitVector()
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg3, typ3 = self._extract_smallfixedbitvector(arg3)
+        assert 0 <= arg2.number <= arg2.number < typ0.width
+        assert typ3.width == width
+        res = parse.OperationExpr(
+            "@vector_update_subrange_fixed_bv_i_i_bv",
+            [arg0, arg1, arg2, arg3],
+            typ0, expr.sourcepos,
+        )
+        return parse.CastExpr(
+            res,
+            types.GenericBitVector()
+        )
+
     def optimize_slice_o_i_i(self, expr):
         arg0, arg1, arg2 = expr.args
         arg1 = self._extract_machineint(arg1)

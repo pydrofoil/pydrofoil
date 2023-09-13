@@ -1539,7 +1539,9 @@ def test_sub_ints_int_small():
         expr=OperationExpr(
             args=[
                 CastExpr(
-                    expr=Var(name="ztarget_el", resolved_type=types.SmallFixedBitVector(2)),
+                    expr=Var(
+                        name="ztarget_el", resolved_type=types.SmallFixedBitVector(2)
+                    ),
                     resolved_type=types.GenericBitVector(),
                 ),
                 OperationExpr(
@@ -1554,6 +1556,42 @@ def test_sub_ints_int_small():
             sourcepos="`7 3991:38-3991:51",
         ),
         resolved_type=types.SmallFixedBitVector(2),
+    )
+
+
+def test_vector_update_subrange():
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=Var(name="zv", resolved_type=types.SmallFixedBitVector(64)),
+                    resolved_type=types.GenericBitVector(),
+                ),
+                Number(number=0),
+                Number(number=0),
+                CastExpr(
+                    expr=Var(name="zx", resolved_type=types.SmallFixedBitVector(1)),
+                    resolved_type=types.GenericBitVector(),
+                ),
+            ],
+            name="@vector_update_subrange_o_i_i_o",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`513",
+        ),
+        resolved_type=types.SmallFixedBitVector(64),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[
+            Var(name="zv", resolved_type=types.SmallFixedBitVector(64)),
+            Number(number=0),
+            Number(number=0),
+            Var(name="zx", resolved_type=types.SmallFixedBitVector(1)),
+        ],
+        name="@vector_update_subrange_fixed_bv_i_i_bv",
+        resolved_type=types.SmallFixedBitVector(64),
+        sourcepos="`513",
     )
 
 

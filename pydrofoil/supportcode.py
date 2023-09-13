@@ -280,6 +280,11 @@ def update_fbits(machine, fb, index, element):
 def vector_update_subrange(machine, bv, n, m, s):
     return bv.update_subrange(n, m, s)
 
+def vector_update_subrange_fixed_bv_i_i_bv(machine, bv, n, m, s):
+    width = n - m + 1
+    mask = ~(((r_uint(1) << width) - 1) << m)
+    return (bv & mask) | (s << m)
+
 @unwrap("o i i")
 @objectmodel.always_inline
 @objectmodel.specialize.argtype(1)

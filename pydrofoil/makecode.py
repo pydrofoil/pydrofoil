@@ -38,6 +38,7 @@ class Codegen(object):
         self.add_global("bitone", "r_uint(1)", types.Bit())
         self.add_global("$zupdate_fbits", "supportcode.update_fbits")
         self.add_global("@vector_subrange_fixed_bv_i_i", "supportcode.vector_subrange_fixed_bv_i_i")
+        self.add_global("@vector_update_subrange_fixed_bv_i_i_bv", "supportcode.vector_update_subrange_fixed_bv_i_i_bv")
         self.add_global("@slice_fixed_bv_i_i", "supportcode.slice_fixed_bv_i_i")
         self.add_global("@vector_subrange_o_i_i_unwrapped_res", "supportcode.vector_subrange_o_i_i_unwrapped_res")
         self.add_global("@vector_slice_o_i_i_unwrapped_res", "supportcode.vector_slice_o_i_i_unwrapped_res")

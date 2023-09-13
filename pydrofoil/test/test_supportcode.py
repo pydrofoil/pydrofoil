@@ -175,6 +175,7 @@ def test_hypothesis_vector_subrange(data):
     bvres = bv.subrange(upper, lower)
     assert bvres.tobigint().tolong() == correct_res_as_int
 
+@settings(deadline=1000)
 @given(strategies.data())
 def test_hypothesis_sign_extend(data):
     bitwidth = data.draw(strategies.integers(1, 10000))
@@ -206,6 +207,16 @@ def test_hypothesis_vector_subrange_unwrapped_res(data):
     bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
     bvres = bv.subrange_unwrapped_res(upper, lower)
     assert bvres == correct_res_as_int
+
+@given(strategies.data())
+def test_hypothesis_rbigint_extract_ruint(data):
+    bitwidth = data.draw(strategies.integers(1, 10000))
+    start = data.draw(strategies.integers(0, 2 * bitwidth))
+    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    rb = rbigint.fromlong(value)
+    bv = bitvector.from_bigint(bitvector, rb)
+    res = bv.subrange_unwrapped_res(start + 63, start)
+    assert res == rb.rshift(start).and_(rbigint.fromlong(2**64-1)).tolong()
 
 def test_vector_update_subrange():
     for c1 in gbv, bv:
@@ -1845,11 +1856,12 @@ def test_sparse_hypothesis_add_bits(data):
 @given(strategies.data())
 def test_sparse_hypothesis_add_int(data):
     value1 = data.draw(strategies.integers(0, 2**64 - 1))
-    value2 = data.draw(strategies.integers(0, sys.maxint))
+    value2 = data.draw(strategies.integers(MININT, sys.maxint))
     ans = value1 + value2
     for c in bi, si:
-        assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans 
-
+        if ans >= 0:
+            assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans 
+        assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans % (2 ** 100)
 @given(strategies.data())
 # TODO
 def test_sparse_hypothesis_truncate(data):

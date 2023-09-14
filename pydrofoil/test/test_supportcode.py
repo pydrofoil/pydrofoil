@@ -1984,3 +1984,7 @@ def test_sparse_hypothesis_invert(data):
     filled = formatted_value.rjust(bitwidth, '0')
     inverse_s = ''.join(['1' if i == '0' else '0' for i in filled])
     assert v.invert().tolong() == int(inverse_s, 2)
+
+@given(strategies.data())
+def test_sparse_hypothesis_unsigned(data):
+    pass

@@ -556,12 +556,12 @@ class GenericBitVector(BitVectorWithSize):
     def add_bits(self, other):
         assert self.size() == other.size()
         assert isinstance(other, SparseBitVector) or isinstance(other, GenericBitVector)
-        return self.make(self._size_mask(self.rval.add(other.rval)))
+        return self.make(self._size_mask(self.rval.add(other.tobigint())))
 
     def sub_bits(self, other):
         assert self.size() == other.size()
         assert isinstance(other, GenericBitVector) or isinstance(other, SparseBitVector)
-        return self.make(self._size_mask(self.rval.sub(other.rval)))
+        return self.make(self._size_mask(self.rval.sub(other.tobigint())))
 
     def sub_int(self, i):
         return self.make(self._size_mask(self.rval.sub(i.tobigint())))

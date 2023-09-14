@@ -1906,17 +1906,19 @@ def test_sparse_hypothesis_zero_extend(data):
     print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
 
-# @given(strategies.data())
-# def test_sparse_hypothesis_replicate(data):
-#     bitwidth = data.draw(strategies.integers(65, 10000))
-#     repeats = data.draw(strategies.integers(1, 10))
-#     value = data.draw(strategies.integers(0, 2 **64 - 1))
-#     bv = SparseBitVector(bitwidth, r_uint(value))
-#     res = bv.replicate(repeats)
-#     ans_as_int = bin(value)
-#     ans = int((str(ans_as_int)[2:].format(bitwidth)) * repeats)
-
-#     assert bv.tolong() == ans 
+@given(strategies.data())
+def test_sparse_hypothesis_replicate(data):
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    repeats = data.draw(strategies.integers(1, 10))
+    value = data.draw(strategies.integers(0, 2 **64 - 1))
+    bv = SparseBitVector(bitwidth, r_uint(value))
+    res = bv.replicate(repeats)
+    ans_as_int = bin(value)
+    formatted_value = str(ans_as_int)[2:]
+    leading_zero = (str(0)* (bitwidth - len(formatted_value)) + formatted_value)
+    assert len(leading_zero) == bitwidth
+    ans = str(leading_zero) * repeats
+    assert res.tolong() == int(ans, 2) 
 
 
 @given(strategies.data())
@@ -1931,6 +1933,7 @@ def test_sparse_hypothesis_eq(data):
     assert v.eq(bv)
 
 # @given(strategies.data())
+# This is hacky and I havent figured out the index yet FIXME
 # def test_sparse_hypothesis_update_bit(data):
 #     bitwidth = data.draw(strategies.integers(65,10000))
 #     value = data.draw(strategies.integers(0, 2**64- 1))
@@ -1939,6 +1942,8 @@ def test_sparse_hypothesis_eq(data):
 #     value = str(bin(value))[2:]
 #     if pos == 0: 
 #         value = value[:-1]+ str(bit)
+#     elif pos == bitwidth - 1:
+#         value = str(bit) + value[]
 #     else:
 #         value = value[:pos - 1] + str(bit) + value[pos:]
 
@@ -1967,3 +1972,4 @@ def test_sparse_hypothesis_op(data):
     assert v1.xor(v2).tolong() == (v1.val ^ v2.val)
     assert v1.or_(v2).tolong() == (v1.val | v2.val)
     assert v1.and_(v2).tolong() == (v1.val & v2.val)
+

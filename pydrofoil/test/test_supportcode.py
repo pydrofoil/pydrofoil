@@ -1974,3 +1974,13 @@ def test_sparse_hypothesis_op(data):
     assert v1.or_(v2).tolong() == (v1.val | v2.val)
     assert v1.and_(v2).tolong() == (v1.val & v2.val)
 
+@given(strategies.data())
+def test_sparse_hypothesis_invert(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    value_as_str = str(bin(value))
+    formatted_value = value_as_str[2:]
+    filled = formatted_value.rjust(bitwidth, '0')
+    inverse_s = ''.join(['1' if i == '0' else '0' for i in filled])
+    assert v.invert().tolong() == int(inverse_s, 2)

@@ -1691,14 +1691,19 @@ def test_sparse_vector_update():
     assert res.toint() == 0b101
     
     v = SparseBitVector(65, r_uint(1))
+    res = v.update_bit(1, 0)
+    assert res.size() == 65
+    assert res.toint() == 0b1
+
+    v = SparseBitVector(65, r_uint(2))
     res = v.update_bit(0, 0)
     assert res.size() == 65
-    assert res.toint() == 0b0
+    assert res.toint() == 0b10
 
     v = SparseBitVector(65, r_uint(0))
     res = v.update_bit(1, 1)
     assert res.size() == 65
-    assert res.toint() == 0b10
+    assert res.tolong() == 0b10
 
     v = SparseBitVector(100, 1)
     res = v.update_bit(0, 1)
@@ -1733,12 +1738,6 @@ def test_sparse_unsigned():
 
     v = SparseBitVector(100, r_uint(-1))
     assert v.unsigned().tolong() == (1<<64)-1
-
-# def test_sparse_replicate_bits():
-#     v = SparseBitVector(65, 0x11111111111111111)
-#     res = v.replicate(1)
-#     assert(res, bitvector.GenericBitVector)
-#     #assert res.tobigint().tolong()  == 0x1111111111111111111111111111111111
 
 def test_sparse_truncate():
     res = SparseBitVector(100, 0b1011010100).truncate(2)
@@ -1932,23 +1931,25 @@ def test_sparse_hypothesis_eq(data):
     v = SparseBitVector(bitwidth, r_uint(value))
     assert v.eq(bv)
 
-# @given(strategies.data())
-# This is hacky and I havent figured out the index yet FIXME
-# def test_sparse_hypothesis_update_bit(data):
-#     bitwidth = data.draw(strategies.integers(65,10000))
-#     value = data.draw(strategies.integers(0, 2**64- 1))
-#     pos = data.draw(strategies.integers(0, bitwidth -1))
-#     bit = data.draw(strategies.integers(0, 1))
-#     value = str(bin(value))[2:]
-#     if pos == 0: 
-#         value = value[:-1]+ str(bit)
-#     elif pos == bitwidth - 1:
-#         value = str(bit) + value[]
-#     else:
-#         value = value[:pos - 1] + str(bit) + value[pos:]
-
-#     v = SparseBitVector(bitwidth, r_uint(value))
-#     assert v.update_bit(pos, bit).tolong() == int(value)
+@given(strategies.data())
+def test_sparse_hypothesis_update_bit(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    pos = data.draw(strategies.integers(0, bitwidth -1))
+    bit = data.draw(strategies.integers(0, 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    formatted_value = str(bin(value))[2:]
+    value = formatted_value.rjust(bitwidth, '0')[::-1]
+    assert len(value) == bitwidth
+    #FIXME 
+    if pos == 0: 
+        value = str(bit) + value[1:]
+    elif pos == bitwidth - 1:
+        value = value[:pos] + str(bit)
+    else:
+        value = value[:pos] + str(bit) + value[pos + 1:]
+    res = v.update_bit(pos, bit)
+    assert res.tolong() == int(value[::-1],2)
 
 @given(strategies.data())
 def test_sparse_hypothesis_read_bit(data):
@@ -1958,7 +1959,7 @@ def test_sparse_hypothesis_read_bit(data):
     value_as_str = str(bin(value))
     formatted_value = value_as_str[2:]
     v = SparseBitVector(bitwidth, r_uint(value))
-    assert v.read_bit(pos) == int((str(0)* (bitwidth - len(formatted_value)) + formatted_value)[bitwidth-pos -1])
+    assert v.read_bit(pos) == int(formatted_value.rjust(bitwidth, '0')[::-1][pos])
 
 @given(strategies.data())
 def test_sparse_hypothesis_op(data):

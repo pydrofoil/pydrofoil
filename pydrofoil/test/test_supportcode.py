@@ -110,6 +110,14 @@ def test_get_slice_int():
         assert supportcode.get_slice_int(machine, Integer.fromint(64), c(-1), Integer.fromint(1000)).tolong() == 0xffffffffffffffff
         assert supportcode.get_slice_int(machine, Integer.fromint(100), c(-1), Integer.fromint(1000)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
+@given(strategies.integers(1, 1000), strategies.integers(0, sys.maxint), strategies.integers())
+def test_hypothesis_get_slice_int(length, start, value):
+    res = supportcode.get_slice_int_i_o_i(machine, length,
+            Integer.frombigint(rbigint.fromlong(value)), start)
+    assert res.size() == length
+    assert res.tobigint().tolong() == (value >> start) % (2 ** length)
+
+
 
 def test_vector_access():
     for c in gbv, bv:

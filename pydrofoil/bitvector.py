@@ -584,12 +584,10 @@ class SmallInteger(Integer):
         return rbigint.fromint(self.val)
 
     def slice(self, len, start):
-        if len > 64 or start >= 64: # XXX can be more efficient
-            return BigInteger._slice(self.tobigint(), len, start)
         n = self.val >> start
-        if len == 64:
-            return from_ruint(64, r_uint(n))
-        return from_ruint(len, r_uint(n) & ((1 << len) - 1))
+        if len > 64:
+            return from_bigint(len, rbigint.fromint(n))
+        return from_ruint(len, r_uint(n))
 
     def eq(self, other):
         if isinstance(other, SmallInteger):

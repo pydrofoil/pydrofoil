@@ -389,6 +389,9 @@ def gteq(machine, ia, ib):
 def add_int(machine, ia, ib):
     return ia.add(ib)
 
+def add_o_i_wrapped_res(machine, a, b):
+    return a.int_add(b)
+
 def add_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.add_i_i(a, b)
 
@@ -398,6 +401,9 @@ def sub_int(machine, ia, ib):
 
 def sub_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.sub_i_i(a, b)
+
+def sub_i_i_wrapped_res(machine, a, b):
+    return a.int_sub(b)
 
 @objectmodel.specialize.argtype(1)
 def mult_int(machine, ia, ib):

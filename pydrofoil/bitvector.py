@@ -635,6 +635,9 @@ class SmallInteger(Integer):
             assert isinstance(other, BigInteger)
             return BigInteger(other.rval.int_add(self.val))
 
+    def int_add(self, other):
+        return SmallInteger.add_i_i(self.val, other)
+
     def sub(self, other):
         if isinstance(other, SmallInteger):
             return SmallInteger.sub_i_i(self.val, other.val)
@@ -795,6 +798,10 @@ class BigInteger(Integer):
             return BigInteger(self.rval.int_add(other.val))
         assert isinstance(other, BigInteger)
         return BigInteger(self.rval.add(other.rval))
+
+    def int_add(self, other):
+        return BigInteger(self.rval.int_add(other))
+
 
     def sub(self, other):
         if isinstance(other, SmallInteger):

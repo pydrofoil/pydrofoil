@@ -1510,6 +1510,39 @@ def test_a_sub_b_add_b():
     )
 
 
+def test_a_sub_b_add_b():
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    Var(name="zz454", resolved_type=types.Int()),
+                    OperationExpr(
+                        args=[
+                            Number(
+                                number=1,
+                                resolved_type=types.MachineInt(),
+                            )
+                        ],
+                        name="zz5i64zDzKz5i",
+                        resolved_type=types.Int(),
+                        sourcepos="`19 103:33-103:38",
+                    ),
+                ],
+                name="sub_int",
+                resolved_type=types.Int(),
+                sourcepos="`19 103:33-103:38",
+            ),
+            Number(number=1, resolved_type=types.MachineInt()),
+        ],
+        name="@add_o_i_wrapped_res",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:64",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == Var(name="zz454", resolved_type=types.Int())
+
+
 def test_sub_ints_int_small():
     op = CastExpr(
         expr=OperationExpr(

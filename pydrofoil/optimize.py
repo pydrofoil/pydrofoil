@@ -734,7 +734,17 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_add_int(self, expr):
+    @symmetric
+    def optimize_add_int(self, expr, arg0, arg1):
+        arg1 = self._extract_machineint(arg1)
+        return parse.OperationExpr(
+            "@add_o_i_wrapped_res",
+            [arg0, arg1],
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
+    def optimize_add_o_i_wrapped_res(self, expr):
         arg0, arg1 = expr.args
         num0 = num1 = None
         try:
@@ -744,29 +754,15 @@ class OptVisitor(parse.Visitor):
         else:
             if num1.number == 0:
                 return arg0
-            try:
-                num0 = self._extract_number(arg0)
-            except NoMatchException:
-                pass
-            else:
-                # can const-fold
-                res = num0.number + num1.number
-                if isinstance(res, int): # no overflow
-                    return self._make_int64_to_int(parse.Number(res), expr.sourcepos)
-        try:
-            num0 = self._extract_number(arg0)
-        except NoMatchException:
-            pass
-        else:
-            if num0.number == 0:
-                return arg1
-        if (isinstance(arg0, parse.OperationExpr) and
-                arg0.name == "@sub_i_i_wrapped_res" and
-                arg0.args[1] == num1):
-            # (a - b) + b == a
-            return self._make_int64_to_int(arg0.args[0], expr.sourcepos)
+            if isinstance(arg0, parse.OperationExpr):
+                # (a - b) + b == a
+                if (arg0.name == "@sub_i_i_wrapped_res" and
+                    arg0.args[1] == num1):
+                    return self._make_int64_to_int(arg0.args[0], expr.sourcepos)
+                if (arg0.name == "@sub_o_i_wrapped_res" and
+                    arg0.args[1] == num1):
+                    return arg0.args[0]
         arg0 = self._extract_machineint(arg0)
-        arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
             "@add_i_i_wrapped_res",
             [arg0, arg1],
@@ -810,12 +806,44 @@ class OptVisitor(parse.Visitor):
             expr.sourcepos,
         )
 
+    def optimize_sub_int(self, expr):
+        arg0, arg1 = expr.args
+        arg1 = self._extract_machineint(arg1)
+        return parse.OperationExpr(
+            "@sub_o_i_wrapped_res",
+            [arg0, arg1],
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
+    def optimize_sub_o_i_wrapped_res(self, expr):
+        arg0, arg1 = expr.args
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 0:
+                return arg0
+        arg0 = self._extract_machineint(arg0)
+        return parse.OperationExpr(
+            "@sub_i_i_wrapped_res",
+            [arg0, arg1],
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
     def optimize_sub_i_i_wrapped_res(self, expr):
         arg0, arg1 = expr.args
-        arg1 = self._extract_number(arg1)
-        if arg1.number == 0:
-            return self._make_int64_to_int(arg0, expr.sourcepos)
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 0:
+                return self._make_int64_to_int(arg0, expr.sourcepos)
         arg0 = self._extract_number(arg0)
+        arg1 = self._extract_number(arg1)
         # can const-fold
         res = arg0.number - arg1.number
         if isinstance(res, int): # no overflow

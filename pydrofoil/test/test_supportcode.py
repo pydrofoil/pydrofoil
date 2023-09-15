@@ -1960,13 +1960,14 @@ def test_sparse_hypothesis_op(data):
     bitwidth = data.draw(strategies.integers(65,10000))
     value1 = data.draw(strategies.integers(0, 2**64- 1))
     value2 = data.draw(strategies.integers(0, 2**64- 1))
+    for c in SparseBitVector, gbv:
+        v1 = c(bitwidth, r_uint(value1))
+        v2 = c(bitwidth, r_uint(value2))
 
-    v1 = SparseBitVector(bitwidth, r_uint(value1))
-    v2 = SparseBitVector(bitwidth, r_uint(value2))
+        assert v1.xor(v2).tolong() == (value1 ^ value2)
+        assert v1.or_(v2).tolong() == (value1 | value2)
+        assert v1.and_(v2).tolong() == (value1 & value2)
 
-    assert v1.xor(v2).tolong() == (v1.val ^ v2.val)
-    assert v1.or_(v2).tolong() == (v1.val | v2.val)
-    assert v1.and_(v2).tolong() == (v1.val & v2.val)
 
 @given(strategies.data())
 def test_sparse_hypothesis_invert(data):
@@ -1975,9 +1976,9 @@ def test_sparse_hypothesis_invert(data):
     v = SparseBitVector(bitwidth, r_uint(value))
     value_as_str = str(bin(value))
     formatted_value = value_as_str[2:]
-    filled = formatted_value.rjust(bitwidth, '0')
-    inverse_s = ''.join(['1' if i == '0' else '0' for i in filled])
-    assert v.invert().tolong() == int(inverse_s, 2)
+    filled = "0b" + formatted_value.rjust(bitwidth, '0')
+    inverse_s = ~int(filled,2) % (2 ** bitwidth)
+    assert v.invert().tolong() == inverse_s
 
 @given(strategies.data())
 def test_sparse_hypothesis_unsigned(data):

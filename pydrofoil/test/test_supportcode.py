@@ -1936,7 +1936,6 @@ def test_sparse_hypothesis_update_bit(data):
     formatted_value = str(bin(value))[2:]
     value = formatted_value.rjust(bitwidth, '0')[::-1]
     assert len(value) == bitwidth
-    #FIXME 
     if pos == 0: 
         value = str(bit) + value[1:]
     elif pos == bitwidth - 1:

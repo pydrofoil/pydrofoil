@@ -1960,13 +1960,11 @@ def test_sparse_hypothesis_op(data):
     bitwidth = data.draw(strategies.integers(65,10000))
     value1 = data.draw(strategies.integers(0, 2**64- 1))
     value2 = data.draw(strategies.integers(0, 2**64- 1))
-    for c in SparseBitVector, gbv:
-        v1 = c(bitwidth, r_uint(value1))
-        v2 = c(bitwidth, r_uint(value2))
-
-        assert v1.xor(v2).tolong() == (value1 ^ value2)
-        assert v1.or_(v2).tolong() == (value1 | value2)
-        assert v1.and_(v2).tolong() == (value1 & value2)
+    for c1 in SparseBitVector, gbv:
+        for c2 in SparseBitVector, gbv:
+            assert c1(bitwidth, r_uint(value1)).xor(c2(bitwidth, r_uint(value2))).tolong() == (value1 ^ value2)
+            assert c1(bitwidth, r_uint(value1)).or_(c2(bitwidth, r_uint(value2))).tolong() == (value1 | value2)
+            assert c1(bitwidth, r_uint(value1)).and_(c2(bitwidth, r_uint(value2))).tolong() == (value1 & value2)
 
 
 @given(strategies.data())

@@ -439,17 +439,17 @@ class SparseBitVector(BitVectorWithSize):
     def xor(self, other):
         if isinstance(other, SparseBitVector):
             return SparseBitVector(self.size(), self.val ^ other.val)
-        return self._to_generic.xor(other)
+        return self._to_generic().xor(other)
 
     def or_(self, other):
         if isinstance(other, SparseBitVector):
             return SparseBitVector(self.size(), self.val | other.val)
-        return self._to_generic.or_(other)
+        return self._to_generic().or_(other)
 
     def and_(self, other):
         if isinstance(other, SparseBitVector):
             return SparseBitVector(self.size(), self.val & other.val)
-        return self._to_generic.and_(other)
+        return self._to_generic().and_(other)
 
     def invert(self):
         return self._to_generic().invert()

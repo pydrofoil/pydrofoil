@@ -413,10 +413,10 @@ class SparseBitVector(BitVectorWithSize):
         print "SparseBitVector<%s, %s>" % (self.size(), self.val.hex())
 
     def lshift(self, i):
-        if (self.val >> (64 - i)) == 0:
-            return SparseBitVector(self.size(), self.val << i)
-        else:
-            return self._to_generic().lshift(i)
+        if i < 64:
+            if (self.val >> (64 - i)) == 0:
+                return SparseBitVector(self.size(), self.val << i)
+        return self._to_generic().lshift(i)
             
     def rshift(self, i):
         assert i >= 0
@@ -523,7 +523,7 @@ class SparseBitVector(BitVectorWithSize):
     
     def truncate(self, i):
         assert i <= self.size()
-        if i < 64:
+        if i <= 64:
             return SmallBitVector(i, ruint_mask(i, self.val), normalize=True)
         return SparseBitVector(i, self.val)
 

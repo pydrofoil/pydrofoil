@@ -1556,17 +1556,6 @@ def test_sparse_arith_shiftr():
     assert res.size() == 100
     assert res.toint() == 0b1
 
-@given(strategies.data())
-def test_sparse_arith_shiftr_hypothesis(data):
-    size = data.draw(strategies.integers(65, 5000))
-    value = data.draw(strategies.integers(0, 2**size-1))
-    v = bitvector.SparseBitVector(size, r_uint(value))
-    shift = data.draw(strategies.integers(0, size+10))
-    res = v.arith_rshift(shift)
-    intres = v.signed().tobigint().tolong() >> shift
-    assert res.tobigint().tolong() == intres & ((1 << size) - 1)
-
-
 def test_sparse_vector_shift_bits():
     v = SparseBitVector(100, 0b10001101)
     res = v.rshift_bits(SparseBitVector(100, 5))
@@ -1763,6 +1752,11 @@ def test_sparse_lshift():
     assert res.toint() == 0b1000110100000
     assert isinstance(res, SparseBitVector)
 
+    v = SparseBitVector(65, 1)
+    res = v.lshift(65)
+    assert res.size() == 65
+    assert res.tolong() == 0
+    assert isinstance(res, bitvector.GenericBitVector)
     
     v = SparseBitVector(100, 0b0010000000000000000000000000000000000000000000000000000000000000)
     res = v.lshift(1)
@@ -1906,6 +1900,7 @@ def test_sparse_hypothesis_zero_extend(data):
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
 
 @given(strategies.data())
+@settings(deadline = None)
 def test_sparse_hypothesis_replicate(data):
     bitwidth = data.draw(strategies.integers(65, 10000))
     repeats = data.draw(strategies.integers(1, 10))
@@ -1987,4 +1982,71 @@ def test_sparse_hypothesis_invert(data):
 
 @given(strategies.data())
 def test_sparse_hypothesis_unsigned(data):
-    pass
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    value_as_str = str(bin(value))
+    formatted_value = value_as_str[2:]
+    filled = formatted_value.rjust(bitwidth, '0')
+    assert v.unsigned().tolong() == int(filled, 2)
+
+@given(strategies.data())
+def test_sparse_hypothesis_signed(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(-(2**63), (2**63)- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    # it could never be negative when interpret as signed
+    assert v.signed().tolong() >= 0
+    assert v.signed().tolong() == r_uint(value)
+
+
+@given(strategies.data())
+def test_sparse_hypothesis_lshift(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    shift = data.draw(strategies.integers(0, bitwidth))
+    res = v.lshift(shift).tolong()
+    mask = ''
+    assert res == (value << shift) & ((1 << bitwidth) - 1) 
+
+@given(strategies.data())
+def test_sparse_hypothesis_lshift_bits(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value1 = data.draw(strategies.integers(0, 2**64- 1))
+    value2 = data.draw(strategies.integers(0, bitwidth))
+    v1 = SparseBitVector(bitwidth, r_uint(value1))
+    v2 = SparseBitVector(bitwidth, r_uint(value2))
+    res = v1.lshift_bits(v2).tolong()
+    mask = ''
+    assert res == (value1 << value2) & ((1 << bitwidth) - 1) 
+
+@given(strategies.data())
+def test_sparse_hypothesis_rshift(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    shift = data.draw(strategies.integers(0, bitwidth))
+    res = v.rshift(shift).tolong()
+    assert res == (value >> shift)
+
+@given(strategies.data())
+def test_sparse_hypothesis_rshift_bits(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value1 = data.draw(strategies.integers(0, 2**64- 1))
+    value2 = data.draw(strategies.integers(0, bitwidth))
+    v1 = SparseBitVector(bitwidth, r_uint(value1))
+    v2 = SparseBitVector(bitwidth, r_uint(value2))
+    res = v1.rshift_bits(v2).tolong()
+    mask = ''
+    assert res == (value1 >> value2) 
+
+@given(strategies.data())
+def test_sparse_arith_shiftr_hypothesis(data):
+    size = data.draw(strategies.integers(65, 5000))
+    value = data.draw(strategies.integers(0, 2**size-1))
+    v = bitvector.SparseBitVector(size, r_uint(value))
+    shift = data.draw(strategies.integers(0, size+10))
+    res = v.arith_rshift(shift)
+    intres = v.signed().tobigint().tolong() >> shift
+    assert res.tobigint().tolong() == intres & ((1 << size) - 1)

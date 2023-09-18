@@ -338,13 +338,17 @@ def test_add_bv():
     for c in gbv, bv:
         assert supportcode.add_bits(None, c(6, 0b11), c(6, 0b111)).touint() == (0b11 + 0b111) & 0b111111
         assert supportcode.add_bits(None, c(6, 0b10000), c(6, 0b10001)).touint() == (0b10000 + 0b10001) & 0b111111
-        assert supportcode.add_bits(None, c(6, 0b100000), c(6, 0b100001)).touint() == (0b100000 + 0b100001) & 0b111111
+        assert supportcode.add_bits(None, c(7, r_uint(0b100000)), c(7, r_uint(0b100001))).tolong() == (0b100000 + 0b100001)
+        assert supportcode.add_bits(None, c(100, r_uint(0b100000)), c(100, r_uint(0b100001))).tolong() == (0b100000 + 0b100001)
+    res = bitvector.SmallBitVector(100, r_uint(0xffffffffffffffff)).add_bits(bitvector.SmallBitVector(100, r_uint(1)))
+    assert res.tolong() == (0xffffffffffffffff + 1)
+    assert isinstance (res, bitvector.GenericBitVector) #Check if Sparsed smallbv change to genericbv when conditions is met
 
 def test_sub_bv():
     for c in gbv, bv:
         assert supportcode.sub_bits(None, c(6, 0b111), c(6, 0b11)).touint() == (0b111 - 0b11) & 0b111111
         assert supportcode.sub_bits(None, c(6, 0b10000), c(6, 0b10001)).touint() == (0b10000 - 0b10001) & 0b111111
-        assert supportcode.sub_bits(None, c(6, 0b100000), c(6, 0b100001)).touint() == (0b100000 - 0b100001) & 0b111111
+        assert supportcode.sub_bits(None, gbv(6, 0b100000), gbv(6, 0b100001)).touint() == (0b100000 - 0b100001) & 0b111111
 
 
 def test_eq_int():

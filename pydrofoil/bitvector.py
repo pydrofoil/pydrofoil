@@ -142,6 +142,9 @@ class SmallBitVector(BitVectorWithSize):
     def make(self, val, normalize=False):
         return SmallBitVector(self.size(), val, normalize)
 
+    def _to_generic(self):
+        return GenericBitVector(self._size, rbigint_fromrarith_int(self.val))
+
     def _check_size(self, other):
         assert other.size() == self.size()
         assert isinstance(other, SmallBitVector)
@@ -150,18 +153,27 @@ class SmallBitVector(BitVectorWithSize):
     @always_inline
     def add_int(self, i):
         if isinstance(i, SmallInteger):
+            carry = self.check_carry( r_uint(i.val))
             if i.val > 0:
                 return self.make(self.val + r_uint(i.val), True)
         return self._add_int_slow(i)
 
+    def check_carry(self, j):
+        if self.val + j < self.val or self.val + j < j:
+            return 1
+        return 0
+
     def _add_int_slow(self, i):
-        # XXX can be better
-        return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().add(i.tobigint())))
+        return self._to_generic().add_int(i)
 
     def add_bits(self, other):
         assert self.size() == other.size()
-        assert isinstance(other, SmallBitVector)
-        return self.make(self.val + other.val, True)
+        if isinstance(other, SmallBitVector):
+            carry = self.check_carry(r_uint(other.val))
+            if not carry:
+                return SmallBitVector(self.size(), self.val + r_uint(other.val))
+        other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
+        return self._to_generic().add_bits(other)
 
     def sub_bits(self, other):
         assert self.size() == other.size()

@@ -22,6 +22,12 @@ class dummy_codegen:
 dummy_codegen = dummy_codegen()
 
 
+def opt(op):
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    return block[0]
+
+
 def test_find_used_vars_exprs():
     v = parse.Var("abc")
     assert v.find_used_vars() == {"abc"}
@@ -1541,6 +1547,53 @@ def test_a_sub_b_add_b():
     block = [op]
     specialize_ops({0: block}, dummy_codegen)
     assert block[0] == Var(name="zz454", resolved_type=types.Int())
+
+def test_get_slice_int_i_o_i_unwrapped_res():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=BitVectorConstant(
+                    constant="0x1", resolved_type=types.SmallFixedBitVector(4)
+                ),
+                resolved_type=types.GenericBitVector(),
+            ),
+            OperationExpr(
+                args=[
+                    Number(number=2),
+                    Var(name="zlevel", resolved_type=types.Int()),
+                    Number(number=0, resolved_type=types.MachineInt()),
+                ],
+                name="@get_slice_int_i_o_i",
+                resolved_type=types.GenericBitVector(),
+                sourcepos="`5 176:39-176:72",
+            ),
+        ],
+        name="append",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`7 4395:19-4395:41",
+    )
+    assert opt(op) == CastExpr(
+        expr=OperationExpr(
+            args=[
+                BitVectorConstant(constant="0x1", resolved_type=types.SmallFixedBitVector(4)),
+                Number(number=2),
+                OperationExpr(
+                    args=[
+                        Number(number=2),
+                        Var(name="zlevel", resolved_type=types.Int()),
+                        Number(number=0, resolved_type=types.MachineInt()),
+                    ],
+                    name="@get_slice_int_i_o_i_unwrapped_res",
+                    resolved_type=types.SmallFixedBitVector(2),
+                    sourcepos="`5 176:39-176:72",
+                ),
+            ],
+            name="@bitvector_concat_bv_bv",
+            resolved_type=types.SmallFixedBitVector(6),
+            sourcepos="`7 4395:19-4395:41",
+        ),
+        resolved_type=types.GenericBitVector(),
+    )
 
 
 def test_sub_ints_int_small():

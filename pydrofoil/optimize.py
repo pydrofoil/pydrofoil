@@ -849,6 +849,36 @@ class OptVisitor(parse.Visitor):
         if isinstance(res, int): # no overflow
             return self._make_int64_to_int(parse.Number(res), expr.sourcepos)
 
+    def optimize_get_slice_int_i_o_i(self, expr):
+        arg0, arg1, arg2 = expr.args
+        arg0 = self._extract_number(arg0)
+        arg2 = self._extract_machineint(arg2)
+        length = arg0.number
+        if length > 64:
+            return
+        restyp = types.SmallFixedBitVector(length)
+        try:
+            arg1, typ1 = self._extract_machineint(arg1)
+        except NoMatchException:
+            res = parse.OperationExpr(
+                "@get_slice_int_i_o_i_unwrapped_res",
+                [arg0, arg1, arg2],
+                restyp,
+                expr.sourcepos,
+            )
+        else:
+            res = parse.OperationExpr(
+                "@get_slice_int_i_i_i",
+                [arg0, arg1, arg2],
+                restyp,
+                expr.sourcepos,
+            )
+
+        return parse.CastExpr(
+            res,
+            expr.resolved_type,
+        )
+
     def optimize_add_bits_int(self, expr):
         arg0, arg1 = expr.args
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)

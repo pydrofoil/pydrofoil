@@ -110,14 +110,17 @@ def test_get_slice_int():
         assert supportcode.get_slice_int(machine, Integer.fromint(64), c(-1), Integer.fromint(1000)).tolong() == 0xffffffffffffffff
         assert supportcode.get_slice_int(machine, Integer.fromint(100), c(-1), Integer.fromint(1000)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
-@given(strategies.integers(1, 1000), strategies.integers(0, sys.maxint), strategies.integers())
-def test_hypothesis_get_slice_int(length, start, value):
-    res = supportcode.get_slice_int_i_o_i(machine, length,
-            Integer.frombigint(rbigint.fromlong(value)), start)
+@given(strategies.integers(1, 1000), strategies.integers(0, sys.maxint), wrapped_ints)
+def test_hypothesis_get_slice_int(length, start, i):
+    res = supportcode.get_slice_int_i_o_i(machine, length, i, start)
     assert res.size() == length
-    assert res.tobigint().tolong() == (value >> start) % (2 ** length)
+    assert res.tobigint().tolong() == (i.tolong() >> start) % (2 ** length)
 
-
+@given(strategies.integers(1, 64), strategies.integers(0, sys.maxint), wrapped_ints)
+def test_hypothesis_get_slice_int_unwrapped_res(length, start, i):
+    res = supportcode.get_slice_int_i_o_i_unwrapped_res(machine, length,
+            i, start)
+    assert res == (i.tolong() >> start) % (2 ** length)
 
 def test_vector_access():
     for c in gbv, bv:
@@ -224,7 +227,7 @@ def test_hypothesis_vector_subrange_unwrapped_res(data):
     assert bvres == correct_res_as_int
 
 @given(strategies.data())
-def test_hypothesis_rbigint_extract_ruint(data):
+def test_hypothesis_subrange_unwrapped_res(data):
     bitwidth = data.draw(strategies.integers(1, 10000))
     start = data.draw(strategies.integers(0, 2 * bitwidth))
     value = data.draw(strategies.integers(0, 2**bitwidth - 1))
@@ -232,6 +235,12 @@ def test_hypothesis_rbigint_extract_ruint(data):
     bv = bitvector.from_bigint(bitvector, rb)
     res = bv.subrange_unwrapped_res(start + 63, start)
     assert res == rb.rshift(start).and_(rbigint.fromlong(2**64-1)).tolong()
+
+@given(strategies.integers(), strategies.integers(0, 100))
+@example(-9223372036854775935L, 1)
+def test_hypothesis_extract_ruint(value, shift):
+    rval = rbigint.fromlong(value)
+    assert bitvector.rbigint_extract_ruint(rval, shift) == r_uint(value >> shift)
 
 def test_vector_update_subrange():
     for c1 in gbv, bv:

@@ -343,17 +343,24 @@ def rbigint_extract_ruint(self, int_other):
     from rpython.rlib.rbigint import NULLDIGIT, _load_unsigned_digit
     assert int_other >= 0
     assert SHIFT * 2 > 64
-
     # wordshift, remshift = divmod(int_other, SHIFT)
     wordshift = int_other // SHIFT
     remshift = int_other - wordshift * SHIFT
     numdigits = self.numdigits()
     if wordshift >= numdigits:
+        if self.sign == -1:
+            return r_uint(-1)
         return r_uint(0)
-    res = self.udigit(wordshift) >> remshift
+    digit = self.udigit(wordshift)
+    # arithmetic shift
+    res = r_uint(intmask(self.sign * digit) >> remshift)
     if wordshift + 1 >= numdigits:
-        return self.sign * res
-    return self.sign * (res | (self.udigit(wordshift + 1) << (SHIFT - remshift)))
+        return res
+
+    if self.sign < 0:
+        # XXX needs to be better but I keep running into bugs
+        return ~rbigint_extract_ruint(self.invert(), int_other)
+    return res | (self.udigit(wordshift + 1) << (SHIFT - remshift))
 
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']
@@ -589,6 +596,9 @@ class SmallInteger(Integer):
             return from_bigint(len, rbigint.fromint(n))
         return from_ruint(len, r_uint(n))
 
+    def slice_unwrapped_res(self, len, start):
+        return ruint_mask(len, r_uint(self.val >> start))
+
     def eq(self, other):
         if isinstance(other, SmallInteger):
             return self.val == other.val
@@ -745,15 +755,17 @@ class BigInteger(Integer):
         return self.rval
 
     def slice(self, len, start):
-        return self._slice(self.rval, len, start)
-
-    @staticmethod
-    def _slice(rval, len, start):
+        rval = self.rval
+        if len <= 64:
+            return SmallBitVector(len, self.slice_unwrapped_res(len, start))
         if start == 0:
             n = rval
         else:
             n = rval.rshift(start)
         return from_bigint(len, n)
+
+    def slice_unwrapped_res(self, len, start):
+        return ruint_mask(len, rbigint_extract_ruint(self.rval, start))
 
     def eq(self, other):
         if isinstance(other, SmallInteger):

@@ -441,6 +441,9 @@ def min_int(machine, ia, ib):
 def get_slice_int(machine, len, n, start):
     return n.slice(len, start)
 
+def get_slice_int_i_o_i_unwrapped_res(machine, len, n, start):
+    return n.slice_unwrapped_res(len, start)
+
 def safe_rshift(machine, n, shift):
     assert shift >= 0
     if shift >= 64:

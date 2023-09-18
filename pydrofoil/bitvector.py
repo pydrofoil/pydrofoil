@@ -30,7 +30,7 @@ def from_ruint(size, val):
 #        if is_annotation_constant(size) and is_annotation_constant(val):
 #            return _small_bit_vector_memo(size, val)
         return SmallBitVector(size, val, True)
-    return GenericBitVector(size, rbigint_fromrarith_int(val), True)
+    return SparseBitVector(size, val)
 
 @specialize.memo()
 def _small_bit_vector_memo(size, val):
@@ -196,7 +196,7 @@ class SmallBitVector(BitVectorWithSize):
         size = self.size()
         if i >= size:
             i = size
-        highest_bit = (self.val >> (size - 1)) & 1
+        highest_bit = self.read_bit(self.size() - 1)
         res = self.val >> i
         if highest_bit:
             res |= ((r_uint(1) << i) - 1) << (size - i)
@@ -242,7 +242,7 @@ class SmallBitVector(BitVectorWithSize):
             return self
         assert i > self.size()
         if i > 64:
-            return GenericBitVector(i, rbigint_fromrarith_int(self.val))
+            return SparseBitVector(i, self.val)
         return SmallBitVector(i, self.val)
 
     @always_inline
@@ -250,10 +250,14 @@ class SmallBitVector(BitVectorWithSize):
         # XXX can be improved with xor etc
         if i == self.size():
             return self
+
         if i > 64:
-            return GenericBitVector._sign_extend(rbigint_fromrarith_int(self.val), self.size(), i)
+            if self.read_bit(self.size() - 1):
+                return GenericBitVector._sign_extend(rbigint_fromrarith_int(self.val), self.size(), i)
+            else:
+                return SparseBitVector(i, self.val) 
         assert i > self.size()
-        highest_bit = (self.val >> (self.size() - 1)) & 1
+        highest_bit = self.read_bit(self.size() - 1)
         if not highest_bit:
             return from_ruint(i, self.val)
         else:
@@ -300,6 +304,8 @@ class SmallBitVector(BitVectorWithSize):
         return self.val == other.val
 
     def toint(self):
+        if self.size() == 64 and self.read_bit(63):
+                raise OverflowError
         return intmask(self.val)
 
     def touint(self, expected_width=0):
@@ -362,11 +368,193 @@ def rbigint_extract_ruint(self, int_other):
         return ~rbigint_extract_ruint(self.invert(), int_other)
     return res | (self.udigit(wordshift + 1) << (SHIFT - remshift))
 
+class SparseBitVector(BitVectorWithSize):
+    _immutable_fields_ = ['val']
+
+    def __init__(self, size, val):
+        assert size > 64
+        self._size = size
+        self.val = val
+
+    def __repr__(self):
+        return "<SparseBitVector %s %r>"%(self.size(), self.val)
+
+    def _to_generic(self):
+        return GenericBitVector(self._size, rbigint_fromrarith_int(self.val))
+
+    def add_int(self, i): 
+        if isinstance(i, SmallInteger):
+            carry = self.check_carry( r_uint(i.val))
+            if not carry:
+                if i.val > 0:
+                    return SparseBitVector(self.size(), self.val + r_uint(i.val))
+                i.val = -i.val
+                return self._to_generic().sub_int(i)
+        return self._add_int_slow(i)
+
+    def check_carry(self, j):
+        if self.val + j < self.val or self.val + j < j:
+            return 1
+        return 0
+        
+    def _add_int_slow(self, i):
+        return self._to_generic().add_int(i)
+    
+    def add_bits(self, other):
+        assert self.size() == other.size()
+        if isinstance(other, SparseBitVector):
+            carry = self.check_carry(r_uint(other.val))
+            if not carry:
+                return SparseBitVector(self.size(), self.val + r_uint(other.val))
+            other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
+        return self._to_generic().add_bits(other)
+       
+    def sub_bits(self, other):
+        assert self.size() == other.size()
+        if isinstance(other, SparseBitVector):
+            if 0 <= other.val <= self.val: #check for underflow
+                return SparseBitVector(self.size(), self.val - r_uint(other.val))
+            other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
+        return self._to_generic().sub_bits(other)
+
+    def sub_int(self, i):
+        if isinstance(i, SmallInteger):
+            if 0 <= i.val <= self.val: #check for underflow
+                return SparseBitVector(self.size(), self.val - r_uint(i.val))
+        return self._to_generic().sub_int(i)
+
+    def print_bits(self):
+        print "SparseBitVector<%s, %s>" % (self.size(), self.val.hex())
+
+    def lshift(self, i):
+        if i < 64:
+            if (self.val >> (64 - i)) == 0:
+                return SparseBitVector(self.size(), self.val << i)
+        return self._to_generic().lshift(i)
+            
+    def rshift(self, i):
+        assert i >= 0
+        if i >= self.size():
+            return SparseBitVector(self.size(), 0)
+        return SparseBitVector(self.size(), self.val >> i)
+
+    def arith_rshift(self, i):
+        assert i >= 0
+        if i >= self.size():
+            return SparseBitVector(self.size(), 0)
+        return SparseBitVector(self.size(), self.val >> i)
+
+    def lshift_bits(self, other):
+        return self._to_generic().lshift_bits(other)
+
+    def rshift_bits(self, other):
+        return self.rshift(other.toint())
+
+    def xor(self, other):
+        if isinstance(other, SparseBitVector):
+            return SparseBitVector(self.size(), self.val ^ other.val)
+        return self._to_generic().xor(other)
+
+    def or_(self, other):
+        if isinstance(other, SparseBitVector):
+            return SparseBitVector(self.size(), self.val | other.val)
+        return self._to_generic().or_(other)
+
+    def and_(self, other):
+        if isinstance(other, SparseBitVector):
+            return SparseBitVector(self.size(), self.val & other.val)
+        return self._to_generic().and_(other)
+
+    def invert(self):
+        return self._to_generic().invert()
+
+    def subrange(self,n,m):
+        assert 0 <= m <= n < self.size()        
+        width = n - m + 1
+        if width <= 64:
+            return SmallBitVector(width, self.subrange_unwrapped_res(n,m))
+        return SparseBitVector(width, self.val >> m)
+
+    def subrange_unwrapped_res(self, n, m):
+        assert 0 <= m <= n < self.size()
+        width = n - m + 1
+        return ruint_mask(width, self.val >> m)
+
+    def zero_extend(self, i):
+        if i == self.size():
+            return self
+        assert i > self.size()
+        return SparseBitVector(i, self.val)
+
+    def sign_extend(self, i):
+        if i == self.size():
+            return self
+        assert i > self.size()
+        return SparseBitVector(i, self.val)
+
+    def read_bit(self, pos):
+        assert pos < self.size()
+        if pos >= 64:
+            return False
+        mask = r_uint(1) << pos
+        return bool(self.val & mask)
+    
+    def update_bit(self, pos, bit):
+        assert pos < self.size()
+        if pos >= 64: 
+            return self._to_generic().update_bit(pos, bit)
+        mask = r_uint(1) << pos
+        if bit:
+            return SparseBitVector(self.size(), self.val | mask)
+        else:
+            return SparseBitVector(self.size(), self.val & ~mask)
+
+    def update_subrange(self, n, m, s):
+        return self._to_generic().update_subrange(n, m ,s)
+    
+    def signed(self):
+        return Integer.from_ruint(self.val)
+    
+    def unsigned(self):
+        return Integer.from_ruint(self.val)
+    
+    def eq(self, other):
+        assert other.size() == self.size()
+        if isinstance(other, SparseBitVector):
+            return self.val == other.val
+        return self._to_generic().eq(other)
+
+    def toint(self):
+        if self.read_bit(63):
+            raise OverflowError
+        return intmask(self.val)
+    
+    def touint(self, expected_width=0):
+        if expected_width:
+            self.size() == expected_width
+        return self.val
+    
+    def tobigint(self):
+        return rbigint_fromrarith_int(self.val)
+    
+    def replicate(self, i):
+        return self._to_generic().replicate(i)
+    
+    def truncate(self, i):
+        assert i <= self.size()
+        if i <= 64:
+            return SmallBitVector(i, ruint_mask(i, self.val), normalize=True)
+        return SparseBitVector(i, self.val)
+
+
+
+
 class GenericBitVector(BitVectorWithSize):
     _immutable_fields_ = ['rval']
 
     def __init__(self, size, rval, normalize=False):
         assert size > 0
+        assert isinstance(rval, rbigint)
         self._size = size
         if normalize:
             rval = self._size_mask(rval)
@@ -388,13 +576,13 @@ class GenericBitVector(BitVectorWithSize):
 
     def add_bits(self, other):
         assert self.size() == other.size()
-        assert isinstance(other, GenericBitVector)
-        return self.make(self._size_mask(self.rval.add(other.rval)))
+        assert isinstance(other, SparseBitVector) or isinstance(other, GenericBitVector)
+        return self.make(self._size_mask(self.rval.add(other.tobigint())))
 
     def sub_bits(self, other):
         assert self.size() == other.size()
-        assert isinstance(other, GenericBitVector)
-        return self.make(self._size_mask(self.rval.sub(other.rval)))
+        assert isinstance(other, GenericBitVector) or isinstance(other, SparseBitVector)
+        return self.make(self._size_mask(self.rval.sub(other.tobigint())))
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):

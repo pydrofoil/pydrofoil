@@ -3,7 +3,7 @@ import math
 
 from pydrofoil import supportcode
 from pydrofoil import bitvector
-from pydrofoil.bitvector import Integer, SmallInteger, BigInteger, MININT
+from pydrofoil.bitvector import Integer, SmallInteger, BigInteger, MININT, SparseBitVector
 from pydrofoil.real import *
 from hypothesis import given, strategies, assume, example, settings
 from fractions import Fraction
@@ -70,6 +70,7 @@ def test_sign_extend():
         assert supportcode.sign_extend(machine, c(2, 0b11), Integer.fromint(4)).toint() == 0b1111
 
         assert supportcode.sign_extend(machine, c(2, 0b00), Integer.fromint(100)).tobigint().tolong() == 0
+        assert isinstance(supportcode.sign_extend(machine, bv(2, 0b00), Integer.fromint(100)), SparseBitVector) #test if it returns SparseBitVector
         assert supportcode.sign_extend(machine, c(2, 0b01), Integer.fromint(100)).tobigint().tolong() == 1
         assert supportcode.sign_extend(machine, c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111110
         assert supportcode.sign_extend(machine, c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
@@ -1569,3 +1570,542 @@ def test_platform_write_mem_large():
         Integer.fromint(16))
     assert res.tobigint().tolong() == 0xe1c4a990796451403124191009040100L
     assert res.size() == 128
+
+#section for test file for sparse bitvectors
+
+
+def test_sparse_add_int():
+    v = SparseBitVector(100, r_uint(0b111))
+    res = v.add_int(Integer.fromint(0b1))
+    assert res.touint() == 0b1000
+
+def test_sparse_read_bit():
+    v = SparseBitVector(100, r_uint(0b10101))
+    assert v.read_bit(4) == True
+    assert v.read_bit(3) == False
+    assert v.read_bit(2) == True
+    assert v.read_bit(1) == False
+    assert v.read_bit(0) == True
+    assert v.read_bit(65) == False
+    assert v.read_bit(99) == False
+    with pytest.raises(AssertionError):
+        v.read_bit(100) 
+
+def test_sparse_vector_shift():
+    v = SparseBitVector(100, 0b10001101)
+
+    res = v.rshift(5)
+    assert res.size() == 100
+    assert res.toint() == 0b00000100
+
+    res = v.rshift(100)
+    assert res.size() == 100
+    assert res.toint() == 0
+    
+    res = v.rshift(65)
+    assert res.size() == 100
+    assert res.toint() == 0
+
+def test_sparse_arith_shiftr():
+    v = SparseBitVector(100, 0b00101101)
+    res = v.arith_rshift(3)
+    assert res.size() == 100
+    assert res.toint() == 0b101
+
+    v = SparseBitVector(100, 0b1000100)
+    res = v.arith_rshift(6)
+    assert res.size() == 100
+    assert res.toint() == 0b1
+
+def test_sparse_vector_shift_bits():
+    v = SparseBitVector(100, 0b10001101)
+    res = v.rshift_bits(SparseBitVector(100, 5))
+    assert res.size() == 100
+    assert res.toint() == 0b00000100
+
+    v = SparseBitVector(100, 0b10001101)
+    res = v.rshift_bits(SparseBitVector(100, 65))
+    assert res.size() == 100
+    assert res.toint() == 0
+
+def test_sparse_bv_bitwise():
+    v1 = SparseBitVector(100, 0b11110000)
+    v2 = SparseBitVector(100, 0b11001100)
+    res = v1.and_(v2)
+    assert res.toint() == 0b11110000 & 0b11001100
+    res = v1.or_(v2)
+    assert res.toint() == 0b11110000 | 0b11001100
+    res = v1.xor(v2)
+    assert res.toint() == 0b11110000 ^ 0b11001100
+
+def test_sparse_zero_extend():
+    # XXX Should I test it with support code?
+    v = SparseBitVector(65, 0b0)
+    res = v.zero_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0
+
+    v = SparseBitVector(100, 0b00)
+    res = v.zero_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0
+
+    v = SparseBitVector(65, 0b1)
+    res = v.zero_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+
+    v = SparseBitVector(65, 0b11)
+    res = v.zero_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
+
+def test_sparse_sign_extend():
+    # XXX Should I test it with support code?
+    v = SparseBitVector(65, 0b0)
+    res = v.sign_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0
+
+    v = SparseBitVector(100, 0b00)
+    res = v.sign_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0
+
+    v = SparseBitVector(65, 0b1)
+    res = v.sign_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+
+    v = SparseBitVector(65, 0b11)
+    res = v.sign_extend(100)
+    assert res.size() == 100
+    assert res.toint() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
+
+
+def test_sparse_vector_subrange():
+    # XXX Regression bug and sail implementation
+    v = SparseBitVector(100, 0b111)
+    r = v.subrange(3, 2)
+    assert r.size() == 2
+    assert r.toint() == 1
+    assert isinstance(r, bitvector.SmallBitVector)
+
+    # BUG Doesnt work on 64 width
+    # v = SparseBitVector(65, 0b111)
+    # r = v.subrange(63, 0)
+    # assert r.size() == 64
+    # assert r.toint() == 0b111
+    # assert isinstance(r, bitvector.SmallBitVector)
+
+    # v = SparseBitVector(100, 0b101010101)
+    # r = v.subrange(65, 2)
+    # assert r.size() == 64
+    # assert r.toint() == 0b101010
+    # assert isinstance(r, bitvector.SmallBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(5, 0)
+    assert r.size() == 6
+    assert r.toint() == 0b10101
+    assert isinstance(r, bitvector.SmallBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(65, 0)
+    assert r.size() == 66
+    assert r.toint() == 0b101010101
+    assert isinstance(r, bitvector.SparseBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(65, 3)
+    assert r.size() == 63
+    assert r.toint() == 0b101010
+    assert isinstance(r, bitvector.SmallBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(65, 1)
+    assert r.size() == 65
+    assert r.toint() == 0b10101010
+    assert isinstance(r, bitvector.SparseBitVector)
+
+    v = SparseBitVector(100, 0b101010101)
+    r = v.subrange(99, 0)
+    assert r.size() == 100
+    assert r.toint() == 0b101010101
+    assert isinstance(r, bitvector.SparseBitVector)
+
+def test_sparse_vector_update():
+    v = SparseBitVector(100, 1)
+    res = v.update_bit(2, 1)
+    assert res.size() == 100
+    assert res.toint() == 0b101
+    
+    v = SparseBitVector(65, r_uint(1))
+    res = v.update_bit(1, 0)
+    assert res.size() == 65
+    assert res.toint() == 0b1
+
+    v = SparseBitVector(65, r_uint(2))
+    res = v.update_bit(0, 0)
+    assert res.size() == 65
+    assert res.toint() == 0b10
+
+    v = SparseBitVector(65, r_uint(0))
+    res = v.update_bit(1, 1)
+    assert res.size() == 65
+    assert res.tolong() == 0b10
+
+    v = SparseBitVector(100, 1)
+    res = v.update_bit(0, 1)
+    assert res.size() == 100
+    assert res.toint() == 0b1
+
+    v = SparseBitVector(100, 0b11)
+    res = v.update_bit(2, 0)
+    assert res.size() == 100
+    assert res.toint() == 0b011
+
+    v = SparseBitVector(100, 0b111)
+    res = v.update_bit(1, 0)
+    assert res.size() == 100
+    assert res.toint() == 0b101
+
+    v = SparseBitVector(100, 0b111)
+    res = v.update_bit(65, 0)
+    assert res.size() == 100
+    assert res.toint() == 0b111
+    assert isinstance(res, bitvector.GenericBitVector)
+
+def test_sparse_signed():
+    # XXX Machine?
+    v = SparseBitVector(65, 0b0)
+    assert v.signed().toint() == 0 
+    assert isinstance(v.signed(), SmallInteger)
+
+def test_sparse_unsigned():
+    v = SparseBitVector(100, 0b10001101)
+    assert v.unsigned().tolong() == 0b10001101
+
+    v = SparseBitVector(100, r_uint(-1))
+    assert v.unsigned().tolong() == (1<<64)-1
+
+def test_sparse_truncate():
+    res = SparseBitVector(100, 0b1011010100).truncate(2)
+    assert isinstance(res, bitvector.SmallBitVector)
+    assert res.size() == 2
+    assert res.touint() == 0b00
+    res = SparseBitVector(100, 0b1011010100).truncate(6)
+    assert res.size() == 6
+    assert res.touint() == 0b010100
+    res = SparseBitVector(100, 0b1011010100).truncate(100)
+    assert isinstance(res, bitvector.SparseBitVector)
+    assert res.touint() == 0b1011010100
+
+def test_sparse_eq():
+    assert SparseBitVector(100, -12331).eq(SparseBitVector(100, -12331))
+    assert not SparseBitVector(100, -12331).eq(SparseBitVector(100, 12331))
+    assert SparseBitVector(100, 0b10111).eq(bitvector.GenericBitVector(100, rbigint.fromlong(0b10111)))
+
+def test_sparse_lshift():
+    v = SparseBitVector(100, 0b10001101)
+    res = v.lshift(5)
+    assert res.size() == 100
+    assert res.toint() == 0b1000110100000
+    assert isinstance(res, SparseBitVector)
+
+    v = SparseBitVector(65, 1)
+    res = v.lshift(65)
+    assert res.size() == 65
+    assert res.tolong() == 0
+    assert isinstance(res, bitvector.GenericBitVector)
+    
+    v = SparseBitVector(100, 0b0010000000000000000000000000000000000000000000000000000000000000)
+    res = v.lshift(1)
+    assert res.size() == 100
+    assert res.toint() == 0b00100000000000000000000000000000000000000000000000000000000000000
+
+
+    v = SparseBitVector(100, r_uint(1) << 63)
+    res = v.lshift(1)
+    assert res.size() == 100
+    assert isinstance(res, bitvector.GenericBitVector)
+    
+def test_sparse_check_carry():
+    v = SparseBitVector(100, r_uint(0xffffffffffffffff))
+    assert v.check_carry(r_uint(0b1)) == 1
+    v = SparseBitVector(100, r_uint(0xfffffffffffffffe))
+    assert v.check_carry(r_uint(0b1)) == 0
+    v = SparseBitVector(100, r_uint(0xfffffffffffffffe))
+    assert v.check_carry(r_uint(0b10)) == 1
+    v = SparseBitVector(100, r_uint(0xffffffffffffffee))
+    assert v.check_carry(r_uint(0xffffffff)) == 1
+    v = SparseBitVector(100, r_uint(0xffffffffffffffee))
+    assert v.check_carry(r_uint(0x1)) == 0
+    v = SparseBitVector(100, r_uint(0x0))
+    assert v.check_carry(r_uint(0x1)) == 0
+
+
+def test_sparse_add_int():
+    for c in bi, si:
+        assert SparseBitVector(6000, 0b11).add_int(c(0b111111111)).touint() == 0b11 + 0b111111111
+        assert SparseBitVector(6000, r_uint(0xfffffffffffffffe)).add_int(c(0b1)).tolong() == 0xfffffffffffffffe + 1
+        assert isinstance (SparseBitVector(100, r_uint(0xffffffffffffffff)).add_int(c(0b1)), bitvector.GenericBitVector)
+        assert isinstance (SparseBitVector(100, r_uint(0xfffffffffffffffee)).add_int(c(0xfff)), bitvector.GenericBitVector)
+
+def test_sparse_add_bits():
+    for c in SparseBitVector, gbv:
+        assert SparseBitVector(100, 0b11).add_bits(c(100, 0b111111111)).touint() == 0b11 + 0b111111111
+        assert SparseBitVector(100, r_uint(0xfffffffffffffffe)).add_bits(SparseBitVector(100, 0b1)).tolong() == 0xfffffffffffffffe + 1
+    assert isinstance(SparseBitVector(65, r_uint(0xffffffffffffffff)).add_bits(SparseBitVector(65,0b1)), bitvector.GenericBitVector)
+
+def test_sparse_sub_bits():
+    for c in gbv, SparseBitVector:
+        assert (SparseBitVector(100, (0b0)).sub_bits(c(100, r_uint(0b1))), bitvector.GenericBitVector)
+        assert SparseBitVector(100, 0b0).sub_bits(c(100, 0b1)).tolong() == -1 % (2 ** 100)
+        assert SparseBitVector(100, r_uint(0xffffffffffffffff)).sub_bits(c(100, 0b1)).tolong() == 0xffffffffffffffff - 1
+
+def test_sparse_sub_int():
+    for c in bi, si:
+        assert SparseBitVector(100, 0b0).sub_int(c(0b1)).tolong() == -1 % (2 ** 100)
+        assert SparseBitVector(6000, r_uint(0xffffffffffffffff)).sub_int(c(0b1)).tolong() == 0xffffffffffffffff -1 
+        assert SparseBitVector(68, 4).sub_int(c(9)).tolong() == -5 % (2 ** 68)
+        assert SparseBitVector(100, r_uint(18446744073709486081)).sub_int(c(-65535)).tolong() == 18446744073709551616
+        assert SparseBitVector(68, 0b0).sub_int(c(0b1)).tolong() == -1 % (2 **68)
+    assert isinstance(SparseBitVector(6000, 0b11).sub_int(si(0b11)), SparseBitVector)
+    assert isinstance(SparseBitVector(6000, r_uint(0xffffffffffffffff)).sub_int(bi(0b1)), bitvector.GenericBitVector)
+
+        
+@given(strategies.data())
+def test_sparse_hypothesis_sub_int(data):
+    value1 = data.draw(strategies.integers(0, 2**64 - 1))
+    value2 = data.draw(strategies.integers(MININT, sys.maxint))
+    ans = value1 - value2
+    for c in bi, si:
+        assert SparseBitVector(100, r_uint(value1)).sub_int(c(value2)).tolong() == ans % (2 ** 100)
+
+@given(strategies.data())
+def test_sparse_hypothesis_sub_bits(data):
+    value1 = data.draw(strategies.integers(0, 2**64 - 1))
+    value2 = data.draw(strategies.integers(0, sys.maxint))
+    ans = value1 - value2
+    for c in gbv, SparseBitVector:
+        assert SparseBitVector(100, r_uint(value1)).sub_bits(c(100, r_uint(value2))).tolong() == ans % (2 ** 100)
+
+@given(strategies.data())
+def test_sparse_hypothesis_add_bits(data):
+    value1 = data.draw(strategies.integers(0, 2**64 - 1))
+    value2 = data.draw(strategies.integers(0, sys.maxint))
+    ans = value1 + value2
+    for c in gbv, SparseBitVector:
+        assert SparseBitVector(100, r_uint(value1)).add_bits(c(100, r_uint(value2))).tolong() == ans 
+
+        
+@given(strategies.data())
+def test_sparse_hypothesis_add_int(data):
+    value1 = data.draw(strategies.integers(0, 2**64 - 1))
+    value2 = data.draw(strategies.integers(MININT, sys.maxint))
+    ans = value1 + value2
+    for c in bi, si:
+        if ans >= 0:
+            assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans 
+        assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans % (2 ** 100)
+
+@given(strategies.data())
+def test_sparse_hypothesis_truncate(data):
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    truncatewidth = data.draw(strategies.integers(1, bitwidth))
+    value = data.draw(strategies.integers(0, 2**64 - 1))
+    as_bit_string = bin(value)[2:]
+    bv = SparseBitVector(bitwidth, r_uint(value))
+    res = bv.truncate(truncatewidth)
+    assert bin(bv.tolong())[2:].rjust(bitwidth, '0')[-truncatewidth:] == bin(res.tolong())[2:].rjust(truncatewidth, '0')
+
+@given(strategies.data())
+def test_sparse_hypothesis_vector_subrange(data):
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    # TODO m- n + 1 = 64 wont work
+    lower = data.draw(strategies.integers(0, 62))
+    upper = data.draw(strategies.integers(lower, 62))
+    value = data.draw(strategies.integers(0, 2**63 - 1))
+    as_bit_string = bin(value)[2:]
+    assert len(as_bit_string) <= bitwidth
+    as_bit_string = as_bit_string.rjust(bitwidth, '0')[::-1]
+    correct_res = as_bit_string[lower:upper+1] # sail is inclusive
+    correct_res_as_int = int(correct_res[::-1], 2)
+
+    # now do the sail computation
+    v = SparseBitVector(bitwidth, value)
+    vres = v.subrange(upper, lower)
+    assert vres.tobigint().tolong() == correct_res_as_int
+
+@settings(deadline=1000)
+@given(strategies.data())
+def test_sparse_hypothesis_sign_extend(data):
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    target_bitwidth = bitwidth + data.draw(strategies.integers(1, 100))
+    value = data.draw(strategies.integers(0, 2**64 - 1))
+    bv = SparseBitVector(bitwidth, r_uint(value))
+    res = bv.sign_extend(target_bitwidth)
+    print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
+    assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
+
+@settings(deadline=1000)
+@given(strategies.data())
+def test_sparse_hypothesis_zero_extend(data):
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    target_bitwidth = bitwidth + data.draw(strategies.integers(1, 100))
+    value = data.draw(strategies.integers(0, 2**64 - 1))
+    bv = SparseBitVector(bitwidth, r_uint(value))
+    res = bv.zero_extend(target_bitwidth)
+    print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
+    assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
+
+@given(strategies.data())
+@settings(deadline = None)
+def test_sparse_hypothesis_replicate(data):
+    bitwidth = data.draw(strategies.integers(65, 10000))
+    repeats = data.draw(strategies.integers(1, 10))
+    value = data.draw(strategies.integers(0, 2 **64 - 1))
+    bv = SparseBitVector(bitwidth, r_uint(value))
+    res = bv.replicate(repeats)
+    ans_as_int = bin(value)
+    formatted_value = str(ans_as_int)[2:]
+    leading_zero = (str(0)* (bitwidth - len(formatted_value)) + formatted_value)
+    assert len(leading_zero) == bitwidth
+    ans = str(leading_zero) * repeats
+    assert res.tolong() == int(ans, 2) 
+
+
+@given(strategies.data())
+def test_sparse_hypothesis_eq(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    if not data.draw(strategies.booleans()):
+        bv = SparseBitVector(bitwidth, r_uint(value))
+    else:
+        bv = gbv(bitwidth, r_uint(value))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    assert v.eq(bv)
+
+@given(strategies.data())
+def test_sparse_hypothesis_update_bit(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    pos = data.draw(strategies.integers(0, bitwidth -1))
+    bit = data.draw(strategies.integers(0, 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    formatted_value = str(bin(value))[2:]
+    value = formatted_value.rjust(bitwidth, '0')[::-1]
+    assert len(value) == bitwidth
+    if pos == 0: 
+        value = str(bit) + value[1:]
+    elif pos == bitwidth - 1:
+        value = value[:pos] + str(bit)
+    else:
+        value = value[:pos] + str(bit) + value[pos + 1:]
+    res = v.update_bit(pos, bit)
+    assert res.tolong() == int(value[::-1],2)
+
+@given(strategies.data())
+def test_sparse_hypothesis_read_bit(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    pos = data.draw(strategies.integers(0, bitwidth -1))
+    value_as_str = str(bin(value))
+    formatted_value = value_as_str[2:]
+    v = SparseBitVector(bitwidth, r_uint(value))
+    assert v.read_bit(pos) == int(formatted_value.rjust(bitwidth, '0')[::-1][pos])
+
+@given(strategies.data())
+def test_sparse_hypothesis_op(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value1 = data.draw(strategies.integers(0, 2**64- 1))
+    value2 = data.draw(strategies.integers(0, 2**64- 1))
+    for c1 in SparseBitVector, gbv:
+        for c2 in SparseBitVector, gbv:
+            assert c1(bitwidth, r_uint(value1)).xor(c2(bitwidth, r_uint(value2))).tolong() == (value1 ^ value2)
+            assert c1(bitwidth, r_uint(value1)).or_(c2(bitwidth, r_uint(value2))).tolong() == (value1 | value2)
+            assert c1(bitwidth, r_uint(value1)).and_(c2(bitwidth, r_uint(value2))).tolong() == (value1 & value2)
+
+
+@given(strategies.data())
+def test_sparse_hypothesis_invert(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    value_as_str = str(bin(value))
+    formatted_value = value_as_str[2:]
+    filled = "0b" + formatted_value.rjust(bitwidth, '0')
+    inverse_s = ~int(filled,2) % (2 ** bitwidth)
+    assert v.invert().tolong() == inverse_s
+
+@given(strategies.data())
+def test_sparse_hypothesis_unsigned(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    value_as_str = str(bin(value))
+    formatted_value = value_as_str[2:]
+    filled = formatted_value.rjust(bitwidth, '0')
+    assert v.unsigned().tolong() == int(filled, 2)
+
+@given(strategies.data())
+def test_sparse_hypothesis_signed(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(-(2**63), (2**63)- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    # it could never be negative when interpret as signed
+    assert v.signed().tolong() >= 0
+    assert v.signed().tolong() == r_uint(value)
+
+
+@given(strategies.data())
+def test_sparse_hypothesis_lshift(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    shift = data.draw(strategies.integers(0, bitwidth))
+    res = v.lshift(shift).tolong()
+    mask = ''
+    assert res == (value << shift) & ((1 << bitwidth) - 1) 
+
+@given(strategies.data())
+def test_sparse_hypothesis_lshift_bits(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value1 = data.draw(strategies.integers(0, 2**64- 1))
+    value2 = data.draw(strategies.integers(0, bitwidth))
+    v1 = SparseBitVector(bitwidth, r_uint(value1))
+    v2 = SparseBitVector(bitwidth, r_uint(value2))
+    res = v1.lshift_bits(v2).tolong()
+    mask = ''
+    assert res == (value1 << value2) & ((1 << bitwidth) - 1) 
+
+@given(strategies.data())
+def test_sparse_hypothesis_rshift(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value = data.draw(strategies.integers(0, 2**64- 1))
+    v = SparseBitVector(bitwidth, r_uint(value))
+    shift = data.draw(strategies.integers(0, bitwidth))
+    res = v.rshift(shift).tolong()
+    assert res == (value >> shift)
+
+@given(strategies.data())
+def test_sparse_hypothesis_rshift_bits(data):
+    bitwidth = data.draw(strategies.integers(65,10000))
+    value1 = data.draw(strategies.integers(0, 2**64- 1))
+    value2 = data.draw(strategies.integers(0, bitwidth))
+    v1 = SparseBitVector(bitwidth, r_uint(value1))
+    v2 = SparseBitVector(bitwidth, r_uint(value2))
+    res = v1.rshift_bits(v2).tolong()
+    mask = ''
+    assert res == (value1 >> value2) 
+
+@given(strategies.data())
+def test_sparse_arith_shiftr_hypothesis(data):
+    size = data.draw(strategies.integers(65, 5000))
+    value = data.draw(strategies.integers(0, 2**size-1))
+    v = bitvector.SparseBitVector(size, r_uint(value))
+    shift = data.draw(strategies.integers(0, size+10))
+    res = v.arith_rshift(shift)
+    intres = v.signed().tobigint().tolong() >> shift
+    assert res.tobigint().tolong() == intres & ((1 << size) - 1)

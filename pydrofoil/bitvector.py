@@ -177,8 +177,11 @@ class SmallBitVector(BitVectorWithSize):
 
     def sub_bits(self, other):
         assert self.size() == other.size()
-        assert isinstance(other, SmallBitVector)
-        return self.make(self.val - other.val, True)
+        if isinstance(other, SparseBitVector):
+            if 0 <= other.val <= self.val: #check for underflow
+                return SparseBitVector(self.size(), self.val - r_uint(other.val))
+            other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
+        return self._to_generic().sub_bits(other)
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
@@ -575,7 +578,6 @@ class GenericBitVector(BitVectorWithSize):
 
     def sub_bits(self, other):
         assert self.size() == other.size()
-        assert isinstance(other, GenericBitVector) or isinstance(other, SparseBitVector)
         return self.make(self._size_mask(self.rval.sub(other.tobigint())))
 
     def sub_int(self, i):

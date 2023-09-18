@@ -344,12 +344,29 @@ def test_add_bv():
     assert res.tolong() == (0xffffffffffffffff + 1)
     assert isinstance (res, bitvector.GenericBitVector) #Check if Sparsed smallbv change to genericbv when conditions is met
 
+@given(strategies.data())
+def test_hypothesis_add_bv(data):
+    value1 = data.draw(strategies.integers(0, 2**64 - 1))
+    value2 = data.draw(strategies.integers(0, sys.maxint))
+    ans = value1 + value2
+    for c in gbv, bv:
+        assert c(100, r_uint(value1)).add_bits(c(100, r_uint(value2))).tolong() == ans 
+
 def test_sub_bv():
     for c in gbv, bv:
         assert supportcode.sub_bits(None, c(6, 0b111), c(6, 0b11)).touint() == (0b111 - 0b11) & 0b111111
         assert supportcode.sub_bits(None, c(6, 0b10000), c(6, 0b10001)).touint() == (0b10000 - 0b10001) & 0b111111
-        assert supportcode.sub_bits(None, gbv(6, 0b100000), gbv(6, 0b100001)).touint() == (0b100000 - 0b100001) & 0b111111
+        assert supportcode.sub_bits(None, c(6, 0b100000), c(6, 0b100001)).touint() == (0b100000 - 0b100001) & 0b111111
+        assert supportcode.sub_bits(None, c(100, 0b100000), c(100, 0b100001)).tolong() == -1 % (2 ** 100)
+        assert c(100, r_uint(0xffffffffffffffff)).sub_bits(c(100, 0b1)).tolong() == 0xffffffffffffffff - 1
 
+@given(strategies.data())
+def test_hypothesis_sub_bv(data):
+    value1 = data.draw(strategies.integers(0, 2**64 - 1))
+    value2 = data.draw(strategies.integers(0, sys.maxint))
+    ans = value1 - value2
+    for c in gbv, bv:
+        assert c(100, r_uint(value1)).sub_bits(c(100, r_uint(value2))).tolong() == ans % ( 2** 100)
 
 def test_eq_int():
     for c1 in bi, si:

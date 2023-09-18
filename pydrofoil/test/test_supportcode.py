@@ -244,6 +244,7 @@ def test_hypothesis_subrange_unwrapped_res(data):
 
 @given(strategies.integers(), strategies.integers(0, 100))
 @example(-9223372036854775935L, 1)
+@example(-9223372036854775809L, 63)
 def test_hypothesis_extract_ruint(value, shift):
     rval = rbigint.fromlong(value)
     assert bitvector.rbigint_extract_ruint(rval, shift) == r_uint(value >> shift)

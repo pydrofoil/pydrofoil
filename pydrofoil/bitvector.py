@@ -16,9 +16,10 @@ def bigint_divrem1(a, n):
     assert n != MININT
     div, rem = _divrem1(a, abs(n))
     # _divrem1 leaves the sign always positive, fix
-    if a.sign != intsign(n):
-        div.sign = -div.sign
-    if a.sign < 0 and rem > 0:
+    asign = a.get_sign()
+    if asign != intsign(n):
+        div._set_sign(-div.get_sign())
+    if asign < 0 and rem > 0:
         rem = -rem
     return div, rem
 
@@ -101,7 +102,7 @@ class BitVector(object):
     @staticmethod
     @jit.elidable
     def _rbigint_mask(size, rval):
-        if rval.sign >= 0 and rval.bit_length() <= size:
+        if rval.get_sign() >= 0 and rval.bit_length() <= size:
             return rval
         mask = MASKS.get(size)
         return rval.and_(mask)
@@ -353,17 +354,18 @@ def rbigint_extract_ruint(self, int_other):
     wordshift = int_other // SHIFT
     remshift = int_other - wordshift * SHIFT
     numdigits = self.numdigits()
+    sign = self.get_sign()
     if wordshift >= numdigits:
-        if self.sign == -1:
+        if sign == -1:
             return r_uint(-1)
         return r_uint(0)
     digit = self.udigit(wordshift)
     # arithmetic shift
-    res = r_uint(intmask(self.sign * digit) >> remshift)
+    res = r_uint(intmask(r_uint(sign) * digit) >> remshift)
     if wordshift + 1 >= numdigits:
         return res
 
-    if self.sign < 0:
+    if sign == -1:
         # XXX needs to be better but I keep running into bugs
         return ~rbigint_extract_ruint(self.invert(), int_other)
     return res | (self.udigit(wordshift + 1) << (SHIFT - remshift))
@@ -1033,13 +1035,13 @@ class BigInteger(Integer):
             other = other.val
             if other == 0:
                 raise ZeroDivisionError
-            if other > 0 and other & (other - 1) == 0 and self.rval.sign >= 0:
+            if other > 0 and other & (other - 1) == 0 and self.rval.get_sign() >= 0:
                 # can use shift
                 return self.rshift(self._shift_amount(other))
             div, rem = bigint_divrem1(self.rval, other)
             return BigInteger(div)
         other = other.tobigint()
-        if other.sign == 0:
+        if other.get_sign() == 0:
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
         return BigInteger(div)
@@ -1062,7 +1064,7 @@ class BigInteger(Integer):
             return SmallInteger(rem)
 
         other = other.tobigint()
-        if other.sign == 0:
+        if other.get_sign() == 0:
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
         return BigInteger(rem)

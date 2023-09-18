@@ -320,7 +320,15 @@ def test_add_int():
         assert res.tolong() == (0xffffffffffffffff + 1)
         assert isinstance (res, bitvector.GenericBitVector) #Check if Sparsed smallbv change to genericbv when conditions is met
 
-
+def test_sub_int():
+    for c1 in bi, si:
+        for c2 in gbv, bv:
+            assert c2(6, 0b111111111).sub_int(c1(0b11)).touint() == (0b111111111 - 0b11) & 0b111111
+            assert c2(6000, 0b111111111).sub_int(c1(0b11)).touint() ==  0b111111111 - 0b11
+    for c in bi, si:
+        res = bitvector.SmallBitVector(100, r_uint()).sub_int(c(0b1))
+        assert res.tolong() == (-1) % (2** 100)
+        assert isinstance(res, bitvector.GenericBitVector)
 
 def test_add_bits_int_bv_i():
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b11), 6, 0b111111111) == (0b11 + 0b111111111) & 0b111111

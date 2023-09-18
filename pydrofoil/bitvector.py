@@ -186,11 +186,10 @@ class SmallBitVector(BitVectorWithSize):
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
-            if i.val > 0:
+            if 0 <= i.val <= self.val: #check for underflow
                 return self.make(self.val - r_uint(i.val), True)
-        # XXX can be better
-        return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().sub(i.tobigint())))
-
+        return self._to_generic().sub_int(i)
+        
     def print_bits(self):
         print self.__repr__()
 

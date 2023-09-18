@@ -154,7 +154,8 @@ class SmallBitVector(BitVectorWithSize):
     def add_int(self, i):
         if isinstance(i, SmallInteger):
             carry = self.check_carry( r_uint(i.val))
-            if i.val > 0:
+            # If the result size > self.size, we dont want to extend 
+            if not carry and i.val > 0:
                 return self.make(self.val + r_uint(i.val), True)
         return self._add_int_slow(i)
 
@@ -171,7 +172,7 @@ class SmallBitVector(BitVectorWithSize):
         if isinstance(other, SmallBitVector):
             carry = self.check_carry(r_uint(other.val))
             if not carry:
-                return SmallBitVector(self.size(), self.val + r_uint(other.val))
+                return self.make(self.val + r_uint(other.val), True)
         other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
         return self._to_generic().add_bits(other)
 

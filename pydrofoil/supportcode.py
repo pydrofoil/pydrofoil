@@ -402,7 +402,7 @@ def sub_int(machine, ia, ib):
 def sub_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.sub_i_i(a, b)
 
-def sub_i_i_wrapped_res(machine, a, b):
+def sub_o_i_wrapped_res(machine, a, b):
     return a.int_sub(b)
 
 @objectmodel.specialize.argtype(1)
@@ -443,6 +443,9 @@ def get_slice_int(machine, len, n, start):
 
 def get_slice_int_i_o_i_unwrapped_res(machine, len, n, start):
     return n.slice_unwrapped_res(len, start)
+
+def get_slice_int_i_i_i(machine, len, i, start):
+    return _mask(len, r_uint(i >> start))
 
 def safe_rshift(machine, n, shift):
     assert shift >= 0

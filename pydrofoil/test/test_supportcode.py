@@ -116,6 +116,11 @@ def test_hypothesis_get_slice_int(length, start, i):
     assert res.size() == length
     assert res.tobigint().tolong() == (i.tolong() >> start) % (2 ** length)
 
+@given(strategies.integers(1, 64), strategies.integers(0, sys.maxint), ints)
+def test_hypothesis_get_slice_int_i_i_i(length, start, i):
+    res = supportcode.get_slice_int_i_i_i(machine, length, i, start)
+    assert res == (i >> start) % (2 ** length)
+
 @given(strategies.integers(1, 64), strategies.integers(0, sys.maxint), wrapped_ints)
 def test_hypothesis_get_slice_int_unwrapped_res(length, start, i):
     res = supportcode.get_slice_int_i_o_i_unwrapped_res(machine, length,
@@ -453,6 +458,13 @@ def test_op_int_hypothesis(a, b):
         a.tmod(bi(0))
     with pytest.raises(ZeroDivisionError):
         a.tmod(bi(0))
+
+@given(wrapped_ints, ints)
+def test_int_add_sub_hypothesis(a, b):
+    v1 = a.tobigint().tolong()
+    v2 = b
+    assert a.int_add(b).tolong() == v1 + v2
+    assert a.int_sub(b).tolong() == v1 - v2
 
 def test_op_int_div_mod():
     for c1 in bi, si:

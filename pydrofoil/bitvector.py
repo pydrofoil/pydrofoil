@@ -646,6 +646,9 @@ class SmallInteger(Integer):
     def int_add(self, other):
         return SmallInteger.add_i_i(self.val, other)
 
+    def int_sub(self, other):
+        return SmallInteger.sub_i_i(self.val, other)
+
     def sub(self, other):
         if isinstance(other, SmallInteger):
             return SmallInteger.sub_i_i(self.val, other.val)
@@ -812,6 +815,8 @@ class BigInteger(Integer):
     def int_add(self, other):
         return BigInteger(self.rval.int_add(other))
 
+    def int_sub(self, other):
+        return BigInteger(self.rval.int_sub(other))
 
     def sub(self, other):
         if isinstance(other, SmallInteger):

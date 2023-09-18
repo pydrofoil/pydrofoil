@@ -858,7 +858,7 @@ class OptVisitor(parse.Visitor):
             return
         restyp = types.SmallFixedBitVector(length)
         try:
-            arg1, typ1 = self._extract_machineint(arg1)
+            arg1 = self._extract_machineint(arg1)
         except NoMatchException:
             res = parse.OperationExpr(
                 "@get_slice_int_i_o_i_unwrapped_res",

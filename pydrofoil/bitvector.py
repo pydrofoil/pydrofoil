@@ -355,6 +355,9 @@ def rbigint_extract_ruint(self, int_other):
     remshift = int_other - wordshift * SHIFT
     numdigits = self.numdigits()
     sign = self.get_sign()
+    if sign == -1:
+        # XXX needs to be better but I keep running into bugs
+        return ~rbigint_extract_ruint(self.invert(), int_other)
     if wordshift >= numdigits:
         if sign == -1:
             return r_uint(-1)
@@ -364,10 +367,6 @@ def rbigint_extract_ruint(self, int_other):
     res = r_uint(intmask(r_uint(sign) * digit) >> remshift)
     if wordshift + 1 >= numdigits:
         return res
-
-    if sign == -1:
-        # XXX needs to be better but I keep running into bugs
-        return ~rbigint_extract_ruint(self.invert(), int_other)
     return res | (self.udigit(wordshift + 1) << (SHIFT - remshift))
 
 class SparseBitVector(BitVectorWithSize):

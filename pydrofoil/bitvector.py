@@ -125,6 +125,11 @@ class BitVectorWithSize(BitVector):
     def size(self):
         return self._size
 
+    def check_size_and_return(self, expected_width):
+        if self.size() != expected_width:
+            raise ValueError
+        return self
+
 
 class SmallBitVector(BitVectorWithSize):
     _immutable_fields_ = ['val']

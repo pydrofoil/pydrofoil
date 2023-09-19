@@ -97,7 +97,7 @@ class Codegen(object):
         return name
 
     def getinfo(self, name):
-        if name in self.localnames:
+        if self.localnames is not None and name in self.localnames:
             return self.localnames[name]
         else:
             return self.globalnames[name]
@@ -105,7 +105,10 @@ class Codegen(object):
     def write_to(self, name, result):
         target = self.getinfo(name).write_pyname
         assert target is not None
-        self.emit("%s = %s" % (target, result))
+        if "%" not in target:
+            self.emit("%s = %s" % (target, result))
+        else:
+            self.emit(target % (result, ))
 
     def gettyp(self, name):
         return self.getinfo(name).typ
@@ -427,11 +430,19 @@ class __extend__(parse.Register):
         read_pyname = write_pyname = "machine.%s" % self.pyname
         if self.name in codegen.promoted_registers:
             read_pyname = "jit.promote(%s)" % write_pyname
+        elif isinstance(typ, (types.GenericBitVector, types.BigFixedBitVector)):
+            names = "(%s_width, %s_val, %s_rval)" % (read_pyname, read_pyname, read_pyname)
+            read_pyname = "bitvector.BitVector.unpack" + names
+            write_pyname = "%s = %%s.pack()" % (names, )
+        elif isinstance(typ, types.Int):
+            names = "(%s_val, %s_rval)" % (read_pyname, read_pyname)
+            read_pyname = "bitvector.Integer.unpack" + names
+            write_pyname = "%s = %%s.pack()" % (names, )
         codegen.all_registers[self.name] = self
         codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
-        with codegen.emit_code_type("declarations"):
-            codegen.emit("# %s" % (self, ))
-            codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
+        #with codegen.emit_code_type("declarations"):
+        #    codegen.emit("# %s" % (self, ))
+        #    codegen.write_to(self.name, typ.uninitialized_value)
 
         if self.body is None:
             return

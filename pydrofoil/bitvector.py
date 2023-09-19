@@ -115,6 +115,18 @@ class BitVector(object):
     def append_64(self, ui):
         return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
 
+    @staticmethod
+    def unpack(size, val, rval):
+        if size <= 64:
+            assert rval is None
+            return SmallBitVector(size, val)
+        elif rval is None:
+            assert rval is None
+            return SparseBitVector(size, val)
+        else:
+            return GenericBitVector(size, rval)
+
+
 class BitVectorWithSize(BitVector):
     _attrs_ = ['_size']
     _immutable_fields_ = ['_size']
@@ -340,6 +352,10 @@ class SmallBitVector(BitVectorWithSize):
         assert i <= size
         return SmallBitVector(i, self.val, normalize=i < size)
 
+    def pack(self):
+        return (self.size(), self.val, None)
+
+
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
 def rbigint_extract_ruint(self, int_other):
@@ -535,7 +551,8 @@ class SparseBitVector(BitVectorWithSize):
             return SmallBitVector(i, ruint_mask(i, self.val), normalize=True)
         return SparseBitVector(i, self.val)
 
-
+    def pack(self):
+        return (self.size(), self.val, None)
 
 
 class GenericBitVector(BitVectorWithSize):
@@ -703,6 +720,9 @@ class GenericBitVector(BitVectorWithSize):
             return SmallBitVector(i, val, normalize=i < 64)
         return GenericBitVector(i, self.rval, normalize=i < size)
 
+    def pack(self):
+        return (self.size(), r_uint(0xdeaddead), self.rval)
+
 
 class Integer(object):
     _attrs_ = []
@@ -734,6 +754,11 @@ class Integer(object):
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
 
+    @staticmethod
+    def unpack(val, rval):
+        if rval is None:
+            return SmallInteger(val)
+        return BigInteger(rval)
 
 class SmallInteger(Integer):
     _immutable_fields_ = ['val']
@@ -892,6 +917,9 @@ class SmallInteger(Integer):
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
             return BigInteger(rbigint.fromint(b).int_sub(a).neg())
+
+    def pack(self):
+        return (self.val, None)
 
 
 class BigInteger(Integer):
@@ -1055,3 +1083,5 @@ class BigInteger(Integer):
     def lshift(self, i):
         return BigInteger(self.rval.lshift(i))
 
+    def pack(self):
+        return (-23, self.rval)

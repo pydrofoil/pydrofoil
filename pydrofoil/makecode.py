@@ -8,13 +8,14 @@ from pydrofoil import parse, types, binaryop, operations, supportcode
 assert sys.maxint == 2 ** 63 - 1, "only 64 bit platforms are supported!"
 
 class NameInfo(object):
-    def __init__(self, pyname, typ, ast):
+    def __init__(self, pyname, typ, ast, write_pyname=None):
         self.pyname = pyname
         self.typ = typ
         self.ast = ast
+        self.write_pyname = write_pyname
 
     def __repr__(self):
-        return "NameInfo(%r, %r, %r)" % (self.pyname, self.typ, self.ast)
+        return "NameInfo(%r, %r, %r, %r)" % (self.pyname, self.typ, self.ast, self.write_pyname)
 
 
 class Codegen(object):
@@ -69,22 +70,22 @@ class Codegen(object):
         self.add_global("@sub_bits_int_bv_i", "supportcode.sub_bits_int_bv_i")
         self.add_global("@shiftl_bv_i", "supportcode.shiftl_bv_i")
         self.add_global("@length_unwrapped_res", "supportcode.length_unwrapped_res")
-        self.add_global("have_exception", "machine.have_exception", types.Bool())
-        self.add_global("throw_location", "machine.throw_location", types.String())
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("UINT64_C", "supportcode.uint64c")
         self.add_global("NULL", "None")
+        self.add_global("have_exception", "machine.have_exception", types.Bool(), write_pyname="machine.have_exception")
+        self.add_global("throw_location", "machine.throw_location", types.String(), write_pyname="machine.throw_location")
         self.promoted_registers = promoted_registers
         self.all_registers = {}
         self.inlinable_functions = {}
 
-    def add_global(self, name, pyname, typ=None, ast=None):
+    def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
         assert isinstance(typ, types.Type) or typ is None
         if name in self.globalnames:
             assert isinstance(ast, parse.GlobalVal)
             assert ast == self.globalnames[name].ast
             return
-        self.globalnames[name] = NameInfo(pyname, typ, ast)
+        self.globalnames[name] = NameInfo(pyname, typ, ast, write_pyname)
 
     def add_named_type(self, name, pyname, typ, ast):
         assert isinstance(typ, types.Type)
@@ -96,7 +97,7 @@ class Codegen(object):
 
     def add_local(self, name, pyname, typ, ast):
         assert isinstance(typ, types.Type)
-        self.localnames[name] = NameInfo(pyname, typ, ast)
+        self.localnames[name] = NameInfo(pyname, typ, ast, pyname)
 
     def getname(self, name):
         if self.localnames is None or name not in self.localnames:
@@ -104,17 +105,18 @@ class Codegen(object):
         return name
 
     def getinfo(self, name):
-        if name in self.localnames:
+        if self.localnames is not None and name in self.localnames:
             return self.localnames[name]
         else:
             return self.globalnames[name]
 
-    def gettarget(self, name):
-        res = self.getinfo(name).pyname
-        # XXX stupid hack
-        if res.startswith("jit.promote("):
-            return res[len('jit.promote('):-1]
-        return res
+    def write_to(self, name, result):
+        target = self.getinfo(name).write_pyname
+        assert target is not None
+        if "%" not in target:
+            self.emit("%s = %s" % (target, result))
+        else:
+            self.emit(target % (result, ))
 
     def gettyp(self, name):
         return self.getinfo(name).typ
@@ -291,7 +293,7 @@ class __extend__(parse.Union):
                             codegen.emit("a = %s" % (codegen.getname(enum_value), ))
                         codegen.emit("%s.singleton = %s()" % (subclassname, subclassname))
         if self.name == "zexception":
-            codegen.add_global("current_exception", "machine.current_exception", uniontyp, self)
+            codegen.add_global("current_exception", "machine.current_exception", uniontyp, self, "machine.current_exception")
 
     def make_init(self, codegen, rtyp, typ, pyname):
         if type(rtyp) is types.Enum:
@@ -433,15 +435,26 @@ class __extend__(parse.Register):
         from pydrofoil.optimize import optimize_blocks
         self.pyname = "_reg_%s" % (self.name, )
         typ = self.typ.resolve_type(codegen)
+        read_pyname = write_pyname = "machine.%s" % self.pyname
         if self.name in codegen.promoted_registers:
-            pyname = "jit.promote(machine.%s)" % self.pyname
-        else:
-            pyname = "machine.%s" % self.pyname
+            read_pyname = "jit.promote(%s)" % write_pyname
+        elif isinstance(typ, types.GenericBitVector):
+            names = "(%s_width, %s_val, %s_rval)" % (read_pyname, read_pyname, read_pyname)
+            read_pyname = "bitvector.BitVector.unpack" + names
+            write_pyname = "%s = %%s.pack()" % (names, )
+        elif isinstance(typ, types.BigFixedBitVector):
+            names = "(%s_val, %s_rval)" % (read_pyname, read_pyname)
+            read_pyname = "bitvector.BitVector.unpack(%s, *%s)" % (typ.width, names)
+            write_pyname = "%s = %%s.pack()[1:]" % (names, )
+        elif isinstance(typ, types.Int):
+            names = "(%s_val, %s_rval)" % (read_pyname, read_pyname)
+            read_pyname = "bitvector.Integer.unpack" + names
+            write_pyname = "%s = %%s.pack()" % (names, )
         codegen.all_registers[self.name] = self
-        codegen.add_global(self.name, pyname, typ, self)
-        with codegen.emit_code_type("declarations"):
-            codegen.emit("# %s" % (self, ))
-            codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
+        codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
+        #with codegen.emit_code_type("declarations"):
+        #    codegen.emit("# %s" % (self, ))
+        #    codegen.write_to(self.name, typ.uninitialized_value)
 
         if self.body is None:
             return
@@ -778,7 +791,8 @@ class __extend__(parse.Let):
     def make_code(self, codegen):
         from pydrofoil.optimize import optimize_blocks
         codegen.emit("# %s" % (self, ))
-        codegen.add_global(self.name, "machine.l.%s" % self.name, self.typ.resolve_type(codegen), self)
+        pyname = "machine.l.%s" % self.name
+        codegen.add_global(self.name, pyname, self.typ.resolve_type(codegen), self, pyname)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
             blocks = {0: self.body[:]}
@@ -805,23 +819,22 @@ class __extend__(parse.LocalVarDeclaration):
         typ = self.typ.resolve_type(codegen)
         codegen.add_local(self.name, self.name, typ, self)
         if self.value is not None:
-            result = codegen.gettarget(self.name)
             othertyp = self.value.gettyp(codegen)
             rhs = pair(othertyp, typ).convert(self.value, codegen)
-            codegen.emit("%s = %s" % (result, rhs))
+            codegen.write_to(self.name, rhs)
         elif need_default_init:
             assert self.value is None
             # need to make a tuple instance
-            result = codegen.gettarget(self.name)
-            codegen.emit("%s = %s" % (result, typ.uninitialized_value))
+            codegen.write_to(self.name, typ.uninitialized_value)
 
 class __extend__(parse.Operation):
     def make_op_code(self, codegen):
         name = self.name
         assert name == "$zinternal_vector_update"
-        result = codegen.gettarget(self.result)
+        result = codegen.getname(self.result)
         sargs = [arg.to_code(codegen) for arg in self.args]
-        codegen.emit("%s = supportcode.vector_update_inplace(machine, %s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
+        codegen.write_to(self.result,
+            "supportcode.vector_update_inplace(machine, %s, %s, %s, %s)" % (result, sargs[0], sargs[1], sargs[2]))
 
 class __extend__(parse.ConditionalJump):
     def make_op_code(self, codegen):
@@ -843,17 +856,18 @@ class __extend__(parse.Goto):
 
 class __extend__(parse.Assignment):
     def make_op_code(self, codegen):
-        result = codegen.gettarget(self.result)
+        result = codegen.getname(self.result)
         typ = codegen.gettyp(self.result)
         othertyp = self.value.gettyp(codegen)
         rhs = pair(othertyp, typ).convert(self.value, codegen)
         # hack to make array updates not do a copy
         if rhs.startswith("supportcode.helper_vector_update_list_o_i_o(machine, " + result):
+
             assert rhs.endswith(")")
             rhs = rhs[:-1] + ", res=%s)" % (result, )
             codegen.emit(rhs) # the function mutates, no need to do the assignment
         else:
-            codegen.emit("%s = %s" % (result, rhs))
+            codegen.write_to(self.result, rhs)
 
 class __extend__(parse.StructElementAssignment):
     def make_op_code(self, codegen):
@@ -891,6 +905,7 @@ class __extend__(parse.TemplatedOperation):
     def make_op_code(self, codegen):
         typ = self.args[0].gettyp(codegen)
         name = self.name
+        import pdb; pdb.set_trace()
         result = codegen.gettarget(self.result)
         if name == '$zcons':
             restyp = codegen.gettyp(self.result)

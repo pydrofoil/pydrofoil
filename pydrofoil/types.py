@@ -128,12 +128,12 @@ class SmallFixedBitVector(Type):
 
 @unique
 class BigFixedBitVector(Type):
-    uninitialized_value = "rbigint.fromint(0)"
 
     def __init__(self, width):
         # size known at compile time
         assert width > 64
         self.width = width
+        self.uninitialized_value = "bitvector.SparseBitVector(%s, r_uint(0))" % width
 
     def __repr__(self):
         return "BigFixedBitVector(%s)" % (self.width, )

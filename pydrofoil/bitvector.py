@@ -115,6 +115,18 @@ class BitVector(object):
     def append_64(self, ui):
         return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
 
+    @staticmethod
+    def unpack(size, val, rval):
+        if size <= 64:
+            assert rval is None
+            return SmallBitVector(size, val)
+        elif rval is None:
+            assert rval is None
+            return SparseBitVector(size, val)
+        else:
+            return GenericBitVector(size, rval)
+
+
 class BitVectorWithSize(BitVector):
     _attrs_ = ['_size']
     _immutable_fields_ = ['_size']
@@ -124,6 +136,11 @@ class BitVectorWithSize(BitVector):
 
     def size(self):
         return self._size
+
+    def check_size_and_return(self, expected_width):
+        if self.size() != expected_width:
+            raise ValueError
+        return self
 
 
 class SmallBitVector(BitVectorWithSize):
@@ -335,6 +352,10 @@ class SmallBitVector(BitVectorWithSize):
         assert i <= size
         return SmallBitVector(i, self.val, normalize=i < size)
 
+    def pack(self):
+        return (self.size(), self.val, None)
+
+
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
 def rbigint_extract_ruint(self, int_other):
@@ -496,7 +517,26 @@ class SparseBitVector(BitVectorWithSize):
             return SparseBitVector(self.size(), self.val & ~mask)
 
     def update_subrange(self, n, m, s):
-        return self._to_generic().update_subrange(n, m ,s)
+        width = s.size()
+        assert width <= self.size()
+        if width == self.size():
+            return s
+        assert width == n - m + 1
+        generic = False
+        if width > 64:
+            generic = True
+        else:
+            sval = s.touint()
+            if m > 63:
+                generic = True
+            elif n >= 64:
+                width = 64 - m
+                if sval >> width: # upper bits aren't empty
+                    generic = True
+        if generic:
+            return self._to_generic().update_subrange(n, m ,s)
+        mask = ~(((r_uint(1) << width) - 1) << m)
+        return SparseBitVector(self.size(), (self.val & mask) | (sval << m))
     
     def signed(self):
         return Integer.from_ruint(self.val)
@@ -530,7 +570,8 @@ class SparseBitVector(BitVectorWithSize):
             return SmallBitVector(i, ruint_mask(i, self.val), normalize=True)
         return SparseBitVector(i, self.val)
 
-
+    def pack(self):
+        return (self.size(), self.val, None)
 
 
 class GenericBitVector(BitVectorWithSize):
@@ -698,6 +739,9 @@ class GenericBitVector(BitVectorWithSize):
             return SmallBitVector(i, val, normalize=i < 64)
         return GenericBitVector(i, self.rval, normalize=i < size)
 
+    def pack(self):
+        return (self.size(), r_uint(0xdeaddead), self.rval)
+
 
 class Integer(object):
     _attrs_ = []
@@ -729,6 +773,11 @@ class Integer(object):
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
 
+    @staticmethod
+    def unpack(val, rval):
+        if rval is None:
+            return SmallInteger(val)
+        return BigInteger(rval)
 
 class SmallInteger(Integer):
     _immutable_fields_ = ['val']
@@ -887,6 +936,9 @@ class SmallInteger(Integer):
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
             return BigInteger(rbigint.fromint(b).int_sub(a).neg())
+
+    def pack(self):
+        return (self.val, None)
 
 
 class BigInteger(Integer):
@@ -1050,3 +1102,5 @@ class BigInteger(Integer):
     def lshift(self, i):
         return BigInteger(self.rval.lshift(i))
 
+    def pack(self):
+        return (-23, self.rval)

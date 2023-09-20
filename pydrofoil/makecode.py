@@ -430,10 +430,14 @@ class __extend__(parse.Register):
         read_pyname = write_pyname = "machine.%s" % self.pyname
         if self.name in codegen.promoted_registers:
             read_pyname = "jit.promote(%s)" % write_pyname
-        elif isinstance(typ, (types.GenericBitVector, types.BigFixedBitVector)):
+        elif isinstance(typ, types.GenericBitVector):
             names = "(%s_width, %s_val, %s_rval)" % (read_pyname, read_pyname, read_pyname)
             read_pyname = "bitvector.BitVector.unpack" + names
             write_pyname = "%s = %%s.pack()" % (names, )
+        elif isinstance(typ, types.BigFixedBitVector):
+            names = "(%s_val, %s_rval)" % (read_pyname, read_pyname)
+            read_pyname = "bitvector.BitVector.unpack(%s, *%s)" % (typ.width, names)
+            write_pyname = "%s = %%s.pack()[1:]" % (names, )
         elif isinstance(typ, types.Int):
             names = "(%s_val, %s_rval)" % (read_pyname, read_pyname)
             read_pyname = "bitvector.Integer.unpack" + names

@@ -229,6 +229,43 @@ def test_vector_update_subrange():
             x = x.update_subrange(63, 0, y)
             assert x.eq(y)
 
+def test_sparse_vector_update_subrange():
+    for c in SparseBitVector, gbv:
+        x = c(100, 0b10001101)
+        x = x.update_subrange(5, 2, bv(4, 0b1010))
+        assert x.toint() == 0b10101001
+        x = c(100, 0b10001101)
+        y = c(100, 0b1101001010010)
+        x = x.update_subrange(99, 0, y)
+        assert x.eq(y)
+        x = SparseBitVector(65, 0b10001101)
+        y = c(65, 0b1101001010010)
+        x = x.update_subrange(64, 0, y)
+        assert x.eq(y)
+    x = SparseBitVector(1000, 0b10001101)
+    y = gbv(1000, 0b1101001010010)
+    x = x.update_subrange(999, 0, y)
+    assert isinstance(x, bitvector.GenericBitVector)
+
+@given(strategies.data())
+def test_sparse_vector_update_subrange_hypothesis(data):
+    width = data.draw(strategies.integers(65, 256))
+    value = r_uint(data.draw(strategies.integers(0, 2**64 - 1)))
+    lower = data.draw(strategies.integers(0, width-1))
+    upper = data.draw(strategies.integers(lower, width-1))
+    subwidth = upper - lower + 1
+    subvalue = r_uint(data.draw(strategies.integers(0, 2 ** min(subwidth, 64) - 1)))
+    replace_bv = bitvector.from_ruint(subwidth, subvalue)
+
+    # two checks: check that the generic is the same as sparse
+    sbv = SparseBitVector(width, value)
+    sres = sbv.update_subrange(upper, lower, replace_bv)
+    sres2 = sbv._to_generic().update_subrange(upper, lower, replace_bv)
+    assert sres.eq(sres2)
+    # second check: the read of the same range must return replace_bv
+    assert replace_bv.eq(sres.subrange(upper, lower))
+
+
 def test_vector_shift():
     for c in gbv, bv:
         x = c(8, 0b10001101)

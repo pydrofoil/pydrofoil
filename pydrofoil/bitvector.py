@@ -517,7 +517,26 @@ class SparseBitVector(BitVectorWithSize):
             return SparseBitVector(self.size(), self.val & ~mask)
 
     def update_subrange(self, n, m, s):
-        return self._to_generic().update_subrange(n, m ,s)
+        width = s.size()
+        assert width <= self.size()
+        if width == self.size():
+            return s
+        assert width == n - m + 1
+        generic = False
+        if width > 64:
+            generic = True
+        else:
+            sval = s.touint()
+            if m > 63:
+                generic = True
+            elif n >= 64:
+                width = 64 - m
+                if sval >> width: # upper bits aren't empty
+                    generic = True
+        if generic:
+            return self._to_generic().update_subrange(n, m ,s)
+        mask = ~(((r_uint(1) << width) - 1) << m)
+        return SparseBitVector(self.size(), (self.val & mask) | (sval << m))
     
     def signed(self):
         return Integer.from_ruint(self.val)

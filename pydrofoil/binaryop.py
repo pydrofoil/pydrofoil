@@ -23,13 +23,12 @@ class __extend__(pairtype(types.SmallFixedBitVector, types.GenericBitVector)):
 
 class __extend__(pairtype(types.SmallFixedBitVector, types.SmallFixedBitVector)):
     def convert((from_, to), ast, codegen):
-        if from_ is to:
-            return ast.to_code(codegen)
-        return "supportcode.raise_type_error()" # I can't find what sail does here!
+        assert from_ is to
+        return ast.to_code(codegen)
 
 class __extend__(pairtype(types.GenericBitVector, types.SmallFixedBitVector)):
     def convert((from_, to), ast, codegen):
-        return "%s.touint()" % ast.to_code(codegen)
+        return "%s.touint(%s)" % (ast.to_code(codegen), to.width)
 
 class __extend__(pairtype(types.GenericBitVector, types.BigFixedBitVector)):
     def convert((from_, to), ast, codegen):

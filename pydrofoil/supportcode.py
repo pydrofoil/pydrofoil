@@ -110,12 +110,7 @@ def add_bits_int(machine, a, b):
 
 @objectmodel.always_inline
 def add_bits_int_bv_i(machine, a, width, b):
-    if b >= 0:
-        return _mask(width, a + r_uint(b))
-    return _add_bits_int_bv_i_slow(a, width, b)
-
-def _add_bits_int_bv_i_slow(a, width, b):
-    return bitvector.from_ruint(width, a).add_int(bitvector.SmallInteger.fromint(b)).touint()
+    return _mask(width, a + r_uint(b))
 
 @objectmodel.always_inline
 def add_bits(machine, a, b):
@@ -126,6 +121,10 @@ def add_bits_bv_bv(machine, a, b, width):
 
 def sub_bits_int(machine, a, b):
     return a.sub_int(b)
+
+@objectmodel.always_inline
+def sub_bits_int_bv_i(machine, a, width, b):
+    return _mask(width, a - r_uint(b))
 
 @objectmodel.always_inline
 def sub_bits(machine, a, b):
@@ -144,6 +143,11 @@ def length_unwrapped_res(machine, gbv):
 @objectmodel.always_inline
 def sign_extend(machine, gbv, size):
     return gbv.sign_extend(size)
+
+@objectmodel.always_inline
+def sign_extend_bv_i_i(machine, bv, width, targetwidth):
+    m = r_uint(1) << (width - 1)
+    return _mask(targetwidth, (bv ^ m) - m)
 
 @unwrap("o i")
 @objectmodel.always_inline
@@ -276,6 +280,11 @@ def update_fbits(machine, fb, index, element):
 def vector_update_subrange(machine, bv, n, m, s):
     return bv.update_subrange(n, m, s)
 
+def vector_update_subrange_fixed_bv_i_i_bv(machine, bv, n, m, s):
+    width = n - m + 1
+    mask = ~(((r_uint(1) << width) - 1) << m)
+    return (bv & mask) | (s << m)
+
 @unwrap("o i i")
 @objectmodel.always_inline
 @objectmodel.specialize.argtype(1)
@@ -329,6 +338,13 @@ def zeros(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 
 @unwrap("i")
+def ones(machine, num):
+    if num <= 64:
+        return bitvector.from_ruint(num, r_uint(-1))
+    else:
+        return bitvector.from_bigint(num, rbigint.fromint(-1))
+
+@unwrap("i")
 def undefined_bitvector(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 
@@ -346,6 +362,9 @@ def eq_int(machine, a, b):
 
 def eq_int_i_i(machine, a, b):
     return a == b
+
+def eq_int_o_i(machine, a, b):
+    return a.int_eq(b)
 
 def eq_bit(machine, a, b):
     return a == b
@@ -370,6 +389,9 @@ def gteq(machine, ia, ib):
 def add_int(machine, ia, ib):
     return ia.add(ib)
 
+def add_o_i_wrapped_res(machine, a, b):
+    return a.int_add(b)
+
 def add_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.add_i_i(a, b)
 
@@ -379,6 +401,9 @@ def sub_int(machine, ia, ib):
 
 def sub_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.sub_i_i(a, b)
+
+def sub_o_i_wrapped_res(machine, a, b):
+    return a.int_sub(b)
 
 @objectmodel.specialize.argtype(1)
 def mult_int(machine, ia, ib):
@@ -415,6 +440,12 @@ def min_int(machine, ia, ib):
 @unwrap("i o i")
 def get_slice_int(machine, len, n, start):
     return n.slice(len, start)
+
+def get_slice_int_i_o_i_unwrapped_res(machine, len, n, start):
+    return n.slice_unwrapped_res(len, start)
+
+def get_slice_int_i_i_i(machine, len, i, start):
+    return _mask(len, r_uint(i >> start))
 
 def safe_rshift(machine, n, shift):
     assert shift >= 0

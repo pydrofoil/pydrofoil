@@ -22,6 +22,12 @@ class dummy_codegen:
 dummy_codegen = dummy_codegen()
 
 
+def opt(op):
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    return block[0]
+
+
 def test_find_used_vars_exprs():
     v = parse.Var("abc")
     assert v.find_used_vars() == {"abc"}
@@ -911,7 +917,94 @@ def test_vector_update_subrange():
     )
 
 
-@pytest.mark.xfail()
+def test_sign_extend():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=Var(name="zz42299", resolved_type=types.SmallFixedBitVector(60)),
+                resolved_type=types.GenericBitVector(),
+            ),
+            Number(number=64, resolved_type=types.MachineInt()),
+        ],
+        name="@sign_extend_o_i",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`1 193:29-193:51",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=OperationExpr(
+            args=[
+                Var(name="zz42299", resolved_type=types.SmallFixedBitVector(60)),
+                Number(number=60),
+                Number(number=64, resolved_type=types.MachineInt()),
+            ],
+            name="@sign_extend_bv_i_i",
+            resolved_type=types.SmallFixedBitVector(64),
+            sourcepos="`1 193:29-193:51",
+        ),
+        resolved_type=types.GenericBitVector(),
+    )
+
+
+def test_sign_extend_same_size():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=Var(name="zz42299", resolved_type=types.SmallFixedBitVector(64)),
+                resolved_type=types.GenericBitVector(),
+            ),
+            Number(number=64, resolved_type=types.MachineInt()),
+        ],
+        name="@sign_extend_o_i",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`1 193:29-193:51",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=Var(name="zz42299", resolved_type=types.SmallFixedBitVector(64)),
+        resolved_type=types.GenericBitVector(),
+    )
+
+
+def test_bv_binary_only_one_known_small():
+    for before, after in [
+        ("and_bits", "@and_vec_bv_bv"),
+        ("or_bits", "@or_vec_bv_bv"),
+        ("xor_bits", "@xor_vec_bv_bv"),
+    ]:
+        arg0 = (Var(name="zz44441", resolved_type=types.GenericBitVector()),)
+        arg1 = CastExpr(
+            expr=Var(name="zz44432", resolved_type=types.SmallFixedBitVector(64)),
+            resolved_type=types.GenericBitVector(),
+        )
+        for args in ([arg0, arg1], [arg1, arg0]):
+            op = OperationExpr(
+                args=args,
+                name=before,
+                resolved_type=types.GenericBitVector(),
+                sourcepos="`39 271:17-271:37",
+            )
+            block = [op]
+            specialize_ops({0: block}, dummy_codegen)
+            assert block[0] == CastExpr(
+                expr=OperationExpr(
+                    args=[
+                        arg1.expr,
+                        CastExpr(
+                            expr=arg0,
+                            resolved_type=types.SmallFixedBitVector(64),
+                        ),
+                    ],
+                    name=after,
+                    resolved_type=types.SmallFixedBitVector(64),
+                    sourcepos="`39 271:17-271:37",
+                ),
+                resolved_type=types.GenericBitVector(),
+            )
+
+
 def test_add_bits():
     lv1 = LocalVarDeclaration(
         name="zbase",
@@ -923,49 +1016,49 @@ def test_add_bits():
         typ=NamedType(name="%bv64"),
         value=None,
     )
-    op = OperationExpr(
-        args=[
-            CastExpr(
-                expr=OperationExpr(
-                    args=[
-                        CastExpr(
-                            expr=OperationExpr(
-                                args=[Var(name="zbase")],
-                                name="zrX_bits",
-                                typ=NamedType("%bv64"),
-                            ),
-                            typ=NamedType("%bv"),
-                        ),
-                        CastExpr(expr=Var(name="zoffset"), typ=NamedType("%bv")),
-                    ],
-                    name="zadd_bits",
-                    typ=NamedType("%bv"),
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=OperationExpr(
+                        args=[
+                            Var(
+                                name="zbase", resolved_type=types.SmallFixedBitVector(5)
+                            )
+                        ],
+                        name="zrX_bits",
+                        resolved_type=types.SmallFixedBitVector(64),
+                    ),
+                    resolved_type=types.GenericBitVector(),
                 ),
-                typ=NamedType("%bv64"),
-            )
-        ],
-        name="zExt_DataAddr_OKzIuzK",
-        typ=UnionType(name="zExt_DataAddr_CheckzIuzK"),
+                Var(
+                    name="zoffset",
+                    resolved_type=types.GenericBitVector(),
+                ),
+            ],
+            name="add_bits",
+            resolved_type=types.GenericBitVector(),
+        ),
+        resolved_type=types.SmallFixedBitVector(64),
     )
-    block = [lv1, lv2, op]
+    block = [op]
     specialize_ops({0: block}, dummy_codegen)
-    assert block[2] == OperationExpr(
+
+    assert block[0] == OperationExpr(
         args=[
             OperationExpr(
-                args=[
-                    OperationExpr(
-                        args=[Var(name="zbase")],
-                        name="zrX_bits",
-                        typ=NamedType("%bv64"),
-                    ),
-                    Var(name="zoffset"),
-                ],
-                name="@add_bits_bv_bv",
-                typ=NamedType("%bv64"),
-            )
+                args=[Var(name="zbase", resolved_type=types.SmallFixedBitVector(5))],
+                name="zrX_bits",
+                resolved_type=types.SmallFixedBitVector(64),
+            ),
+            CastExpr(
+                expr=Var(name="zoffset", resolved_type=types.GenericBitVector()),
+                resolved_type=types.SmallFixedBitVector(64),
+            ),
+            Number(number=64),
         ],
-        name="zExt_DataAddr_OKzIuzK",
-        typ=UnionType(name="zExt_DataAddr_CheckzIuzK"),
+        name="@add_bits_bv_bv",
+        resolved_type=types.SmallFixedBitVector(64),
     )
 
 
@@ -1172,6 +1265,43 @@ def test_length_constant():
     )
 
 
+def test_length_constant_later():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=Var(name="zvaddress", resolved_type=types.SmallFixedBitVector(64)),
+                resolved_type=types.GenericBitVector(),
+            )
+        ],
+        name="@length_unwrapped_res",
+        resolved_type=types.MachineInt(),
+        sourcepos="`11",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == Number(64)
+
+
+def test_sub_0():
+    op = OperationExpr(
+        args=[
+            Var(name="zx", resolved_type=types.MachineInt()),
+            Number(number=0, resolved_type=types.MachineInt()),
+        ],
+        name="@sub_i_i_wrapped_res",
+        resolved_type=types.Int(),
+        sourcepos="`4 218:73-218:79",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[Var(name="zx", resolved_type=types.MachineInt())],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`4 218:73-218:79",
+    )
+
+
 def test_undefined_bv():
     op = CastExpr(
         expr=OperationExpr(
@@ -1278,6 +1408,34 @@ def test_constfold_int():
                 sourcepos="`7 495:24-495:47",
             ),
             OperationExpr(
+                args=[Number(number=5, resolved_type=types.MachineInt())],
+                name="zz5i64zDzKz5i",
+                resolved_type=types.Int(),
+                sourcepos="`7 495:24-495:47",
+            ),
+        ],
+        name="sub_int",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:60",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+
+    assert block[0] == OperationExpr(
+        args=[Number(number=122)],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:60",
+    )
+
+
+def test_sub_int_0():
+    from pydrofoil import bitvector
+
+    op = OperationExpr(
+        args=[
+            Var("a", types.Int()),
+            OperationExpr(
                 args=[Number(number=0, resolved_type=types.MachineInt())],
                 name="zz5i64zDzKz5i",
                 resolved_type=types.Int(),
@@ -1291,7 +1449,304 @@ def test_constfold_int():
     block = [op]
     specialize_ops({0: block}, dummy_codegen)
 
-    assert block[0] == OperationExpr(args=[Number(number=127)], name='zz5i64zDzKz5i', resolved_type=types.Int(), sourcepos='`5 176:53-176:60')
+    assert block[0] == Var("a", types.Int())
+
+
+def test_a_sub_b_add_b():
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    OperationExpr(
+                        args=[
+                            OperationExpr(
+                                args=[
+                                    Var(
+                                        name="zx",
+                                        resolved_type=types.GenericBitVector(),
+                                    )
+                                ],
+                                name="@length_unwrapped_res",
+                                resolved_type=types.MachineInt(),
+                                sourcepos="`7 2890:32-2890:34",
+                            ),
+                            Number(number=1, resolved_type=types.MachineInt()),
+                        ],
+                        name="@sub_i_i_wrapped_res",
+                        resolved_type=types.Int(),
+                        sourcepos="`7 2890:32-2890:38",
+                    ),
+                    OperationExpr(
+                        args=[Number(number=0, resolved_type=types.MachineInt())],
+                        name="zz5i64zDzKz5i",
+                        resolved_type=types.Int(),
+                        sourcepos="`7 2890:11-2890:44",
+                    ),
+                ],
+                name="sub_int",
+                resolved_type=types.Int(),
+                sourcepos="`5 176:53-176:60",
+            ),
+            OperationExpr(
+                args=[Number(number=1, resolved_type=types.MachineInt())],
+                name="zz5i64zDzKz5i",
+                resolved_type=types.Int(),
+                sourcepos="`5 176:53-176:64",
+            ),
+        ],
+        name="add_int",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:64",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+
+    assert block[0] == OperationExpr(
+        args=[
+            OperationExpr(
+                args=[Var(name="zx", resolved_type=types.GenericBitVector())],
+                name="@length_unwrapped_res",
+                resolved_type=types.MachineInt(),
+                sourcepos="`7 2890:32-2890:34",
+            )
+        ],
+        name="zz5i64zDzKz5i",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:64",
+    )
+
+
+def test_a_sub_b_add_b():
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    Var(name="zz454", resolved_type=types.Int()),
+                    OperationExpr(
+                        args=[
+                            Number(
+                                number=1,
+                                resolved_type=types.MachineInt(),
+                            )
+                        ],
+                        name="zz5i64zDzKz5i",
+                        resolved_type=types.Int(),
+                        sourcepos="`19 103:33-103:38",
+                    ),
+                ],
+                name="sub_int",
+                resolved_type=types.Int(),
+                sourcepos="`19 103:33-103:38",
+            ),
+            Number(number=1, resolved_type=types.MachineInt()),
+        ],
+        name="@add_o_i_wrapped_res",
+        resolved_type=types.Int(),
+        sourcepos="`5 176:53-176:64",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == Var(name="zz454", resolved_type=types.Int())
+
+def test_get_slice_int_i_o_i_unwrapped_res():
+    op = OperationExpr(
+        args=[
+            CastExpr(
+                expr=BitVectorConstant(
+                    constant="0x1", resolved_type=types.SmallFixedBitVector(4)
+                ),
+                resolved_type=types.GenericBitVector(),
+            ),
+            OperationExpr(
+                args=[
+                    Number(number=2),
+                    Var(name="zlevel", resolved_type=types.Int()),
+                    Number(number=0, resolved_type=types.MachineInt()),
+                ],
+                name="@get_slice_int_i_o_i",
+                resolved_type=types.GenericBitVector(),
+                sourcepos="`5 176:39-176:72",
+            ),
+        ],
+        name="append",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`7 4395:19-4395:41",
+    )
+    assert opt(op) == CastExpr(
+        expr=OperationExpr(
+            args=[
+                BitVectorConstant(constant="0x1", resolved_type=types.SmallFixedBitVector(4)),
+                Number(number=2),
+                OperationExpr(
+                    args=[
+                        Number(number=2),
+                        Var(name="zlevel", resolved_type=types.Int()),
+                        Number(number=0, resolved_type=types.MachineInt()),
+                    ],
+                    name="@get_slice_int_i_o_i_unwrapped_res",
+                    resolved_type=types.SmallFixedBitVector(2),
+                    sourcepos="`5 176:39-176:72",
+                ),
+            ],
+            name="@bitvector_concat_bv_bv",
+            resolved_type=types.SmallFixedBitVector(6),
+            sourcepos="`7 4395:19-4395:41",
+        ),
+        resolved_type=types.GenericBitVector(),
+    )
+
+
+def test_sub_ints_int_small():
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=Var(
+                        name="ztarget_el", resolved_type=types.SmallFixedBitVector(2)
+                    ),
+                    resolved_type=types.GenericBitVector(),
+                ),
+                OperationExpr(
+                    args=[Number(number=1, resolved_type=types.MachineInt())],
+                    name="zz5i64zDzKz5i",
+                    resolved_type=types.Int(),
+                    sourcepos="`7 3991:38-3991:51",
+                ),
+            ],
+            name="zsub_bits_int",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`7 3991:38-3991:51",
+        ),
+        resolved_type=types.SmallFixedBitVector(2),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=Var(
+                        name="ztarget_el", resolved_type=types.SmallFixedBitVector(2)
+                    ),
+                    resolved_type=types.GenericBitVector(),
+                ),
+                OperationExpr(
+                    args=[Number(number=1, resolved_type=types.MachineInt())],
+                    name="zz5i64zDzKz5i",
+                    resolved_type=types.Int(),
+                    sourcepos="`7 3991:38-3991:51",
+                ),
+            ],
+            name="zsub_bits_int",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`7 3991:38-3991:51",
+        ),
+        resolved_type=types.SmallFixedBitVector(2),
+    )
+
+
+def test_vector_update_subrange():
+    op = CastExpr(
+        expr=OperationExpr(
+            args=[
+                CastExpr(
+                    expr=Var(name="zv", resolved_type=types.SmallFixedBitVector(64)),
+                    resolved_type=types.GenericBitVector(),
+                ),
+                Number(number=0),
+                Number(number=0),
+                CastExpr(
+                    expr=Var(name="zx", resolved_type=types.SmallFixedBitVector(1)),
+                    resolved_type=types.GenericBitVector(),
+                ),
+            ],
+            name="@vector_update_subrange_o_i_i_o",
+            resolved_type=types.GenericBitVector(),
+            sourcepos="`513",
+        ),
+        resolved_type=types.SmallFixedBitVector(64),
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[
+            Var(name="zv", resolved_type=types.SmallFixedBitVector(64)),
+            Number(number=0),
+            Number(number=0),
+            Var(name="zx", resolved_type=types.SmallFixedBitVector(1)),
+        ],
+        name="@vector_update_subrange_fixed_bv_i_i_bv",
+        resolved_type=types.SmallFixedBitVector(64),
+        sourcepos="`513",
+    )
+
+
+def test_not_ones():
+    op = OperationExpr(
+        args=[
+            OperationExpr(
+                args=[
+                    OperationExpr(
+                        args=[
+                            Var(name="zoperand", resolved_type=types.GenericBitVector())
+                        ],
+                        name="@length_unwrapped_res",
+                        resolved_type=types.MachineInt(),
+                        sourcepos="`7 147559:22-147559:24",
+                    )
+                ],
+                name="@zeros_i",
+                resolved_type=types.GenericBitVector(),
+                sourcepos="`2 320:32-320:45",
+            )
+        ],
+        name="not_bits",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`2 320:24-320:46",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[
+            OperationExpr(
+                args=[Var(name="zoperand", resolved_type=types.GenericBitVector())],
+                name="@length_unwrapped_res",
+                resolved_type=types.MachineInt(),
+                sourcepos="`7 147559:22-147559:24",
+            )
+        ],
+        name="@ones_i",
+        resolved_type=types.GenericBitVector(),
+        sourcepos="`2 320:32-320:45",
+    )
+
+
+def test_eq_int():
+    op = OperationExpr(
+        args=[
+            Var(name="zn", resolved_type=types.Int()),
+            OperationExpr(
+                args=[Number(number=31, resolved_type=types.MachineInt())],
+                name="zz5i64zDzKz5i",
+                resolved_type=types.Int(),
+                sourcepos="`7 3427:7-3427:14",
+            ),
+        ],
+        name="eq_int",
+        resolved_type=types.Bool(),
+        sourcepos="`0 100:35-100:47",
+    )
+    block = [op]
+    specialize_ops({0: block}, dummy_codegen)
+    assert block[0] == OperationExpr(
+        args=[
+            Var(name="zn", resolved_type=types.Int()),
+            Number(number=31, resolved_type=types.MachineInt()),
+        ],
+        name="@eq_int_o_i",
+        resolved_type=types.Bool(),
+        sourcepos="`0 100:35-100:47",
+    )
 
 
 # optimize_gotos

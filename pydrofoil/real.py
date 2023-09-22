@@ -28,7 +28,7 @@ class Real(object):
         if num == MININT or den == MININT:
             num = rbigint.fromint(num)
             den = rbigint.fromint(den)
-            sign = num.sign * den.sign
+            sign = num.get_sign() * den.get_sign()
             num = num.abs().int_mul(sign)
             den = den.abs()
         elif num < MININT or num > MAXINT or den < MININT or den > MAXINT:

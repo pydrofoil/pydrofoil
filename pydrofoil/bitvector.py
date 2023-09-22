@@ -16,9 +16,10 @@ def bigint_divrem1(a, n):
     assert n != MININT
     div, rem = _divrem1(a, abs(n))
     # _divrem1 leaves the sign always positive, fix
-    if a.sign != intsign(n):
-        div.sign = -div.sign
-    if a.sign < 0 and rem > 0:
+    asign = a.get_sign()
+    if asign != intsign(n):
+        div._set_sign(-div.get_sign())
+    if asign < 0 and rem > 0:
         rem = -rem
     return div, rem
 
@@ -101,7 +102,7 @@ class BitVector(object):
     @staticmethod
     @jit.elidable
     def _rbigint_mask(size, rval):
-        if rval.sign >= 0 and rval.bit_length() <= size:
+        if rval.get_sign() >= 0 and rval.bit_length() <= size:
             return rval
         mask = MASKS.get(size)
         return rval.and_(mask)
@@ -167,9 +168,11 @@ class SmallBitVector(BitVectorWithSize):
     @always_inline
     def add_int(self, i):
         if isinstance(i, SmallInteger):
-            if i.val > 0:
-                return self.make(self.val + r_uint(i.val), True)
-        return self._add_int_slow(i)
+            rhs = r_uint(i.val)
+        else:
+            assert isinstance(i, BigInteger)
+            rhs = rbigint_extract_ruint(i.rval, 0)
+        return self.make(self.val + rhs, True)
 
     def _add_int_slow(self, i):
         # XXX can be better
@@ -187,8 +190,7 @@ class SmallBitVector(BitVectorWithSize):
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
-            if i.val > 0:
-                return self.make(self.val - r_uint(i.val), True)
+            return self.make(self.val - r_uint(i.val), True)
         # XXX can be better
         return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().sub(i.tobigint())))
 
@@ -225,14 +227,17 @@ class SmallBitVector(BitVectorWithSize):
         return self.rshift(other.toint())
 
     def xor(self, other):
+        assert self.size() == other.size()
         assert isinstance(other, SmallBitVector)
         return self.make(self.val ^ other.val, True)
 
     def and_(self, other):
+        assert self.size() == other.size()
         assert isinstance(other, SmallBitVector)
         return self.make(self.val & other.val, True)
 
     def or_(self, other):
+        assert self.size() == other.size()
         assert isinstance(other, SmallBitVector)
         return self.make(self.val | other.val, True)
 
@@ -260,6 +265,7 @@ class SmallBitVector(BitVectorWithSize):
 
     @always_inline
     def sign_extend(self, i):
+        # XXX can be improved with xor etc
         if i == self.size():
             return self
 
@@ -320,7 +326,9 @@ class SmallBitVector(BitVectorWithSize):
                 raise OverflowError
         return intmask(self.val)
 
-    def touint(self):
+    def touint(self, expected_width=0):
+        if expected_width:
+            self.size() == expected_width
         return self.val
 
     def tobigint(self):
@@ -363,14 +371,21 @@ def rbigint_extract_ruint(self, int_other):
     from rpython.rlib.rbigint import NULLDIGIT, _load_unsigned_digit
     assert int_other >= 0
     assert SHIFT * 2 > 64
-
     # wordshift, remshift = divmod(int_other, SHIFT)
     wordshift = int_other // SHIFT
     remshift = int_other - wordshift * SHIFT
     numdigits = self.numdigits()
+    sign = self.get_sign()
+    if sign == -1:
+        # XXX needs to be better but I keep running into bugs
+        return ~rbigint_extract_ruint(self.invert(), int_other)
     if wordshift >= numdigits:
+        if sign == -1:
+            return r_uint(-1)
         return r_uint(0)
-    res = self.udigit(wordshift) >> remshift
+    digit = self.udigit(wordshift)
+    # arithmetic shift
+    res = r_uint(intmask(r_uint(sign) * digit) >> remshift)
     if wordshift + 1 >= numdigits:
         return res
     return res | (self.udigit(wordshift + 1) << (SHIFT - remshift))
@@ -555,7 +570,9 @@ class SparseBitVector(BitVectorWithSize):
             raise OverflowError
         return intmask(self.val)
     
-    def touint(self):
+    def touint(self, expected_width=0):
+        if expected_width:
+            self.size() == expected_width
         return self.val
     
     def tobigint(self):
@@ -595,6 +612,8 @@ class GenericBitVector(BitVectorWithSize):
         return self.rbigint_mask(self.size(), val)
 
     def add_int(self, i):
+        if isinstance(i, SmallInteger):
+            return self.make(self._size_mask(self.rval.int_add(i.val)))
         return self.make(self._size_mask(self.rval.add(i.tobigint())))
 
     def add_bits(self, other):
@@ -608,6 +627,8 @@ class GenericBitVector(BitVectorWithSize):
         return self.make(self._size_mask(self.rval.sub(other.tobigint())))
 
     def sub_int(self, i):
+        if isinstance(i, SmallInteger):
+            return self.make(self._size_mask(self.rval.int_sub(i.val)))
         return self.make(self._size_mask(self.rval.sub(i.tobigint())))
 
     def print_bits(self):
@@ -718,7 +739,9 @@ class GenericBitVector(BitVectorWithSize):
     def toint(self):
         return self.rval.toint()
 
-    def touint(self):
+    def touint(self, expected_width=0):
+        if expected_width:
+            self.size() == expected_width
         return self.rval.touint()
 
     def tobigint(self):
@@ -806,12 +829,13 @@ class SmallInteger(Integer):
         return rbigint.fromint(self.val)
 
     def slice(self, len, start):
-        if len > 64 or start >= 64: # XXX can be more efficient
-            return BigInteger._slice(self.tobigint(), len, start)
         n = self.val >> start
-        if len == 64:
-            return from_ruint(64, r_uint(n))
-        return from_ruint(len, r_uint(n) & ((1 << len) - 1))
+        if len > 64:
+            return from_bigint(len, rbigint.fromint(n))
+        return from_ruint(len, r_uint(n))
+
+    def slice_unwrapped_res(self, len, start):
+        return ruint_mask(len, r_uint(self.val >> start))
 
     def set_slice_int(self, len, start, bv):
         if len > 64 or start + len >= 64:
@@ -827,6 +851,9 @@ class SmallInteger(Integer):
         if isinstance(other, SmallInteger):
             return self.val == other.val
         return other.eq(self)
+
+    def int_eq(self, other):
+        return self.val == other
 
     def lt(self, other):
         if isinstance(other, SmallInteger):
@@ -863,6 +890,12 @@ class SmallInteger(Integer):
         else:
             assert isinstance(other, BigInteger)
             return BigInteger(other.rval.int_add(self.val))
+
+    def int_add(self, other):
+        return SmallInteger.add_i_i(self.val, other)
+
+    def int_sub(self, other):
+        return SmallInteger.sub_i_i(self.val, other)
 
     def sub(self, other):
         if isinstance(other, SmallInteger):
@@ -976,10 +1009,9 @@ class BigInteger(Integer):
         return self.rval
 
     def slice(self, len, start):
-        return self._slice(self.rval, len, start)
-
-    @staticmethod
-    def _slice(rval, len, start):
+        rval = self.rval
+        if len <= 64:
+            return SmallBitVector(len, self.slice_unwrapped_res(len, start))
         if start == 0:
             n = rval
         else:
@@ -997,11 +1029,17 @@ class BigInteger(Integer):
         out_val = out_val.or_(bv.tobigint().lshift(start))
         return BigInteger(out_val)
 
+    def slice_unwrapped_res(self, len, start):
+        return ruint_mask(len, rbigint_extract_ruint(self.rval, start))
+
     def eq(self, other):
         if isinstance(other, SmallInteger):
             return self.rval.int_eq(other.val)
         assert isinstance(other, BigInteger)
         return self.rval.eq(other.rval)
+
+    def int_eq(self, other):
+        return self.rval.int_eq(other)
 
     def lt(self, other):
         if isinstance(other, SmallInteger):
@@ -1036,6 +1074,12 @@ class BigInteger(Integer):
         assert isinstance(other, BigInteger)
         return BigInteger(self.rval.add(other.rval))
 
+    def int_add(self, other):
+        return BigInteger(self.rval.int_add(other))
+
+    def int_sub(self, other):
+        return BigInteger(self.rval.int_sub(other))
+
     def sub(self, other):
         if isinstance(other, SmallInteger):
             return BigInteger(self.rval.int_sub(other.val))
@@ -1063,13 +1107,13 @@ class BigInteger(Integer):
             other = other.val
             if other == 0:
                 raise ZeroDivisionError
-            if other > 0 and other & (other - 1) == 0 and self.rval.sign >= 0:
+            if other > 0 and other & (other - 1) == 0 and self.rval.get_sign() >= 0:
                 # can use shift
                 return self.rshift(self._shift_amount(other))
             div, rem = bigint_divrem1(self.rval, other)
             return BigInteger(div)
         other = other.tobigint()
-        if other.sign == 0:
+        if other.get_sign() == 0:
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
         return BigInteger(div)
@@ -1092,7 +1136,7 @@ class BigInteger(Integer):
             return SmallInteger(rem)
 
         other = other.tobigint()
-        if other.sign == 0:
+        if other.get_sign() == 0:
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
         return BigInteger(rem)

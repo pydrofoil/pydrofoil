@@ -121,6 +121,23 @@ def test_set_slice_int(i, start, length, data):
         assert i2.slice(start, 0).eq(i.slice(start, 0))
         assert i2.slice(100, start + length).eq(i.slice(100, start + length))
 
+@given(strategies.integers(1, 1000), strategies.integers(0, sys.maxint), wrapped_ints)
+def test_hypothesis_get_slice_int(length, start, i):
+    res = supportcode.get_slice_int_i_o_i(machine, length, i, start)
+    assert res.size() == length
+    assert res.tobigint().tolong() == (i.tolong() >> start) % (2 ** length)
+
+@given(strategies.integers(1, 64), strategies.integers(0, sys.maxint), ints)
+def test_hypothesis_get_slice_int_i_i_i(length, start, i):
+    res = supportcode.get_slice_int_i_i_i(machine, length, i, start)
+    assert res == (i >> start) % (2 ** length)
+
+@given(strategies.integers(1, 64), strategies.integers(0, sys.maxint), wrapped_ints)
+def test_hypothesis_get_slice_int_unwrapped_res(length, start, i):
+    res = supportcode.get_slice_int_i_o_i_unwrapped_res(machine, length,
+            i, start)
+    assert res == (i.tolong() >> start) % (2 ** length)
+
 def test_vector_access():
     for c in gbv, bv:
         x = c(6, 0b101100)
@@ -192,8 +209,16 @@ def test_hypothesis_sign_extend(data):
     value = data.draw(strategies.integers(0, 2**bitwidth - 1))
     bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
     res = bv.sign_extend(target_bitwidth)
-    print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
+
+@given(strategies.data())
+def test_hypothesis_sign_extend_ruint(data):
+    bitwidth = data.draw(strategies.integers(1, 63))
+    targetwidth = data.draw(strategies.integers(bitwidth, 64))
+    value = data.draw(strategies.integers(-2**(bitwidth-1), 2**(bitwidth-1)-1))
+    bv = supportcode._mask(bitwidth, r_uint(value))
+    res = supportcode.sign_extend_bv_i_i(machine, bv, bitwidth, targetwidth)
+    assert res == supportcode._mask(targetwidth, r_uint(value))
 
 @given(strategies.data())
 def test_hypothesis_vector_subrange_unwrapped_res(data):
@@ -218,7 +243,7 @@ def test_hypothesis_vector_subrange_unwrapped_res(data):
     assert bvres == correct_res_as_int
 
 @given(strategies.data())
-def test_hypothesis_rbigint_extract_ruint(data):
+def test_hypothesis_subrange_unwrapped_res(data):
     bitwidth = data.draw(strategies.integers(1, 10000))
     start = data.draw(strategies.integers(0, 2 * bitwidth))
     value = data.draw(strategies.integers(0, 2**bitwidth - 1))
@@ -226,6 +251,13 @@ def test_hypothesis_rbigint_extract_ruint(data):
     bv = bitvector.from_bigint(bitvector, rb)
     res = bv.subrange_unwrapped_res(start + 63, start)
     assert res == rb.rshift(start).and_(rbigint.fromlong(2**64-1)).tolong()
+
+@given(strategies.integers(), strategies.integers(0, 100))
+@example(-9223372036854775935L, 1)
+@example(-9223372036854775809L, 63)
+def test_hypothesis_extract_ruint(value, shift):
+    rval = rbigint.fromlong(value)
+    assert bitvector.rbigint_extract_ruint(rval, shift) == r_uint(value >> shift)
 
 def test_vector_update_subrange():
     for c1 in gbv, bv:
@@ -366,6 +398,30 @@ def test_add_bits_int_bv_i():
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b11), 6, -0b111111111) == (0b11 - 0b111111111) & 0b111111
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b1011), 6, -2 ** 63) == (0b1011 - 2**63) & 0b111111
 
+@given(strategies.data())
+def test_hypothesis_add_bits_int(data):
+    if not data.draw(strategies.booleans()):
+        bitwidth = data.draw(strategies.integers(1, 64))
+    else:
+        bitwidth = data.draw(strategies.integers(65, 10000))
+    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    bvvalue = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    rhs = data.draw(ints)
+    irhs = Integer.frombigint(rbigint.fromlong(rhs))
+    bvres = bvvalue.add_int(irhs)
+    assert bvres.tolong() == (value + rhs) % (2 ** bitwidth)
+    bvres = bvvalue.sub_int(irhs)
+    assert bvres.tolong() == (value - rhs) % (2 ** bitwidth)
+
+@given(strategies.data())
+def test_hypothesis_add_bits_int_bv_i(data):
+    bitwidth = data.draw(strategies.integers(1, 64))
+    value = r_uint(data.draw(strategies.integers(0, 2**bitwidth - 1)))
+    rhs = data.draw(ints)
+    res = supportcode.add_bits_int_bv_i(None, value, bitwidth, rhs)
+    assert res == supportcode._mask(bitwidth, value + r_uint(rhs))
+    res = supportcode.sub_bits_int_bv_i(None, value, bitwidth, rhs)
+    assert res == supportcode._mask(bitwidth, value - r_uint(rhs))
 
 def test_bv_bitwise():
     for c in gbv, bv:
@@ -451,6 +507,13 @@ def test_op_int_hypothesis(a, b):
         a.tmod(bi(0))
     with pytest.raises(ZeroDivisionError):
         a.tmod(bi(0))
+
+@given(wrapped_ints, ints)
+def test_int_add_sub_hypothesis(a, b):
+    v1 = a.tobigint().tolong()
+    v2 = b
+    assert a.int_add(b).tolong() == v1 + v2
+    assert a.int_sub(b).tolong() == v1 - v2
 
 def test_op_int_div_mod():
     for c1 in bi, si:

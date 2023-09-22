@@ -230,10 +230,24 @@ class CollectSourceVisitor(parse.Visitor):
         toline, topos = to.split(":", 1)
         return int(filenum), int(fromline), int(frompos), int(toline), int(topos)
 
+def symmetric(func):
+    def optimize(self, expr):
+        arg0, arg1 = expr.args
+        try:
+            res = func(self, expr, arg0, arg1)
+        except NoMatchException:
+            pass
+        else:
+            if res is not None:
+                return res
+        return func(self, expr, arg1, arg0)
+    return optimize
+
 
 class OptVisitor(parse.Visitor):
     def __init__(self, codegen):
         self.codegen = codegen
+
 
     def visit_CastExpr(self, cast):
         if isinstance(cast.expr, parse.CastExpr):
@@ -280,9 +294,15 @@ class OptVisitor(parse.Visitor):
         if not meth:
             return None
         try:
-            return meth(expr)
+            res = meth(expr)
         except NoMatchException:
             return None
+        if res is None:
+            return
+        restypold = getattr(expr, 'resolved_type', None)
+        restypnew = getattr(res, 'resolved_type', None)
+        assert restypold is restypnew or restypold is types.MachineInt() and isinstance(res, parse.Number)
+        return res
 
     def _convert_to_machineint(self, arg):
         try:
@@ -402,6 +422,30 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
+    def optimize_vector_update_subrange_o_i_i_o(self, expr):
+        arg0, arg1, arg2, arg3 = expr.args
+
+        arg1 = self._extract_number(arg1)
+        arg2 = self._extract_number(arg2)
+        width = arg1.number - arg2.number + 1
+        if width > 64:
+            return
+
+        assert expr.resolved_type is types.GenericBitVector()
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg3, typ3 = self._extract_smallfixedbitvector(arg3)
+        assert 0 <= arg2.number <= arg2.number < typ0.width
+        assert typ3.width == width
+        res = parse.OperationExpr(
+            "@vector_update_subrange_fixed_bv_i_i_bv",
+            [arg0, arg1, arg2, arg3],
+            typ0, expr.sourcepos,
+        )
+        return parse.CastExpr(
+            res,
+            types.GenericBitVector()
+        )
+
     def optimize_slice_o_i_i(self, expr):
         arg0, arg1, arg2 = expr.args
         arg1 = self._extract_machineint(arg1)
@@ -446,23 +490,19 @@ class OptVisitor(parse.Visitor):
             expr.sourcepos,
         )
 
-    def optimize_eq_bits(self, expr):
-        arg0, arg1 = expr.args
-        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        if typ0 is not typ1:
-            return
+    @symmetric
+    def optimize_eq_bits(self, expr, arg0, arg1):
+        arg0, typ = self._extract_smallfixedbitvector(arg0)
+        arg1 = parse.CastExpr(arg1, typ)
         res = parse.OperationExpr(
             "@eq_bits_bv_bv", [arg0, arg1], expr.resolved_type, expr.sourcepos
         )
         return res
 
-    def optimize_neq_bits(self, expr):
-        arg0, arg1 = expr.args
-        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        if typ0 is not typ1:
-            return
+    @symmetric
+    def optimize_neq_bits(self, expr, arg0, arg1):
+        arg0, typ = self._extract_smallfixedbitvector(arg0)
+        arg1 = parse.CastExpr(arg1, typ)
         res = parse.OperationExpr(
             "@neq_bits_bv_bv", [arg0, arg1], expr.resolved_type, expr.sourcepos
         )
@@ -498,10 +538,16 @@ class OptVisitor(parse.Visitor):
         )
         return res
 
-    def optimize_eq_int(self, expr):
+    @symmetric
+    def optimize_eq_int(self, expr, arg0, arg1):
+        arg1 = self._extract_machineint(arg1)
+        return parse.OperationExpr(
+            "@eq_int_o_i", [arg0, arg1], expr.resolved_type, expr.sourcepos
+        )
+
+    def optimize_eq_int_o_i(self, expr):
         arg0, arg1 = expr.args
         arg0 = self._extract_machineint(arg0)
-        arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
             "@eq_int_i_i", [arg0, arg1], expr.resolved_type, expr.sourcepos
         )
@@ -528,12 +574,10 @@ class OptVisitor(parse.Visitor):
             )
         return None
 
-    def optimize_xor_bits(self, expr):
-        arg0, arg1 = expr.args
+    @symmetric
+    def optimize_xor_bits(self, expr, arg0, arg1):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        if typ0 is not typ1:
-            return
+        arg1 = parse.CastExpr(arg1, typ0)
         return parse.CastExpr(
             parse.OperationExpr(
                 "@xor_vec_bv_bv",
@@ -544,12 +588,10 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_and_bits(self, expr):
-        arg0, arg1 = expr.args
+    @symmetric
+    def optimize_and_bits(self, expr, arg0, arg1):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        if typ0 is not typ1:
-            return
+        arg1 = parse.CastExpr(arg1, typ0)
         return parse.CastExpr(
             parse.OperationExpr(
                 "@and_vec_bv_bv",
@@ -560,12 +602,10 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_or_bits(self, expr):
-        arg0, arg1 = expr.args
+    @symmetric
+    def optimize_or_bits(self, expr, arg0, arg1):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        if typ0 is not typ1:
-            return
+        arg1 = parse.CastExpr(arg1, typ0)
         return parse.CastExpr(
             parse.OperationExpr("@or_vec_bv_bv", [arg0, arg1], typ0, expr.sourcepos),
             expr.resolved_type,
@@ -573,6 +613,8 @@ class OptVisitor(parse.Visitor):
 
     def optimize_not_bits(self, expr):
         (arg0,) = expr.args
+        if isinstance(arg0, parse.OperationExpr) and arg0.name == "@zeros_i":
+            return parse.OperationExpr("@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         return parse.CastExpr(
@@ -582,12 +624,10 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
 
-    def optimize_add_bits(self, expr):
-        arg0, arg1 = expr.args
+    @symmetric
+    def optimize_add_bits(self, expr, arg0, arg1):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        if typ0 is not typ1:
-            return
+        arg1 = parse.CastExpr(arg1, typ0)
         return parse.CastExpr(
             parse.OperationExpr(
                 "@add_bits_bv_bv",
@@ -600,15 +640,22 @@ class OptVisitor(parse.Visitor):
 
     def optimize_sub_bits(self, expr):
         arg0, arg1 = expr.args
-        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        if typ0 is not typ1:
-            return
+        try:
+            arg0, typ = self._extract_smallfixedbitvector(arg0)
+        except NoMatchException:
+            try:
+                arg1, typ = self._extract_smallfixedbitvector(arg1)
+            except NoMatchException:
+                return None
+            else:
+                arg0 = parse.CastExpr(arg0, typ)
+        else:
+            arg1 = parse.CastExpr(arg1, typ)
         return parse.CastExpr(
             parse.OperationExpr(
                 "@sub_bits_bv_bv",
-                [arg0, arg1, parse.Number(typ0.width)],
-                typ0,
+                [arg0, arg1, parse.Number(typ.width)],
+                typ,
                 expr.sourcepos,
             ),
             expr.resolved_type,
@@ -653,30 +700,69 @@ class OptVisitor(parse.Visitor):
         arg1 = self._extract_number(arg1)
         if arg1.number > 64:
             return
-        return parse.CastExpr(
-            parse.OperationExpr(
+        if typ0.width == arg1.number:
+            res = arg0
+        else:
+            res = parse.OperationExpr(
                 "@zero_extend_bv_i_i",
                 [arg0, parse.Number(typ0.width), arg1],
                 types.SmallFixedBitVector(arg1.number),
                 expr.sourcepos,
-            ),
+            )
+        return parse.CastExpr(
+            res,
             expr.resolved_type,
         )
 
-    def optimize_add_int(self, expr):
+    def optimize_sign_extend_o_i(self, expr):
         arg0, arg1 = expr.args
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_number(arg1)
+        if arg1.number > 64:
+            return
+        if typ0.width == arg1.number:
+            res = arg0
+        else:
+            res = parse.OperationExpr(
+                "@sign_extend_bv_i_i",
+                [arg0, parse.Number(typ0.width), arg1],
+                types.SmallFixedBitVector(arg1.number),
+                expr.sourcepos,
+            )
+        return parse.CastExpr(
+            res,
+            expr.resolved_type,
+        )
+
+    @symmetric
+    def optimize_add_int(self, expr, arg0, arg1):
+        arg1 = self._extract_machineint(arg1)
+        return parse.OperationExpr(
+            "@add_o_i_wrapped_res",
+            [arg0, arg1],
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
+    def optimize_add_o_i_wrapped_res(self, expr):
+        arg0, arg1 = expr.args
+        num0 = num1 = None
         try:
-            arg0 = self._extract_number(arg0)
-            arg1 = self._extract_number(arg1)
+            num1 = self._extract_number(arg1)
         except NoMatchException:
             pass
         else:
-            # can const-fold
-            res = arg0.number + arg1.number
-            if isinstance(res, int): # no overflow
-                return self._make_int64_to_int(parse.Number(res), expr.sourcepos)
+            if num1.number == 0:
+                return arg0
+            if isinstance(arg0, parse.OperationExpr):
+                # (a - b) + b == a
+                if (arg0.name == "@sub_i_i_wrapped_res" and
+                    arg0.args[1] == num1):
+                    return self._make_int64_to_int(arg0.args[0], expr.sourcepos)
+                if (arg0.name == "@sub_o_i_wrapped_res" and
+                    arg0.args[1] == num1):
+                    return arg0.args[0]
         arg0 = self._extract_machineint(arg0)
-        arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
             "@add_i_i_wrapped_res",
             [arg0, arg1],
@@ -696,15 +782,21 @@ class OptVisitor(parse.Visitor):
     def optimize_sub_int(self, expr):
         arg0, arg1 = expr.args
         try:
-            arg0 = self._extract_number(arg0)
-            arg1 = self._extract_number(arg1)
+            num1 = self._extract_number(arg1)
         except NoMatchException:
             pass
         else:
-            # can const-fold
-            res = arg0.number - arg1.number
-            if isinstance(res, int): # no overflow
-                return self._make_int64_to_int(parse.Number(res), expr.sourcepos)
+            if num1.number == 0:
+                return arg0
+            try:
+                num0 = self._extract_number(arg0)
+            except NoMatchException:
+                pass
+            else:
+                # can const-fold
+                res = num0.number - num1.number
+                if isinstance(res, int): # no overflow
+                    return self._make_int64_to_int(parse.Number(res), expr.sourcepos)
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
         return parse.OperationExpr(
@@ -714,14 +806,78 @@ class OptVisitor(parse.Visitor):
             expr.sourcepos,
         )
 
+    def optimize_sub_int(self, expr):
+        arg0, arg1 = expr.args
+        arg1 = self._extract_machineint(arg1)
+        return parse.OperationExpr(
+            "@sub_o_i_wrapped_res",
+            [arg0, arg1],
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
+    def optimize_sub_o_i_wrapped_res(self, expr):
+        arg0, arg1 = expr.args
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 0:
+                return arg0
+        arg0 = self._extract_machineint(arg0)
+        return parse.OperationExpr(
+            "@sub_i_i_wrapped_res",
+            [arg0, arg1],
+            expr.resolved_type,
+            expr.sourcepos,
+        )
+
     def optimize_sub_i_i_wrapped_res(self, expr):
         arg0, arg1 = expr.args
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 0:
+                return self._make_int64_to_int(arg0, expr.sourcepos)
         arg0 = self._extract_number(arg0)
         arg1 = self._extract_number(arg1)
         # can const-fold
         res = arg0.number - arg1.number
         if isinstance(res, int): # no overflow
             return self._make_int64_to_int(parse.Number(res), expr.sourcepos)
+
+    def optimize_get_slice_int_i_o_i(self, expr):
+        arg0, arg1, arg2 = expr.args
+        arg0 = self._extract_number(arg0)
+        arg2 = self._extract_machineint(arg2)
+        length = arg0.number
+        if length > 64:
+            return
+        restyp = types.SmallFixedBitVector(length)
+        try:
+            arg1 = self._extract_machineint(arg1)
+        except NoMatchException:
+            res = parse.OperationExpr(
+                "@get_slice_int_i_o_i_unwrapped_res",
+                [arg0, arg1, arg2],
+                restyp,
+                expr.sourcepos,
+            )
+        else:
+            res = parse.OperationExpr(
+                "@get_slice_int_i_i_i",
+                [arg0, arg1, arg2],
+                restyp,
+                expr.sourcepos,
+            )
+
+        return parse.CastExpr(
+            res,
+            expr.resolved_type,
+        )
 
     def optimize_add_bits_int(self, expr):
         arg0, arg1 = expr.args
@@ -737,6 +893,22 @@ class OptVisitor(parse.Visitor):
             ),
             expr.resolved_type,
         )
+
+    def optimize_sub_bits_int(self, expr):
+        arg0, arg1 = expr.args
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_machineint(arg1)
+
+        return parse.CastExpr(
+            parse.OperationExpr(
+                "@sub_bits_int_bv_i",
+                [arg0, parse.Number(typ0.width), arg1],
+                typ0,
+                expr.sourcepos,
+            ),
+            expr.resolved_type,
+        )
+
 
     def optimize_shiftl_o_i(self, expr):
         arg0, arg1 = expr.args
@@ -766,6 +938,14 @@ class OptVisitor(parse.Visitor):
             if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
                 res = parse.Number(realtyp.width)
         return self._make_int64_to_int(res, expr.sourcepos)
+
+    def optimize_length_unwrapped_res(self, expr):
+        arg0, = expr.args
+        if isinstance(arg0, parse.CastExpr):
+            realtyp = arg0.expr.resolved_type
+            if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
+                return parse.Number(realtyp.width)
+
 
     def optimize_undefined_bitvector_i(self, expr):
         arg0, = expr.args

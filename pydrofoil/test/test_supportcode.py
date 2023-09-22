@@ -111,6 +111,16 @@ def test_get_slice_int():
         assert supportcode.get_slice_int(machine, Integer.fromint(64), c(-1), Integer.fromint(1000)).tolong() == 0xffffffffffffffff
         assert supportcode.get_slice_int(machine, Integer.fromint(100), c(-1), Integer.fromint(1000)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
+@given(wrapped_ints, strategies.integers(0, 100), strategies.integers(1, 100), strategies.data())
+def test_set_slice_int(i, start, length, data):
+    value = data.draw(strategies.integers(0, 2**length - 1))
+    bv = bitvector.from_bigint(length, rbigint.fromlong(value))
+    i2 = i.set_slice_int(length, start, bv)
+    assert i2.slice(length, start).eq(bv)
+    if start:
+        assert i2.slice(start, 0).eq(i.slice(start, 0))
+        assert i2.slice(100, start + length).eq(i.slice(100, start + length))
+
 @given(strategies.integers(1, 1000), strategies.integers(0, sys.maxint), wrapped_ints)
 def test_hypothesis_get_slice_int(length, start, i):
     res = supportcode.get_slice_int_i_o_i(machine, length, i, start)

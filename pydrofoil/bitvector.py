@@ -813,6 +813,16 @@ class SmallInteger(Integer):
             return from_ruint(64, r_uint(n))
         return from_ruint(len, r_uint(n) & ((1 << len) - 1))
 
+    def set_slice_int(self, len, start, bv):
+        if len > 64 or start + len >= 64:
+            return BigInteger._set_slice_int(self.tobigint(), len, start, bv)
+        assert len == bv.size()
+        out_val = self.val
+        slice_one = ((1 << bv.size()) - 1) << start
+        out_val = out_val & (~slice_one)
+        out_val = out_val | (bv.toint() << start) & ((1 << (start + bv.size())) - 1)
+        return SmallInteger(out_val)
+
     def eq(self, other):
         if isinstance(other, SmallInteger):
             return self.val == other.val
@@ -975,6 +985,17 @@ class BigInteger(Integer):
         else:
             n = rval.rshift(start)
         return from_bigint(len, n)
+
+    def set_slice_int(self, len, start, bv):
+        return self._set_slice_int(self.rval, len, start, bv)
+
+    @staticmethod
+    def _set_slice_int(rval, len, start, bv):
+        assert len == bv.size()
+        slice_one = MASKS.get(bv.size()).lshift(start)
+        out_val = rval.and_(slice_one.invert())
+        out_val = out_val.or_(bv.tobigint().lshift(start))
+        return BigInteger(out_val)
 
     def eq(self, other):
         if isinstance(other, SmallInteger):

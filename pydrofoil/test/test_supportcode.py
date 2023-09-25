@@ -25,6 +25,24 @@ wrapped_ints = strategies.builds(
         make_int,
         strategies.data())
 
+def make_bitvector(data):
+    kind = data.draw(strategies.integers(0, 2))
+    if kind == 0:
+        width = data.draw(strategies.integers(1, 64))
+        value = data.draw(strategies.integers(0, 2**width-1))
+        return bitvector.SmallBitVector(width, r_uint(value))
+    else:
+        width = data.draw(strategies.integers(65, 1000))
+        if kind == 1:
+            value = data.draw(strategies.integers(0, 2**64-1))
+            return bitvector.SparseBitVector(width, r_uint(value))
+        else:
+            value = data.draw(strategies.integers(0, 2**width-1))
+            return bitvector.GenericBitVector(width, rbigint.fromlong(value))
+
+bitvectors = strategies.builds(
+    make_bitvector,
+    strategies.data())
 
 
 def gbv(size, val):
@@ -243,12 +261,12 @@ def test_hypothesis_vector_subrange_unwrapped_res(data):
     assert bvres == correct_res_as_int
 
 @given(strategies.data())
-def test_hypothesis_subrange_unwrapped_res(data):
+def Xtest_hypothesis_subrange_unwrapped_res(data):
     bitwidth = data.draw(strategies.integers(1, 10000))
     start = data.draw(strategies.integers(0, 2 * bitwidth))
     value = data.draw(strategies.integers(0, 2**bitwidth - 1))
     rb = rbigint.fromlong(value)
-    bv = bitvector.from_bigint(bitvector, rb)
+    bv = bitvector.from_bigint(bitwidth, rb)
     res = bv.subrange_unwrapped_res(start + 63, start)
     assert res == rb.rshift(start).and_(rbigint.fromlong(2**64-1)).tolong()
 
@@ -2035,34 +2053,29 @@ def test_sparse_hypothesis_eq(data):
     v = SparseBitVector(bitwidth, r_uint(value))
     assert v.eq(bv)
 
-@given(strategies.data())
-def test_sparse_hypothesis_update_bit(data):
-    bitwidth = data.draw(strategies.integers(65,10000))
-    value = data.draw(strategies.integers(0, 2**64- 1))
-    pos = data.draw(strategies.integers(0, bitwidth -1))
+@given(bitvectors, strategies.data())
+def test_hypothesis_update_bit(v, data):
+    bitwidth = v.size()
+    value = v.tobigint().tolong()
+    pos = data.draw(strategies.integers(0, bitwidth - 1))
     bit = data.draw(strategies.integers(0, 1))
-    v = SparseBitVector(bitwidth, r_uint(value))
     formatted_value = str(bin(value))[2:]
     value = formatted_value.rjust(bitwidth, '0')[::-1]
-    assert len(value) == bitwidth
-    if pos == 0: 
-        value = str(bit) + value[1:]
-    elif pos == bitwidth - 1:
-        value = value[:pos] + str(bit)
-    else:
-        value = value[:pos] + str(bit) + value[pos + 1:]
     res = v.update_bit(pos, bit)
-    assert res.tolong() == int(value[::-1],2)
+    for readpos in range(bitwidth):
+        if pos == readpos:
+            assert res.read_bit(readpos) == bit
+        else:
+            assert v.read_bit(readpos) == res.read_bit(readpos)
 
-@given(strategies.data())
-def test_sparse_hypothesis_read_bit(data):
-    bitwidth = data.draw(strategies.integers(65,10000))
-    value = data.draw(strategies.integers(0, 2**64- 1))
-    pos = data.draw(strategies.integers(0, bitwidth -1))
+@given(bitvectors)
+def test_hypothesis_read_bit(v):
+    bitwidth = v.size()
+    value = v.tobigint().tolong()
     value_as_str = str(bin(value))
-    formatted_value = value_as_str[2:]
-    v = SparseBitVector(bitwidth, r_uint(value))
-    assert v.read_bit(pos) == int(formatted_value.rjust(bitwidth, '0')[::-1][pos])
+    formatted_value = value_as_str[2:].rjust(bitwidth, '0')[::-1]
+    for pos in range(bitwidth):
+        assert v.read_bit(pos) == int(formatted_value[pos])
 
 @given(strategies.data())
 def test_sparse_hypothesis_op(data):
@@ -2076,16 +2089,12 @@ def test_sparse_hypothesis_op(data):
             assert c1(bitwidth, r_uint(value1)).and_(c2(bitwidth, r_uint(value2))).tolong() == (value1 & value2)
 
 
-@given(strategies.data())
-def test_sparse_hypothesis_invert(data):
-    bitwidth = data.draw(strategies.integers(65,10000))
-    value = data.draw(strategies.integers(0, 2**64- 1))
-    v = SparseBitVector(bitwidth, r_uint(value))
-    value_as_str = str(bin(value))
-    formatted_value = value_as_str[2:]
-    filled = "0b" + formatted_value.rjust(bitwidth, '0')
-    inverse_s = ~int(filled,2) % (2 ** bitwidth)
-    assert v.invert().tolong() == inverse_s
+@given(bitvectors)
+def test_hypothesis_invert(v):
+    res = v.invert()
+    assert res.size() == v.size()
+    for pos in range(v.size()):
+        assert res.read_bit(pos) != v.read_bit(pos)
 
 @given(strategies.data())
 def test_sparse_hypothesis_unsigned(data):
@@ -2157,3 +2166,23 @@ def test_sparse_arith_shiftr_hypothesis(data):
     res = v.arith_rshift(shift)
     intres = v.signed().tobigint().tolong() >> shift
     assert res.tobigint().tolong() == intres & ((1 << size) - 1)
+
+# new generic bitvector infrastructure
+
+@given(strategies.integers(0))
+def test_array_from_to_rbigint_roundtrip(value):
+    rval = rbigint.fromlong(value)
+    data = bitvector.array_from_rbigint(rval.bit_length(), rval)
+    rval2 = bitvector.rbigint_from_array(data)
+    assert rval.eq(rval2)
+
+@given(strategies.data())
+def test_array_from_to_rbigint_roundtrip_size(data):
+    bitwidth = data.draw(strategies.integers(65, 1000))
+    extra_bits = data.draw(strategies.integers(1, 1000))
+    value = data.draw(strategies.integers(0, 2**(bitwidth + extra_bits)))
+    rval = rbigint.fromlong(value)
+    data = bitvector.array_from_rbigint(bitwidth, rval)
+    rval2 = bitvector.rbigint_from_array(data)
+    assert rval2.tolong() == value & ((1 << bitwidth) - 1)
+

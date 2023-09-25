@@ -783,13 +783,20 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange_unwrapped_res(self, n, m):
         width = n - m + 1
-        return ruint_mask(width, rbigint_extract_ruint(self.rval(), m))
+        wordshift, bitshift = self._data_indexes(m)
+        size = self.size()
+        data = self.data
+        digit = data[wordshift]
+        res = digit >> bitshift
+        if wordshift + 1 < len(data):
+            res |= (data[wordshift + 1] << (64 - bitshift))
+        return ruint_mask(width, res)
 
     def zero_extend(self, i):
         if i == self.size():
             return self
         assert i > self.size()
-        return GenericBitVector(i, self.rval())
+        return GenericBitVector(i, self.data[:])
 
     def sign_extend(self, i):
         if i == self.size():

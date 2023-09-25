@@ -123,15 +123,15 @@ class BitVector(object):
         return self.rshift(other.toint())
 
     @staticmethod
-    def unpack(size, val, rval):
+    def unpack(size, val, data):
         if size <= 64:
-            assert rval is None
+            assert data is None
             return SmallBitVector(size, val)
-        elif rval is None:
-            assert rval is None
+        elif data is None:
+            assert data is None
             return SparseBitVector(size, val)
         else:
-            return GenericBitVector(size, rval)
+            return GenericBitVector(size, data)
 
 
 class BitVectorWithSize(BitVector):
@@ -620,8 +620,8 @@ class GenericBitVector(BitVectorWithSize):
         assert 0 <= pos < self.size()
         return pos >> 6, pos & 63
 
-    def make(self, rval, normalize=False):
-        return GenericBitVector(self.size(), rval, normalize)
+    def make(self, data, normalize=False):
+        return GenericBitVector(self.size(), data, normalize)
 
     def __repr__(self):
         return "<GenericBitVector %s [%s]>" % (self.size(), ", ".join(hex(x) for x in self.data))
@@ -634,6 +634,8 @@ class GenericBitVector(BitVectorWithSize):
 
     def add_int(self, i):
         if isinstance(i, SmallInteger):
+            if i.val >= 0:
+                return self.add_bits(SparseBitVector(self.size(), r_uint(i.val)))
             return self.make(self.rval().int_add(i.val), normalize=True)
         return self.make(self.rval().add(i.tobigint()), normalize=True)
 
@@ -653,7 +655,7 @@ class GenericBitVector(BitVectorWithSize):
             carry = r_uint(res < value)
             resdata[0] = res
             resdata[1] += carry
-        return self.make(resdata)
+        return self.make(resdata, True)
 
     def sub_bits(self, other):
         assert self.size() == other.size()
@@ -877,7 +879,7 @@ class GenericBitVector(BitVectorWithSize):
         return GenericBitVector(i, self.data[:length], normalize=True)
 
     def pack(self):
-        return (self.size(), r_uint(0xdeaddead), self.rval())
+        return (self.size(), r_uint(0xdeaddead), self.data)
 
 
 class Integer(object):

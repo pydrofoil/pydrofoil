@@ -116,6 +116,12 @@ class BitVector(object):
     def append_64(self, ui):
         return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
 
+    def lshift_bits(self, other):
+        return self.lshift(other.toint())
+
+    def rshift_bits(self, other):
+        return self.rshift(other.toint())
+
     @staticmethod
     def unpack(size, val, rval):
         if size <= 64:
@@ -194,9 +200,6 @@ class SmallBitVector(BitVectorWithSize):
         # XXX can be better
         return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().sub(i.tobigint())))
 
-    def print_bits(self):
-        print self.__repr__()
-
     def lshift(self, i):
         assert i >= 0
         if i >= 64:
@@ -219,12 +222,6 @@ class SmallBitVector(BitVectorWithSize):
         if highest_bit:
             res |= ((r_uint(1) << i) - 1) << (size - i)
         return SmallBitVector(size, res)
-
-    def lshift_bits(self, other):
-        return self.lshift(other.toint())
-
-    def rshift_bits(self, other):
-        return self.rshift(other.toint())
 
     def xor(self, other):
         assert self.size() == other.size()
@@ -445,9 +442,6 @@ class SparseBitVector(BitVectorWithSize):
                 return SparseBitVector(self.size(), self.val - r_uint(i.val))
         return self._to_generic().sub_int(i)
 
-    def print_bits(self):
-        print "SparseBitVector<%s, %s>" % (self.size(), self.val.hex())
-
     def lshift(self, i):
         if i < 64:
             if (self.val >> (64 - i)) == 0:
@@ -485,7 +479,9 @@ class SparseBitVector(BitVectorWithSize):
     def and_(self, other):
         if isinstance(other, SparseBitVector):
             return SparseBitVector(self.size(), self.val & other.val)
-        return self._to_generic().and_(other)
+        # don't force _to_generic here, so GenericBitVector.and_ can return a
+        # SparseBitVector again
+        return other.and_(self)
 
     def invert(self):
         return self._to_generic().invert()
@@ -649,8 +645,21 @@ class GenericBitVector(BitVectorWithSize):
 
     def add_bits(self, other):
         assert self.size() == other.size()
-        assert isinstance(other, SparseBitVector) or isinstance(other, GenericBitVector)
-        return self.make(self.rval().add(other.tobigint()), normalize=True)
+        resdata = self.data[:]
+        if isinstance(other, GenericBitVector):
+            carry = r_uint(0)
+            for i, value in enumerate(other.data):
+                res = resdata[i] + value
+                resdata[i] = res + carry
+                carry = r_uint(res < value)
+        else:
+            assert isinstance(other, SparseBitVector)
+            value = other.val
+            res = resdata[0] + value
+            carry = r_uint(res < value)
+            resdata[0] = res
+            resdata[1] += carry
+        return self.make(resdata)
 
     def sub_bits(self, other):
         assert self.size() == other.size()
@@ -662,20 +671,38 @@ class GenericBitVector(BitVectorWithSize):
             return self.make(self.rval().int_sub(i.val), normalize=True)
         return self.make(self.rval().sub(i.tobigint()), normalize=True)
 
-    def print_bits(self):
-        print "GenericBitVector<%s, %s>" % (self.size(), self.rval().hex())
-
     def lshift(self, i):
         return self.make(self.rval().lshift(i), normalize=True)
 
     def rshift(self, i):
-        return self.make(self.rval().rshift(i), normalize=True)
+        if i >= self.size():
+            return SparseBitVector(self.size(), r_uint(0))
+        if i < 0:
+            raise ValueError("negative shift count")
+        if i == 0:
+            return self
+        wordshift, bitshift = self._data_indexes(i)
+        data = self.data
+        resdata = [r_uint(0)] * len(data)
+        if not bitshift:
+            for i in range(len(data) - wordshift):
+                resdata[i] = data[i + wordshift]
+        else:
+            antibitshift = 64 - bitshift
+            accum = r_uint(0)
+            for i in range(len(data) - 1, wordshift - 1, -1):
+                digit = data[i]
+                accum |= digit >> bitshift
+                resdata[i - wordshift] = accum
+                accum = digit << antibitshift
+        return self.make(resdata)
 
     def arith_rshift(self, i):
         assert i >= 0
         size = self.size()
         if i >= size:
             i = size
+        highest_bit = self.read_bit(size - 1)
         rval = self.rval()
         highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
         res = rval.rshift(i)
@@ -690,13 +717,34 @@ class GenericBitVector(BitVectorWithSize):
         return self.rshift(other.toint())
 
     def xor(self, other):
-        return self.make(self.rval().xor(other.tobigint()), normalize=True)
+        resdata = self.data[:]
+        if isinstance(other, GenericBitVector):
+            for i, value in enumerate(other.data):
+                resdata[i] ^= value
+        else:
+            assert isinstance(other, SparseBitVector)
+            resdata[0] ^= other.val
+        return self.make(resdata)
 
     def or_(self, other):
-        return self.make(self.rval().or_(other.tobigint()), normalize=True)
+        resdata = self.data[:]
+        if isinstance(other, GenericBitVector):
+            for i, value in enumerate(other.data):
+                resdata[i] |= value
+        else:
+            assert isinstance(other, SparseBitVector)
+            resdata[0] |= other.val
+        return self.make(resdata)
 
     def and_(self, other):
-        return self.make(self.rval().and_(other.tobigint()), normalize=True)
+        if isinstance(other, GenericBitVector):
+            resdata = self.data[:]
+            for i, value in enumerate(other.data):
+                resdata[i] &= value
+            return self.make(resdata)
+        else:
+            assert isinstance(other, SparseBitVector)
+            return SparseBitVector(self.size(), self.data[0] & other.val)
 
     def invert(self):
         resdata = [~x for x in self.data]
@@ -772,7 +820,14 @@ class GenericBitVector(BitVectorWithSize):
 
     def eq(self, other):
         assert self.size() == other.size()
-        return self.rval().eq(other.tobigint())
+        if isinstance(other, GenericBitVector):
+            return self.data == other.data
+        else:
+            assert isinstance(other, SparseBitVector)
+            for i in range(1, len(self.data)):
+                if self.data[i]:
+                    return False
+            return other.val == self.data[0]
 
     def toint(self):
         return self.rval().toint()

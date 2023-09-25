@@ -25,23 +25,61 @@ wrapped_ints = strategies.builds(
         make_int,
         strategies.data())
 
+def _make_small_bitvector(data, width=-1):
+    if width == -1:
+        width = data.draw(strategies.integers(1, 64))
+    value = data.draw(strategies.integers(0, 2**width-1))
+    return bitvector.SmallBitVector(width, r_uint(value))
+
+def _make_sparse_bitvector(data, width=-1):
+    if width == -1:
+        width = data.draw(strategies.integers(65, 1000))
+    value = data.draw(strategies.integers(0, 2**64-1))
+    return bitvector.SparseBitVector(width, r_uint(value))
+
+def _make_generic_bitvector(data, width=-1):
+    if width == -1:
+        width = data.draw(strategies.integers(65, 1000))
+    value = data.draw(strategies.integers(0, 2**width-1))
+    return bitvector.GenericBitVector(width, rbigint.fromlong(value))
+
 def make_bitvector(data):
     kind = data.draw(strategies.integers(0, 2))
     if kind == 0:
-        width = data.draw(strategies.integers(1, 64))
-        value = data.draw(strategies.integers(0, 2**width-1))
-        return bitvector.SmallBitVector(width, r_uint(value))
+        return _make_small_bitvector(data)
     else:
-        width = data.draw(strategies.integers(65, 1000))
         if kind == 1:
-            value = data.draw(strategies.integers(0, 2**64-1))
-            return bitvector.SparseBitVector(width, r_uint(value))
+            return _make_sparse_bitvector(data)
         else:
-            value = data.draw(strategies.integers(0, 2**width-1))
-            return bitvector.GenericBitVector(width, rbigint.fromlong(value))
+            return _make_generic_bitvector(data)
 
 bitvectors = strategies.builds(
     make_bitvector,
+    strategies.data())
+
+def make_two_bitvectors(data):
+    kind = data.draw(strategies.integers(0, 4))
+    if kind == 0:
+        v1 = _make_small_bitvector(data)
+        v2 = _make_small_bitvector(data, v1.size())
+    else:
+        width = data.draw(strategies.integers(65, 1000))
+        if kind == 1:
+            v1 = _make_sparse_bitvector(data)
+            v2 = _make_sparse_bitvector(data, v1.size())
+        elif kind == 2 or kind == 4:
+            v1 = _make_sparse_bitvector(data)
+            v2 = _make_generic_bitvector(data, v1.size())
+            if kind == 4:
+                v2, v1 = v1, v2
+        else:
+            v1 = _make_generic_bitvector(data)
+            v2 = _make_generic_bitvector(data, v1.size())
+    return v1, v2
+
+
+two_bitvectors = strategies.builds(
+    make_two_bitvectors,
     strategies.data())
 
 
@@ -342,11 +380,6 @@ def test_vector_shift():
         assert res.size() == 8
         assert res.toint() == 0
 
-        x = c(8, 0b10001101)
-        res = x.rshift(65)
-        assert res.size() == 8
-        assert res.toint() == 0
-
 def test_vector_shift_bits():
     for c in gbv, bv:
         x = c(8, 0b10001101)
@@ -364,10 +397,6 @@ def test_vector_shift_bits():
         assert res.size() == 8
         assert res.toint() == 0
 
-        x = c(8, 0b10001101)
-        res = x.rshift_bits(c(16, 65))
-        assert res.size() == 8
-        assert res.toint() == 0
 
 def test_arith_shiftr():
     for c in bv, gbv:
@@ -385,17 +414,10 @@ def test_arith_shiftr():
         assert res.size() == 8
         assert res.toint() == 0b101
 
-@given(strategies.data())
-def test_arith_shiftr_hypothesis(data):
-    small = data.draw(strategies.booleans())
-    if small:
-        size = data.draw(strategies.integers(1, 64))
-        value = data.draw(strategies.integers(0, 2**size-1))
-        bv = bitvector.SmallBitVector(size, r_uint(value))
-    else:
-        size = data.draw(strategies.integers(65, 5000))
-        value = data.draw(strategies.integers(0, 2**size-1))
-        bv = bitvector.GenericBitVector(size, rbigint.fromlong(value))
+@given(bitvectors, strategies.data())
+def test_arith_shiftr_hypothesis(bv, data):
+    value = bv.tolong()
+    size = bv.size()
     shift = data.draw(strategies.integers(0, size+10))
     res = bv.arith_rshift(shift)
     # compare against signed, then integer shift
@@ -1949,21 +1971,23 @@ def test_sparse_hypothesis_sub_int(data):
     for c in bi, si:
         assert SparseBitVector(100, r_uint(value1)).sub_int(c(value2)).tolong() == ans % (2 ** 100)
 
-@given(strategies.data())
-def test_sparse_hypothesis_sub_bits(data):
-    value1 = data.draw(strategies.integers(0, 2**64 - 1))
-    value2 = data.draw(strategies.integers(0, sys.maxint))
+@given(two_bitvectors)
+def test_hypothesis_sub_bits(values):
+    v1, v2 = values
+    value1 = v1.tolong()
+    value2 = v2.tolong()
     ans = value1 - value2
-    for c in gbv, SparseBitVector:
-        assert SparseBitVector(100, r_uint(value1)).sub_bits(c(100, r_uint(value2))).tolong() == ans % (2 ** 100)
+    res = v1.sub_bits(v2)
+    assert res.tolong() == ans % (2 ** v1.size())
 
-@given(strategies.data())
-def test_sparse_hypothesis_add_bits(data):
-    value1 = data.draw(strategies.integers(0, 2**64 - 1))
-    value2 = data.draw(strategies.integers(0, sys.maxint))
+@given(two_bitvectors)
+def test_hypothesis_add_bits(values):
+    v1, v2 = values
+    value1 = v1.tolong()
+    value2 = v2.tolong()
     ans = value1 + value2
-    for c in gbv, SparseBitVector:
-        assert SparseBitVector(100, r_uint(value1)).add_bits(c(100, r_uint(value2))).tolong() == ans 
+    res = v1.add_bits(v2)
+    assert res.tolong() == ans % (2 ** v1.size())
 
         
 @given(strategies.data())
@@ -2042,16 +2066,15 @@ def test_sparse_hypothesis_replicate(data):
     assert res.tolong() == int(ans, 2) 
 
 
-@given(strategies.data())
-def test_sparse_hypothesis_eq(data):
-    bitwidth = data.draw(strategies.integers(65,10000))
-    value = data.draw(strategies.integers(0, 2**64- 1))
-    if not data.draw(strategies.booleans()):
-        bv = SparseBitVector(bitwidth, r_uint(value))
-    else:
-        bv = gbv(bitwidth, r_uint(value))
-    v = SparseBitVector(bitwidth, r_uint(value))
-    assert v.eq(bv)
+@given(two_bitvectors)
+def test_hypothesis_eq(values):
+    v1, v2 = values
+    assert v1.eq(v1)
+    assert v2.eq(v2)
+    assert v1.eq(v2) == (v1.tolong() == v2.tolong())
+    if isinstance(v1, SparseBitVector):
+        assert v1._to_generic().eq(v1)
+        assert v1.eq(v1._to_generic())
 
 @given(bitvectors, strategies.data())
 def test_hypothesis_update_bit(v, data):
@@ -2077,16 +2100,14 @@ def test_hypothesis_read_bit(v):
     for pos in range(bitwidth):
         assert v.read_bit(pos) == int(formatted_value[pos])
 
-@given(strategies.data())
-def test_sparse_hypothesis_op(data):
-    bitwidth = data.draw(strategies.integers(65,10000))
-    value1 = data.draw(strategies.integers(0, 2**64- 1))
-    value2 = data.draw(strategies.integers(0, 2**64- 1))
-    for c1 in SparseBitVector, gbv:
-        for c2 in SparseBitVector, gbv:
-            assert c1(bitwidth, r_uint(value1)).xor(c2(bitwidth, r_uint(value2))).tolong() == (value1 ^ value2)
-            assert c1(bitwidth, r_uint(value1)).or_(c2(bitwidth, r_uint(value2))).tolong() == (value1 | value2)
-            assert c1(bitwidth, r_uint(value1)).and_(c2(bitwidth, r_uint(value2))).tolong() == (value1 & value2)
+@given(two_bitvectors)
+def test_hypothesis_op(values):
+    v1, v2 = values
+    value1 = v1.tolong()
+    value2 = v2.tolong()
+    assert v1.xor(v2).tolong() == (value1 ^ value2)
+    assert v1.or_(v2).tolong() == (value1 | value2)
+    assert v1.and_(v2).tolong() == (value1 & value2)
 
 
 @given(bitvectors)
@@ -2137,12 +2158,11 @@ def test_sparse_hypothesis_lshift_bits(data):
     mask = ''
     assert res == (value1 << value2) & ((1 << bitwidth) - 1) 
 
-@given(strategies.data())
-def test_sparse_hypothesis_rshift(data):
-    bitwidth = data.draw(strategies.integers(65,10000))
-    value = data.draw(strategies.integers(0, 2**64- 1))
-    v = SparseBitVector(bitwidth, r_uint(value))
-    shift = data.draw(strategies.integers(0, bitwidth))
+@given(bitvectors, strategies.data())
+def test_hypothesis_rshift(v, data):
+    bitwidth = v.size()
+    value = v.tolong()
+    shift = data.draw(strategies.integers(0, bitwidth + 5))
     res = v.rshift(shift).tolong()
     assert res == (value >> shift)
 

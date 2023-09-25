@@ -43,15 +43,21 @@ def _make_generic_bitvector(data, width=-1):
     value = data.draw(strategies.integers(0, 2**width-1))
     return bitvector.GenericBitVector(width, rbigint.fromlong(value))
 
-def make_bitvector(data):
-    kind = data.draw(strategies.integers(0, 2))
+def make_bitvector(data, width=-1):
+    if width > 0:
+        if width <= 64:
+            kind = 0
+        else:
+            kind = data.draw(strategies.integers(1, 2))
+    else:
+        kind = data.draw(strategies.integers(0, 2))
     if kind == 0:
-        return _make_small_bitvector(data)
+        return _make_small_bitvector(data, width)
     else:
         if kind == 1:
-            return _make_sparse_bitvector(data)
+            return _make_sparse_bitvector(data, width)
         else:
-            return _make_generic_bitvector(data)
+            return _make_generic_bitvector(data, width)
 
 bitvectors = strategies.builds(
     make_bitvector,
@@ -343,6 +349,25 @@ def test_sparse_vector_update_subrange():
     y = gbv(1000, 0b1101001010010)
     x = x.update_subrange(999, 0, y)
     assert isinstance(x, bitvector.GenericBitVector)
+
+@given(bitvectors, strategies.data())
+def test_vector_update_subrange_hypothesis(bv, data):
+    width = bv.size()
+    value = bv.tolong()
+    lower = data.draw(strategies.integers(0, width-1))
+    upper = data.draw(strategies.integers(lower, width-1))
+    subwidth = upper - lower + 1
+    subvalue = r_uint(data.draw(strategies.integers(0, 2 ** min(subwidth, 64) - 1)))
+    replace_bv = make_bitvector(data, subwidth)
+
+    res = bv.update_subrange(upper, lower, replace_bv)
+    # check: the read of the same range must return replace_bv
+    assert replace_bv.eq(res.subrange(upper, lower))
+    # the other bits must be unchanged
+    if lower:
+        assert res.subrange(lower - 1, 0).eq(bv.subrange(lower - 1, 0))
+    if upper < width - 1:
+        assert res.subrange(width - 1, upper + 1).eq(bv.subrange(width - 1, upper + 1))
 
 @given(strategies.data())
 def test_sparse_vector_update_subrange_hypothesis(data):

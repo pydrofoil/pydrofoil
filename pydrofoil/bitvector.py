@@ -262,23 +262,17 @@ class SmallBitVector(BitVectorWithSize):
 
     @always_inline
     def sign_extend(self, i):
-        # XXX can be improved with xor etc
-        if i == self.size():
+        size = self.size()
+        if i == size:
             return self
 
         if i > 64:
-            if self.read_bit(self.size() - 1):
-                return GenericBitVector._sign_extend(rbigint_fromrarith_int(self.val), self.size(), i)
+            if self.read_bit(size - 1):
+                return GenericBitVector._sign_extend(size, [self.val], i)
             else:
                 return SparseBitVector(i, self.val) 
-        assert i > self.size()
-        highest_bit = self.read_bit(self.size() - 1)
-        if not highest_bit:
-            return from_ruint(i, self.val)
-        else:
-            extra_bits = i - self.size()
-            bits = ((r_uint(1) << extra_bits) - 1) << self.size()
-            return from_ruint(i, bits | self.val)
+        m = r_uint(1) << (self.size() - 1)
+        return SmallBitVector(i, (self.val ^ m) - m, True)
 
     def read_bit(self, pos):
         assert pos < self.size()
@@ -615,9 +609,9 @@ class GenericBitVector(BitVectorWithSize):
     def rval(self):
         return rbigint_from_array(self.data)
 
+    @staticmethod
     @always_inline
-    def _data_indexes(self, pos):
-        assert 0 <= pos < self.size()
+    def _data_indexes(pos):
         return pos >> 6, pos & 63
 
     def make(self, data, normalize=False):
@@ -775,11 +769,8 @@ class GenericBitVector(BitVectorWithSize):
         if width <= 64:
             return SmallBitVector(width, self.subrange_unwrapped_res(n, m))
         if m == 0:
-            return from_bigint(width, self.rval())
-        rval = self.rval().rshift(m)
-        if n == self.size():
-            return GenericBitVector(width, rval) # no need to mask
-        return from_bigint(width, rval)
+            return self.truncate(width)
+        return self.rshift(m).truncate(width) # XXX do it in one call
 
     def subrange_unwrapped_res(self, n, m):
         width = n - m + 1
@@ -796,23 +787,33 @@ class GenericBitVector(BitVectorWithSize):
         if i == self.size():
             return self
         assert i > self.size()
-        return GenericBitVector(i, self.data[:])
+        wordsize, bitsize = self._data_indexes(i)
+        targetsize = wordsize + bool(bitsize)
+        resdata = [r_uint(0)] * targetsize
+        for index, value in enumerate(self.data):
+            resdata[index] = value
+        return GenericBitVector(i, resdata)
 
     def sign_extend(self, i):
-        if i == self.size():
+        size = self.size()
+        if i == size:
             return self
-        assert i > self.size()
-        return self._sign_extend(self.rval(), self.size(), i)
+        return self._sign_extend(size, self.data, i)
 
     @staticmethod
-    def _sign_extend(rval, size, target_size):
-        highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
-        if not highest_bit:
-            return GenericBitVector(target_size, rval)
-        else:
-            extra_bits = target_size - size
-            bits = MASKS.get(extra_bits).lshift(size)
-            return GenericBitVector(target_size, bits.or_(rval))
+    def _sign_extend(size, data, i):
+        assert i > size
+        hbit_word_index, hbit_index = GenericBitVector._data_indexes(size - 1)
+        upper_bits = -r_uint((data[hbit_word_index] >> hbit_index) & 1)
+        wordsize, bitsize = GenericBitVector._data_indexes(i)
+        targetsize = wordsize + bool(bitsize)
+        resdata = [upper_bits] * targetsize
+        lastindex, bits = GenericBitVector._data_indexes(size)
+        for index in range(lastindex):
+            resdata[index] = data[index]
+        if bits:
+            resdata[lastindex] = data[lastindex] | (upper_bits << bits)
+        return GenericBitVector(i, resdata, True)
 
     def read_bit(self, pos):
         wordindex, bitindex = self._data_indexes(pos)

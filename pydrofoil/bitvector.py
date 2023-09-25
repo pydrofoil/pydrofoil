@@ -460,12 +460,6 @@ class SparseBitVector(BitVectorWithSize):
             return SparseBitVector(self.size(), 0)
         return SparseBitVector(self.size(), self.val >> i)
 
-    def lshift_bits(self, other):
-        return self._to_generic().lshift_bits(other)
-
-    def rshift_bits(self, other):
-        return self.rshift(other.toint())
-
     def xor(self, other):
         if isinstance(other, SparseBitVector):
             return SparseBitVector(self.size(), self.val ^ other.val)
@@ -672,7 +666,31 @@ class GenericBitVector(BitVectorWithSize):
         return self.make(self.rval().sub(i.tobigint()), normalize=True)
 
     def lshift(self, i):
-        return self.make(self.rval().lshift(i), normalize=True)
+        from rpython.rlib.rbigint import NULLDIGIT, _load_unsigned_digit
+        if i < 0:
+            raise ValueError("negative shift count")
+        elif i == 0:
+            return self
+        size = self.size()
+        if i >= size:
+            return SparseBitVector(size, r_uint(0))
+        wordshift, bitshift = self._data_indexes(i)
+        data = self.data
+        resdata = [r_uint(0)] * len(data)
+        if not bitshift:
+            for i in range(len(data) - wordshift):
+                resdata[i + wordshift] = data[i]
+        else:
+            accum = r_uint(0)
+            antibitshift = 64 - bitshift
+            j = 0
+            for i in range(len(data) - wordshift):
+                digit = data[i]
+                accum |= digit << bitshift
+                resdata[wordshift] = accum
+                accum = digit >> antibitshift
+                wordshift += 1
+        return self.make(resdata, True)
 
     def rshift(self, i):
         if i >= self.size():
@@ -851,9 +869,12 @@ class GenericBitVector(BitVectorWithSize):
         size = self.size()
         assert i <= self.size()
         if i <= 64:
-            val = rbigint_extract_ruint(self.rval(), 0)
-            return SmallBitVector(i, val, normalize=i < 64)
-        return GenericBitVector(i, self.rval(), normalize=i < size)
+            return SmallBitVector(i, self.data[0], normalize=True)
+        if i == size:
+            return self
+        length, bits = self._data_indexes(i)
+        length += bool(bits)
+        return GenericBitVector(i, self.data[:length], normalize=True)
 
     def pack(self):
         return (self.size(), r_uint(0xdeaddead), self.rval())

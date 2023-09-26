@@ -858,12 +858,21 @@ class GenericBitVector(BitVectorWithSize):
             return other.val == self.data[0]
 
     def toint(self):
-        return self.rval().toint()
+        for i in range(1, len(self.data)):
+            if self.data[i]:
+                raise ValueError
+        lastdigit = self.data[0]
+        if lastdigit >> 63:
+            raise ValueError
+        return intmask(lastdigit)
 
     def touint(self, expected_width=0):
         if expected_width:
             self.size() == expected_width
-        return self.rval().touint()
+        for i in range(1, len(self.data)):
+            if self.data[i]:
+                raise ValueError
+        return self.data[0]
 
     def tobigint(self):
         return rbigint_from_array(self.data)

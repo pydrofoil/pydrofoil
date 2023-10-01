@@ -575,10 +575,11 @@ def array_from_rbigint(size, rval):
     from rpython.rlib.rbigint import SHIFT
     value = rval.tolong()
     res = []
+    index = 0
     while size > 0:
-        res.append(r_uint(value & r_uint(-1)))
-        value >>= 64
+        res.append(rbigint_extract_ruint(rval, index))
         size -= 64
+        index += 64
     if size != 0:
         res[-1] &= ((r_uint(1) << (size + 64)) - 1)
     return res

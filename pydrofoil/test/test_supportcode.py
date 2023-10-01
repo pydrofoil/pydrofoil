@@ -463,20 +463,19 @@ def test_add_bits_int_bv_i():
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b11), 6, -0b111111111) == (0b11 - 0b111111111) & 0b111111
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b1011), 6, -2 ** 63) == (0b1011 - 2**63) & 0b111111
 
-@given(strategies.data())
-def test_hypothesis_add_bits_int(data):
-    if not data.draw(strategies.booleans()):
-        bitwidth = data.draw(strategies.integers(1, 64))
-    else:
-        bitwidth = data.draw(strategies.integers(65, 10000))
-    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
-    bvvalue = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
-    rhs = data.draw(ints)
-    irhs = Integer.frombigint(rbigint.fromlong(rhs))
+@given(bitvectors, wrapped_ints)
+def test_hypothesis_add_bits_int(bvvalue, irhs):
+    value = bvvalue.tolong()
+    rhs = irhs.tolong()
     bvres = bvvalue.add_int(irhs)
+    bitwidth = bvvalue.size()
+    assert irhs.tolong() == rhs
     assert bvres.tolong() == (value + rhs) % (2 ** bitwidth)
+    assert irhs.tolong() == rhs
     bvres = bvvalue.sub_int(irhs)
+    assert irhs.tolong() == rhs
     assert bvres.tolong() == (value - rhs) % (2 ** bitwidth)
+    assert irhs.tolong() == rhs
 
 @given(strategies.data())
 def test_hypothesis_add_bits_int_bv_i(data):
@@ -2061,7 +2060,6 @@ def test_sparse_hypothesis_sign_extend(data):
     value = data.draw(strategies.integers(0, 2**64 - 1))
     bv = SparseBitVector(bitwidth, r_uint(value))
     res = bv.sign_extend(target_bitwidth)
-    print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
 
 @settings(deadline=1000)
@@ -2072,7 +2070,6 @@ def test_sparse_hypothesis_zero_extend(data):
     value = data.draw(strategies.integers(0, 2**64 - 1))
     bv = SparseBitVector(bitwidth, r_uint(value))
     res = bv.zero_extend(target_bitwidth)
-    print bitwidth, target_bitwidth, value, bv, res, bv.signed().tobigint(), res.signed().tobigint()
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
 
 @given(strategies.data())

@@ -632,6 +632,13 @@ class GenericBitVector(BitVectorWithSize):
             if i.val >= 0:
                 return self.add_bits(SparseBitVector(self.size(), r_uint(i.val)))
             return self.sub_bits(SparseBitVector(self.size(), -r_uint(i.val)))
+        #sign = i.get_sign()
+        #if sign == 0:
+        #    return self
+        #elif sign >= 0:
+        #    return self.add_bits(self.make(
+        #else:
+        #    pass
         return self.make(self.rval().add(i.tobigint()), normalize=True)
 
     def add_bits(self, other):

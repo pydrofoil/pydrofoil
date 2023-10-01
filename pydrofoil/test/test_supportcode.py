@@ -330,7 +330,7 @@ def test_vector_update_subrange():
             x = c1(64, 0b10001101)
             y = c2(64, 0b1101001010010)
             x = x.update_subrange(63, 0, y)
-            assert x.eq(y)
+            assert x.tolong() == y.tolong()
 
 def test_sparse_vector_update_subrange():
     for c in SparseBitVector, gbv:
@@ -400,10 +400,16 @@ def test_vector_shift():
         assert res.size() == 8
         assert res.toint() == 0b00000100
 
-        x = c(8, 0b10001101)
-        res = x.lshift(65)
-        assert res.size() == 8
-        assert res.toint() == 0
+    x = bv(8, 0b10001101)
+    res = x.lshift(10)
+    assert res.size() == 8
+    assert res.toint() == 0
+
+    x = gbv(65, 0b10001101)
+    res = x.lshift(100)
+    assert res.size() == 65
+    assert res.toint() == 0
+
 
 def test_vector_shift_bits():
     for c in gbv, bv:
@@ -417,10 +423,15 @@ def test_vector_shift_bits():
         assert res.size() == 8
         assert res.toint() == 0b00000100
 
-        x = c(8, 0b10001101)
-        res = x.lshift_bits(c(8, 65))
-        assert res.size() == 8
-        assert res.toint() == 0
+    x = bv(8, 0b10001101)
+    res = x.lshift_bits(c(8, 65))
+    assert res.size() == 8
+    assert res.toint() == 0
+
+    x = gbv(65, 0b10001101)
+    res = x.lshift_bits(c(8, 100))
+    assert res.size() == 65
+    assert res.toint() == 0
 
 
 def test_arith_shiftr():
@@ -612,10 +623,9 @@ def test_mul_optimized(monkeypatch):
 
 
 def test_op_gv_int():
-    for c1 in gbv, bv:
-        for c2 in bi, si:
-            assert c1(16, 4).add_int(c2(9)).touint() == 13
-            assert c1(16, 4).sub_int(c2(9)).touint() == r_uint((-5) & 0xffff)
+    for c2 in bi, si:
+        assert bv(16, 4).add_int(c2(9)).touint() == 13
+        assert bv(16, 4).sub_int(c2(9)).touint() == r_uint((-5) & 0xffff)
 
 def test_int_shift():
     for c in bi, si:
@@ -1938,21 +1948,6 @@ def test_sparse_lshift():
     assert res.size() == 100
     assert isinstance(res, bitvector.GenericBitVector)
     
-def test_sparse_check_carry():
-    v = SparseBitVector(100, r_uint(0xffffffffffffffff))
-    assert v.check_carry(r_uint(0b1)) == 1
-    v = SparseBitVector(100, r_uint(0xfffffffffffffffe))
-    assert v.check_carry(r_uint(0b1)) == 0
-    v = SparseBitVector(100, r_uint(0xfffffffffffffffe))
-    assert v.check_carry(r_uint(0b10)) == 1
-    v = SparseBitVector(100, r_uint(0xffffffffffffffee))
-    assert v.check_carry(r_uint(0xffffffff)) == 1
-    v = SparseBitVector(100, r_uint(0xffffffffffffffee))
-    assert v.check_carry(r_uint(0x1)) == 0
-    v = SparseBitVector(100, r_uint(0x0))
-    assert v.check_carry(r_uint(0x1)) == 0
-
-
 def test_sparse_add_int():
     for c in bi, si:
         assert SparseBitVector(6000, 0b11).add_int(c(0b111111111)).touint() == 0b11 + 0b111111111

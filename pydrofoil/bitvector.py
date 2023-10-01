@@ -393,7 +393,10 @@ class SparseBitVector(BitVectorWithSize):
         return "<SparseBitVector %s %r>"%(self.size(), self.val)
 
     def _to_generic(self):
-        return GenericBitVector(self._size, rbigint_fromrarith_int(self.val))
+        size = GenericBitVector._data_size(self.size())
+        resdata = [r_uint(0)] * size
+        resdata[0] = self.val
+        return GenericBitVector(self._size, resdata, normalize=False)
 
     def add_int(self, i): 
         if isinstance(i, SmallInteger):
@@ -616,7 +619,7 @@ class GenericBitVector(BitVectorWithSize):
 
     @staticmethod
     def _data_size(bitwidth):
-        return bitwidth >> 6 + bool(bitwidth & 63)
+        return (bitwidth >> 6) + bool(bitwidth & 63)
 
     def make(self, data, normalize=False):
         return GenericBitVector(self.size(), data, normalize)

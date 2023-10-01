@@ -1973,8 +1973,8 @@ def test_sparse_add_bits():
 
 def test_sparse_sub_bits():
     for c in gbv, SparseBitVector:
-        assert (SparseBitVector(100, (0b0)).sub_bits(c(100, r_uint(0b1))), bitvector.GenericBitVector)
-        assert SparseBitVector(100, 0b0).sub_bits(c(100, 0b1)).tolong() == -1 % (2 ** 100)
+        assert (SparseBitVector(100, r_uint(0b0)).sub_bits(c(100, r_uint(0b1))), bitvector.GenericBitVector)
+        assert SparseBitVector(100, r_uint(0b0)).sub_bits(c(100, 0b1)).tolong() == -1 % (2 ** 100)
         assert SparseBitVector(100, r_uint(0xffffffffffffffff)).sub_bits(c(100, 0b1)).tolong() == 0xffffffffffffffff - 1
 
 def test_sparse_sub_int():

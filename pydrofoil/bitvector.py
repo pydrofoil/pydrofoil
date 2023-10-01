@@ -416,18 +416,18 @@ class SparseBitVector(BitVectorWithSize):
     def add_bits(self, other):
         assert self.size() == other.size()
         if isinstance(other, SparseBitVector):
-            carry = self.check_carry(r_uint(other.val))
+            res = self.val + other.val
+            carry = res < self.val
             if not carry:
-                return SparseBitVector(self.size(), self.val + r_uint(other.val))
-            other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
-        return self._to_generic().add_bits(other)
+                return SparseBitVector(self.size(), res)
+            other = other._to_generic() # XXX this case can be optimized
+        return other.add_bits(self)
        
     def sub_bits(self, other):
         assert self.size() == other.size()
         if isinstance(other, SparseBitVector):
-            if 0 <= other.val <= self.val: #check for underflow
-                return SparseBitVector(self.size(), self.val - r_uint(other.val))
-            other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
+            if other.val <= self.val: #check for underflow
+                return SparseBitVector(self.size(), self.val - other.val)
         return self._to_generic().sub_bits(other)
 
     def sub_int(self, i):
@@ -614,6 +614,10 @@ class GenericBitVector(BitVectorWithSize):
     def _data_indexes(pos):
         return pos >> 6, pos & 63
 
+    @staticmethod
+    def _data_size(bitwidth):
+        return bitwidth >> 6 + bool(bitwidth & 63)
+
     def make(self, data, normalize=False):
         return GenericBitVector(self.size(), data, normalize)
 
@@ -635,26 +639,45 @@ class GenericBitVector(BitVectorWithSize):
 
     def add_bits(self, other):
         assert self.size() == other.size()
-        resdata = self.data[:]
+        resdata = [r_uint(0)] * len(self.data)
         if isinstance(other, GenericBitVector):
             carry = r_uint(0)
-            for i, value in enumerate(other.data):
-                res = resdata[i] + value
-                resdata[i] = res + carry
-                carry = r_uint(res < value)
+            selfdata = self.data
+            for i, othervalue in enumerate(other.data):
+                res = selfdata[i] + carry
+                carry = r_uint(res < carry)
+                res += othervalue
+                carry += res < othervalue
+                resdata[i] = res
         else:
             assert isinstance(other, SparseBitVector)
-            value = other.val
-            res = resdata[0] + value
-            carry = r_uint(res < value)
-            resdata[0] = res
-            resdata[1] += carry
+            othervalue = other.val
+            for i, value in enumerate(self.data):
+                res = value + othervalue
+                resdata[i] = res
+                othervalue = r_uint(res < value)
         return self.make(resdata, True)
 
     def sub_bits(self, other):
         assert self.size() == other.size()
-        assert isinstance(other, GenericBitVector) or isinstance(other, SparseBitVector)
-        return self.make(self.rval().sub(other.tobigint()), normalize=True)
+        resdata = [r_uint(0)] * len(self.data)
+        if isinstance(other, GenericBitVector):
+            carry = r_uint(0)
+            selfdata = self.data
+            for i, value in enumerate(other.data):
+                value += carry
+                carry = r_uint(value < carry)
+                selfvalue = selfdata[i]
+                carry += selfvalue < value
+                resdata[i] = selfvalue - value
+        else:
+            assert isinstance(other, SparseBitVector)
+            othervalue = other.val
+            for i, value in enumerate(self.data):
+                carry = r_uint(value < othervalue)
+                resdata[i] = value - othervalue
+                othervalue = carry
+        return self.make(resdata, True)
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):

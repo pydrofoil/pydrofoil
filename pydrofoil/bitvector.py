@@ -273,7 +273,7 @@ class SmallBitVector(BitVectorWithSize):
             if self.read_bit(self.size() - 1):
                 return GenericBitVector._sign_extend(rbigint_fromrarith_int(self.val), self.size(), i)
             else:
-                return SparseBitVector(i, self.val) 
+                return SparseBitVector(i, self.val)
         assert i > self.size()
         highest_bit = self.read_bit(self.size() - 1)
         if not highest_bit:
@@ -404,7 +404,7 @@ class SparseBitVector(BitVectorWithSize):
     def _to_generic(self):
         return GenericBitVector(self._size, rbigint_fromrarith_int(self.val))
 
-    def add_int(self, i): 
+    def add_int(self, i):
         if isinstance(i, SmallInteger):
             carry = self.check_carry( r_uint(i.val))
             if not carry:
@@ -418,10 +418,10 @@ class SparseBitVector(BitVectorWithSize):
         if self.val + j < self.val or self.val + j < j:
             return 1
         return 0
-        
+
     def _add_int_slow(self, i):
         return self._to_generic().add_int(i)
-    
+
     def add_bits(self, other):
         assert self.size() == other.size()
         if isinstance(other, SparseBitVector):
@@ -430,7 +430,7 @@ class SparseBitVector(BitVectorWithSize):
                 return SparseBitVector(self.size(), self.val + r_uint(other.val))
             other = GenericBitVector(other.size(), rbigint_fromrarith_int(other.val))
         return self._to_generic().add_bits(other)
-       
+
     def sub_bits(self, other):
         assert self.size() == other.size()
         if isinstance(other, SparseBitVector):
@@ -453,7 +453,7 @@ class SparseBitVector(BitVectorWithSize):
             if (self.val >> (64 - i)) == 0:
                 return SparseBitVector(self.size(), self.val << i)
         return self._to_generic().lshift(i)
-            
+
     def rshift(self, i):
         assert i >= 0
         if i >= self.size():
@@ -491,7 +491,7 @@ class SparseBitVector(BitVectorWithSize):
         return self._to_generic().invert()
 
     def subrange(self,n,m):
-        assert 0 <= m <= n < self.size()        
+        assert 0 <= m <= n < self.size()
         width = n - m + 1
         if width <= 64:
             return SmallBitVector(width, self.subrange_unwrapped_res(n,m))
@@ -520,10 +520,10 @@ class SparseBitVector(BitVectorWithSize):
             return False
         mask = r_uint(1) << pos
         return bool(self.val & mask)
-    
+
     def update_bit(self, pos, bit):
         assert pos < self.size()
-        if pos >= 64: 
+        if pos >= 64:
             return self._to_generic().update_bit(pos, bit)
         mask = r_uint(1) << pos
         if bit:
@@ -552,13 +552,13 @@ class SparseBitVector(BitVectorWithSize):
             return self._to_generic().update_subrange(n, m ,s)
         mask = ~(((r_uint(1) << width) - 1) << m)
         return SparseBitVector(self.size(), (self.val & mask) | (sval << m))
-    
+
     def signed(self):
         return Integer.from_ruint(self.val)
-    
+
     def unsigned(self):
         return Integer.from_ruint(self.val)
-    
+
     def eq(self, other):
         assert other.size() == self.size()
         if isinstance(other, SparseBitVector):
@@ -569,18 +569,18 @@ class SparseBitVector(BitVectorWithSize):
         if self.read_bit(63):
             raise OverflowError
         return intmask(self.val)
-    
+
     def touint(self, expected_width=0):
         if expected_width:
             self.size() == expected_width
         return self.val
-    
+
     def tobigint(self):
         return rbigint_fromrarith_int(self.val)
-    
+
     def replicate(self, i):
         return self._to_generic().replicate(i)
-    
+
     def truncate(self, i):
         assert i <= self.size()
         if i <= 64:

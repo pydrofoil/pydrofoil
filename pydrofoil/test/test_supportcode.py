@@ -1637,7 +1637,7 @@ def test_sparse_read_bit():
     assert v.read_bit(65) == False
     assert v.read_bit(99) == False
     with pytest.raises(AssertionError):
-        v.read_bit(100) 
+        v.read_bit(100)
 
 def test_sparse_vector_shift():
     v = SparseBitVector(100, 0b10001101)
@@ -1649,7 +1649,7 @@ def test_sparse_vector_shift():
     res = v.rshift(100)
     assert res.size() == 100
     assert res.toint() == 0
-    
+
     res = v.rshift(65)
     assert res.size() == 100
     assert res.toint() == 0
@@ -1787,7 +1787,7 @@ def test_sparse_vector_update():
     res = v.update_bit(2, 1)
     assert res.size() == 100
     assert res.toint() == 0b101
-    
+
     v = SparseBitVector(65, r_uint(1))
     res = v.update_bit(1, 0)
     assert res.size() == 65
@@ -1827,7 +1827,7 @@ def test_sparse_vector_update():
 def test_sparse_signed():
     # XXX Machine?
     v = SparseBitVector(65, 0b0)
-    assert v.signed().toint() == 0 
+    assert v.signed().toint() == 0
     assert isinstance(v.signed(), SmallInteger)
 
 def test_sparse_unsigned():
@@ -1866,7 +1866,7 @@ def test_sparse_lshift():
     assert res.size() == 65
     assert res.tolong() == 0
     assert isinstance(res, bitvector.GenericBitVector)
-    
+
     v = SparseBitVector(100, 0b0010000000000000000000000000000000000000000000000000000000000000)
     res = v.lshift(1)
     assert res.size() == 100
@@ -1877,7 +1877,7 @@ def test_sparse_lshift():
     res = v.lshift(1)
     assert res.size() == 100
     assert isinstance(res, bitvector.GenericBitVector)
-    
+
 def test_sparse_check_carry():
     v = SparseBitVector(100, r_uint(0xffffffffffffffff))
     assert v.check_carry(r_uint(0b1)) == 1
@@ -1915,14 +1915,14 @@ def test_sparse_sub_bits():
 def test_sparse_sub_int():
     for c in bi, si:
         assert SparseBitVector(100, 0b0).sub_int(c(0b1)).tolong() == -1 % (2 ** 100)
-        assert SparseBitVector(6000, r_uint(0xffffffffffffffff)).sub_int(c(0b1)).tolong() == 0xffffffffffffffff -1 
+        assert SparseBitVector(6000, r_uint(0xffffffffffffffff)).sub_int(c(0b1)).tolong() == 0xffffffffffffffff -1
         assert SparseBitVector(68, 4).sub_int(c(9)).tolong() == -5 % (2 ** 68)
         assert SparseBitVector(100, r_uint(18446744073709486081)).sub_int(c(-65535)).tolong() == 18446744073709551616
         assert SparseBitVector(68, 0b0).sub_int(c(0b1)).tolong() == -1 % (2 **68)
     assert isinstance(SparseBitVector(6000, 0b11).sub_int(si(0b11)), SparseBitVector)
     assert isinstance(SparseBitVector(6000, r_uint(0xffffffffffffffff)).sub_int(bi(0b1)), bitvector.GenericBitVector)
 
-        
+
 @given(strategies.data())
 def test_sparse_hypothesis_sub_int(data):
     value1 = data.draw(strategies.integers(0, 2**64 - 1))
@@ -1945,9 +1945,9 @@ def test_sparse_hypothesis_add_bits(data):
     value2 = data.draw(strategies.integers(0, sys.maxint))
     ans = value1 + value2
     for c in gbv, SparseBitVector:
-        assert SparseBitVector(100, r_uint(value1)).add_bits(c(100, r_uint(value2))).tolong() == ans 
+        assert SparseBitVector(100, r_uint(value1)).add_bits(c(100, r_uint(value2))).tolong() == ans
 
-        
+
 @given(strategies.data())
 def test_sparse_hypothesis_add_int(data):
     value1 = data.draw(strategies.integers(0, 2**64 - 1))
@@ -1955,7 +1955,7 @@ def test_sparse_hypothesis_add_int(data):
     ans = value1 + value2
     for c in bi, si:
         if ans >= 0:
-            assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans 
+            assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans
         assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans % (2 ** 100)
 
 @given(strategies.data())
@@ -2021,7 +2021,7 @@ def test_sparse_hypothesis_replicate(data):
     leading_zero = (str(0)* (bitwidth - len(formatted_value)) + formatted_value)
     assert len(leading_zero) == bitwidth
     ans = str(leading_zero) * repeats
-    assert res.tolong() == int(ans, 2) 
+    assert res.tolong() == int(ans, 2)
 
 
 @given(strategies.data())
@@ -2045,7 +2045,7 @@ def test_sparse_hypothesis_update_bit(data):
     formatted_value = str(bin(value))[2:]
     value = formatted_value.rjust(bitwidth, '0')[::-1]
     assert len(value) == bitwidth
-    if pos == 0: 
+    if pos == 0:
         value = str(bit) + value[1:]
     elif pos == bitwidth - 1:
         value = value[:pos] + str(bit)
@@ -2115,7 +2115,7 @@ def test_sparse_hypothesis_lshift(data):
     shift = data.draw(strategies.integers(0, bitwidth))
     res = v.lshift(shift).tolong()
     mask = ''
-    assert res == (value << shift) & ((1 << bitwidth) - 1) 
+    assert res == (value << shift) & ((1 << bitwidth) - 1)
 
 @given(strategies.data())
 def test_sparse_hypothesis_lshift_bits(data):
@@ -2126,7 +2126,7 @@ def test_sparse_hypothesis_lshift_bits(data):
     v2 = SparseBitVector(bitwidth, r_uint(value2))
     res = v1.lshift_bits(v2).tolong()
     mask = ''
-    assert res == (value1 << value2) & ((1 << bitwidth) - 1) 
+    assert res == (value1 << value2) & ((1 << bitwidth) - 1)
 
 @given(strategies.data())
 def test_sparse_hypothesis_rshift(data):
@@ -2146,7 +2146,7 @@ def test_sparse_hypothesis_rshift_bits(data):
     v2 = SparseBitVector(bitwidth, r_uint(value2))
     res = v1.rshift_bits(v2).tolong()
     mask = ''
-    assert res == (value1 >> value2) 
+    assert res == (value1 >> value2)
 
 @given(strategies.data())
 def test_sparse_arith_shiftr_hypothesis(data):

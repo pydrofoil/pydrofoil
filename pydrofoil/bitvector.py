@@ -939,8 +939,7 @@ class GenericBitVector(BitVectorWithSize):
             return SmallBitVector(i, self.data[0], normalize=True)
         if i == size:
             return self
-        length, bits = self._data_indexes(i)
-        length += bool(bits)
+        length = self._data_size(i)
         return GenericBitVector(i, self.data[:length], normalize=True)
 
     def pack(self):

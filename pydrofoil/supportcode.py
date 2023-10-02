@@ -495,7 +495,7 @@ def pow2(machine, x):
     assert x >= 0
     if x < 63:
         return Integer.fromint(1 << x)
-    return Integer.frombigint(ONERBIGINT.lshift(x))
+    return Integer.from_bigint(ONERBIGINT.lshift(x))
 
 def neg_int(machine, x):
     return Integer.fromint(0).sub(x)
@@ -545,10 +545,10 @@ def div_real(machine, a, b):
     return a.div(b)
 
 def round_up(machine, r):
-    return Integer.frombigint(r.ceil())
+    return Integer.from_bigint(r.ceil())
 
 def round_down(machine, r):
-    return Integer.frombigint(r.floor())
+    return Integer.from_bigint(r.floor())
 
 def eq_real(machine, a, b):
     return a.eq(b)

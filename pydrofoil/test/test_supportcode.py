@@ -41,7 +41,7 @@ def _make_generic_bitvector(data, width=-1):
     if width == -1:
         width = data.draw(strategies.integers(65, 1000))
     value = data.draw(strategies.integers(0, 2**width-1))
-    return bitvector.GenericBitVector(width, rbigint.fromlong(value))
+    return bitvector.from_bigint(width, rbigint.fromlong(value))
 
 def make_bitvector(data, width=-1):
     if width > 0:
@@ -90,7 +90,7 @@ two_bitvectors = strategies.builds(
 
 
 def gbv(size, val):
-    return bitvector.GenericBitVector(size, rbigint.fromlong(val))
+    return bitvector.from_bigint(size, rbigint.fromlong(val))
 
 def bv(size, val):
     return bitvector.from_ruint(size, r_uint(val))
@@ -1922,7 +1922,7 @@ def test_sparse_truncate():
 def test_sparse_eq():
     assert SparseBitVector(100, -12331).eq(SparseBitVector(100, -12331))
     assert not SparseBitVector(100, -12331).eq(SparseBitVector(100, 12331))
-    assert SparseBitVector(100, 0b10111).eq(bitvector.GenericBitVector(100, rbigint.fromlong(0b10111)))
+    assert SparseBitVector(100, 0b10111).eq(gbv(100, 0b10111))
 
 def test_sparse_lshift():
     v = SparseBitVector(100, 0b10001101)

@@ -41,7 +41,7 @@ def _small_bit_vector_memo(size, val):
 def from_bigint(size, rval):
     if size <= 64:
         return SmallBitVector(size, BitVector.rbigint_mask(size, rval).touint())
-    return GenericBitVector(size, rval, True)
+    return GenericBitVector.from_bigint(size, rval)
 
 @always_inline
 def ruint_mask(width, val):
@@ -335,7 +335,7 @@ class SmallBitVector(BitVectorWithSize):
         size = self.size()
         if size * i <= 64:
             return SmallBitVector(size * i, self._replicate(self.val, size, i))
-        gbv = GenericBitVector(size, rbigint_fromrarith_int(self.val))
+        gbv = GenericBitVector.from_bigint(size, rbigint_fromrarith_int(self.val))
         return gbv.replicate(i)
 
     @staticmethod
@@ -597,12 +597,15 @@ class GenericBitVector(BitVectorWithSize):
 
     def __init__(self, size, data, normalize=False):
         assert size > 0
-        if isinstance(data, rbigint):
-            data = array_from_rbigint(size, data)
+        assert isinstance(data, list)
         self._size = size
         if normalize:
             self._size_mask(data)
         self.data = data # list of r_uint
+
+    @staticmethod
+    def from_bigint(size, data):
+        return GenericBitVector(size, array_from_rbigint(size, data))
 
     def rval(self):
         return rbigint_from_array(self.data)
@@ -631,21 +634,21 @@ class GenericBitVector(BitVectorWithSize):
     def add_int(self, i):
         if isinstance(i, SmallInteger):
             if i.val >= 0:
-                return self.add_bits(SparseBitVector(self.size(), r_uint(i.val)))
-            return self.sub_bits(SparseBitVector(self.size(), -r_uint(i.val)))
-        #sign = i.get_sign()
-        #if sign == 0:
-        #    return self
-        #elif sign >= 0:
-        #    return self.add_bits(self.make(
-        #else:
-        #    pass
-        return self.make(self.rval().add(i.tobigint()), normalize=True)
+                return self._add_ruint(r_uint(i.val))
+            return self._sub_ruint(-r_uint(i.val))
+        rval = i.tobigint()
+        sign = rval.get_sign()
+        if sign == 0:
+            return self
+        elif sign >= 0:
+            return self.add_bits(self.make(array_from_rbigint(self.size(), rval)))
+        else:
+            return self.sub_bits(self.make(array_from_rbigint(self.size(), rval.abs())))
 
     def add_bits(self, other):
         assert self.size() == other.size()
-        resdata = [r_uint(0)] * len(self.data)
         if isinstance(other, GenericBitVector):
+            resdata = [r_uint(0)] * len(self.data)
             carry = r_uint(0)
             selfdata = self.data
             for i, othervalue in enumerate(other.data):
@@ -654,13 +657,17 @@ class GenericBitVector(BitVectorWithSize):
                 res += othervalue
                 carry += res < othervalue
                 resdata[i] = res
+            return self.make(resdata, True)
         else:
             assert isinstance(other, SparseBitVector)
-            othervalue = other.val
-            for i, value in enumerate(self.data):
-                res = value + othervalue
-                resdata[i] = res
-                othervalue = r_uint(res < value)
+            return self._add_ruint(other.val)
+
+    def _add_ruint(self, othervalue):
+        resdata = [r_uint(0)] * len(self.data)
+        for i, value in enumerate(self.data):
+            res = value + othervalue
+            resdata[i] = res
+            othervalue = r_uint(res < value)
         return self.make(resdata, True)
 
     def sub_bits(self, other):
@@ -675,19 +682,32 @@ class GenericBitVector(BitVectorWithSize):
                 selfvalue = selfdata[i]
                 carry += selfvalue < value
                 resdata[i] = selfvalue - value
-        else:
-            assert isinstance(other, SparseBitVector)
-            othervalue = other.val
-            for i, value in enumerate(self.data):
-                carry = r_uint(value < othervalue)
-                resdata[i] = value - othervalue
-                othervalue = carry
+            return self.make(resdata, True)
+        assert isinstance(other, SparseBitVector)
+        return self._sub_ruint(other.val)
+
+    def _sub_ruint(self, othervalue):
+        resdata = [r_uint(0)] * len(self.data)
+        for i, value in enumerate(self.data):
+            carry = r_uint(value < othervalue)
+            resdata[i] = value - othervalue
+            othervalue = carry
         return self.make(resdata, True)
 
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
-            return self.make(self.rval().int_sub(i.val), normalize=True)
-        return self.make(self.rval().sub(i.tobigint()), normalize=True)
+            if i.val >= 0:
+                self._sub_ruint(r_uint(i.val))
+            else:
+                self._add_ruint(-r_uint(i.val))
+        rval = i.tobigint()
+        sign = rval.get_sign()
+        if sign == 0:
+            return self
+        elif sign >= 0:
+            return self.sub_bits(self.make(array_from_rbigint(self.size(), rval)))
+        else:
+            return self.add_bits(self.make(array_from_rbigint(self.size(), rval.abs())))
 
     def lshift(self, i):
         from rpython.rlib.rbigint import NULLDIGIT, _load_unsigned_digit
@@ -750,7 +770,7 @@ class GenericBitVector(BitVectorWithSize):
         res = rval.rshift(i)
         if highest_bit:
             res = res.or_(MASKS.get(i).lshift(size - i))
-        return GenericBitVector(size, res)
+        return GenericBitVector.from_bigint(size, res)
 
     def lshift_bits(self, other):
         return self.lshift(other.toint())
@@ -863,16 +883,16 @@ class GenericBitVector(BitVectorWithSize):
         width = s.size()
         assert width == n - m + 1
         mask = MASKS.get(width).lshift(m).invert()
-        return self.make(self.rval().and_(mask).or_(s.tobigint().lshift(m)))
+        return self.from_bigint(self.size(), self.rval().and_(mask).or_(s.tobigint().lshift(m)))
 
     def signed(self):
         n = self.size()
         assert n > 0
         m = ONERBIGINT.lshift(n - 1)
-        return Integer.frombigint(self.rval().xor(m).sub(m))
+        return Integer.from_bigint(self.rval().xor(m).sub(m))
 
     def unsigned(self):
-        return Integer.frombigint(self.rval())
+        return Integer.from_bigint(self.rval())
 
     def eq(self, other):
         assert self.size() == other.size()
@@ -910,7 +930,7 @@ class GenericBitVector(BitVectorWithSize):
         res = val = self.rval()
         for _ in range(i - 1):
             res = res.lshift(size).or_(val)
-        return GenericBitVector(size * i, res)
+        return GenericBitVector.from_bigint(size * i, res)
 
     def truncate(self, i):
         size = self.size()
@@ -935,7 +955,7 @@ class Integer(object):
         return SmallInteger(val)
 
     @staticmethod
-    def frombigint(rval):
+    def from_bigint(rval):
         return BigInteger(rval)
 
     @staticmethod

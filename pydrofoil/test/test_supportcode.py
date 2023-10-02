@@ -25,7 +25,68 @@ wrapped_ints = strategies.builds(
         make_int,
         strategies.data())
 
+def _make_small_bitvector(data, width=-1):
+    if width == -1:
+        width = data.draw(strategies.integers(1, 64))
+    value = data.draw(strategies.integers(0, 2**width-1))
+    return bitvector.SmallBitVector(width, r_uint(value))
 
+def _make_sparse_bitvector(data, width=-1):
+    if width == -1:
+        width = data.draw(strategies.integers(65, 1000))
+    value = data.draw(strategies.integers(0, 2**64-1))
+    return bitvector.SparseBitVector(width, r_uint(value))
+
+def _make_generic_bitvector(data, width=-1):
+    if width == -1:
+        width = data.draw(strategies.integers(65, 1000))
+    value = data.draw(strategies.integers(0, 2**width-1))
+    return bitvector.from_bigint(width, rbigint.fromlong(value))
+
+def make_bitvector(data, width=-1):
+    if width > 0:
+        if width <= 64:
+            kind = 0
+        else:
+            kind = data.draw(strategies.integers(1, 2))
+    else:
+        kind = data.draw(strategies.integers(0, 2))
+    if kind == 0:
+        return _make_small_bitvector(data, width)
+    else:
+        if kind == 1:
+            return _make_sparse_bitvector(data, width)
+        else:
+            return _make_generic_bitvector(data, width)
+
+bitvectors = strategies.builds(
+    make_bitvector,
+    strategies.data())
+
+def make_two_bitvectors(data):
+    kind = data.draw(strategies.integers(0, 4))
+    if kind == 0:
+        v1 = _make_small_bitvector(data)
+        v2 = _make_small_bitvector(data, v1.size())
+    else:
+        width = data.draw(strategies.integers(65, 1000))
+        if kind == 1:
+            v1 = _make_sparse_bitvector(data)
+            v2 = _make_sparse_bitvector(data, v1.size())
+        elif kind == 2 or kind == 4:
+            v1 = _make_sparse_bitvector(data)
+            v2 = _make_generic_bitvector(data, v1.size())
+            if kind == 4:
+                v2, v1 = v1, v2
+        else:
+            v1 = _make_generic_bitvector(data)
+            v2 = _make_generic_bitvector(data, v1.size())
+    return v1, v2
+
+
+two_bitvectors = strategies.builds(
+    make_two_bitvectors,
+    strategies.data())
 
 def gbv(size, val):
     return bitvector.GenericBitVector(size, rbigint.fromlong(val))
@@ -422,6 +483,18 @@ def test_hypothesis_add_bits_int_bv_i(data):
     assert res == supportcode._mask(bitwidth, value + r_uint(rhs))
     res = supportcode.sub_bits_int_bv_i(None, value, bitwidth, rhs)
     assert res == supportcode._mask(bitwidth, value - r_uint(rhs))
+
+@given(two_bitvectors)
+def test_hypothesis_add_bits_sub_bits(values):
+    v1, v2 = values
+    value1 = v1.tolong()
+    value2 = v2.tolong()
+    ans = value1 + value2
+    res = v1.add_bits(v2)
+    assert res.tolong() == ans % (2 ** v1.size())
+    ans = value1 - value2
+    res = v1.sub_bits(v2)
+    assert res.tolong() == ans % (2 ** v1.size())
 
 def test_bv_bitwise():
     for c in gbv, bv:

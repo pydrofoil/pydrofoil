@@ -459,17 +459,12 @@ def test_add_bits_int_bv_i():
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b11), 6, -0b111111111) == (0b11 - 0b111111111) & 0b111111
     assert supportcode.add_bits_int_bv_i(None, r_uint(0b1011), 6, -2 ** 63) == (0b1011 - 2**63) & 0b111111
 
-@given(strategies.data())
-def test_hypothesis_add_bits_int(data):
-    if not data.draw(strategies.booleans()):
-        bitwidth = data.draw(strategies.integers(1, 64))
-    else:
-        bitwidth = data.draw(strategies.integers(65, 10000))
-    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
-    bvvalue = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
-    rhs = data.draw(ints)
-    irhs = Integer.frombigint(rbigint.fromlong(rhs))
+@given(bitvectors, wrapped_ints)
+def test_hypothesis_add_bits_int(bvvalue, irhs):
+    value = bvvalue.tolong()
+    rhs = irhs.tolong()
     bvres = bvvalue.add_int(irhs)
+    bitwidth = bvvalue.size()
     assert bvres.tolong() == (value + rhs) % (2 ** bitwidth)
     bvres = bvvalue.sub_int(irhs)
     assert bvres.tolong() == (value - rhs) % (2 ** bitwidth)
@@ -1950,21 +1945,6 @@ def test_sparse_lshift():
     res = v.lshift(1)
     assert res.size() == 100
     assert isinstance(res, bitvector.GenericBitVector)
-
-def test_sparse_check_carry():
-    v = SparseBitVector(100, r_uint(0xffffffffffffffff))
-    assert v.check_carry(r_uint(0b1)) == 1
-    v = SparseBitVector(100, r_uint(0xfffffffffffffffe))
-    assert v.check_carry(r_uint(0b1)) == 0
-    v = SparseBitVector(100, r_uint(0xfffffffffffffffe))
-    assert v.check_carry(r_uint(0b10)) == 1
-    v = SparseBitVector(100, r_uint(0xffffffffffffffee))
-    assert v.check_carry(r_uint(0xffffffff)) == 1
-    v = SparseBitVector(100, r_uint(0xffffffffffffffee))
-    assert v.check_carry(r_uint(0x1)) == 0
-    v = SparseBitVector(100, r_uint(0x0))
-    assert v.check_carry(r_uint(0x1)) == 0
-
 
 def test_sparse_add_int():
     for c in bi, si:

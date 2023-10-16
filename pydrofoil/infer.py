@@ -101,6 +101,7 @@ class TypeAttachingVisitor(parse.Visitor):
     def visit_Function(self, ast):
         with self.context.enter_scope():
             typ = self.context.globalnames[ast.name]
+            ast.resolved_type = typ
             for arg, argtyp in zip(ast.args, typ.argtype.elements):
                 self.context.add_local_name(arg, argtyp)
             self.context.add_local_name('return', typ.restype)
@@ -111,6 +112,7 @@ class TypeAttachingVisitor(parse.Visitor):
 
     def visit_LocalVarDeclaration(self, ast):
         typ = self.visit(ast.typ)
+        ast.resolved_type = typ
         self.context.add_local_name(ast.name, typ)
 
     def visit_Assignment(self, ast):
@@ -132,12 +134,12 @@ class TypeAttachingVisitor(parse.Visitor):
 
     def visit_Register(self, ast):
         typ = self.visit(ast.typ)
+        ast.resolved_type = typ
         self.context.add_global_name(ast.name, typ)
         if ast.body is not None:
             with self.context.enter_scope():
                 for stmt in ast.body:
                     self.visit(stmt)
-
 
     def visit_StructElementAssignment(self, ast):
         self.visit(ast.obj)

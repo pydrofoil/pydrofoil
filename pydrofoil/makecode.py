@@ -477,6 +477,8 @@ class __extend__(parse.Function):
     def make_code(self, codegen):
         from pydrofoil.optimize import optimize_blocks, CollectSourceVisitor, view_blocks
         from pydrofoil import optimize
+        from pydrofoil.ir import construct_ir
+        construct_ir(self, codegen)
         #vbefore = CollectSourceVisitor()
         #vbefore.visit(self)
         pyname = codegen.getname(self.name)

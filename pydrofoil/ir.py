@@ -4,6 +4,14 @@ from rpython.tool.udir import udir
 
 from dotviewer.graphpage import GraphPage as BaseGraphPage
 
+# TODOS:
+# - enum reads as constants
+# - remove useless phis
+# - remove useless defaults
+# - double goto
+# - not condition swap cases
+# - BACKEND!
+# - start porting optimizations
 
 def construct_ir(functionast, codegen):
     # bring operations into a block format:
@@ -78,8 +86,9 @@ class SSABuilder(object):
             self.variable_map = None
             self.declared_local_vars = None
         graph = Graph(self.functionast.name, self.functionast.args, self.allblocks[0], self.functionast.resolved_type)
-        if "step" in self.functionast.name or "execute" in self.functionast.name:
-            import pdb; pdb.set_trace()
+        import random
+        if random.random() < 0.01:
+            self.view = 1
         if self.view:
             graph.view()
         return graph
@@ -147,11 +156,11 @@ class SSABuilder(object):
         for index, op in enumerate(block):
             if isinstance(op, parse.LocalVarDeclaration):
                 assert op.value is None
-                self.variable_map[op.name] = self._addop(Operation('$default', [], op.resolved_type))
                 if isinstance(op.resolved_type, types.Struct):
-                    ssaop = Operation("$allocate", [], op.resolved_type)
-                    self._addop(ssaop)
-                    self.variable_map[op.name] = ssaop
+                    ssaop = Allocate(op.resolved_type)
+                else:
+                    ssaop = DefaultValue(op.resolved_type)
+                self.variable_map[op.name] = self._addop(ssaop)
             elif isinstance(op, parse.Operation):
                 args = self._get_args(op.args)
                 ssaop = Operation(op.name, args, op.resolved_type)
@@ -170,7 +179,7 @@ class SSABuilder(object):
                     args = self._get_args(op.rhs.args)
                     rhs = Operation(op.rhs.name, args, op.rhs.resolved_type)
                     self._addop(rhs)
-                    self._addop(Operation("$ref-assign", [self._get_arg(op.lhs.ref), rhs], types.Unit()))
+                    self._addop(RefAssignment([self._get_arg(op.lhs.ref), rhs], types.Unit()))
                 else:
                     import pdb; pdb.set_trace()
 
@@ -230,7 +239,7 @@ class SSABuilder(object):
             ssaop = UnionCast(parseval.variant, [arg], parseval.resolved_type)
             return self._addop(ssaop)
         elif isinstance(parseval, parse.RefOf):
-            return self._addop(Operation("$refof", [self._get_arg(parseval.expr)], parseval.resolved_type))
+            return self._addop(RefOf([self._get_arg(parseval.expr)], parseval.resolved_type))
         else:
             assert isinstance(parseval, (parse.BitVectorConstant, parse.Number, parse.Unit, parse.String))
             return AstConstant(parseval, parseval.resolved_type)
@@ -247,6 +256,8 @@ class SSABuilder(object):
 
     def _addop(self, op):
         assert isinstance(op, (Operation, Phi))
+        if self.curr_operations and self.curr_operations[-1] is op:
+            import pdb; pdb.set_trace()
         self.curr_operations.append(op)
         return op
 
@@ -389,10 +400,23 @@ class Operation(Value):
     def _repr(self, print_varnames):
         return self._get_print_name(print_varnames)
 
+class DefaultValue(Operation):
+    def __init__(self, resolved_type):
+        Operation.__init__(self, "$default", [], resolved_type)
+
+    def __repr__(self):
+        return "DefaultValue(%r)" % (self.resolved_type, )
+
+class Allocate(Operation):
+    def __init__(self, resolved_type):
+        Operation.__init__(self, "$allocate", [], resolved_type)
+
+    def __repr__(self):
+        return "Allocate(%r)" % (self.resolved_type, )
+
 class StructConstruction(Operation):
     def __repr__(self):
         return "StructConstruction(%r, %r)" % (self.name, self.args)
-
 
 class FieldAccess(Operation):
     def __repr__(self):
@@ -417,6 +441,21 @@ class GlobalRead(Operation):
 class GlobalWrite(Operation):
     def __repr__(self):
         return "GlobalWrite(%r, %r)" % (self.name, self.args)
+
+class RefAssignment(Operation):
+    def __init__(self, args, resolved_type):
+        Operation.__init__(self, "$ref-assign", args, resolved_type)
+
+    def __repr__(self):
+        return "RefAssignment(%r, %r)" % (self.args, self.resolved_type, )
+
+class RefOf(Operation):
+    def __init__(self, args, resolved_type):
+        Operation.__init__(self, "$ref-of", args, resolved_type)
+
+    def __repr__(self):
+        return "RefOf(%r, %r)" % (args, self.resolved_type, )
+
 
 class Phi(Value):
     def __init__(self, prevblocks, prevvalues, resolved_type):

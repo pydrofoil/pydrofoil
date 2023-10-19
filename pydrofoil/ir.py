@@ -9,8 +9,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - casts
 # - enum reads as constants
 # - remove useless phis
-# - double goto
-# - not condition swap cases
 # - BACKEND!
 # - start porting optimizations
 
@@ -656,9 +654,8 @@ class GraphPage(BaseGraphPage):
 
 def simplify(graph):
     res = remove_dead(graph)
-    if len(list(graph.iterblocks())) > 5:
-        import pdb; pdb.set_trace()
     res = remove_empty_blocks(graph) or res
+    res = swap_not(graph) or res
     return res
 
 def repeat(func):
@@ -701,4 +698,18 @@ def remove_empty_blocks(graph):
             changed = True
     return changed
 
+def swap_not(graph):
+    changed = False
+    for block in graph.iterblocks():
+        cond = block.next
+        if not isinstance(cond, ConditionalGoto) or type(cond.booleanvalue) is not Operation:
+            continue
+        if cond.booleanvalue.name != "@not":
+            continue
+        cond.booleanvalue, = cond.booleanvalue.args
+        cond.truetarget, cond.falsetarget = cond.falsetarget, cond.truetarget
+        changed = True
+    if changed:
+        remove_dead(graph)
+    return changed
 

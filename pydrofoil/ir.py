@@ -87,7 +87,7 @@ class SSABuilder(object):
         graph = Graph(self.functionast.name, self.args, self.allblocks[0], self.functionast.resolved_type)
         #if random.random() < 0.01:
         #    self.view = 1
-        remove_dead(graph)
+        simplify(graph)
         if self.view:
             graph.view()
         return graph
@@ -291,6 +291,16 @@ class Block(object):
     def __getitem__(self, index):
         return self.operations[index]
 
+    def replace_prev(self, block, otherblock):
+        for op in self.operations:
+            if not isinstance(op, Phi):
+                return
+            count = op.prevblocks.count(block)
+            assert 0 <= count <= 1
+            if count:
+                index = op.prevblocks.index(block)
+                op.prevblocks[index] = otherblock
+
     def _dot(self, dotgen, seen, print_varnames):
         if self in seen:
             return str(id(self))
@@ -375,6 +385,13 @@ class Graph(object):
             for op in block.operations:
                 yield op, block
 
+    def make_entrymap(self):
+        entry = defaultdict(list)
+        for block in self.iterblocks():
+            for next in block.next.next_blocks():
+                entry[next].append(block)
+        return entry
+
 
 # values
 
@@ -404,7 +421,7 @@ class Argument(Value):
 
     def __repr__(self):
         return "Argument(%r)" % (self.name, )
-    
+
     def _repr(self, print_varnames):
         return self.name
 
@@ -557,6 +574,9 @@ class Next(object):
 
     def getargs(self):
         return []
+    
+    def replace_next(self, block, otherblock):
+        pass
 
     def _repr(self, print_varnames):
         return self.__class__.__name__
@@ -592,6 +612,11 @@ class Goto(Next):
     def next_blocks(self):
         return [self.target]
 
+    def replace_next(self, block, otherblock):
+        if self.target is block:
+            self.target = otherblock
+
+
 class ConditionalGoto(Next):
     def __init__(self, booleanvalue, truetarget, falsetarget):
         assert isinstance(truetarget, Block)
@@ -606,6 +631,12 @@ class ConditionalGoto(Next):
 
     def next_blocks(self):
         return [self.falsetarget, self.truetarget]
+
+    def replace_next(self, block, otherblock):
+        if self.truetarget is block:
+            self.truetarget = otherblock
+        if self.falsetarget is block:
+            self.falsetarget = otherblock
 
     def _repr(self, print_varnames):
         return "goto if %s" % (self.booleanvalue._repr(print_varnames), )
@@ -623,19 +654,51 @@ class GraphPage(BaseGraphPage):
 
 # some simple graph simplifications
 
+def simplify(graph):
+    res = remove_dead(graph)
+    if len(list(graph.iterblocks())) > 5:
+        import pdb; pdb.set_trace()
+    res = remove_empty_blocks(graph) or res
+    return res
+
+def repeat(func):
+    def repeated(graph):
+        ever_changed = False
+        while 1:
+            changed = func(graph)
+            assert isinstance(changed, bool)
+            if not changed:
+                return ever_changed
+            ever_changed = True
+    return repeated
+
+@repeat
 def remove_dead(graph):
-    ever_changed = False
-    while 1:
-        changed = False
-        needed = set()
-        for block in graph.iterblocks():
-            for op in block.operations:
-                needed.update(op.getargs())
-            needed.update(block.next.getargs())
-        for block in graph.iterblocks():
-            operations = [op for op in block.operations if op in needed or op.can_have_side_effects]
-            if len(operations) != len(block.operations):
-                changed = ever_changed = True
-                block.operations[:] = operations
-        if not changed:
-            return ever_changed
+    changed = False
+    needed = set()
+    for block in graph.iterblocks():
+        for op in block.operations:
+            needed.update(op.getargs())
+        needed.update(block.next.getargs())
+    for block in graph.iterblocks():
+        operations = [op for op in block.operations if op in needed or op.can_have_side_effects]
+        if len(operations) != len(block.operations):
+            changed = True
+            block.operations[:] = operations
+    return changed
+
+@repeat
+def remove_empty_blocks(graph):
+    changed = False
+    for block in graph.iterblocks():
+        for nextblock in block.next.next_blocks():
+            if nextblock.operations:
+                continue
+            if not isinstance(nextblock.next, Goto):
+                continue
+            block.next.replace_next(nextblock, nextblock.next.target)
+            nextblock.next.target.replace_prev(nextblock, block)
+            changed = True
+    return changed
+
+

@@ -627,8 +627,10 @@ class RefOf(Expression):
         return RefOf(self.expr.replace_var(var, expr))
 
 class String(Expression):
-    def __init__(self, string):
+    def __init__(self, string, resolved_type=None):
         self.string = string
+        if resolved_type:
+            self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return set()

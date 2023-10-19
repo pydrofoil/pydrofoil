@@ -6,6 +6,7 @@ from rpython.tool.udir import udir
 from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # TODOS:
+# - casts
 # - enum reads as constants
 # - remove useless phis
 # - double goto
@@ -83,11 +84,9 @@ class SSABuilder(object):
             self.patch_phis[pc] = None
             self.variable_maps_at_end[pc] = self.variable_map
             self.variable_map = None
-        graph = Graph(self.functionast.name, self.functionast.args, self.allblocks[0], self.functionast.resolved_type)
+        graph = Graph(self.functionast.name, self.args, self.allblocks[0], self.functionast.resolved_type)
         #if random.random() < 0.01:
         #    self.view = 1
-        if self.view:
-            graph.view()
         remove_dead(graph)
         if self.view:
             graph.view()
@@ -103,6 +102,7 @@ class SSABuilder(object):
             argtypes = self.functionast.resolved_type.argtype.elements
             self.variable_map = {var: Argument(var, typ)
                     for var, typ in zip(self.functionast.args, argtypes)}
+            self.args = [self.variable_map[var] for var in self.functionast.args]
             self.variable_map['return'] = None
         elif len(entry) == 1:
             self.variable_map = self.variable_maps_at_end[entry[0]].copy()
@@ -168,6 +168,10 @@ class SSABuilder(object):
                 self._store(op.result, ssaop)
             elif isinstance(op, parse.Assignment):
                 value = self._get_arg(op.value)
+                if op.resolved_type != op.value.resolved_type:
+                    # we need a cast first
+                    value = Cast(value, op.resolved_type)
+                    self._addop(value)
                 self._store(op.result, value)
             elif isinstance(op, parse.StructElementAssignment):
                 field, = op.fields
@@ -347,7 +351,7 @@ class Graph(object):
             name,
             shape="box",
             fillcolor="green",
-            label="\\l".join([self.name, "[" + ", ".join(self.args) + "]"])
+            label="\\l".join([self.name, "[" + ", ".join([a.name for a in self.args]) + "]"])
         )
         seen = set()
         print_varnames = {}
@@ -422,6 +426,15 @@ class Operation(Value):
 
     def getargs(self):
         return self.args
+
+class Cast(Operation):
+    can_have_side_effects = False
+
+    def __init__(self, arg, resolved_type):
+        Operation.__init__(self, "$cast", [arg], resolved_type)
+
+    def __repr__(self):
+        return "Cast(%r, %r)" % (self.args[0], self.resolved_type)
 
 class DefaultValue(Operation):
     can_have_side_effects = False
@@ -605,7 +618,7 @@ class GraphPage(BaseGraphPage):
         self.source = source
         self.links = {var: str(op.resolved_type) for op, var in varnames.items()}
         for arg in args:
-            self.links[arg] = arg
+            self.links[arg.name] = str(arg.resolved_type)
 
 
 # some simple graph simplifications

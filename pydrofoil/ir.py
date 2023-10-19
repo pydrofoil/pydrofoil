@@ -1,3 +1,4 @@
+import random
 from collections import defaultdict
 from pydrofoil import parse, types, binaryop, operations, supportcode
 from rpython.tool.udir import udir
@@ -7,7 +8,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # TODOS:
 # - enum reads as constants
 # - remove useless phis
-# - remove useless defaults
 # - double goto
 # - not condition swap cases
 # - BACKEND!
@@ -58,7 +58,6 @@ class SSABuilder(object):
         self.entryblocks = compute_entryblocks(blocks)
         self.variable_map = None # {name: Value}
         self.variable_maps_at_end = {} # {pc: variable_map}
-        self.declared_local_vars = None
         self.patch_phis = defaultdict(list)
         self.view = False
 
@@ -84,11 +83,12 @@ class SSABuilder(object):
             self.patch_phis[pc] = None
             self.variable_maps_at_end[pc] = self.variable_map
             self.variable_map = None
-            self.declared_local_vars = None
         graph = Graph(self.functionast.name, self.functionast.args, self.allblocks[0], self.functionast.resolved_type)
-        import random
-        if random.random() < 0.01:
-            self.view = 1
+        #if random.random() < 0.01:
+        #    self.view = 1
+        if self.view:
+            graph.view()
+        remove_dead(graph)
         if self.view:
             graph.view()
         return graph
@@ -355,6 +355,21 @@ class Graph(object):
         dotgen.emit_edge(name, firstid)
         return print_varnames
 
+    def iterblocks(self):
+        todo = [self.startblock]
+        seen = set()
+        while todo:
+            block = todo.pop()
+            if block in seen:
+                continue
+            yield block
+            seen.add(block)
+            todo.extend(block.next.next_blocks())
+
+    def iterblockops(self):
+        for block in self.iterblocks():
+            for op in block.operations:
+                yield op, block
 
 
 # values
@@ -374,6 +389,9 @@ class Value(object):
             print_varnames[self] = name
         return name
 
+    def getargs(self):
+        return []
+
 
 class Argument(Value):
     def __init__(self, name, resolved_type):
@@ -387,6 +405,8 @@ class Argument(Value):
         return self.name
 
 class Operation(Value):
+    can_have_side_effects = True
+
     def __init__(self, name, args, resolved_type):
         for arg in args:
             assert isinstance(arg, Value)
@@ -400,7 +420,12 @@ class Operation(Value):
     def _repr(self, print_varnames):
         return self._get_print_name(print_varnames)
 
+    def getargs(self):
+        return self.args
+
 class DefaultValue(Operation):
+    can_have_side_effects = False
+
     def __init__(self, resolved_type):
         Operation.__init__(self, "$default", [], resolved_type)
 
@@ -408,6 +433,8 @@ class DefaultValue(Operation):
         return "DefaultValue(%r)" % (self.resolved_type, )
 
 class Allocate(Operation):
+    can_have_side_effects = False
+
     def __init__(self, resolved_type):
         Operation.__init__(self, "$allocate", [], resolved_type)
 
@@ -415,10 +442,14 @@ class Allocate(Operation):
         return "Allocate(%r)" % (self.resolved_type, )
 
 class StructConstruction(Operation):
+    can_have_side_effects = False
+
     def __repr__(self):
         return "StructConstruction(%r, %r)" % (self.name, self.args)
 
 class FieldAccess(Operation):
+    can_have_side_effects = False
+
     def __repr__(self):
         return "FieldAccess(%r, %r)" % (self.name, self.args)
 
@@ -427,6 +458,8 @@ class FieldWrite(Operation):
         return "FieldWrite(%r, %r)" % (self.name, self.args)
 
 class UnionVariantCheck(Operation):
+    can_have_side_effects = False
+
     def __repr__(self):
         return "UnionVariantCheck(%r, %r)" % (self.name, self.args)
 
@@ -435,6 +468,8 @@ class UnionCast(Operation):
         return "UnionCast(%r, %r)" % (self.name, self.args)
 
 class GlobalRead(Operation):
+    can_have_side_effects = False
+
     def __repr__(self):
         return "GlobalRead(%r, %r)" % (self.name, self.args)
 
@@ -450,6 +485,8 @@ class RefAssignment(Operation):
         return "RefAssignment(%r, %r)" % (self.args, self.resolved_type, )
 
 class RefOf(Operation):
+    can_have_side_effects = False
+
     def __init__(self, args, resolved_type):
         Operation.__init__(self, "$ref-of", args, resolved_type)
 
@@ -458,6 +495,8 @@ class RefOf(Operation):
 
 
 class Phi(Value):
+    can_have_side_effects = False
+
     def __init__(self, prevblocks, prevvalues, resolved_type):
         for block in prevblocks:
             assert isinstance(block, Block)
@@ -469,6 +508,9 @@ class Phi(Value):
 
     def _repr(self, print_varnames):
         return self._get_print_name(print_varnames)
+
+    def getargs(self):
+        return self.prevvalues
 
 class Constant(Value):
     pass
@@ -500,6 +542,9 @@ class Next(object):
     def next_blocks(self):
         return []
 
+    def getargs(self):
+        return []
+
     def _repr(self, print_varnames):
         return self.__class__.__name__
 
@@ -507,6 +552,9 @@ class Return(Next):
     def __init__(self, value):
         assert isinstance(value, Value) or value is None
         self.value = value
+
+    def getargs(self):
+        return [self.value]
 
     def _repr(self, print_varnames):
         return "return %s" % ('None' if self.value is None else self.value._repr(print_varnames), )
@@ -540,6 +588,9 @@ class ConditionalGoto(Next):
         self.falsetarget = falsetarget
         self.booleanvalue = booleanvalue
 
+    def getargs(self):
+        return [self.booleanvalue]
+
     def next_blocks(self):
         return [self.falsetarget, self.truetarget]
 
@@ -556,3 +607,22 @@ class GraphPage(BaseGraphPage):
         for arg in args:
             self.links[arg] = arg
 
+
+# some simple graph simplifications
+
+def remove_dead(graph):
+    ever_changed = False
+    while 1:
+        changed = False
+        needed = set()
+        for block in graph.iterblocks():
+            for op in block.operations:
+                needed.update(op.getargs())
+            needed.update(block.next.getargs())
+        for block in graph.iterblocks():
+            operations = [op for op in block.operations if op in needed or op.can_have_side_effects]
+            if len(operations) != len(block.operations):
+                changed = ever_changed = True
+                block.operations[:] = operations
+        if not changed:
+            return ever_changed

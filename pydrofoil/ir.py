@@ -673,9 +673,14 @@ def repeat(func):
 def remove_dead(graph):
     changed = False
     needed = set()
+    # in theory we need a proper fix point but too annoying (Sail has very few
+    # loops)
     for block in graph.iterblocks():
         for op in block.operations:
-            needed.update(op.getargs())
+            args = op.getargs()[:]
+            if isinstance(op, Phi) and op in args:
+                args.remove(op)
+            needed.update(args)
         needed.update(block.next.getargs())
     for block in graph.iterblocks():
         operations = [op for op in block.operations if op in needed or op.can_have_side_effects]
@@ -712,4 +717,3 @@ def swap_not(graph):
     if changed:
         remove_dead(graph)
     return changed
-

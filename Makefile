@@ -31,6 +31,7 @@ endif
 		model/prelude_mapping.sail \
 		model/riscv_xlen64.sail \
 		model/riscv_flen_D.sail \
+		model/riscv_vlen.sail \
 		model/prelude_mem_metadata.sail \
 		model/prelude_mem.sail \
 		model/riscv_types_common.sail \
@@ -48,7 +49,10 @@ endif
 		model/riscv_addr_checks_common.sail \
 		model/riscv_addr_checks.sail \
 		model/riscv_misa_ext.sail \
+		model/riscv_vreg_type.sail \
+		model/riscv_vext_regs.sail \
 		model/riscv_csr_map.sail \
+		model/riscv_vext_control.sail \
 		model/riscv_next_regs.sail \
 		model/riscv_sys_exceptions.sail \
 		model/riscv_sync_exception.sail \
@@ -91,6 +95,14 @@ endif
 		model/riscv_insts_zbkb.sail \
 		model/riscv_insts_zbkx.sail \
 		model/riscv_insts_zicond.sail \
+		model/riscv_insts_vext_utils.sail \
+		model/riscv_insts_vext_vset.sail \
+		model/riscv_insts_vext_arith.sail \
+		model/riscv_insts_vext_fp.sail \
+		model/riscv_insts_vext_mem.sail \
+		model/riscv_insts_vext_mask.sail \
+		model/riscv_insts_vext_vm.sail \
+		model/riscv_insts_vext_red.sail \
 		model/riscv_jalr_seq.sail \
 		model/riscv_insts_end.sail \
 		model/riscv_step_common.sail \

@@ -331,7 +331,8 @@ def decimal_string_of_bits(machine, sbits):
 def uint64c(num):
     if not objectmodel.we_are_translated():
         import pdb; pdb.set_trace()
-    return bitvector.from_ruint(64, r_uint(num))
+    assert num == r_uint(0)
+    return bitvector.from_ruint(0, r_uint(num))
 
 @unwrap("i")
 def zeros(machine, num):

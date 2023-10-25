@@ -907,6 +907,15 @@ class SmallInteger(Integer):
             assert isinstance(other, BigInteger)
             return other.mul(self)
 
+    def pow(self, other):
+        from pypy.objspace.std.intobject import _pow_nomod as pow_int
+        if isinstance(other, SmallInteger):
+            try:
+                return SmallInteger(pow_int(self.val, other.val))
+            except OverflowError:
+                return BigInteger(self.tobigint().int_pow(other.val))
+        return BigInteger(self.tobigint().pow(other.tobigint()))
+
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python
         if isinstance(other, SmallInteger):
@@ -1095,6 +1104,11 @@ class BigInteger(Integer):
             return BigInteger(self.rval.int_mul(other.val))
         assert isinstance(other, BigInteger)
         return BigInteger(self.rval.mul(other.rval))
+
+    def pow(self, other):
+        if isinstance(other, SmallInteger):
+            return BigInteger(self.rval.int_pow(other.val))
+        return BigInteger(self.rval.pow(other.tobigint()))
 
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python

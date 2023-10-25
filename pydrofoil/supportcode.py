@@ -523,6 +523,8 @@ def shr_mach_int(machine, i, shift):
 def abs_int(machine, i):
     return i.abs()
 
+def pow_int(machine, i, j):
+    return i.pow(j)
 
 # real
 

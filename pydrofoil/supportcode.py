@@ -639,6 +639,16 @@ def vector_update_inplace(machine, res, l, index, element):
 def undefined_vector(machine, size, element):
     return [element] * size.toint()
 
+def vec_gbv_to_vec_bv8(machine, vector):
+    assert isinstance(vector, list)
+    import pdb; pdb.set_trace()
+    return [x.touint(8) for x in vector]
+
+def vec_gbv_to_vec_bv16(machine, vector):
+    assert isinstance(vector, list)
+    import pdb; pdb.set_trace()
+    return [x.touint(16) for x in vector]
+
 
 def elf_tohost(machine, _):
     return Integer.fromint(0)

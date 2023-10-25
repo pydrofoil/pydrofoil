@@ -411,6 +411,10 @@ class __extend__(parse.GlobalVal):
                     name = "string_to_int"
                 elif name == "%string->%real":
                     name = "string_to_real"
+                elif name == "%vec(%bv)->%vec(%bv8)":
+                    name = "vec_gbv_to_vec_bv8"
+                elif name == "%vec(%bv)->%vec(%bv16)":
+                    name = "vec_gbv_to_vec_bv16"
                 else:
                     import pdb; pdb.set_trace()
             if name == "not": name = "not_"

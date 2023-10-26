@@ -114,6 +114,7 @@ class Globals(object):
         self.rv_enable_dirty_update         = False
         self.rv_enable_misaligned           = False
         self.rv_enable_vext                 = True
+        self.rv_enable_writable_fiom        = True
         self.rv_mtval_has_illegal_inst_bits = False
 
         self.rv_ram_base = r_uint(0x80000000)
@@ -255,6 +256,10 @@ def plat_rom_size(machine, _):
 
 def sys_enable_vext(machine, _):
     return machine.g.rv_enable_vext
+
+def sys_enable_writable_fiom(machine, _):
+    return machine.g.rv_enable_writable_fiom
+
 
 # Provides entropy for the scalar cryptography extension.
 def plat_get_16_random_bits(machine, _):

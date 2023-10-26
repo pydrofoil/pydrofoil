@@ -641,12 +641,14 @@ def undefined_vector(machine, size, element):
 
 def vec_gbv_to_vec_bv8(machine, vector):
     assert isinstance(vector, list)
-    import pdb; pdb.set_trace()
+    if not objectmodel.we_are_translated():
+        import pdb; pdb.set_trace()
     return [x.touint(8) for x in vector]
 
 def vec_gbv_to_vec_bv16(machine, vector):
     assert isinstance(vector, list)
-    import pdb; pdb.set_trace()
+    if not objectmodel.we_are_translated():
+        import pdb; pdb.set_trace()
     return [x.touint(16) for x in vector]
 
 

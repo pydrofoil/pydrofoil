@@ -475,10 +475,9 @@ def iterblockops(blocks):
 
 class __extend__(parse.Function):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks, CollectSourceVisitor, view_blocks
-        from pydrofoil import optimize
         from pydrofoil.ir import construct_ir
-        construct_ir(self, codegen)
+        from pydrofoil.emitfunction import emit_function_code
+        graph = construct_ir(self, codegen)
         #vbefore = CollectSourceVisitor()
         #vbefore.visit(self)
         pyname = codegen.getname(self.name)
@@ -487,42 +486,34 @@ class __extend__(parse.Function):
         #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
         #    return
         self.pyname = pyname
-        blocks = self._prepare_blocks()
-        inlinable = len(blocks) == 1 and len(blocks[0]) <= 40
+        #inlinable = len(blocks) == 1 and len(blocks[0]) <= 40
         typ = codegen.globalnames[self.name].ast.typ
-        predefined = {arg: typ.argtype.elements[i] for i, arg in enumerate(self.args)}
-        predefined["return"] = typ.restype
-        optimize_blocks(blocks, codegen, predefined, codegen.all_registers)
         #vafter = CollectSourceVisitor()
         #for pc, block in blocks.iteritems():
         #    for op in block:
         #        vafter.visit(op)
         #if vafter.seen != vbefore.seen:
         #    import pdb; pdb.set_trace()
-        if inlinable:
-            codegen.inlinable_functions[self.name] = self, blocks
-        entrycounts = self._compute_entrycounts(blocks)
-        if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
-            print "making method!", self.name
-            with self._scope(codegen, pyname):
-                codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
-            self._emit_methods(blocks, entrycounts, codegen)
-            return
-        if len(blocks) > 340:
-            print "splitting", self.name
-            try:
-                self._split_function(blocks, entrycounts, codegen)
-                codegen.emit()
-                return
-            except optimize.CantSplitError:
-                print "didn't manage"
+        #if inlinable:
+        #    codegen.inlinable_functions[self.name] = self, graph
+        #entrycounts = self._compute_entrycounts(blocks)
+        #if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
+        #    print "making method!", self.name
+        #    with self._scope(codegen, pyname):
+        #        codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
+        #    self._emit_methods(blocks, entrycounts, codegen)
+        #    return
+        #if len(blocks) > 340:
+        #    print "splitting", self.name
+        #    try:
+        #        self._split_function(blocks, entrycounts, codegen)
+        #        codegen.emit()
+        #        return
+        #    except optimize.CantSplitError:
+        #        print "didn't manage"
 
         with self._scope(codegen, pyname):
-            if entrycounts == {0: 1}:
-                assert self.body[-1].end_of_block
-                self.emit_block_ops(blocks[0], codegen)
-            else:
-                self._emit_blocks(blocks, codegen, entrycounts, )
+            emit_function_code(graph, self, codegen)
         codegen.emit()
 
     @contextmanager
@@ -551,6 +542,7 @@ class __extend__(parse.Function):
             yield
 
     def _prepare_blocks(self):
+        UNUSED
         # bring operations into a block format:
         # a dictionary {label-as-int: [list of operations]}
         # every list of operations ends with a goto, return or failure
@@ -576,6 +568,7 @@ class __extend__(parse.Function):
 
     @staticmethod
     def _compute_entrycounts(blocks):
+        UNUSED
         entrycounts = {0: 1} # pc, count
         for pc, block in blocks.iteritems():
             for op in block:
@@ -584,6 +577,7 @@ class __extend__(parse.Function):
         return entrycounts
 
     def _find_first_non_decl(self, block):
+        UNUSED
         # return first operation that's not a declaration
         for op in block:
             if isinstance(op, parse.LocalVarDeclaration):
@@ -591,6 +585,7 @@ class __extend__(parse.Function):
             return op
 
     def detect_union_switch(self, block):
+        UNUSED
         # heuristic: if the function starts with a switch on the first
         # argument, turn it into a method
         op = self._find_first_non_decl(block)
@@ -601,12 +596,14 @@ class __extend__(parse.Function):
 
 
     def _is_union_switch(self, op):
+        UNUSED
         return (isinstance(op, parse.ConditionalJump) and
                 isinstance(op.condition, parse.UnionVariantCheck) and
                 isinstance(op.condition.var, parse.Var) and
                 op.condition.var.name == self.args[0])
 
     def _emit_methods(self, blocks, entrycounts, codegen):
+        UNUSED
         typ = codegen.globalnames[self.name].typ
         uniontyp = typ.argtype.elements[0]
         switches = []
@@ -648,6 +645,7 @@ class __extend__(parse.Function):
             codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
 
     def _find_reachable(self, block, blockpc, blocks, known_cls=None):
+        UNUSED
         # return all the blocks reachable from "block", where self.args[0] is
         # know to be an instance of known_cls
         def process(index, current):
@@ -679,6 +677,7 @@ class __extend__(parse.Function):
         return {k: v for k, v in res}
 
     def _split_function(self, blocks, entrycounts, codegen):
+        UNUSED
         from pydrofoil import optimize
         blocks = {pc: ops[:] for (pc, ops) in blocks.iteritems()}
         with self._scope(codegen, self.pyname):
@@ -730,6 +729,7 @@ class __extend__(parse.Function):
             self._emit_blocks(g2, codegen, entrycounts, startpc=transferpc)
 
     def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
+        UNUSED
         codegen.emit("pc = %s" % startpc)
         with codegen.emit_indent("while 1:"):
             prefix = ''
@@ -744,6 +744,7 @@ class __extend__(parse.Function):
             #    codegen.emit("assert 0, 'should be unreachable'")
 
     def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
+        UNUSED
         if isinstance(block[0], str):
             # bit hacky: just emit it
             assert len(block) == 1

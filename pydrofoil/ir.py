@@ -6,10 +6,12 @@ from rpython.tool.udir import udir
 from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # TODOS:
-# - casts
+# - casts for structconstruction arguments
 # - enum reads as constants
 # - remove useless phis
 # - BACKEND!
+# - empty blocks removal (careful with critical edges)
+# - constants
 # - start porting optimizations
 
 def construct_ir(functionast, codegen):
@@ -37,8 +39,7 @@ def construct_ir(functionast, codegen):
             continue
         block.append(parse.Goto(blockpc + len(block)))
 
-    build_ssa(blocks, functionast, codegen)
-    return blocks
+    return build_ssa(blocks, functionast, codegen)
 
 
 def compute_entryblocks(blocks):
@@ -281,6 +282,8 @@ def build_ssa(blocks, functionast, codegen):
 # graph
 
 class Block(object):
+    _pc = -1 # assigned later in emitfunction
+
     def __init__(self, operations):
         assert isinstance(operations, list)
         self.operations = operations
@@ -293,11 +296,9 @@ class Block(object):
         for op in self.operations:
             if not isinstance(op, Phi):
                 return
-            count = op.prevblocks.count(block)
-            assert 0 <= count <= 1
-            if count:
-                index = op.prevblocks.index(block)
-                op.prevblocks[index] = otherblock
+            for index, oldblock in enumerate(op.prevblocks):
+                if oldblock is block:
+                    op.prevblocks[index] = otherblock
 
     def _dot(self, dotgen, seen, print_varnames):
         if self in seen:
@@ -521,6 +522,12 @@ class RefOf(Operation):
     def __repr__(self):
         return "RefOf(%r, %r)" % (args, self.resolved_type, )
 
+class NonSSAAssignment(Operation):
+    def __init__(self, lhs, rhs):
+        Operation.__init__(self, "non_ssa_assign", [lhs, rhs], types.Unit())
+
+    def __repr__(self):
+        return "NonSSAAssignment(%r, %r)" % (self.args[0], self.args[1])
 
 class Phi(Value):
     can_have_side_effects = False
@@ -654,8 +661,8 @@ class GraphPage(BaseGraphPage):
 
 def simplify(graph):
     res = remove_dead(graph)
-    res = remove_empty_blocks(graph) or res
-    res = swap_not(graph) or res
+    #res = remove_empty_blocks(graph) or res
+    #res = swap_not(graph) or res
     return res
 
 def repeat(func):

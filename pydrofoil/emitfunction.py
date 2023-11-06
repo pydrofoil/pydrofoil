@@ -171,6 +171,9 @@ class CodeEmitter(object):
         codegen.emit("pc = %s if %s else %s" % (next.truetarget._pc, res, next.falsetarget._pc))
         codegen.emit("continue")
 
+    def emit_next_Arbitrary(self, next):
+        self.codegen.emit("break") # XXX not 100% sure that's correct
+
     def emit_next_default(self, next):
         import pdb; pdb.set_trace()
 

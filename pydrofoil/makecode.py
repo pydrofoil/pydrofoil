@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from rpython.tool.pairtype import pair
 
 from pydrofoil import parse, types, binaryop, operations, supportcode
+from pydrofoil.emitfunction import emit_function_code
 
 
 assert sys.maxint == 2 ** 63 - 1, "only 64 bit platforms are supported!"
@@ -432,7 +433,7 @@ class __extend__(parse.Abstract):
 
 class __extend__(parse.Register):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks
+        from pydrofoil.ir import construct_ir
         self.pyname = "_reg_%s" % (self.name, )
         typ = self.typ.resolve_type(codegen)
         read_pyname = write_pyname = "machine.%s" % self.pyname
@@ -459,6 +460,9 @@ class __extend__(parse.Register):
         if self.body is None:
             return
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
+            graph = construct_ir(self, codegen, singleblock=True)
+            emit_function_code(graph, self, codegen)
+            return
             codegen.emit(" # register %s : %s" % (self.name, self.typ, ))
             blocks = {0: self.body[:]}
             optimize_blocks(blocks, codegen)
@@ -792,12 +796,16 @@ class __extend__(parse.Files):
 
 class __extend__(parse.Let):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks
+        from pydrofoil.ir import construct_ir
         codegen.emit("# %s" % (self, ))
         pyname = "machine.l.%s" % self.name
         codegen.add_global(self.name, pyname, self.typ.resolve_type(codegen), self, pyname)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
+            graph = construct_ir(self, codegen, singleblock=True)
+            emit_function_code(graph, self, codegen)
+            import pdb; pdb.set_trace()
+            return
             blocks = {0: self.body[:]}
             optimize_blocks(blocks, codegen)
             for i, op in enumerate(blocks[0]):

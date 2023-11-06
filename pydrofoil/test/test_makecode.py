@@ -55,7 +55,6 @@ def test_full_nand():
     supportcodenand.load_rom(addrom)
     zmymain = out.func_zmymain
     machine = out.Machine()
-    import pdb; pdb.set_trace()
     zmymain(machine, rarithmetic.r_uint(10), True)
     assert machine._reg_zD == 5
     assert machine._reg_zA == 0

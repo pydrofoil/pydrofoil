@@ -14,20 +14,23 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - constants
 # - start porting optimizations
 
-def construct_ir(functionast, codegen):
+def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:
     # a dictionary {label-as-int: [list of operations]}
     # every list of operations ends with a goto, return or failure
+    body = functionast.body
+    if singleblock:
+        body = body + [parse.Arbitrary()]
 
     # first check which ops can be jumped to
-    jumptargets = {getattr(op, 'target', 0) for op in functionast.body}
-    for i, op in enumerate(functionast.body):
+    jumptargets = {getattr(op, 'target', 0) for op in body}
+    for i, op in enumerate(body):
         if isinstance(op, parse.ConditionalJump):
             jumptargets.add(i + 1)
 
     # now split into blocks
     blocks = {}
-    for i, op in enumerate(functionast.body):
+    for i, op in enumerate(body):
         if i in jumptargets:
             blocks[i] = block = []
         block.append(op)
@@ -39,7 +42,12 @@ def construct_ir(functionast, codegen):
             continue
         block.append(parse.Goto(blockpc + len(block)))
 
-    return build_ssa(blocks, functionast, codegen)
+    if singleblock:
+        args = []
+    else:
+        args = functionast.args
+
+    return build_ssa(blocks, functionast, args, codegen)
 
 
 def compute_entryblocks(blocks):
@@ -51,9 +59,10 @@ def compute_entryblocks(blocks):
     return entryblocks
 
 class SSABuilder(object):
-    def __init__(self, blocks, functionast, codegen):
+    def __init__(self, blocks, functionast, functionargs, codegen):
         self.blocks = blocks
         self.functionast = functionast
+        self.functionargs = functionargs
         self.codegen = codegen
         self.entryblocks = compute_entryblocks(blocks)
         self.variable_map = None # {name: Value}
@@ -98,11 +107,15 @@ class SSABuilder(object):
                 loopblock = True
         if entry == []:
             assert pc == 0
-            argtypes = self.functionast.resolved_type.argtype.elements
-            self.variable_map = {var: Argument(var, typ)
-                    for var, typ in zip(self.functionast.args, argtypes)}
-            self.args = [self.variable_map[var] for var in self.functionast.args]
+            self.variable_map = {}
+            self.args = []
+            if self.functionargs:
+                argtypes = self.functionast.resolved_type.argtype.elements
+                self.variable_map = {var: Argument(var, typ)
+                        for var, typ in zip(self.functionargs, argtypes)}
+                self.args = [self.variable_map[var] for var in self.functionargs]
             self.variable_map['return'] = None
+
         elif len(entry) == 1:
             self.variable_map = self.variable_maps_at_end[entry[0]].copy()
         elif not loopblock:
@@ -269,8 +282,8 @@ class SSABuilder(object):
         else:
             self.variable_map[result] = value
 
-def build_ssa(blocks, functionast, codegen):
-    builder = SSABuilder(blocks, functionast, codegen)
+def build_ssa(blocks, functionast, functionargs, codegen):
+    builder = SSABuilder(blocks, functionast, functionargs, codegen)
     return builder.build()
 
 

@@ -67,16 +67,10 @@ class __extend__(types.Int):
         assert restyp is types.Bool()
         return "%s.eq(%s)" % (sarg1, sarg2)
 
-class DummyAst(object):
-    def __init__(self, s):
-        self.s = s
-    def to_code(self, codegen):
-        return self.s
-
 class __extend__(types.List):
     def make_op_code_special_hd(self, ast, sargs, argtyps, restyp):
-        ast = DummyAst("%s.head" % (sargs[0], ))
-        return pair(argtyps[0].typ.elements[0], restyp).convert(ast, None)
+        expr = "%s.head" % (sargs[0], )
+        return pair(argtyps[0].typ.elements[0], restyp).convert(expr, None)
 
     def make_op_code_special_tl(self, ast, sargs, argtyps, restyp):
         assert argtyps[0] is restyp

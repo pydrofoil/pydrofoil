@@ -175,7 +175,12 @@ class SSABuilder(object):
                 self.variable_map[op.name] = self._addop(ssaop)
             elif isinstance(op, parse.Operation):
                 args = self._get_args(op.args)
-                ssaop = Operation(op.name, args, op.resolved_type)
+                if op.name == "$zinternal_vector_init":
+                    ssaop = VectorInit(args[0], op.resolved_type)
+                elif op.name == "$zinternal_vector_update":
+                    ssaop = VectorUpdate(args, op.resolved_type)
+                else:
+                    ssaop = Operation(op.name, args, op.resolved_type)
                 self._addop(ssaop)
                 self._store(op.result, ssaop)
             elif isinstance(op, parse.Assignment):
@@ -239,12 +244,18 @@ class SSABuilder(object):
             self._addop(register_read)
             return register_read
         elif isinstance(parseval, parse.StructConstruction):
+            if parseval.resolved_type is None:
+                import pdb; pdb.set_trace()
             assert parseval.resolved_type is None or parseval.fieldnames == parseval.resolved_type.ast.names
             args = self._get_args(parseval.fieldvalues)
             ssaop = StructConstruction(parseval.name, args, parseval.resolved_type)
             self._addop(ssaop)
             return ssaop
         elif isinstance(parseval, parse.FieldAccess):
+            # this optimization is necessary, annoyingly enough
+            if isinstance(parseval.obj, parse.StructConstruction):
+                index = parseval.obj.fieldnames.index(parseval.element)
+                return self._get_arg(parseval.obj.fieldvalues[index])
             arg = self._get_arg(parseval.obj)
             ssaop = FieldAccess(parseval.element, [arg], parseval.resolved_type)
             self._addop(ssaop)
@@ -528,7 +539,25 @@ class RefOf(Operation):
         Operation.__init__(self, "$ref-of", args, resolved_type)
 
     def __repr__(self):
-        return "RefOf(%r, %r)" % (args, self.resolved_type, )
+        return "RefOf(%r, %r)" % (self.args, self.resolved_type, )
+
+class VectorInit(Operation):
+    can_have_side_effects = False
+
+    def __init__(self, size, resolved_type):
+        Operation.__init__(self, "$zinternal_vector_init", [size], resolved_type)
+
+    def __repr__(self):
+        return "VectorInit(%r, %r)" % (self.args[0], self.resolved_type, )
+
+class VectorUpdate(Operation):
+    can_have_side_effects = False
+
+    def __init__(self, args, resolved_type):
+        Operation.__init__(self, "$zinternal_vector_update", args, resolved_type)
+
+    def __repr__(self):
+        return "VectorUpdate(%r, %r)" % (self.args, self.resolved_type, )
 
 class NonSSAAssignment(Operation):
     def __init__(self, lhs, rhs):

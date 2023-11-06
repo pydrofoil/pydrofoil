@@ -59,6 +59,8 @@ class CodeEmitter(object):
     # operations
 
     def _get_print_varname(self, op):
+        if isinstance(op, ir.Argument):
+            return op.name
         return self.print_varnames[op]
 
     def _get_arg(self, value):
@@ -84,6 +86,7 @@ class CodeEmitter(object):
         return ", ".join([self._get_arg(arg) for arg in args])
 
     def _op_helper(self, op, svalue):
+        assert isinstance(svalue, str)
         res = self._get_print_varname(op)
         self.codegen.emit("%s = %s" % (res, svalue))
 
@@ -95,10 +98,19 @@ class CodeEmitter(object):
         name = op.name
         args = self._get_args(op.args)
         argtyps = [arg.resolved_type for arg in op.args]
-        if op.name.startswith("@"):
-            meth = getattr(op.args[0].resolved_type, "make_op_code_special_" + op.name[1:], None)
+        restyp = op.resolved_type
+        if name in codegen.globalnames:
+            n = codegen.globalnames[name].pyname
+            if "eq_string" in name:
+                name = "@eq"
+            elif name == "znot_bool":
+                name = "@not"
+            elif n == "supportcode.eq_anything":
+                name = "@eq"
+        if name.startswith("@"):
+            meth = getattr(op.args[0].resolved_type, "make_op_code_special_" + name[1:], None)
             if meth:
-                res = meth(self.codegen, [self._get_arg(arg) for arg in op.args], argtyps, op.resolved_type)
+                res = meth(self.codegen, [self._get_arg(arg) for arg in op.args], argtyps, restyp)
                 self._op_helper(op, res)
                 return
         opname = codegen.getname(name)
@@ -108,6 +120,8 @@ class CodeEmitter(object):
             res = "%s(machine, %s)" % (opname, args)
         elif isinstance(info.typ, types.Union):
             res = info.ast.constructor(info, opname, args, argtyps)
+        else:
+            res = "%s(%s)" % (opname, args)
         self._op_helper(op, res)
 
     def emit_op_NonSSAAssignment(self, op):
@@ -151,11 +165,41 @@ class CodeEmitter(object):
     def emit_op_FieldAccess(self, op):
         return self._op_helper(op, "%s.%s" % (self._get_arg(op.args[0]), op.name))
 
+    def emit_op_FieldWrite(self, op):
+        self.codegen.emit("%s.%s = %s" % (self._get_arg(op.args[0]), op.name, self._get_arg(op.args[1])))
+
+    def emit_op_RefAssignment(self, op):
+        # XXX think long and hard about refs!
+        self.codegen.emit("%s.copy_into(%s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
+
+    def emit_op_Allocate(self, op):
+        self._op_helper(op, op.resolved_type.uninitialized_value)
+
+    def emit_op_DefaultValue(self, op):
+        self._op_helper(op, op.resolved_type.uninitialized_value)
+
+    def emit_op_RefOf(self, op):
+        return self._op_helper(op, self._get_arg(op.args[0]))
+
+    def emit_op_VectorInit(self, op):
+        oftyp = op.resolved_type.typ
+        self._op_helper(op,  "[%s] * %s" % (oftyp.uninitialized_value, self._get_arg(op.args[0])))
+
+    def emit_op_VectorUpdate(self, op):
+        oftyp = op.resolved_type.typ
+        res = self._get_print_varname(op)
+        args = self._get_args(op.args)
+        # xxx feels wrong
+        self._op_helper(op, "supportcode.vector_update_inplace(machine, %s, %s)" % (res, args))
+
     # ________________________________________________
     # jumps etc
 
     def emit_next_Return(self, next):
-        res = self._get_arg(next.value)
+        if next.value is not None:
+            res = self._get_arg(next.value)
+        else:
+            res = '# no result'
         self.codegen.emit("return %s" % res)
 
     def emit_next_Raise(self, next):

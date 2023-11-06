@@ -150,6 +150,8 @@ class Codegen(object):
         self.level = oldlevel
 
     def emit(self, line=''):
+        if "GlobalRead" in line:
+            import pdb; pdb.set_trace()
         if self.level == 0 and line.startswith(("def ", "class ")):
             self.code.append('')
         if not line.strip():
@@ -416,6 +418,9 @@ class __extend__(parse.GlobalVal):
                     import pdb; pdb.set_trace()
             if name == "not": name = "not_"
             funcname = "supportcode.%s" % (name, )
+
+            if name == "cons":
+                funcname = self.resolved_type.restype.pyname
             codegen.add_global(self.name, funcname, typ, self)
             codegen.builtin_names[self.name] = name
         else:
@@ -804,7 +809,6 @@ class __extend__(parse.Let):
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
             graph = construct_ir(self, codegen, singleblock=True)
             emit_function_code(graph, self, codegen)
-            import pdb; pdb.set_trace()
             return
             blocks = {0: self.body[:]}
             optimize_blocks(blocks, codegen)
@@ -1197,7 +1201,7 @@ class __extend__(parse.ListType):
         with codegen.cached_declaration(typ, "List") as pyname:
             with codegen.emit_indent("class %s(supportcode.ObjectBase): # %s" % (pyname, self)):
                 codegen.emit("_immutable_fields_ = ['head', 'tail']")
-                codegen.emit("def __init__(self, head, tail): self.head, self.tail = head, tail")
+                codegen.emit("def __init__(self, machine, head, tail): self.head, self.tail = head, tail")
             typ.pyname = pyname
         return typ
 

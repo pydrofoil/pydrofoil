@@ -39,32 +39,33 @@ class __extend__(pairtype(types.BigFixedBitVector, types.GenericBitVector)):
         return expr
 
 class __extend__(pairtype(types.Int, types.SmallFixedBitVector)):
-    def convert((from_, to), ast, codegen):
+    def convert((from_, to), expr, codegen):
         assert to.width <= 64
-        return "%s.touint()" % ast.to_code(codegen)
+        return "%s.touint()" % expr
 
 class __extend__(pairtype(types.String, types.Int)):
-    def convert((from_, to), ast, codegen):
-        return "Integer.fromstr(%s)" % (ast.to_code(codegen), )
+    def convert((from_, to), expr, codegen):
+        return "Integer.fromstr(%s)" % (expr, )
 
 class __extend__(pairtype(types.MachineInt, types.Int)):
-    def convert((from_, to), ast, codegen):
-        if isinstance(ast, parse.Number):
+    def convert((from_, to), expr, codegen):
+        if isinstance(expr, parse.Number):
+            # XXX
             s = str(ast.number)
             s = s.replace('-', 'NEG_')
             with codegen.cached_declaration(("num", ast.number), "IntConst_" + s) as pyname:
                 codegen.emit("%s = Integer.fromint(%s)" % (pyname, ast.to_code(codegen)))
             return pyname
-        return "Integer.fromint(%s)" % ast.to_code(codegen)
+        return "Integer.fromint(%s)" % expr
 
 class __extend__(pairtype(types.Int, types.MachineInt)):
-    def convert((from_, to), ast, codegen):
-        return "%s.toint()" % ast.to_code(codegen)
+    def convert((from_, to), expr, codegen):
+        return "%s.toint()" % expr
 
 class __extend__(pairtype(types.Tuple, types.Tuple)):
-    def convert((from_, to), ast, codegen):
+    def convert((from_, to), expr, codegen):
         if from_ is to:
-            return ast.to_code(codegen)
+            return expr
         with codegen.cached_declaration((from_, to), "convert_%s_%s" % (from_.pyname, to.pyname)) as pyname:
             with codegen.emit_indent("def %s(t1):" % pyname), codegen.enter_scope(parse.Function(None, None, None)):
                 codegen.add_local("t1", "t1", from_, None)
@@ -72,12 +73,12 @@ class __extend__(pairtype(types.Tuple, types.Tuple)):
                 for i, (typfrom, typto) in enumerate(zip(from_.elements, to.elements)):
                     codegen.emit("res.ztup%s = %s" % (i, pair(typfrom, typto).convert(parse.FieldAccess(parse.Var("t1"), "ztup%s" % i), codegen)))
                 codegen.emit("return res")
-        return "%s(%s)" % (pyname, ast.to_code(codegen))
+        return "%s(%s)" % (pyname, expr)
 
 class __extend__(pairtype(types.Vec, types.FVec)):
-    def convert((from_, to), ast, codegen):
-        return ast.to_code(codegen)
+    def convert((from_, to), expr, codegen):
+        return expr
 
 class __extend__(pairtype(types.FVec, types.Vec)):
-    def convert((from_, to), ast, codegen):
-        return ast.to_code(codegen)
+    def convert((from_, to), expr, codegen):
+        return expr

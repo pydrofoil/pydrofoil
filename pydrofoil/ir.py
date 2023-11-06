@@ -83,7 +83,7 @@ class SSABuilder(object):
             self.patch_phis[pc] = None
             self.variable_maps_at_end[pc] = self.variable_map
             self.variable_map = None
-        graph = Graph(self.functionast.name, self.args, self.allblocks[0], self.functionast.resolved_type)
+        graph = Graph(self.functionast.name, self.args, self.allblocks[0])
         #if random.random() < 0.01:
         #    self.view = 1
         simplify(graph)
@@ -194,7 +194,6 @@ class SSABuilder(object):
                 ssablock.next = Goto(self.allblocks[op.target])
             elif isinstance(op, parse.ConditionalJump):
                 value = self._build_condition(op.condition)
-                self._add_if_op(value)
                 nextop = block[index + 1]
                 assert isinstance(nextop, parse.Goto)
                 ssablock.next = ConditionalGoto(
@@ -249,11 +248,11 @@ class SSABuilder(object):
 
     def _build_condition(self, condition):
         if isinstance(condition, parse.Comparison):
-            return Operation(condition.operation, self._get_args(condition.args), types.Bool())
+            return self._addop(Operation(condition.operation, self._get_args(condition.args), types.Bool()))
         elif isinstance(condition, parse.ExprCondition):
             return self._get_arg(condition.expr)
         elif isinstance(condition, parse.UnionVariantCheck):
-            return UnionVariantCheck(condition.variant, [self._get_arg(condition.var)], types.Bool())
+            return self._addop(UnionVariantCheck(condition.variant, [self._get_arg(condition.var)], types.Bool()))
         else:
             import pdb; pdb.set_trace()
 
@@ -263,10 +262,6 @@ class SSABuilder(object):
             import pdb; pdb.set_trace()
         self.curr_operations.append(op)
         return op
-
-    def _add_if_op(self, op):
-        if isinstance(op, (Operation, Phi)):
-            self.curr_operations.append(op)
 
     def _store(self, result, value):
         if result not in self.variable_map and result != 'return' or result == 'current_exception':
@@ -341,7 +336,7 @@ class Block(object):
 
 
 class Graph(object):
-    def __init__(self, name, args, startblock, resolved_type):
+    def __init__(self, name, args, startblock):
         self.name = name
         self.args = args
         self.startblock = startblock

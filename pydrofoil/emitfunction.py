@@ -5,7 +5,6 @@ from rpython.tool.pairtype import pair
 from pydrofoil import ir, parse, types
 
 def emit_function_code(graph, functionast, codegen):
-    # assign PCs
     CodeEmitter(graph, functionast, codegen).emit()
 
 class CodeEmitter(object):
@@ -16,6 +15,7 @@ class CodeEmitter(object):
         remove_critical_edges(graph)
         remove_phis(graph)
 
+        # assign PCs
         blocks = list(graph.iterblocks())
         for i, block in enumerate(blocks):
             block._pc = i
@@ -74,6 +74,8 @@ class CodeEmitter(object):
                 return "r_uint(%s)" % (ast.constant, )
             if isinstance(ast, parse.Number):
                 return str(ast.number)
+            if isinstance(ast, parse.String):
+                return ast.string
             if isinstance(ast, parse.Unit):
                 return "()"
         import pdb; pdb.set_trace()

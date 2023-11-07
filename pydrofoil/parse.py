@@ -384,6 +384,7 @@ class Operation(StatementWithSourcePos):
 
 class TemplatedOperation(StatementWithSourcePos):
     def __init__(self, result, name, templateparam, args, sourcepos=None, resolved_type=None):
+        import pdb; pdb.set_trace()
         self.result = result
         self.name = name
         self.templateparam = templateparam

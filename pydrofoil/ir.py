@@ -9,6 +9,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - casts for structconstruction arguments
 # - enum reads as constants
 # - remove useless phis
+# - remove the typ argument of side-effecting ops
 # - BACKEND!
 # - empty blocks removal (careful with critical edges)
 # - constants
@@ -169,25 +170,25 @@ class SSABuilder(object):
             if isinstance(op, parse.LocalVarDeclaration):
                 assert op.value is None
                 if isinstance(op.resolved_type, types.Struct):
-                    ssaop = Allocate(op.resolved_type)
+                    ssaop = Allocate(op.resolved_type, op.sourcepos)
                 else:
-                    ssaop = DefaultValue(op.resolved_type)
+                    ssaop = DefaultValue(op.resolved_type, op.sourcepos)
                 self.variable_map[op.name] = self._addop(ssaop)
             elif isinstance(op, parse.Operation):
                 args = self._get_args(op.args)
                 if op.name == "$zinternal_vector_init":
-                    ssaop = VectorInit(args[0], op.resolved_type)
+                    ssaop = VectorInit(args[0], op.resolved_type, op.sourcepos)
                 elif op.name == "$zinternal_vector_update":
-                    ssaop = VectorUpdate(args, op.resolved_type)
+                    ssaop = VectorUpdate(args, op.resolved_type, op.sourcepos)
                 else:
-                    ssaop = Operation(op.name, args, op.resolved_type)
+                    ssaop = Operation(op.name, args, op.resolved_type, op.sourcepos)
                 self._addop(ssaop)
                 self._store(op.result, ssaop)
             elif isinstance(op, parse.Assignment):
                 value = self._get_arg(op.value)
                 if op.resolved_type != op.value.resolved_type:
                     # we need a cast first
-                    value = Cast(value, op.resolved_type)
+                    value = Cast(value, op.resolved_type, op.sourcepos)
                     self._addop(value)
                 self._store(op.result, value)
             elif isinstance(op, parse.StructElementAssignment):
@@ -196,38 +197,39 @@ class SSABuilder(object):
                 fieldval = self._get_arg(op.value)
                 typ = obj.resolved_type.fieldtyps[field]
                 if fieldval.resolved_type != typ:
-                    fieldval = self._addop(Cast(fieldval, typ))
-                self._addop(FieldWrite(field, [obj, fieldval], types.Unit()))
+                    fieldval = self._addop(Cast(fieldval, typ, op.sourcepos))
+                self._addop(FieldWrite(field, [obj, fieldval], types.Unit(), op.sourcepos))
             elif isinstance(op, parse.GeneralAssignment):
                 if isinstance(op.lhs, parse.RefAssignment):
                     args = self._get_args(op.rhs.args)
-                    rhs = Operation(op.rhs.name, args, op.rhs.resolved_type)
+                    rhs = Operation(op.rhs.name, args, op.rhs.resolved_type, op.sourcepos)
                     self._addop(rhs)
-                    self._addop(RefAssignment([self._get_arg(op.lhs.ref), rhs], types.Unit()))
+                    self._addop(RefAssignment([self._get_arg(op.lhs.ref), rhs], types.Unit(), op.sourcepos))
                 else:
                     import pdb; pdb.set_trace()
 
             elif isinstance(op, parse.End):
                 value = self.variable_map['return']
-                ssablock.next = Return(value)
+                ssablock.next = Return(value, op.sourcepos)
                 assert index == len(block) - 1
             elif isinstance(op, parse.Goto):
-                ssablock.next = Goto(self.allblocks[op.target])
+                ssablock.next = Goto(self.allblocks[op.target], None)
             elif isinstance(op, parse.ConditionalJump):
-                value = self._build_condition(op.condition)
+                value = self._build_condition(op.condition, op.sourcepos)
                 nextop = block[index + 1]
                 assert isinstance(nextop, parse.Goto)
                 ssablock.next = ConditionalGoto(
                     value,
                     self.allblocks[op.target],
-                    self.allblocks[nextop.target]
+                    self.allblocks[nextop.target],
+                    op.sourcepos
                 )
                 assert index + 2 == len(block)
                 break
             elif isinstance(op, parse.Exit):
-                ssablock.next = Raise(op.kind)
+                ssablock.next = Raise(op.kind, op.sourcepos)
             elif isinstance(op, parse.Arbitrary):
-                ssablock.next = Arbitrary()
+                ssablock.next = Arbitrary(op.sourcepos)
             else:
                 xxx
 
@@ -243,7 +245,7 @@ class SSABuilder(object):
                 return BooleanConstant.TRUE
             elif parseval.name == 'false':
                 return BooleanConstant.FALSE
-            register_read = GlobalRead(parseval.name, [], parseval.resolved_type)
+            register_read = GlobalRead(parseval.name, parseval.resolved_type)
             self._addop(register_read)
             return register_read
         elif isinstance(parseval, parse.StructConstruction):
@@ -273,13 +275,13 @@ class SSABuilder(object):
             assert isinstance(parseval, (parse.BitVectorConstant, parse.Number, parse.Unit, parse.String))
             return AstConstant(parseval, parseval.resolved_type)
 
-    def _build_condition(self, condition):
+    def _build_condition(self, condition, sourcepos):
         if isinstance(condition, parse.Comparison):
-            return self._addop(Operation(condition.operation, self._get_args(condition.args), types.Bool()))
+            return self._addop(Operation(condition.operation, self._get_args(condition.args), types.Bool(), sourcepos))
         elif isinstance(condition, parse.ExprCondition):
             return self._get_arg(condition.expr)
         elif isinstance(condition, parse.UnionVariantCheck):
-            return self._addop(UnionVariantCheck(condition.variant, [self._get_arg(condition.var)], types.Bool()))
+            return self._addop(UnionVariantCheck(condition.variant, [self._get_arg(condition.var)], types.Bool(), sourcepos))
         else:
             import pdb; pdb.set_trace()
 
@@ -449,15 +451,16 @@ class Argument(Value):
 class Operation(Value):
     can_have_side_effects = True
 
-    def __init__(self, name, args, resolved_type):
+    def __init__(self, name, args, resolved_type, sourcepos=None):
         for arg in args:
             assert isinstance(arg, Value)
         self.name = name
         self.args = args
         self.resolved_type = resolved_type
+        self.sourcepos = sourcepos
 
     def __repr__(self):
-        return "Operation(%r, %r)" % (self.name, self.args)
+        return "Operation(%r, %r, %r)" % (self.name, self.args, self.sourcepos)
 
     def _repr(self, print_varnames):
         return self._get_print_name(print_varnames)
@@ -468,103 +471,105 @@ class Operation(Value):
 class Cast(Operation):
     can_have_side_effects = False
 
-    def __init__(self, arg, resolved_type):
-        Operation.__init__(self, "$cast", [arg], resolved_type)
+    def __init__(self, arg, resolved_type, sourcepos):
+        Operation.__init__(self, "$cast", [arg], resolved_type, sourcepos)
 
     def __repr__(self):
-        return "Cast(%r, %r)" % (self.args[0], self.resolved_type)
+        return "Cast(%r, %r, %r)" % (self.args[0], self.resolved_type, self.sourcepos)
 
 class DefaultValue(Operation):
     can_have_side_effects = False
 
-    def __init__(self, resolved_type):
-        Operation.__init__(self, "$default", [], resolved_type)
+    def __init__(self, resolved_type, sourcepos):
+        Operation.__init__(self, "$default", [], resolved_type, sourcepos)
 
     def __repr__(self):
-        return "DefaultValue(%r)" % (self.resolved_type, )
+        return "DefaultValue(%r, %r)" % (self.resolved_type, self.sourcepos, )
 
 class Allocate(Operation):
     can_have_side_effects = False
 
-    def __init__(self, resolved_type):
-        Operation.__init__(self, "$allocate", [], resolved_type)
+    def __init__(self, resolved_type, sourcepos):
+        Operation.__init__(self, "$allocate", [], resolved_type, sourcepos)
 
     def __repr__(self):
-        return "Allocate(%r)" % (self.resolved_type, )
+        return "Allocate(%r, %r)" % (self.resolved_type, self.sourcepos, )
 
 class StructConstruction(Operation):
     can_have_side_effects = False
 
     def __repr__(self):
-        return "StructConstruction(%r, %r)" % (self.name, self.args)
+        return "StructConstruction(%r, %r, %r)" % (self.name, self.args)
 
 class FieldAccess(Operation):
     can_have_side_effects = False
 
     def __repr__(self):
-        return "FieldAccess(%r, %r)" % (self.name, self.args)
+        return "FieldAccess(%r, %r, %r)" % (self.name, self.args)
 
 class FieldWrite(Operation):
     def __repr__(self):
-        return "FieldWrite(%r, %r)" % (self.name, self.args)
+        return "FieldWrite(%r, %r, %r)" % (self.name, self.args)
 
 class UnionVariantCheck(Operation):
     can_have_side_effects = False
 
     def __repr__(self):
-        return "UnionVariantCheck(%r, %r)" % (self.name, self.args)
+        return "UnionVariantCheck(%r, %r, %r)" % (self.name, self.args)
 
 class UnionCast(Operation):
     def __repr__(self):
-        return "UnionCast(%r, %r)" % (self.name, self.args)
+        return "UnionCast(%r, %r, %r)" % (self.name, self.args)
 
 class GlobalRead(Operation):
     can_have_side_effects = False
+    def __init__(self, name, resolved_type):
+        Operation.__init__(self, name, [], resolved_type, None)
 
     def __repr__(self):
-        return "GlobalRead(%r, %r)" % (self.name, self.args)
+        return "GlobalRead(%r, %r)" % (self.name, self.resolved_type)
 
 class GlobalWrite(Operation):
     def __repr__(self):
-        return "GlobalWrite(%r, %r)" % (self.name, self.args)
+        return "GlobalWrite(%r, %r, %r)" % (self.name, self.args)
 
 class RefAssignment(Operation):
-    def __init__(self, args, resolved_type):
-        Operation.__init__(self, "$ref-assign", args, resolved_type)
+    def __init__(self, args, resolved_type, sourcepos):
+        Operation.__init__(self, "$ref-assign", args, resolved_type, sourcepos)
 
     def __repr__(self):
-        return "RefAssignment(%r, %r)" % (self.args, self.resolved_type, )
+        return "RefAssignment(%r, %r, %r)" % (self.args, self.resolved_type, self.sourcepos, )
 
 class RefOf(Operation):
     can_have_side_effects = False
 
-    def __init__(self, args, resolved_type):
-        Operation.__init__(self, "$ref-of", args, resolved_type)
+    def __init__(self, args, resolved_type, sourcepos):
+        Operation.__init__(self, "$ref-of", args, resolved_type, sourcepos)
 
     def __repr__(self):
-        return "RefOf(%r, %r)" % (self.args, self.resolved_type, )
+        return "RefOf(%r, %r, %r)" % (self.args, self.resolved_type, self.sourcepos, )
 
 class VectorInit(Operation):
     can_have_side_effects = False
 
-    def __init__(self, size, resolved_type):
-        Operation.__init__(self, "$zinternal_vector_init", [size], resolved_type)
+    def __init__(self, size, resolved_type, sourcepos):
+        Operation.__init__(self, "$zinternal_vector_init", [size], resolved_type, sourcepos)
 
     def __repr__(self):
-        return "VectorInit(%r, %r)" % (self.args[0], self.resolved_type, )
+        return "VectorInit(%r, %r, %r)" % (self.args[0], self.resolved_type, self.sourcepos, )
 
 class VectorUpdate(Operation):
     can_have_side_effects = False
 
-    def __init__(self, args, resolved_type):
-        Operation.__init__(self, "$zinternal_vector_update", args, resolved_type)
+    def __init__(self, args, resolved_type, sourcepos):
+        Operation.__init__(self, "$zinternal_vector_update", args, resolved_type, sourcepos)
 
     def __repr__(self):
-        return "VectorUpdate(%r, %r)" % (self.args, self.resolved_type, )
+        return "VectorUpdate(%r, %r, %r)" % (self.args, self.resolved_type, self.sourcepos, )
 
 class NonSSAAssignment(Operation):
     def __init__(self, lhs, rhs):
-        Operation.__init__(self, "non_ssa_assign", [lhs, rhs], types.Unit())
+        Operation.__init__(self, "non_ssa_assign", [lhs, rhs], types.Unit(), None)
 
     def __repr__(self):
         return "NonSSAAssignment(%r, %r)" % (self.args[0], self.args[1])
@@ -614,6 +619,9 @@ BooleanConstant.FALSE = BooleanConstant(False)
 # next
 
 class Next(object):
+    def __init__(self, sourcepos):
+        self.sourcepos = sourcepos
+
     def next_blocks(self):
         return []
 
@@ -627,9 +635,10 @@ class Next(object):
         return self.__class__.__name__
 
 class Return(Next):
-    def __init__(self, value):
+    def __init__(self, value, sourcepos):
         assert isinstance(value, Value) or value is None
         self.value = value
+        self.sourcepos = sourcepos
 
     def getargs(self):
         return [self.value]
@@ -638,8 +647,9 @@ class Return(Next):
         return "return %s" % ('None' if self.value is None else self.value._repr(print_varnames), )
 
 class Raise(Next):
-    def __init__(self, kind):
+    def __init__(self, kind, sourcepos):
         self.kind = kind
+        self.sourcepos = sourcepos
 
     def _repr(self, print_varnames):
         return "raise (%s)" % (self.kind, )
@@ -650,9 +660,10 @@ class Arbitrary(Next):
 
 
 class Goto(Next):
-    def __init__(self, target):
+    def __init__(self, target, sourcepos=None):
         assert isinstance(target, Block)
         self.target = target
+        self.sourcepos = sourcepos
 
     def next_blocks(self):
         return [self.target]
@@ -663,13 +674,14 @@ class Goto(Next):
 
 
 class ConditionalGoto(Next):
-    def __init__(self, booleanvalue, truetarget, falsetarget):
+    def __init__(self, booleanvalue, truetarget, falsetarget, sourcepos):
         assert isinstance(truetarget, Block)
         assert isinstance(falsetarget, Block)
         assert isinstance(booleanvalue, Value)
         self.truetarget = truetarget
         self.falsetarget = falsetarget
         self.booleanvalue = booleanvalue
+        self.sourcepos = sourcepos
 
     def getargs(self):
         return [self.booleanvalue]

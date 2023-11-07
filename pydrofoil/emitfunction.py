@@ -88,7 +88,11 @@ class CodeEmitter(object):
     def _op_helper(self, op, svalue):
         assert isinstance(svalue, str)
         res = self._get_print_varname(op)
-        self.codegen.emit("%s = %s" % (res, svalue))
+        emit = "%s = %s" % (res, svalue)
+        sourcepos = op.sourcepos
+        if sourcepos:
+            emit += " # " + sourcepos
+        self.codegen.emit(emit)
 
     def emit_op_default(self, op):
         import pdb; pdb.set_trace()
@@ -131,9 +135,8 @@ class CodeEmitter(object):
         self.codegen.emit("%s = %s" % (res, arg1))
 
     def emit_op_GlobalRead(self, op):
-        pyname = self.codegen.getname(op.name)
-        res = self._get_print_varname(op)
-        self.codegen.emit("%s = %s" % (res, pyname))
+        pyname= self.codegen.getname(op.name)
+        self._op_helper(op, pyname)
 
     def emit_op_GlobalWrite(self, op):
         target = self.codegen.getinfo(op.name).write_pyname
@@ -151,16 +154,13 @@ class CodeEmitter(object):
     def emit_op_StructConstruction(self, op):
         ast_type = op.resolved_type.ast
         args = ", ".join([self._get_arg(arg) for arg in op.args])
-        res = self._get_print_varname(op)
-        self.codegen.emit("%s = %s(%s)" % (res, ast_type.pyname, args))
+        self._op_helper(op, "%s(%s)" % (ast_type.pyname, args))
 
     def emit_op_Cast(self, op):
         fromtyp = op.args[0].resolved_type
         totyp = op.resolved_type
         arg = self._get_arg(op.args[0])
-        res = self._get_print_varname(op)
-        expr = pair(fromtyp, totyp).convert(arg, self.codegen)
-        self.codegen.emit("%s = %s" % (res, expr))
+        self._op_helper(op, pair(fromtyp, totyp).convert(arg, self.codegen))
 
     def emit_op_FieldAccess(self, op):
         return self._op_helper(op, "%s.%s" % (self._get_arg(op.args[0]), op.name))
@@ -195,28 +195,32 @@ class CodeEmitter(object):
     # ________________________________________________
     # jumps etc
 
+    def _emit_next_helper(self, next, s):
+        if next.sourcepos:
+            s += " # " + next.sourcepos
+        self.codegen.emit(s)
+
     def emit_next_Return(self, next):
         if next.value is not None:
             res = self._get_arg(next.value)
         else:
             res = '# no result'
-        self.codegen.emit("return %s" % res)
+        self._emit_next_helper(next, "return %s" % res)
 
     def emit_next_Raise(self, next):
-        self.codegen.emit("assert 0, %r" % (next.kind, ))
+        self._emit_next_helper(next, "assert 0, %r" % (next.kind, ))
 
     def emit_next_Goto(self, next):
-        self.codegen.emit("pc = %s" % (next.target._pc, ))
+        self._emit_next_helper(next, "pc = %s" % (next.target._pc, ))
         self.codegen.emit("continue")
 
     def emit_next_ConditionalGoto(self, next):
-        codegen = self.codegen
         res = self._get_print_varname(next.booleanvalue)
-        codegen.emit("pc = %s if %s else %s" % (next.truetarget._pc, res, next.falsetarget._pc))
-        codegen.emit("continue")
+        self._emit_next_helper(next, "pc = %s if %s else %s" % (next.truetarget._pc, res, next.falsetarget._pc))
+        self.codegen.emit("continue")
 
     def emit_next_Arbitrary(self, next):
-        self.codegen.emit("break") # XXX not 100% sure that's correct
+        self._emit_next_helper(next, "break") # XXX not 100% sure that's correct
 
     def emit_next_default(self, next):
         import pdb; pdb.set_trace()

@@ -215,7 +215,7 @@ class CodeEmitter(object):
         self.codegen.emit("continue")
 
     def emit_next_ConditionalGoto(self, next):
-        res = self._get_print_varname(next.booleanvalue)
+        res = self._get_arg(next.booleanvalue)
         self._emit_next_helper(next, "pc = %s if %s else %s" % (next.truetarget._pc, res, next.falsetarget._pc))
         self.codegen.emit("continue")
 

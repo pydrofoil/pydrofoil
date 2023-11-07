@@ -543,7 +543,7 @@ class RefAssignment(Operation):
 class RefOf(Operation):
     can_have_side_effects = False
 
-    def __init__(self, args, resolved_type, sourcepos):
+    def __init__(self, args, resolved_type, sourcepos=None):
         Operation.__init__(self, "$ref-of", args, resolved_type, sourcepos)
 
     def __repr__(self):

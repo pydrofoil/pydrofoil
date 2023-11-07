@@ -13,11 +13,16 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # - empty blocks removal (careful with critical edges)
 # - constants
+# - fix bug in riscv
+# - split huge functions
 # - start porting optimizations
 #   - inlining
 #   - nesting ifs
 #   - nested operations
 #   - cached boxed constants
+#   - neq -> not eq
+#   - all the bitvector and integer optimizations
+#   - if True/False -> goto
 
 
 def construct_ir(functionast, codegen, singleblock=False):
@@ -719,7 +724,8 @@ class GraphPage(BaseGraphPage):
 def simplify(graph):
     res = remove_dead(graph)
     #res = remove_empty_blocks(graph) or res
-    #res = swap_not(graph) or res
+    res = swap_not(graph) or res
+    res = remove_dead(graph)
     return res
 
 def repeat(func):

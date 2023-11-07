@@ -132,8 +132,9 @@ class Codegen(object):
         self.localnames = old_localnames
 
     @contextmanager
-    def emit_indent(self, line):
-        self.emit(line)
+    def emit_indent(self, line=None):
+        if line is not None:
+            self.emit(line)
         self.level += 1
         yield
         self.level -= 1
@@ -150,8 +151,6 @@ class Codegen(object):
         self.level = oldlevel
 
     def emit(self, line=''):
-        if "GlobalRead" in line:
-            import pdb; pdb.set_trace()
         if self.level == 0 and line.startswith(("def ", "class ")):
             self.code.append('')
         if not line.strip():

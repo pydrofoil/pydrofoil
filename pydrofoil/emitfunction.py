@@ -22,6 +22,7 @@ class CodeEmitter(object):
         self.blocks = blocks
 
         self.entrymap = graph.make_entrymap()
+        self.emitted = set()
         self.print_varnames = defaultdict(lambda : "i%s" % len(self.print_varnames))
 
     def emit(self):
@@ -32,31 +33,20 @@ class CodeEmitter(object):
         codegen.emit("pc = 0")
         with codegen.emit_indent("while 1:"):
             for block in self.blocks:
-                blockpc = block._pc
-                #if block in emitted:
+                if block in self.emitted:
                     # inlined by emit_block_ops
-                #    continue
+                    continue
+                blockpc = block._pc
                 with codegen.emit_indent("if pc == %s:" % (blockpc, )):
                     self.emit_block_ops(block)
 
     def emit_block_ops(self, block):
+        self.emitted.add(block)
         codegen = self.codegen
         for i, op in enumerate(block.operations):
             assert not isinstance(op, ir.Phi) # should have been removed
             getattr(self, "emit_op_" + op.__class__.__name__, self.emit_op_default)(op)
         getattr(self, "emit_next_" + block.next.__class__.__name__, self.emit_next_default)(block.next)
-        # elif isinstance(op, parse.Goto):
-        #     codegen.emit("pc = %s" % (op.target, ))
-        #     if op.target < i:
-        #         codegen.emit("continue")
-        #     return
-        # elif isinstance(op, parse.Arbitrary):
-        #     codegen.emit("# arbitrary")
-        #     codegen.emit("return %s" % (codegen.gettyp(self.name).restype.uninitialized_value, ))
-        # else:
-        #     codegen.emit("# %s" % (op, ))
-        #     op.make_op_code(codegen)
-        # handle_next
 
     # ________________________________________________
     # operations
@@ -199,9 +189,17 @@ class CodeEmitter(object):
     # jumps etc
 
     def _emit_next_helper(self, next, s):
-        if next.sourcepos:
+        if next is not None and next.sourcepos:
             s += " # " + next.sourcepos
         self.codegen.emit(s)
+
+    def _emit_jump(self, block, next=None):
+        if len(self.entrymap[block]) == 1:
+            self._emit_next_helper(next, "# pc = %s, inlined" % (block._pc, ))
+            self.emit_block_ops(block)
+        else:
+            self._emit_next_helper(next, "pc = %s" % (block._pc, ))
+            self.codegen.emit("continue")
 
     def emit_next_Return(self, next):
         if next.value is not None:
@@ -214,16 +212,22 @@ class CodeEmitter(object):
         self._emit_next_helper(next, "assert 0, %r" % (next.kind, ))
 
     def emit_next_Goto(self, next):
-        self._emit_next_helper(next, "pc = %s" % (next.target._pc, ))
-        self.codegen.emit("continue")
+        self._emit_jump(next.target, next)
 
     def emit_next_ConditionalGoto(self, next):
         res = self._get_arg(next.booleanvalue)
-        self._emit_next_helper(next, "pc = %s if %s else %s" % (next.truetarget._pc, res, next.falsetarget._pc))
-        self.codegen.emit("continue")
+        self._emit_next_helper(next, "if %s:" % (res, ))
+        with self.codegen.emit_indent():
+            self._emit_jump(next.truetarget)
+        # the truetarget ends with a continue or similar, so we can just write
+        # the code without an else
+        self._emit_jump(next.falsetarget)
 
     def emit_next_Arbitrary(self, next):
-        self._emit_next_helper(next, "break") # XXX not 100% sure that's correct
+        if len(self.blocks) > 1:
+            self._emit_next_helper(next, "break") # XXX not 100% sure that's correct
+        else:
+            self._emit_next_helper(next, "pass")
 
     def emit_next_default(self, next):
         import pdb; pdb.set_trace()

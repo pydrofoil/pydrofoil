@@ -10,10 +10,15 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - enum reads as constants
 # - remove useless phis
 # - remove the typ argument of side-effecting ops
-# - BACKEND!
+
 # - empty blocks removal (careful with critical edges)
 # - constants
 # - start porting optimizations
+#   - inlining
+#   - nesting ifs
+#   - nested operations
+#   - cached boxed constants
+
 
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:

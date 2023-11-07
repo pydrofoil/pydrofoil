@@ -26,6 +26,9 @@ class CodeEmitter(object):
 
     def emit(self):
         codegen = self.codegen
+        if len(self.blocks) == 1:
+            self.emit_block_ops(self.blocks[0])
+            return
         codegen.emit("pc = 0")
         with codegen.emit_indent("while 1:"):
             for block in self.blocks:

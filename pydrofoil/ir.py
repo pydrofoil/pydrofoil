@@ -194,6 +194,9 @@ class SSABuilder(object):
                 field, = op.fields
                 obj = self._get_arg(op.obj)
                 fieldval = self._get_arg(op.value)
+                typ = obj.resolved_type.fieldtyps[field]
+                if fieldval.resolved_type != typ:
+                    fieldval = self._addop(Cast(fieldval, typ))
                 self._addop(FieldWrite(field, [obj, fieldval], types.Unit()))
             elif isinstance(op, parse.GeneralAssignment):
                 if isinstance(op.lhs, parse.RefAssignment):

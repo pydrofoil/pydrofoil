@@ -182,8 +182,8 @@ class CodeEmitter(object):
         oftyp = op.resolved_type.typ
         res = self._get_print_varname(op)
         args = self._get_args(op.args)
-        # xxx feels wrong
-        self._op_helper(op, "supportcode.vector_update_inplace(machine, %s, %s)" % (res, args))
+        # XXX slow but at least correct for now
+        self._op_helper(op, "supportcode.vector_update_inplace(machine, None, %s)" % (args, ))
 
     # ________________________________________________
     # jumps etc
@@ -204,9 +204,11 @@ class CodeEmitter(object):
     def emit_next_Return(self, next):
         if next.value is not None:
             res = self._get_arg(next.value)
+            self._emit_next_helper(next, "return %s" % res)
         else:
+            # no result, unreachable
             res = '# no result'
-        self._emit_next_helper(next, "return %s" % res)
+            self._emit_next_helper(next, "assert 0, 'unreachable'")
 
     def emit_next_Raise(self, next):
         self._emit_next_helper(next, "assert 0, %r" % (next.kind, ))
@@ -223,11 +225,8 @@ class CodeEmitter(object):
         # the code without an else
         self._emit_jump(next.falsetarget)
 
-    def emit_next_Arbitrary(self, next):
-        if len(self.blocks) > 1:
-            self._emit_next_helper(next, "break") # XXX not 100% sure that's correct
-        else:
-            self._emit_next_helper(next, "pass")
+    def emit_next_JustStop(self, next):
+        pass
 
     def emit_next_default(self, next):
         import pdb; pdb.set_trace()

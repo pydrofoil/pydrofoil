@@ -6,10 +6,10 @@ from rpython.tool.udir import udir
 from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # TODOS:
-# - casts for structconstruction arguments
 # - enum reads as constants
 # - remove useless phis
 # - remove the typ argument of side-effecting ops
+# - vector_update_inplace
 
 # - empty blocks removal (careful with critical edges)
 # - constants
@@ -24,6 +24,10 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 #   - all the bitvector and integer optimizations
 #   - if True/False -> goto
 
+# @neq(X, Y) -> @not(@eq(X, Y))
+# $cast(Op, Typ) -> $Op if typ(Op) == Typ
+# eq_bits(cast(Op1, gbv), cast(Op2, gbv)) -> eq_bits_bv_bv(Op1, Op2, 
+
 
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:
@@ -31,7 +35,7 @@ def construct_ir(functionast, codegen, singleblock=False):
     # every list of operations ends with a goto, return or failure
     body = functionast.body
     if singleblock:
-        body = body + [parse.Arbitrary()]
+        body = body + [parse.JustStop()]
 
     # first check which ops can be jumped to
     jumptargets = {getattr(op, 'target', 0) for op in body}
@@ -239,7 +243,11 @@ class SSABuilder(object):
             elif isinstance(op, parse.Exit):
                 ssablock.next = Raise(op.kind, op.sourcepos)
             elif isinstance(op, parse.Arbitrary):
-                ssablock.next = Arbitrary(op.sourcepos)
+                restyp = self.functionast.resolved_type.restype
+                res = self._addop(DefaultValue(restyp, op.sourcepos))
+                ssablock.next = Return(res, op.sourcepos)
+            elif isinstance(op, parse.JustStop):
+                ssablock.next = JustStop()
             else:
                 xxx
 
@@ -259,10 +267,13 @@ class SSABuilder(object):
             self._addop(register_read)
             return register_read
         elif isinstance(parseval, parse.StructConstruction):
-            if parseval.resolved_type is None:
-                import pdb; pdb.set_trace()
-            assert parseval.resolved_type is None or parseval.fieldnames == parseval.resolved_type.ast.names
+            assert parseval.fieldnames == parseval.resolved_type.ast.names
             args = self._get_args(parseval.fieldvalues)
+            for index, fieldname in enumerate(parseval.fieldnames):
+                arg = args[index]
+                targettyp = parseval.resolved_type.fieldtyps[fieldname]
+                if arg.resolved_type != targettyp:
+                    args[index] = self._addop(Cast(arg, targettyp))
             ssaop = StructConstruction(parseval.name, args, parseval.resolved_type)
             self._addop(ssaop)
             return ssaop
@@ -481,7 +492,7 @@ class Operation(Value):
 class Cast(Operation):
     can_have_side_effects = False
 
-    def __init__(self, arg, resolved_type, sourcepos):
+    def __init__(self, arg, resolved_type, sourcepos=None):
         Operation.__init__(self, "$cast", [arg], resolved_type, sourcepos)
 
     def __repr__(self):
@@ -664,9 +675,11 @@ class Raise(Next):
     def _repr(self, print_varnames):
         return "raise (%s)" % (self.kind, )
 
-class Arbitrary(Next):
+class JustStop(Next):
+    def __init__(self):
+        self.sourcepos = None
     def _repr(self, print_varnames):
-        return "Arbitrary()"
+        return "JustStop()"
 
 
 class Goto(Next):

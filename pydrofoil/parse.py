@@ -538,6 +538,9 @@ class Arbitrary(FunctionEndingStatement):
     def replace_var(self, var, expr):
         xxx
 
+class JustStop(FunctionEndingStatement):
+    end_of_block = True
+
 class Expression(BaseAst):
     resolved_type = None
 

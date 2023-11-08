@@ -245,7 +245,6 @@ def append_64(machine, bv, v):
     return bv.append_64(v)
 
 @unwrap("o i o")
-@objectmodel.specialize.argtype(1, 3)
 def vector_update(machine, bv, index, element):
     return bv.update_bit(index, element)
 

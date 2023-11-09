@@ -112,7 +112,7 @@ class CodeEmitter(object):
                 return
         opname = codegen.getname(name)
         info = codegen.getinfo(name)
-        if isinstance(info.typ, types.Function):
+        if isinstance(info.typ, types.Function) or opname.startswith("supportcode."):
             # pass machine, even to supportcode functions
             res = "%s(machine, %s)" % (opname, args)
         elif isinstance(info.typ, types.Union):

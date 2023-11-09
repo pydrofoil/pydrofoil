@@ -591,7 +591,7 @@ def undefined_real(machine, _):
 def reg_deref(machine, s):
     return s
 
-def sail_assert(cond, st):
+def sail_assert(machine, cond, st):
     if not objectmodel.we_are_translated() and not cond:
         import pdb; pdb.set_trace()
     assert cond, st

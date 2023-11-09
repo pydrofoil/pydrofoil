@@ -468,7 +468,7 @@ class Argument(Value):
         self.name = name
 
     def __repr__(self):
-        return "Argument(%r)" % (self.name, )
+        return "Argument(%r, %r)" % (self.name, self.resolved_type)
 
     def _repr(self, print_varnames):
         return self.name
@@ -637,6 +637,12 @@ class BooleanConstant(Constant):
 
     def _repr(self, print_varnames):
         return "(%s)" % (str(self.value).lower(), )
+
+    def __repr__(self):
+        if self.value:
+            return "BooleanConstant.TRUE"
+        else:
+            return "BooleanConstant.TRUE"
 
 
 BooleanConstant.TRUE = BooleanConstant(True)

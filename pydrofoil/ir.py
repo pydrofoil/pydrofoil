@@ -16,6 +16,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - fix bug in riscv
 # - split huge functions
 # - start porting optimizations
+#   - TESTING
 #   - inlining
 #   - nesting ifs
 #   - nested operations
@@ -195,14 +196,14 @@ class SSABuilder(object):
                 elif op.name == "$zinternal_vector_update":
                     ssaop = VectorUpdate(args, op.resolved_type, op.sourcepos)
                 else:
-                    ssaop = Operation(op.name, args, op.resolved_type, op.sourcepos)
+                    ssaop = Operation(op.name, args, op.resolved_type, op.sourcepos, op.result)
                 self._addop(ssaop)
                 self._store(op.result, ssaop)
             elif isinstance(op, parse.Assignment):
-                value = self._get_arg(op.value)
+                value = self._get_arg(op.value, op.result)
                 if op.resolved_type != op.value.resolved_type:
                     # we need a cast first
-                    value = Cast(value, op.resolved_type, op.sourcepos)
+                    value = Cast(value, op.resolved_type, op.sourcepos, op.result)
                     self._addop(value)
                 self._store(op.result, value)
             elif isinstance(op, parse.StructElementAssignment):
@@ -254,7 +255,7 @@ class SSABuilder(object):
     def _get_args(self, args):
         return [self._get_arg(arg) for arg in args]
 
-    def _get_arg(self, parseval):
+    def _get_arg(self, parseval, varname_hint=None):
         if isinstance(parseval, parse.Var):
             if parseval.name in self.variable_map:
                 assert self.variable_map[parseval.name] is not None
@@ -457,6 +458,9 @@ class Value(object):
     def getargs(self):
         return []
 
+    def __repr__(self, print_varnames):
+        raise NotImplementedError
+
 
 class Argument(Value):
     def __init__(self, name, resolved_type):
@@ -472,13 +476,14 @@ class Argument(Value):
 class Operation(Value):
     can_have_side_effects = True
 
-    def __init__(self, name, args, resolved_type, sourcepos=None):
+    def __init__(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
         for arg in args:
             assert isinstance(arg, Value)
         self.name = name
         self.args = args
         self.resolved_type = resolved_type
         self.sourcepos = sourcepos
+        self.varname_hint = varname_hint
 
     def __repr__(self):
         return "Operation(%r, %r, %r)" % (self.name, self.args, self.sourcepos)
@@ -492,8 +497,8 @@ class Operation(Value):
 class Cast(Operation):
     can_have_side_effects = False
 
-    def __init__(self, arg, resolved_type, sourcepos=None):
-        Operation.__init__(self, "$cast", [arg], resolved_type, sourcepos)
+    def __init__(self, arg, resolved_type, sourcepos=None, varname_hint=None):
+        Operation.__init__(self, "$cast", [arg], resolved_type, sourcepos, varname_hint)
 
     def __repr__(self):
         return "Cast(%r, %r, %r)" % (self.args[0], self.resolved_type, self.sourcepos)

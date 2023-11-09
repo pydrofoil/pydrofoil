@@ -23,7 +23,7 @@ class CodeEmitter(object):
 
         self.entrymap = graph.make_entrymap()
         self.emitted = set()
-        self.print_varnames = defaultdict(lambda : "i%s" % len(self.print_varnames))
+        self.print_varnames = {}
 
     def emit(self):
         codegen = self.codegen
@@ -54,7 +54,11 @@ class CodeEmitter(object):
     def _get_print_varname(self, op):
         if isinstance(op, ir.Argument):
             return op.name
-        return self.print_varnames[op]
+        if op in self.print_varnames:
+            return self.print_varnames[op]
+        name = getattr(op, "varname_hint", None) or "i"
+        res = self.print_varnames[op] = "%s_%s" % (name, len(self.print_varnames))
+        return res
 
     def _get_arg(self, value):
         if isinstance(value, (ir.Phi, ir.Operation)):

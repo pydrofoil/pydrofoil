@@ -626,8 +626,8 @@ def internal_pick(machine, lst):
 @objectmodel.specialize.argtype(2, 4)
 def vector_update_inplace(machine, res, l, index, element):
     # super weird, the C backend does the same
-    if res is not l:
-        l = l[:]
+    # XXX slow so far
+    l = l[:]
     l[index] = element
     return l
 

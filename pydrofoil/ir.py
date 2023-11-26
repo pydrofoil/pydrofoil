@@ -345,8 +345,8 @@ class Block(object):
     def __getitem__(self, index):
         return self.operations[index]
 
-    def emit(self, cls, opname, args, resolved_type, sourcepos, varname_hint):
-        op = Operation(opname, args, resolved_type, sourcepos, varname_hint)
+    def emit(self, cls, opname, args, resolved_type, sourcepos, varname_hint=None):
+        op = Operation(opname, args, resolved_type, sourcepos, varname_hint=None)
         op.__class__ = cls
         self.operations.append(op)
         return op
@@ -644,7 +644,7 @@ class AstConstant(Constant):
         self.resolved_type = resolved_type
 
     def _repr(self, print_varnames):
-        return "(%s)" % (self.ast, )
+        return "%s(%s, %s)" % (self.__class__.__name__, self.ast, self.resolved_type)
 
     def __repr__(self):
         return "AstConstant(%r, %r)" % (self.ast, self.resolved_type)
@@ -656,13 +656,13 @@ class BooleanConstant(Constant):
         self.resolved_type = types.Bool()
 
     def _repr(self, print_varnames):
-        return "(%s)" % (str(self.value).lower(), )
-
-    def __repr__(self):
         if self.value:
             return "BooleanConstant.TRUE"
         else:
-            return "BooleanConstant.TRUE"
+            return "BooleanConstant.FALSE"
+
+    def __repr__(self):
+        return self._repr({})
 
 
 BooleanConstant.TRUE = BooleanConstant(True)
@@ -696,7 +696,7 @@ class Return(Next):
         return [self.value]
 
     def _repr(self, print_varnames, blocknames=None):
-        return "Return(%r)" % (None if self.value is None else self.value._repr(print_varnames), )
+        return "Return(%s, %r)" % (None if self.value is None else self.value._repr(print_varnames), self.sourcepos)
 
 class Raise(Next):
     def __init__(self, kind, sourcepos):
@@ -777,7 +777,7 @@ def print_graph_construction(graph):
             name = op._get_print_name(print_varnames)
             if isinstance(op, Operation):
                 args = ", ".join([a._repr(print_varnames) for a in op.args])
-                res.append("%s = %s.emit(%s, %r, [%s], %r, %r)"  % (name, blockname, op.__class__.__name__, op.name, args, op.resolved_type, op.varname_hint))
+                res.append("%s = %s.emit(%s, %r, [%s], %r, %r, %r)"  % (name, blockname, op.__class__.__name__, op.name, args, op.resolved_type, op.sourcepos, op.varname_hint))
             else:
                 assert isinstance(op, Phi)
                 blockargs = ", ".join([blocknames[b] for b in op.prevblocks])
@@ -801,12 +801,11 @@ class GraphPage(BaseGraphPage):
 # some simple graph simplifications
 
 def simplify(graph):
-    #res = remove_dead(graph)
+    res = remove_dead(graph)
     #res = remove_empty_blocks(graph) or res
-    #res = swap_not(graph) or res
-    #res = remove_dead(graph)
-    #return res
-    pass
+    res = swap_not(graph) or res
+    res = remove_dead(graph)
+    return res
 
 def repeat(func):
     def repeated(graph):

@@ -13,7 +13,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # - empty blocks removal (careful with critical edges)
 # - constants
-# - fix bug in riscv
 # - split huge functions
 # - start porting optimizations
 #   - TESTING

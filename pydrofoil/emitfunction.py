@@ -12,6 +12,7 @@ class CodeEmitter(object):
         self.graph = graph
         self.functionast = functionast
         self.codegen = codegen
+        self.graph_construction_code = ir.print_graph_construction(self.graph)
         remove_critical_edges(graph)
         remove_phis(graph)
 
@@ -27,6 +28,8 @@ class CodeEmitter(object):
 
     def emit(self):
         codegen = self.codegen
+        for comment in self.graph_construction_code:
+            codegen.emit("# " + comment)
         if len(self.blocks) == 1:
             self.emit_block_ops(self.blocks[0])
             return

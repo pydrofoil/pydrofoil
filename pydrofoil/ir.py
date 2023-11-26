@@ -88,7 +88,7 @@ class SSABuilder(object):
     def build(self):
         allblocks = {}
         for pc, block in self.blocks.iteritems():
-            ssablock = Block([])
+            ssablock = Block()
             allblocks[pc] = ssablock
         self.allblocks = allblocks
         for pc, block in sorted(self.blocks.iteritems()):
@@ -315,8 +315,6 @@ class SSABuilder(object):
 
     def _addop(self, op):
         assert isinstance(op, (Operation, Phi))
-        if self.curr_operations and self.curr_operations[-1] is op:
-            import pdb; pdb.set_trace()
         self.curr_operations.append(op)
         return op
 
@@ -336,13 +334,26 @@ def build_ssa(blocks, functionast, functionargs, codegen):
 class Block(object):
     _pc = -1 # assigned later in emitfunction
 
-    def __init__(self, operations):
+    def __init__(self, operations=None):
+        if operations is None:
+            operations = []
         assert isinstance(operations, list)
         self.operations = operations
         self.next = None
 
     def __getitem__(self, index):
         return self.operations[index]
+
+    def emit(self, cls, opname, args, resolved_type, sourcepos, varname_hint):
+        op = Operation(opname, args, resolved_type, sourcepos, varname_hint)
+        op.__class__ = cls
+        self.operations.append(op)
+        return op
+
+    def emit_phi(self, prevblocks, prevvalues, resolved_type):
+        op = Phi(prevblocks, prevvalues, resolved_type)
+        self.operations.append(op)
+        return op
 
     def replace_prev(self, block, otherblock):
         for op in self.operations:
@@ -683,22 +694,22 @@ class Return(Next):
     def getargs(self):
         return [self.value]
 
-    def _repr(self, print_varnames):
-        return "return %s" % ('None' if self.value is None else self.value._repr(print_varnames), )
+    def _repr(self, print_varnames, blocknames=None):
+        return "Return(%r)" % (None if self.value is None else self.value._repr(print_varnames), )
 
 class Raise(Next):
     def __init__(self, kind, sourcepos):
         self.kind = kind
         self.sourcepos = sourcepos
 
-    def _repr(self, print_varnames):
-        return "raise (%s)" % (self.kind, )
+    def _repr(self, print_varnames, blocknames=None):
+        return "Raise(%s, %r)" % (self.kind, self.sourcepos)
 
 class JustStop(Next):
     def __init__(self):
         self.sourcepos = None
-    def _repr(self, print_varnames):
-        return "JustStop()"
+    def _repr(self, print_varnames, blocknames=None):
+        return "JustStop(%r)" % (self.sourcepos, )
 
 
 class Goto(Next):
@@ -713,6 +724,11 @@ class Goto(Next):
     def replace_next(self, block, otherblock):
         if self.target is block:
             self.target = otherblock
+
+    def _repr(self, print_varnames, blocknames=None):
+        if blocknames:
+            return "Goto(%s, %r)" % (blocknames[self.target], self.sourcepos)
+        return "goto"
 
 
 class ConditionalGoto(Next):
@@ -737,8 +753,38 @@ class ConditionalGoto(Next):
         if self.falsetarget is block:
             self.falsetarget = otherblock
 
-    def _repr(self, print_varnames):
+    def _repr(self, print_varnames, blocknames=None):
+        if blocknames:
+            return "ConditionalGoto(%s, %s, %s, %r)" % (self.booleanvalue._repr(print_varnames), blocknames[self.truetarget], blocknames[self.falsetarget], self.sourcepos)
         return "goto if %s" % (self.booleanvalue._repr(print_varnames), )
+
+# printing
+
+def print_graph_construction(graph):
+    res = []
+    blocks = list(graph.iterblocks())
+    blocknames = {block: "block%s" % i for i, block in enumerate(blocks)}
+    print_varnames = {}
+    for arg in graph.args:
+        print_varnames[arg] = arg.name
+        res.append("%s = %r" % (arg.name, arg))
+    # XXX print arguments
+    for block, name in blocknames.iteritems():
+        res.append("%s = Block()" % name)
+    for block, blockname in blocknames.iteritems():
+        for op in block.operations:
+            name = op._get_print_name(print_varnames)
+            if isinstance(op, Operation):
+                args = ", ".join([a._repr(print_varnames) for a in op.args])
+                res.append("%s = %s.emit(%s, %r, [%s], %r, %r)"  % (name, blockname, op.__class__.__name__, op.name, args, op.resolved_type, op.varname_hint))
+            else:
+                assert isinstance(op, Phi)
+                blockargs = ", ".join([blocknames[b] for b in op.prevblocks])
+                args = ", ".join([a._repr(print_varnames) for a in op.prevvalues])
+                res.append("%s = %s.emit_phi([%s], [%s], %s)" % (name, blockname, blockargs, args, op.resolved_type))
+        res.append("%s.next = %s" % (blockname, block.next._repr(print_varnames, blocknames)))
+    res.append("graph = Graph(%r, [%s], block0)" % (graph.name, ", ".join(arg.name for arg in graph.args)))
+    return res
 
 
 class GraphPage(BaseGraphPage):

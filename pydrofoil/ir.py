@@ -360,9 +360,21 @@ class Block(object):
         for op in self.operations:
             if not isinstance(op, Phi):
                 return
+            assert otherblock not in op.prevblocks
             for index, oldblock in enumerate(op.prevblocks):
                 if oldblock is block:
                     op.prevblocks[index] = otherblock
+
+    def prevblocks_from_phis(self):
+        res = []
+        for op in self.operations:
+            if not isinstance(op, Phi):
+                return res
+            if res:
+                assert op.prevblocks == []
+            else:
+                res = op.prevblocks
+        return res
 
     def _dot(self, dotgen, seen, print_varnames):
         if self in seen:
@@ -846,6 +858,8 @@ def remove_empty_blocks(graph):
             if nextblock.operations:
                 continue
             if not isinstance(nextblock.next, Goto):
+                continue
+            if nextblock in nextblock.next.target.prevblocks_from_phis():
                 continue
             block.next.replace_next(nextblock, nextblock.next.target)
             nextblock.next.target.replace_prev(nextblock, block)

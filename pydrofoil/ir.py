@@ -233,6 +233,13 @@ class SSABuilder(object):
                 value = self._build_condition(op.condition, op.sourcepos)
                 nextop = block[index + 1]
                 assert isinstance(nextop, parse.Goto)
+                if isinstance(value, BooleanConstant):
+                    if "encdec" not in self.functionast.name and "execute" not in self.functionast.name:
+                        import pdb; pdb.set_trace()
+                    ssablock.next = Goto(self.allblocks[
+                        op.target if value is BooleanConstant.TRUE else nextop.target
+                    ], None)
+                    break
                 ssablock.next = ConditionalGoto(
                     value,
                     self.allblocks[op.target],
@@ -458,9 +465,8 @@ class Value(object):
     def getargs(self):
         return []
 
-    def __repr__(self, print_varnames):
-        raise NotImplementedError
-
+    def __repr__(self):
+        return "<%s %x>" % (self.__class__.__name__, id(self))
 
 class Argument(Value):
     def __init__(self, name, resolved_type):
@@ -628,6 +634,9 @@ class AstConstant(Constant):
 
     def _repr(self, print_varnames):
         return "(%s)" % (self.ast, )
+
+    def __repr__(self):
+        return "AstConstant(%r, %r)" % (self.ast, self.resolved_type)
 
 class BooleanConstant(Constant):
     def __init__(self, value):
@@ -811,3 +820,22 @@ def swap_not(graph):
     if changed:
         remove_dead(graph)
     return changed
+
+class LocalOptimizer(object):
+    def __init__(self, graph):
+        self.graph = graph
+
+    def optimize(self):
+        for blocks in self.graph.iterblocks():
+            self.optimize_block(block)
+
+    def optimize_block(self, block):
+        self.newoperations = []
+        self.replacements = {}
+        for op in block.operations:
+            self._optimize_op(op)
+
+    def optimize_Cast(self, op, arg):
+        if isinstance(arg, Cast) and arg.args[0].resolved_type is op.resolved_type:
+            return arg.args[0]
+

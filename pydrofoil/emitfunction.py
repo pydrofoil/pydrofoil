@@ -123,6 +123,8 @@ class CodeEmitter(object):
             res = info.ast.constructor(info, opname, args, argtyps)
         else:
             res = "%s(%s)" % (opname, args)
+        if "vector_subrange" in res:
+            import pdb; pdb.set_trace()
         self._op_helper(op, res)
 
     def emit_op_NonSSAAssignment(self, op):

@@ -301,8 +301,12 @@ class SSABuilder(object):
             return self._addop(ssaop)
         elif isinstance(parseval, parse.RefOf):
             return self._addop(RefOf([self._get_arg(parseval.expr)], parseval.resolved_type))
+        elif isinstance(parseval, parse.Number):
+            return MachineIntConstant(parseval.number)
+        elif isinstance(parseval, parse.BitVectorConstant):
+            return SmallBitVectorConstant(parseval.constant, parseval.resolved_type)
         else:
-            assert isinstance(parseval, (parse.BitVectorConstant, parse.Number, parse.Unit, parse.String))
+            assert isinstance(parseval, (parse.Unit, parse.String))
             return AstConstant(parseval, parseval.resolved_type)
 
     def _build_condition(self, condition, sourcepos):
@@ -689,9 +693,33 @@ class BooleanConstant(Constant):
     def __repr__(self):
         return self._repr({})
 
-
 BooleanConstant.TRUE = BooleanConstant(True)
 BooleanConstant.FALSE = BooleanConstant(False)
+
+
+class MachineIntConstant(Constant):
+    resolved_type = types.MachineInt()
+    def __init__(self, number):
+        self.number = number
+
+    def _repr(self, print_varnames):
+        return repr(self)
+
+    def __repr__(self):
+        return "MachineInt(%r)" % (self.number, )
+
+
+class SmallBitVectorConstant(Constant):
+    def __init__(self, value, resolved_type):
+        self.value = value
+        self.resolved_type = resolved_type
+
+    def _repr(self, print_varnames):
+        return repr(self)
+
+    def __repr__(self):
+        return "SmallBitVectorConstant(%s, %s)" % (self.value, self.resolved_type)
+
 
 # next
 

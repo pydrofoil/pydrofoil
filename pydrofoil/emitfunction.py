@@ -70,12 +70,12 @@ class CodeEmitter(object):
             return value.name
         if isinstance(value, ir.BooleanConstant):
             return str(value.value)
+        if isinstance(value, ir.MachineIntConstant):
+            return str(value.number)
+        if isinstance(value, ir.SmallBitVectorConstant):
+            return "r_uint(%s)" % (value.value, )
         if isinstance(value, ir.AstConstant):
             ast = value.ast
-            if isinstance(ast, parse.BitVectorConstant):
-                return "r_uint(%s)" % (ast.constant, )
-            if isinstance(ast, parse.Number):
-                return str(ast.number)
             if isinstance(ast, parse.String):
                 return ast.string
             if isinstance(ast, parse.Unit):

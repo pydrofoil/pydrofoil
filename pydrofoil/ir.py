@@ -346,7 +346,7 @@ class Block(object):
         return self.operations[index]
 
     def emit(self, cls, opname, args, resolved_type, sourcepos, varname_hint=None):
-        op = Operation(opname, args, resolved_type, sourcepos, varname_hint=None)
+        op = Operation(opname, args, resolved_type, sourcepos, varname_hint)
         op.__class__ = cls
         self.operations.append(op)
         return op

@@ -15,7 +15,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - constants
 # - split huge functions
 # - start porting optimizations
-#   - TESTING
 #   - inlining
 #   - nesting ifs
 #   - nested operations
@@ -27,6 +26,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # @neq(X, Y) -> @not(@eq(X, Y))
 # $cast(Op, Typ) -> $Op if typ(Op) == Typ
 # eq_bits(cast(Op1, gbv), cast(Op2, gbv)) -> eq_bits_bv_bv(Op1, Op2, 
+
+# start optimization: outriscv.py is 247000 loc
 
 
 def construct_ir(functionast, codegen, singleblock=False):
@@ -232,13 +233,13 @@ class SSABuilder(object):
                 value = self._build_condition(op.condition, op.sourcepos)
                 nextop = block[index + 1]
                 assert isinstance(nextop, parse.Goto)
-                if isinstance(value, BooleanConstant):
-                    if "encdec" not in self.functionast.name and "execute" not in self.functionast.name:
-                        import pdb; pdb.set_trace()
-                    ssablock.next = Goto(self.allblocks[
-                        op.target if value is BooleanConstant.TRUE else nextop.target
-                    ], None)
-                    break
+                #if isinstance(value, BooleanConstant):
+                #    if "encdec" not in self.functionast.name and "execute" not in self.functionast.name:
+                #        import pdb; pdb.set_trace()
+                #    ssablock.next = Goto(self.allblocks[
+                #        op.target if value is BooleanConstant.TRUE else nextop.target
+                #    ], None)
+                #    break
                 ssablock.next = ConditionalGoto(
                     value,
                     self.allblocks[op.target],
@@ -800,11 +801,12 @@ class GraphPage(BaseGraphPage):
 # some simple graph simplifications
 
 def simplify(graph):
-    res = remove_dead(graph)
+    #res = remove_dead(graph)
     #res = remove_empty_blocks(graph) or res
-    res = swap_not(graph) or res
-    res = remove_dead(graph)
-    return res
+    #res = swap_not(graph) or res
+    #res = remove_dead(graph)
+    #return res
+    pass
 
 def repeat(func):
     def repeated(graph):

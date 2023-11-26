@@ -28,6 +28,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # eq_bits(cast(Op1, gbv), cast(Op2, gbv)) -> eq_bits_bv_bv(Op1, Op2, 
 
 # start optimization: outriscv.py is 247000 loc
+# 168000 loc
 
 
 def construct_ir(functionast, codegen, singleblock=False):
@@ -371,7 +372,7 @@ class Block(object):
             if not isinstance(op, Phi):
                 return res
             if res:
-                assert op.prevblocks == []
+                assert op.prevblocks == res
             else:
                 res = op.prevblocks
         return res
@@ -465,8 +466,20 @@ class Graph(object):
         for block in self.iterblocks():
             for next in block.next.next_blocks():
                 entry[next].append(block)
+        entry[self.startblock] = []
         return entry
 
+    def check(self):
+        # minimal consistency check, will add things later
+        entrymap = self.make_entrymap()
+        # check that phi.prevvalues only contains predecessors of a block
+        for block in self.iterblocks():
+            for op in block:
+                if not isinstance(op, Phi):
+                    continue
+                for prevblock in op.prevblocks:
+                    assert prevblock in entrymap
+                    assert prevblock in entrymap[block]
 
 # values
 
@@ -814,9 +827,10 @@ class GraphPage(BaseGraphPage):
 
 def simplify(graph):
     res = remove_dead(graph)
-    #res = remove_empty_blocks(graph) or res
+    res = remove_empty_blocks(graph) or res
     res = swap_not(graph) or res
     res = remove_dead(graph)
+    graph.check()
     return res
 
 def repeat(func):

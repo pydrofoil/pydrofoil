@@ -485,6 +485,13 @@ class Graph(object):
                     assert prevblock in entrymap
                     assert prevblock in entrymap[block]
 
+    def replace_op(self, oldop, newop):
+        for block in self.iterblocks():
+            for op in block.operations:
+                assert op is not oldop # must have been removed already
+                op.replace_op(oldop, newop)
+            block.next.replace_op(oldop, newop)
+
 # values
 
 class Value(object):
@@ -539,6 +546,12 @@ class Operation(Value):
 
     def getargs(self):
         return self.args
+
+    def replace_op(self, oldop, newop):
+        assert self is not oldop
+        for index, arg in enumerate(self.args):
+            if arg is oldop:
+                self.args[index] = newop
 
 class Cast(Operation):
     can_have_side_effects = False
@@ -664,6 +677,12 @@ class Phi(Value):
     def getargs(self):
         return self.prevvalues
 
+    def replace_op(self, oldop, newop):
+        assert self is not oldop
+        for index, op in enumerate(self.prevvalues):
+            if op is oldop:
+                self.prevvalues[index] = newop
+
 class Constant(Value):
     pass
 
@@ -736,6 +755,9 @@ class Next(object):
     def replace_next(self, block, otherblock):
         pass
 
+    def replace_op(self, oldop, newop):
+        pass
+
     def _repr(self, print_varnames):
         return self.__class__.__name__
 
@@ -747,6 +769,10 @@ class Return(Next):
 
     def getargs(self):
         return [self.value]
+
+    def replace_op(self, oldop, newop):
+        if self.value is oldop:
+            self.value = newop
 
     def _repr(self, print_varnames, blocknames=None):
         return "Return(%s, %r)" % (None if self.value is None else self.value._repr(print_varnames), self.sourcepos)
@@ -762,6 +788,7 @@ class Raise(Next):
 class JustStop(Next):
     def __init__(self):
         self.sourcepos = None
+
     def _repr(self, print_varnames, blocknames=None):
         return "JustStop(%r)" % (self.sourcepos, )
 
@@ -806,6 +833,10 @@ class ConditionalGoto(Next):
             self.truetarget = otherblock
         if self.falsetarget is block:
             self.falsetarget = otherblock
+
+    def replace_op(self, oldop, newop):
+        if self.booleanvalue is oldop:
+            self.booleanvalue = newop
 
     def _repr(self, print_varnames, blocknames=None):
         if blocknames:
@@ -853,14 +884,6 @@ class GraphPage(BaseGraphPage):
 
 # some simple graph simplifications
 
-def simplify(graph):
-    res = remove_dead(graph)
-    res = remove_empty_blocks(graph) or res
-    res = swap_not(graph) or res
-    res = remove_dead(graph)
-    graph.check()
-    return res
-
 def repeat(func):
     def repeated(graph):
         ever_changed = False
@@ -871,6 +894,17 @@ def repeat(func):
                 return ever_changed
             ever_changed = True
     return repeated
+
+@repeat
+def simplify(graph):
+    res = remove_if_true_false(graph)
+    res = remove_dead(graph) or res
+    res = remove_empty_blocks(graph) or res
+    res = swap_not(graph) or res
+    res = remove_if_true_false(graph) or res
+    res = remove_dead(graph) or res
+    graph.check()
+    return res
 
 @repeat
 def remove_dead(graph):
@@ -908,6 +942,7 @@ def remove_empty_blocks(graph):
             changed = True
     return changed
 
+@repeat
 def swap_not(graph):
     changed = False
     for block in graph.iterblocks():
@@ -922,6 +957,47 @@ def swap_not(graph):
     if changed:
         remove_dead(graph)
     return changed
+
+@repeat
+def remove_if_true_false(graph):
+    changed = False
+    for block in graph.iterblocks():
+        cond = block.next
+        if not isinstance(cond, ConditionalGoto) or type(cond.booleanvalue) is not BooleanConstant:
+            continue
+        if cond.booleanvalue.value:
+            deadblock = cond.falsetarget
+            takenblock = cond.truetarget
+        else:
+            deadblock = cond.truetarget
+            takenblock = cond.falsetarget
+        block.next = Goto(takenblock)
+        changed = True
+    if changed:
+        # need to remove Phi arguments
+        reachable_blocks = set(graph.iterblocks())
+        replace_phis = []
+        for block in reachable_blocks:
+            for index, op in enumerate(block.operations):
+                if not isinstance(op, Phi):
+                    continue
+                prevblocks = []
+                prevvalues = []
+                for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
+                    if prevblock in reachable_blocks:
+                        prevblocks.append(prevblock)
+                        prevvalues.append(prevvalue)
+                op.prevblocks = prevblocks
+                op.prevvalues = prevvalues
+                if len(prevblocks) == 1:
+                    replace_phis.append(op)
+                    block.operations[index] = None
+            block.operations = [op for op in block.operations if op]
+        if replace_phis:
+            for phi in replace_phis:
+                graph.replace_op(phi, phi.prevvalues[0])
+    return changed
+
 
 class LocalOptimizer(object):
     def __init__(self, graph):

@@ -84,3 +84,31 @@ def test_remove_empty_blocks_2():
     block3.next = Goto(block2, None)
     graph = Graph('zbool_to_bits', [zx], block0)
     assert not remove_empty_blocks(graph)
+
+def test_if_true_false():
+    zargz3 = Argument('zargz3', SmallFixedBitVector(32))
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block1.next = ConditionalGoto(BooleanConstant.FALSE, block2, block3, '')
+    block2.next = Goto(block4)
+    block3.next = Goto(block4)
+    v0 = block4.emit_phi([block2, block3], [MachineIntConstant(12), MachineIntConstant(13)], Int())
+    v1 = block4.emit(Operation, 'foo', [MachineIntConstant(-12), v0], Int(), '', None)
+    block4.next = Return(v0, '')
+
+    g = Graph("execute", [zargz3], block1)
+    res = remove_if_true_false(g)
+    res = print_graph_construction(g)
+    assert "\n".join(res) == """\
+zargz3 = Argument('zargz3', SmallFixedBitVector(32))
+block0 = Block()
+block1 = Block()
+block2 = Block()
+block0.next = Goto(block1, None)
+block1.next = Goto(block2, None)
+i1 = block2.emit(Operation, 'foo', [MachineInt(-12), MachineInt(13)], Int(), '', None)
+block2.next = Return(MachineInt(13), '')
+graph = Graph('execute', [zargz3], block0)"""
+

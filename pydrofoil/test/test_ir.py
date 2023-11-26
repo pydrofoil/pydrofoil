@@ -108,7 +108,22 @@ block1 = Block()
 block2 = Block()
 block0.next = Goto(block1, None)
 block1.next = Goto(block2, None)
-i1 = block2.emit(Operation, 'foo', [MachineInt(-12), MachineInt(13)], Int(), '', None)
-block2.next = Return(MachineInt(13), '')
+i1 = block2.emit(Operation, 'foo', [MachineIntConstant(-12), MachineIntConstant(13)], Int(), '', None)
+block2.next = Return(MachineIntConstant(13), '')
 graph = Graph('execute', [zargz3], block0)"""
 
+def test_cast():
+    zb = Argument('zb', SmallFixedBitVector(1))
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [zb], GenericBitVector(), '`1 14:2-14:5', 'zz43')
+    i2 = block0.emit(Cast, '$cast', [i1], SmallFixedBitVector(1), '`1 14:2-14:5', 'zz43')
+    block0.next = Return(i2, '')
+    graph = Graph('f', [zb], block0)
+    res = simplify(graph, None)
+    assert res
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+zb = Argument('zb', SmallFixedBitVector(1))
+block0 = Block()
+block0.next = Return(zb, '')
+graph = Graph('f', [zb], block0)"""

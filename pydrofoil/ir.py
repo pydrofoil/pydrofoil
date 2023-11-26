@@ -112,7 +112,7 @@ class SSABuilder(object):
         graph = Graph(self.functionast.name, self.args, self.allblocks[0])
         #if random.random() < 0.01:
         #    self.view = 1
-        simplify(graph)
+        simplify(graph, codegen)
         if self.view:
             graph.view()
         return graph
@@ -725,7 +725,7 @@ class MachineIntConstant(Constant):
         return repr(self)
 
     def __repr__(self):
-        return "MachineInt(%r)" % (self.number, )
+        return "MachineIntConstant(%r)" % (self.number, )
 
 
 class SmallBitVectorConstant(Constant):
@@ -885,10 +885,10 @@ class GraphPage(BaseGraphPage):
 # some simple graph simplifications
 
 def repeat(func):
-    def repeated(graph):
+    def repeated(*args, **kwargs):
         ever_changed = False
         while 1:
-            changed = func(graph)
+            changed = func(*args, **kwargs)
             assert isinstance(changed, bool)
             if not changed:
                 return ever_changed
@@ -896,8 +896,9 @@ def repeat(func):
     return repeated
 
 @repeat
-def simplify(graph):
-    res = remove_if_true_false(graph)
+def simplify(graph, codegen):
+    res = LocalOptimizer(graph, codegen).optimize()
+    res = remove_if_true_false(graph) or res
     res = remove_dead(graph) or res
     res = remove_empty_blocks(graph) or res
     res = swap_not(graph) or res
@@ -1000,18 +1001,41 @@ def remove_if_true_false(graph):
 
 
 class LocalOptimizer(object):
-    def __init__(self, graph):
+    def __init__(self, graph, codegen):
         self.graph = graph
+        self.codegen = codegen
 
     def optimize(self):
-        for blocks in self.graph.iterblocks():
+        self.replacements = {}
+        for block in self.graph.iterblocks():
             self.optimize_block(block)
+        if self.replacements:
+            # XXX do them all in one go
+            for oldop, newop in self.replacements.iteritems():
+                self.graph.replace_op(oldop, newop)
+            return True
+        return False
 
     def optimize_block(self, block):
         self.newoperations = []
-        self.replacements = {}
-        for op in block.operations:
-            self._optimize_op(op)
+        block_changed = False
+        for i, op in enumerate(block.operations):
+            newop = self._optimize_op(block, i, op)
+            if newop is not None:
+                self.replacements[op] = newop
+                block_changed = True
+        if block_changed:
+            block.operations = [op for op in block.operations if op]
+
+    def _optimize_op(self, block, index, op):
+        if isinstance(op, Cast):
+            arg, = op.args
+            if isinstance(arg, Cast):
+                if arg.args[0].resolved_type is op.resolved_type:
+                    block.operations[index] = None
+                    return arg.args[0]
+                res = block.operations[index] = Cast(arg.args[0], op.resolved_type, op.sourcepos, op.varname_hint)
+                return res
 
     def optimize_Cast(self, op, arg):
         if isinstance(arg, Cast) and arg.args[0].resolved_type is op.resolved_type:

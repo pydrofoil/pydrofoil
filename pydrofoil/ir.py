@@ -21,14 +21,12 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 #   - cached boxed constants
 #   - neq -> not eq
 #   - all the bitvector and integer optimizations
-#   - if True/False -> goto
 
 # @neq(X, Y) -> @not(@eq(X, Y))
-# $cast(Op, Typ) -> $Op if typ(Op) == Typ
 # eq_bits(cast(Op1, gbv), cast(Op2, gbv)) -> eq_bits_bv_bv(Op1, Op2, 
 
 # start optimization: outriscv.py is 247000 loc
-# 168000 loc
+# 154 kloc
 
 
 def construct_ir(functionast, codegen, singleblock=False):
@@ -112,7 +110,7 @@ class SSABuilder(object):
         graph = Graph(self.functionast.name, self.args, self.allblocks[0])
         #if random.random() < 0.01:
         #    self.view = 1
-        simplify(graph, codegen)
+        simplify(graph, self.codegen)
         if self.view:
             graph.view()
         return graph
@@ -762,7 +760,7 @@ class Next(object):
         return self.__class__.__name__
 
 class Return(Next):
-    def __init__(self, value, sourcepos):
+    def __init__(self, value, sourcepos=None):
         assert isinstance(value, Value) or value is None
         self.value = value
         self.sourcepos = sourcepos
@@ -899,16 +897,22 @@ def repeat(func):
 def simplify(graph, codegen):
     res = LocalOptimizer(graph, codegen).optimize()
     res = remove_if_true_false(graph) or res
-    res = remove_dead(graph) or res
+    res = remove_dead(graph, codegen) or res
     res = remove_empty_blocks(graph) or res
-    res = swap_not(graph) or res
-    res = remove_if_true_false(graph) or res
-    res = remove_dead(graph) or res
+    res = swap_not(graph, codegen) or res
     graph.check()
     return res
 
 @repeat
-def remove_dead(graph):
+def remove_dead(graph, codegen):
+    def can_remove_op(op):
+        if not op.can_have_side_effects:
+            return True
+        if op.name == "@not":
+            return True
+        name = codegen.builtin_names.get(op.name, op.name)
+        return type(op) is Operation and name in supportcode.purefunctions
+
     changed = False
     needed = set()
     # in theory we need a proper fix point but too annoying (Sail has very few
@@ -921,7 +925,7 @@ def remove_dead(graph):
             needed.update(args)
         needed.update(block.next.getargs())
     for block in graph.iterblocks():
-        operations = [op for op in block.operations if op in needed or op.can_have_side_effects]
+        operations = [op for op in block.operations if op in needed or not can_remove_op(op)]
         if len(operations) != len(block.operations):
             changed = True
             block.operations[:] = operations
@@ -944,7 +948,7 @@ def remove_empty_blocks(graph):
     return changed
 
 @repeat
-def swap_not(graph):
+def swap_not(graph, codegen):
     changed = False
     for block in graph.iterblocks():
         cond = block.next
@@ -956,7 +960,7 @@ def swap_not(graph):
         cond.truetarget, cond.falsetarget = cond.falsetarget, cond.truetarget
         changed = True
     if changed:
-        remove_dead(graph)
+        remove_dead(graph, codegen)
     return changed
 
 @repeat
@@ -999,6 +1003,22 @@ def remove_if_true_false(graph):
                 graph.replace_op(phi, phi.prevvalues[0])
     return changed
 
+class NoMatchException(Exception):
+    pass
+
+def symmetric(func):
+    def optimize(self, op):
+        arg0, arg1 = op.args
+        try:
+            res = func(self, op, arg0, arg1)
+        except NoMatchException:
+            pass
+        else:
+            if res is not None:
+                return res
+        return func(self, op, arg1, arg0)
+    return optimize
+
 
 class LocalOptimizer(object):
     def __init__(self, graph, codegen):
@@ -1018,14 +1038,12 @@ class LocalOptimizer(object):
 
     def optimize_block(self, block):
         self.newoperations = []
-        block_changed = False
         for i, op in enumerate(block.operations):
             newop = self._optimize_op(block, i, op)
             if newop is not None:
+                assert op.resolved_type is newop.resolved_type
                 self.replacements[op] = newop
-                block_changed = True
-        if block_changed:
-            block.operations = [op for op in block.operations if op]
+        block.operations = self.newoperations
 
     def _optimize_op(self, block, index, op):
         if isinstance(op, Cast):
@@ -1034,10 +1052,63 @@ class LocalOptimizer(object):
                 if arg.args[0].resolved_type is op.resolved_type:
                     block.operations[index] = None
                     return arg.args[0]
-                res = block.operations[index] = Cast(arg.args[0], op.resolved_type, op.sourcepos, op.varname_hint)
-                return res
+                newop = Cast(arg.args[0], op.resolved_type, op.sourcepos, op.varname_hint)
+                self.newoperations.append(newop)
+                return newop
+        elif type(op) is Operation:
+            name = self._builtinname(op.name)
+            meth = getattr(self, "optimize_%s" % name.lstrip("@"), None)
+            if meth:
+                try:
+                    newop = meth(op)
+                except NoMatchException:
+                    pass
+                else:
+                    if newop is not None:
+                        return newop
+        self.newoperations.append(op)
 
-    def optimize_Cast(self, op, arg):
-        if isinstance(arg, Cast) and arg.args[0].resolved_type is op.resolved_type:
-            return arg.args[0]
+    def _builtinname(self, name):
+        return self.codegen.builtin_names.get(name, name)
 
+    def _extract_smallfixedbitvector(self, arg):
+        if not isinstance(arg, Cast):
+            raise NoMatchException
+        expr = arg.args[0]
+        typ = expr.resolved_type
+        if not isinstance(typ, types.SmallFixedBitVector):
+            assert typ is types.GenericBitVector() or isinstance(
+                typ, types.BigFixedBitVector
+            )
+            raise NoMatchException
+        return expr, typ
+
+
+    @symmetric
+    def optimize_eq_bits(self, op, arg0, arg1):
+        arg0, typ = self._extract_smallfixedbitvector(arg0)
+        arg1 = Cast(arg1, typ)
+        self.newoperations.append(arg1)
+        newop = Operation(
+            "@eq_bits_bv_bv", [arg0, arg1], op.resolved_type, op.sourcepos,
+            op.varname_hint)
+        self.newoperations.append(newop)
+        return newop
+
+    def optimize_int64_to_int(self, op):
+        (arg0,) = op.args
+        if (
+            not isinstance(arg0, Operation)
+            or self._builtinname(arg0.name) != "int_to_int64"
+        ):
+            return
+        return arg0.args[0]
+
+    def optimize_int_to_int64(self, op):
+        (arg0,) = op.args
+        if (
+            not isinstance(arg0, Operation)
+            or self._builtinname(arg0.name) != "int64_to_int"
+        ):
+            return
+        return arg0.args[0]

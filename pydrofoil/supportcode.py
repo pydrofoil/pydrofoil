@@ -47,6 +47,12 @@ def unwrap(spec):
         return wrappedfunc
     return wrap
 
+purefunctions = {}
+
+def purefunction(func):
+    purefunctions[func.func_name] = func
+    return func
+
 # unimplemented
 
 make_dummy('plat_enable_dirty_update')
@@ -460,6 +466,7 @@ def prerr_int(machine, s, i):
     os.write(STDERR, s + i.str() + "\n")
     return ()
 
+@purefunction
 def not_(machine, b):
     return not b
 
@@ -470,6 +477,7 @@ def string_of_int(machine, r):
     return r.str()
 
 @objectmodel.specialize.arg_or_var(1)
+@purefunction
 def int_to_int64(machine, r):
     if objectmodel.is_annotation_constant(r):
         return _int_to_int64_memo(r)
@@ -479,6 +487,7 @@ def int_to_int64(machine, r):
 def _int_to_int64_memo(r):
     return r.toint()
 
+@purefunction
 def int64_to_int(machine, i):
     return Integer.fromint(i)
 

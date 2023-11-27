@@ -2,6 +2,11 @@ from pydrofoil.parse import *
 from pydrofoil.types import *
 from pydrofoil.ir import *
 
+class FakeCodeGen:
+    builtin_names = {}
+
+fakecodegen = FakeCodeGen()
+
 def make_bits_to_bool():
     zb = Argument('zb', SmallFixedBitVector(1))
     block0 = Block()
@@ -26,7 +31,7 @@ def make_bits_to_bool():
 def test_swap_not():
     graph = make_bits_to_bool()
 
-    swap_not(graph)
+    swap_not(graph, fakecodegen)
     res = print_graph_construction(graph)
     assert "\n".join(res) == """\
 zb = Argument('zb', SmallFixedBitVector(1))
@@ -39,12 +44,11 @@ block5 = Block()
 i1 = block0.emit(Cast, '$cast', [zb], GenericBitVector(), '`1 14:2-14:5', 'zz43')
 i2 = block0.emit(Cast, '$cast', [AstConstant(BitVectorConstant(constant='0b1', resolved_type=SmallFixedBitVector(1)), SmallFixedBitVector(1))], GenericBitVector(), '`1 14:2-14:5', 'zz44')
 i3 = block0.emit(Operation, 'zeq_bits', [i1, i2], Bool(), '`1 14:2-14:5', 'zz42')
-i4 = block0.emit(Operation, '@not', [i3], Bool(), '`1 13:27-16:1', None)
 block0.next = ConditionalGoto(i3, block1, block4, '`1 13:27-16:1')
 block1.next = Goto(block2, None)
 block2.next = Goto(block3, None)
-i5 = block3.emit_phi([block2, block5], [BooleanConstant.TRUE, BooleanConstant.FALSE], Bool())
-block3.next = Return(i5, None)
+i4 = block3.emit_phi([block2, block5], [BooleanConstant.TRUE, BooleanConstant.FALSE], Bool())
+block3.next = Return(i4, None)
 block4.next = Goto(block5, None)
 block5.next = Goto(block3, None)
 graph = Graph('zbits1_to_bool', [zb], block0)"""
@@ -119,7 +123,7 @@ def test_cast():
     i2 = block0.emit(Cast, '$cast', [i1], SmallFixedBitVector(1), '`1 14:2-14:5', 'zz43')
     block0.next = Return(i2, '')
     graph = Graph('f', [zb], block0)
-    res = simplify(graph, None)
+    res = simplify(graph, fakecodegen)
     assert res
     res = print_graph_construction(graph)
     assert "\n".join(res) == """\
@@ -127,3 +131,34 @@ zb = Argument('zb', SmallFixedBitVector(1))
 block0 = Block()
 block0.next = Return(zb, '')
 graph = Graph('f', [zb], block0)"""
+
+def test_eq_bits():
+    za = Argument('za', SmallFixedBitVector(2))
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [za], GenericBitVector(), '`5 120:4-120:8', 'zz411')
+    i2 = block0.emit(Cast, '$cast', [SmallBitVectorConstant(0b01, SmallFixedBitVector(2))], GenericBitVector(), '`5 120:4-120:8', 'zz412')
+    i3 = block0.emit(Operation, 'eq_bits', [i1, i2], Bool(), '`5 120:4-120:8', 'zz410')
+    block0.next = Return(i3, None)
+    graph = Graph("f", [za], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+za = Argument('za', SmallFixedBitVector(2))
+block0 = Block()
+i1 = block0.emit(Operation, '@eq_bits_bv_bv', [za, SmallBitVectorConstant(1, SmallFixedBitVector(2))], Bool(), '`5 120:4-120:8', 'zz410')
+block0.next = Return(i1, None)
+graph = Graph('f', [za], block0)"""
+
+def test_int_and_back():
+    block0 = Block()
+    i1 = block0.emit(Operation, 'int64_to_int', [MachineIntConstant(15)], Int(), '`5 295:30-295:32', 'zz42')
+    i2 = block0.emit(Operation, 'int_to_int64', [i1], MachineInt(), '`5 295:30-295:32', 'zz40')
+    block0.next = Return(i2)
+    graph = Graph("f", [], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+block0 = Block()
+block0.next = Return(MachineIntConstant(15), None)
+graph = Graph('f', [], block0)"""
+    

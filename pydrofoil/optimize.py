@@ -193,9 +193,6 @@ def specialize_ops(blocks, codegen):
                     break
 
 
-class NoMatchException(Exception):
-    pass
-
 
 class CollectSourceVisitor(parse.Visitor):
     def __init__(self):
@@ -230,24 +227,10 @@ class CollectSourceVisitor(parse.Visitor):
         toline, topos = to.split(":", 1)
         return int(filenum), int(fromline), int(frompos), int(toline), int(topos)
 
-def symmetric(func):
-    def optimize(self, expr):
-        arg0, arg1 = expr.args
-        try:
-            res = func(self, expr, arg0, arg1)
-        except NoMatchException:
-            pass
-        else:
-            if res is not None:
-                return res
-        return func(self, expr, arg1, arg0)
-    return optimize
-
 
 class OptVisitor(parse.Visitor):
     def __init__(self, codegen):
         self.codegen = codegen
-
 
     def visit_CastExpr(self, cast):
         if isinstance(cast.expr, parse.CastExpr):
@@ -257,9 +240,6 @@ class OptVisitor(parse.Visitor):
             and cast.expr.resolved_type is cast.resolved_type
         ):
             return cast.expr
-
-    def _builtinname(self, name):
-        return self.codegen.builtin_names.get(name, name)
 
     def _make_int64_to_int(self, expr, sourcepos=None):
         return parse.OperationExpr(
@@ -551,15 +531,6 @@ class OptVisitor(parse.Visitor):
         return parse.OperationExpr(
             "@eq_int_i_i", [arg0, arg1], expr.resolved_type, expr.sourcepos
         )
-
-    def optimize_int64_to_int(self, expr):
-        (arg0,) = expr.args
-        if (
-            not isinstance(arg0, parse.OperationExpr)
-            or self._builtinname(arg0.name) != "int_to_int64"
-        ):
-            return
-        return arg0.args[0]
 
     def optimize_int_to_int64(self, expr):
         (arg0,) = expr.args

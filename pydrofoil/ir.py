@@ -25,7 +25,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # @neq(X, Y) -> @not(@eq(X, Y))
 
 # start optimization: outriscv.py is 247000 loc
-# 134 kloc
+# 133 kloc
 
 
 def construct_ir(functionast, codegen, singleblock=False):
@@ -491,12 +491,17 @@ class Graph(object):
             for value in block.next.getargs():
                 assert value in defined_vars or isinstance(value, Constant)
 
-    def replace_op(self, oldop, newop):
+    def replace_ops(self, replacements):
+        res = False
         for block in self.iterblocks():
             for op in block.operations:
-                assert op is not oldop # must have been removed already
-                op.replace_op(oldop, newop)
-            block.next.replace_op(oldop, newop)
+                assert op not in replacements # must have been removed already
+                res = op.replace_ops(replacements) or res
+            res = block.next.replace_ops(replacements) or res
+        return res
+
+    def replace_op(self, oldop, newop):
+        return self.replace_ops({oldop: newop})
 
 # values
 
@@ -553,11 +558,14 @@ class Operation(Value):
     def getargs(self):
         return self.args
 
-    def replace_op(self, oldop, newop):
-        assert self is not oldop
+    def replace_ops(self, replacements):
+        assert self not in replacements
+        res = False
         for index, arg in enumerate(self.args):
-            if arg is oldop:
-                self.args[index] = newop
+            if arg in replacements:
+                self.args[index] = replacements[arg]
+                res = True
+        return res
 
 class Cast(Operation):
     can_have_side_effects = False
@@ -683,11 +691,14 @@ class Phi(Value):
     def getargs(self):
         return self.prevvalues
 
-    def replace_op(self, oldop, newop):
-        assert self is not oldop
+    def replace_ops(self, replacements):
+        assert self not in replacements
+        res = False
         for index, op in enumerate(self.prevvalues):
-            if op is oldop:
-                self.prevvalues[index] = newop
+            if op in replacements:
+                self.prevvalues[index] = replacements[op]
+                res = True
+        return res
 
 class Constant(Value):
     pass
@@ -761,8 +772,8 @@ class Next(object):
     def replace_next(self, block, otherblock):
         pass
 
-    def replace_op(self, oldop, newop):
-        pass
+    def replace_ops(self, replacements):
+        return False
 
     def _repr(self, print_varnames):
         return self.__class__.__name__
@@ -776,9 +787,11 @@ class Return(Next):
     def getargs(self):
         return [self.value] if self.value is not None else []
 
-    def replace_op(self, oldop, newop):
-        if self.value is oldop:
-            self.value = newop
+    def replace_ops(self, replacements):
+        if self.value in replacements:
+            self.value = replacements[self.value]
+            return True
+        return False
 
     def _repr(self, print_varnames, blocknames=None):
         return "Return(%s, %r)" % (None if self.value is None else self.value._repr(print_varnames), self.sourcepos)
@@ -840,9 +853,11 @@ class ConditionalGoto(Next):
         if self.falsetarget is block:
             self.falsetarget = otherblock
 
-    def replace_op(self, oldop, newop):
-        if self.booleanvalue is oldop:
-            self.booleanvalue = newop
+    def replace_ops(self, replacements):
+        if self.booleanvalue in replacements:
+            self.booleanvalue = replacements[self.booleanvalue]
+            return True
+        return False
 
     def _repr(self, print_varnames, blocknames=None):
         if blocknames:
@@ -1013,8 +1028,7 @@ def remove_if_true_false(graph):
                     block.operations[index] = None
             block.operations = [op for op in block.operations if op]
         if replace_phis:
-            for phi, newop in replace_phis.iteritems():
-                graph.replace_op(phi, newop)
+            graph.replace_ops(replace_phis)
     return changed
 
 class NoMatchException(Exception):
@@ -1045,9 +1059,10 @@ class LocalOptimizer(object):
             self.optimize_block(block)
         if self.replacements:
             # XXX do them all in one go
-            for i in range(10): # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-                for oldop, newop in self.replacements.iteritems():
-                    self.graph.replace_op(oldop, newop)
+            while 1:
+                changed = self.graph.replace_ops(self.replacements)
+                if not changed:
+                    return True
             self.graph.check()
             return True
         return False
@@ -1083,8 +1098,13 @@ class LocalOptimizer(object):
     def _make_int64_to_int(self, arg, sourcepos):
         return self.newop("zz5i64zDzKz5i", [arg], types.Int(), sourcepos)
 
+    def _get_op_replacement(self, value):
+        while value in self.replacements:
+            value = self.replacements[value]
+        return value
+
     def _args(self, op):
-        return [self.replacements.get(value, value) for value in op.args]
+        return [self._get_op_replacement(value) for value in op.args]
 
     def _optimize_op(self, block, index, op):
         if isinstance(op, Cast):

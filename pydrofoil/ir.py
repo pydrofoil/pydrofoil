@@ -991,7 +991,7 @@ def remove_if_true_false(graph):
     if changed:
         # need to remove Phi arguments
         reachable_blocks = set(graph.iterblocks())
-        replace_phis = []
+        replace_phis = {}
         for block in reachable_blocks:
             for index, op in enumerate(block.operations):
                 if not isinstance(op, Phi):
@@ -1001,16 +1001,16 @@ def remove_if_true_false(graph):
                 for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
                     if prevblock in reachable_blocks:
                         prevblocks.append(prevblock)
-                        prevvalues.append(prevvalue)
+                        prevvalues.append(replace_phis.get(prevvalue, prevvalue))
                 op.prevblocks = prevblocks
                 op.prevvalues = prevvalues
                 if len(prevblocks) == 1:
-                    replace_phis.append(op)
+                    replace_phis[op] = op.prevvalues[0]
                     block.operations[index] = None
             block.operations = [op for op in block.operations if op]
         if replace_phis:
-            for phi in replace_phis:
-                graph.replace_op(phi, phi.prevvalues[0])
+            for phi, newop in replace_phis.iteritems():
+                graph.replace_op(phi, newop)
     return changed
 
 class NoMatchException(Exception):

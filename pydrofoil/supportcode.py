@@ -164,15 +164,19 @@ def zero_extend(machine, gbv, size):
 def zero_extend_bv_i_i(machine, bv, width, targetwidth):
     return bv # XXX correct?
 
+@purefunction
 def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)
 
+@purefunction
 def eq_bits_bv_bv(machine, bva, bvb):
     return bva == bvb
 
+@purefunction
 def neq_bits(machine, gvba, gvbb):
     return not gvba.eq(gvbb)
 
+@purefunction
 def neq_bits_bv_bv(machine, bva, bvb):
     return bva != bvb
 

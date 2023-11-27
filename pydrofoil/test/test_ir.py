@@ -149,6 +149,24 @@ i1 = block0.emit(Operation, '@eq_bits_bv_bv', [za, SmallBitVectorConstant(1, Sma
 block0.next = Return(i1, None)
 graph = Graph('f', [za], block0)"""
 
+def test_neq_bits():
+    za = Argument('za', SmallFixedBitVector(2))
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [za], GenericBitVector(), '`5 120:4-120:8', 'zz411')
+    i2 = block0.emit(Cast, '$cast', [SmallBitVectorConstant(0b01, SmallFixedBitVector(2))], GenericBitVector(), '`5 120:4-120:8', 'zz412')
+    i3 = block0.emit(Operation, 'neq_bits', [i1, i2], Bool(), '`5 120:4-120:8', 'zz410')
+    block0.next = Return(i3, None)
+    graph = Graph("f", [za], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+za = Argument('za', SmallFixedBitVector(2))
+block0 = Block()
+i1 = block0.emit(Operation, '@eq_bits_bv_bv', [za, SmallBitVectorConstant(1, SmallFixedBitVector(2))], Bool(), '`5 120:4-120:8', 'zz410')
+i2 = block0.emit(Operation, '@not', [i1], Bool(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('f', [za], block0)"""
+
 def test_int_and_back():
     block0 = Block()
     i1 = block0.emit(Operation, 'int64_to_int', [MachineIntConstant(15)], Int(), '`5 295:30-295:32', 'zz42')

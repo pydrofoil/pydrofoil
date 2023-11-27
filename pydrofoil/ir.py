@@ -1159,6 +1159,16 @@ class LocalOptimizer(object):
             "@eq_bits_bv_bv", [arg0, arg1], op.resolved_type, op.sourcepos,
             op.varname_hint)
 
+    @symmetric
+    def optimize_neq_bits(self, op, arg0, arg1):
+        return self.newop(
+            "@not", [self.newop(
+                "@eq_bits",
+                [arg0, arg1], op.resolved_type, op.sourcepos, op.varname_hint
+            )],
+            op.resolved_type
+        )
+
     def optimize_int64_to_int(self, op):
         (arg0,) = self._args(op)
         if (

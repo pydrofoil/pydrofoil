@@ -494,7 +494,7 @@ class __extend__(parse.Function):
         #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
         #    return
         self.pyname = pyname
-        #inlinable = len(blocks) == 1 and len(blocks[0]) <= 40
+        inlinable = len(list(graph.iterblocks())) == 1 and len(graph.startblock.operations) <= 40
         typ = codegen.globalnames[self.name].ast.typ
         #vafter = CollectSourceVisitor()
         #for pc, block in blocks.iteritems():
@@ -502,8 +502,8 @@ class __extend__(parse.Function):
         #        vafter.visit(op)
         #if vafter.seen != vbefore.seen:
         #    import pdb; pdb.set_trace()
-        #if inlinable:
-        #    codegen.inlinable_functions[self.name] = self, graph
+        if inlinable:
+            codegen.inlinable_functions[self.name] = self, graph
         #entrycounts = self._compute_entrycounts(blocks)
         #if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
         #    print "making method!", self.name

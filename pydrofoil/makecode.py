@@ -486,6 +486,7 @@ class __extend__(parse.Function):
     def make_code(self, codegen):
         from pydrofoil.ir import construct_ir
         from pydrofoil.emitfunction import emit_function_code
+        from pydrofoil import optimize
         graph = construct_ir(self, codegen)
         #vbefore = CollectSourceVisitor()
         #vbefore.visit(self)
@@ -512,14 +513,14 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, codegen)
             return
-        #if len(blocks) > 340:
-        #    print "splitting", self.name
-        #    try:
-        #        self._split_function(blocks, entrycounts, codegen)
-        #        codegen.emit()
-        #        return
-        #    except optimize.CantSplitError:
-        #        print "didn't manage"
+        if len(blocks) > 340:
+            print "splitting", self.name
+            try:
+                self._split_function(blocks, codegen)
+                codegen.emit()
+                return
+            except optimize.CantSplitError:
+                print "didn't manage"
 
         with self._scope(codegen, pyname):
             emit_function_code(graph, self, codegen)
@@ -682,19 +683,21 @@ class __extend__(parse.Function):
             process(index, current)
         return {k: v for k, v in res}
 
-    def _split_function(self, blocks, entrycounts, codegen):
-        UNUSED
+    def _split_function(self, blocks, codegen):
+        from pydrofoil.ir import build_ssa
         from pydrofoil import optimize
         blocks = {pc: ops[:] for (pc, ops) in blocks.iteritems()}
         with self._scope(codegen, self.pyname):
             args = self.args
-            next_func_name = self.pyname + "_next_0"
-            codegen.emit("return %s(machine, %s)" % (next_func_name, ", ".join(args)))
+            func_name = self.pyname + "_next_0"
+            codegen.emit("return %s(machine, %s)" % (func_name, ", ".join(args)))
         args = self.args
         prev_extra_args = []
         startpc = 0
-        while len(blocks) > 150:
-            g1, g2, transferpc = optimize.split_graph(blocks, 120, start_node=startpc)
+        if "zis_CSR_defined" in self.name:
+            import pdb;pdb.set_trace()
+        while len(blocks) > 30: # 150 / 120
+            g1, g2, transferpc = optimize.split_graph(blocks, 20, start_node=startpc)
             print "previous size", len(blocks), "afterwards:", len(g1), len(g2)
             # compute the local variables that are declared in g1 and used in g2,
             # they become extra arguments
@@ -721,18 +724,27 @@ class __extend__(parse.Function):
             #transferstartblock = g2[transferpc] = g2[transferpc][:]
             #for declvar in need_declaration:
             #    transferstartblock.insert(0, declared_variables_g1[declvar])
+            callargs = args + extra_args_names
+            next_func_name = self.pyname + "_next_" + str(transferpc)
+            #next_call = "return %s(machine, %s)" % (next_func_name, ", ".join(callargs))
+            g1[transferpc] = [parse.Operation("return", next_func_name, [parse.Var(name) for name in callargs]),
+                              parse.End()]
+            functyp = codegen.globalnames[self.name].typ
+            argtyps = list(functyp.argtype.elements)
+            for _, typ in extra_args:
+                argtyps.append(typ)
+            codegen.add_global(next_func_name, next_func_name, types.Function(types.Tuple(tuple(argtyps)), functyp.restype))
 
-            with self._scope(codegen, next_func_name, extra_args=prev_extra_args):
-                callargs = args + extra_args_names
-                next_func_name = self.pyname + "_next_" + str(transferpc)
-                next_call = "return %s(machine, %s)" % (next_func_name, ", ".join(callargs))
-                g1[transferpc] = [next_call]
-                self._emit_blocks(g1, codegen, entrycounts, startpc=startpc)
+            graph1 = build_ssa(g1, self, self.args, codegen, startpc, prev_extra_args)
+            with self._scope(codegen, func_name, extra_args=prev_extra_args):
+                emit_function_code(graph1, self, codegen)
             prev_extra_args = extra_args
             blocks = g2
             startpc = transferpc
+            func_name = next_func_name
+        graph2 = build_ssa(g2, self, self.args, codegen, transferpc, extra_args)
         with self._scope(codegen, next_func_name, extra_args=extra_args):
-            self._emit_blocks(g2, codegen, entrycounts, startpc=transferpc)
+            emit_function_code(graph2, self, codegen)
 
     def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
         UNUSED

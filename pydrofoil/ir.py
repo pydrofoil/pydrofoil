@@ -72,7 +72,7 @@ def compute_entryblocks(blocks):
     return entryblocks
 
 class SSABuilder(object):
-    def __init__(self, blocks, functionast, functionargs, codegen, startpc=0):
+    def __init__(self, blocks, functionast, functionargs, codegen, startpc=0, extra_args=None):
         self.blocks = blocks
         self.functionast = functionast
         self.functionargs = functionargs
@@ -82,6 +82,7 @@ class SSABuilder(object):
         self.variable_maps_at_end = {} # {pc: variable_map}
         self.patch_phis = defaultdict(list)
         self.startpc = startpc
+        self.extra_args = extra_args
         self.view = False
 
     def build(self):
@@ -128,6 +129,10 @@ class SSABuilder(object):
                 self.variable_map = {var: Argument(var, typ)
                         for var, typ in zip(self.functionargs, argtypes)}
                 self.args = [self.variable_map[var] for var in self.functionargs]
+                if self.extra_args:
+                    for var, typ in self.extra_args:
+                        arg = self.variable_map[var] = Argument(var, typ)
+                        self.args.append(arg)
             self.variable_map['return'] = None
 
         elif len(entry) == 1:
@@ -343,8 +348,8 @@ class SSABuilder(object):
         else:
             self.variable_map[result] = value
 
-def build_ssa(blocks, functionast, functionargs, codegen, startpc=0):
-    builder = SSABuilder(blocks, functionast, functionargs, codegen, startpc)
+def build_ssa(blocks, functionast, functionargs, codegen, startpc=0, extra_args=None):
+    builder = SSABuilder(blocks, functionast, functionargs, codegen, startpc, extra_args)
     return builder.build()
 
 

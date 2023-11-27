@@ -505,13 +505,13 @@ class __extend__(parse.Function):
         #    import pdb; pdb.set_trace()
         if inlinable:
             codegen.inlinable_functions[self.name] = graph
-        #entrycounts = self._compute_entrycounts(blocks)
-        #if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
-        #    print "making method!", self.name
-        #    with self._scope(codegen, pyname):
-        #        codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
-        #    self._emit_methods(blocks, entrycounts, codegen)
-        #    return
+        blocks = self._prepare_blocks()
+        if self.detect_union_switch(blocks[0]):
+            print "making method!", self.name
+            with self._scope(codegen, pyname):
+                codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
+            self._emit_methods(blocks, codegen)
+            return
         #if len(blocks) > 340:
         #    print "splitting", self.name
         #    try:
@@ -551,13 +551,15 @@ class __extend__(parse.Function):
             yield
 
     def _prepare_blocks(self):
-        UNUSED
         # bring operations into a block format:
         # a dictionary {label-as-int: [list of operations]}
         # every list of operations ends with a goto, return or failure
 
         # first check which ops can be jumped to
         jumptargets = {getattr(op, 'target', 0) for op in self.body}
+        for i, op in enumerate(self.body):
+            if isinstance(op, parse.ConditionalJump):
+                jumptargets.add(i + 1)
 
         # now split into blocks
         blocks = {}
@@ -577,7 +579,6 @@ class __extend__(parse.Function):
 
     @staticmethod
     def _compute_entrycounts(blocks):
-        UNUSED
         entrycounts = {0: 1} # pc, count
         for pc, block in blocks.iteritems():
             for op in block:
@@ -586,7 +587,6 @@ class __extend__(parse.Function):
         return entrycounts
 
     def _find_first_non_decl(self, block):
-        UNUSED
         # return first operation that's not a declaration
         for op in block:
             if isinstance(op, parse.LocalVarDeclaration):
@@ -594,7 +594,6 @@ class __extend__(parse.Function):
             return op
 
     def detect_union_switch(self, block):
-        UNUSED
         # heuristic: if the function starts with a switch on the first
         # argument, turn it into a method
         op = self._find_first_non_decl(block)
@@ -605,14 +604,14 @@ class __extend__(parse.Function):
 
 
     def _is_union_switch(self, op):
-        UNUSED
         return (isinstance(op, parse.ConditionalJump) and
                 isinstance(op.condition, parse.UnionVariantCheck) and
                 isinstance(op.condition.var, parse.Var) and
                 op.condition.var.name == self.args[0])
 
-    def _emit_methods(self, blocks, entrycounts, codegen):
-        UNUSED
+    def _emit_methods(self, blocks, codegen):
+        from pydrofoil.ir import build_ssa
+        from pydrofoil.emitfunction import emit_function_code
         typ = codegen.globalnames[self.name].typ
         uniontyp = typ.argtype.elements[0]
         switches = []
@@ -646,15 +645,13 @@ class __extend__(parse.Function):
                 del b[block.index(cond)]
             copyblock.extend(b)
             local_blocks = self._find_reachable(copyblock, oldpc, blocks, known_cls)
-            # recompute entrycounts
-            local_entrycounts = self._compute_entrycounts(local_blocks)
+            graph = build_ssa(local_blocks, self, self.args, codegen, startpc=oldpc)
             pyname = self.name + "_" + (cond.condition.variant if cond else "default")
             with self._scope(codegen, pyname, method=True):
-                self._emit_blocks(local_blocks, codegen, local_entrycounts, startpc=oldpc)
+                emit_function_code(graph, self, codegen)
             codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
 
     def _find_reachable(self, block, blockpc, blocks, known_cls=None):
-        UNUSED
         # return all the blocks reachable from "block", where self.args[0] is
         # know to be an instance of known_cls
         def process(index, current):

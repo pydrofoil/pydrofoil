@@ -72,7 +72,7 @@ def compute_entryblocks(blocks):
     return entryblocks
 
 class SSABuilder(object):
-    def __init__(self, blocks, functionast, functionargs, codegen):
+    def __init__(self, blocks, functionast, functionargs, codegen, startpc=0):
         self.blocks = blocks
         self.functionast = functionast
         self.functionargs = functionargs
@@ -81,6 +81,7 @@ class SSABuilder(object):
         self.variable_map = None # {name: Value}
         self.variable_maps_at_end = {} # {pc: variable_map}
         self.patch_phis = defaultdict(list)
+        self.startpc = startpc
         self.view = False
 
     def build(self):
@@ -105,7 +106,7 @@ class SSABuilder(object):
             self.patch_phis[pc] = None
             self.variable_maps_at_end[pc] = self.variable_map
             self.variable_map = None
-        graph = Graph(self.functionast.name, self.args, self.allblocks[0])
+        graph = Graph(self.functionast.name, self.args, self.allblocks[self.startpc])
         #if random.random() < 0.01:
         #    self.view = 1
         simplify(graph, self.codegen)
@@ -119,7 +120,7 @@ class SSABuilder(object):
             if not prevpc < pc:
                 loopblock = True
         if entry == []:
-            assert pc == 0
+            assert pc == self.startpc
             self.variable_map = {}
             self.args = []
             if self.functionargs:
@@ -253,13 +254,6 @@ class SSABuilder(object):
                 value = self._build_condition(op.condition, op.sourcepos)
                 nextop = block[index + 1]
                 assert isinstance(nextop, parse.Goto)
-                #if isinstance(value, BooleanConstant):
-                #    if "encdec" not in self.functionast.name and "execute" not in self.functionast.name:
-                #        import pdb; pdb.set_trace()
-                #    ssablock.next = Goto(self.allblocks[
-                #        op.target if value is BooleanConstant.TRUE else nextop.target
-                #    ], None)
-                #    break
                 ssablock.next = ConditionalGoto(
                     value,
                     self.allblocks[op.target],
@@ -349,8 +343,8 @@ class SSABuilder(object):
         else:
             self.variable_map[result] = value
 
-def build_ssa(blocks, functionast, functionargs, codegen):
-    builder = SSABuilder(blocks, functionast, functionargs, codegen)
+def build_ssa(blocks, functionast, functionargs, codegen, startpc=0):
+    builder = SSABuilder(blocks, functionast, functionargs, codegen, startpc)
     return builder.build()
 
 

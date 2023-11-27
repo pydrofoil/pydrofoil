@@ -622,7 +622,7 @@ class GlobalRead(Operation):
 
 class GlobalWrite(Operation):
     def __repr__(self):
-        return "GlobalWrite(%r, %r, %r)" % (self.name, self.args)
+        return "GlobalWrite(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
 class RefAssignment(Operation):
     def __init__(self, args, resolved_type, sourcepos):
@@ -903,10 +903,15 @@ def repeat(func):
 
 @repeat
 def simplify(graph, codegen):
+    graph.check()
     res = LocalOptimizer(graph, codegen).optimize()
+    graph.check()
     res = remove_if_true_false(graph) or res
+    graph.check()
     res = remove_dead(graph, codegen) or res
+    graph.check()
     res = remove_empty_blocks(graph) or res
+    graph.check()
     res = swap_not(graph, codegen) or res
     if res:
         graph.check()
@@ -1040,8 +1045,10 @@ class LocalOptimizer(object):
             self.optimize_block(block)
         if self.replacements:
             # XXX do them all in one go
-            for oldop, newop in self.replacements.iteritems():
-                self.graph.replace_op(oldop, newop)
+            for i in range(10): # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+                for oldop, newop in self.replacements.iteritems():
+                    self.graph.replace_op(oldop, newop)
+            self.graph.check()
             return True
         return False
 
@@ -1072,6 +1079,9 @@ class LocalOptimizer(object):
         except NoMatchException:
             # call int_to_int64
             return self.newop("zz5izDzKz5i64", [arg], types.MachineInt())
+
+    def _make_int64_to_int(self, arg, sourcepos):
+        return self.newop("zz5i64zDzKz5i", [arg], types.Int(), sourcepos)
 
     def _args(self, op):
         return [self.replacements.get(value, value) for value in op.args]
@@ -1312,7 +1322,7 @@ class LocalOptimizer(object):
         )
 
     def optimize_not_bits(self, op):
-        (arg0,) = op.args
+        (arg0,) = self._args(op)
         #if isinstance(arg0, parse.OperationExpr) and arg0.name == "@zeros_i":
         #    return parse.OperationExpr("@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
@@ -1363,3 +1373,407 @@ class LocalOptimizer(object):
             ),
             op.resolved_type,
         )
+
+    def optimize_append(self, op):
+        arg0, arg1 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
+        reswidth = typ0.width + typ1.width
+        if reswidth > 64:
+            return
+        res = self.newcast(
+            self.newop(
+                "@bitvector_concat_bv_bv",
+                [arg0, MachineIntConstant(typ1.width), arg1],
+                types.SmallFixedBitVector(reswidth),
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+        return res
+
+    def optimize_vector_update_subrange_o_i_i_o(self, op):
+        arg0, arg1, arg2, arg3 = self._args(op)
+
+        arg1 = self._extract_number(arg1)
+        arg2 = self._extract_number(arg2)
+        width = arg1.number - arg2.number + 1
+        if width > 64:
+            return
+
+        assert op.resolved_type is types.GenericBitVector()
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg3, typ3 = self._extract_smallfixedbitvector(arg3)
+        assert 0 <= arg2.number <= arg2.number < typ0.width
+        assert typ3.width == width
+        res = self.newop(
+            "@vector_update_subrange_fixed_bv_i_i_bv",
+            [arg0, arg1, arg2, arg3],
+            typ0, op.sourcepos,
+            op.varname_hint,
+        )
+        return self.newcast(
+            res,
+            types.GenericBitVector()
+        )
+
+    def optimize_slice_o_i_i(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        arg1 = self._extract_machineint(arg1)
+        arg2 = self._extract_number(arg2)
+        length = arg2.number
+        if length > 64:
+            return
+
+        try:
+            assert op.resolved_type is types.GenericBitVector()
+            arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        except NoMatchException:
+            res = self.newop(
+                "@vector_slice_o_i_i_unwrapped_res",
+                [arg0, arg1, arg2],
+                types.SmallFixedBitVector(length),
+                op.sourcepos,
+                op.varname_hint,
+            )
+        else:
+            res = self.newop(
+                "@slice_fixed_bv_i_i",
+                [arg0, arg1, arg2],
+                types.SmallFixedBitVector(length),
+                op.sourcepos,
+                op.varname_hint,
+            )
+
+        return self.newcast(
+            res,
+            op.resolved_type,
+        )
+
+    def optimize_zeros_i(self, op):
+        arg0, = self._args(op)
+        arg0 = self._extract_number(arg0)
+        if arg0.number > 64:
+            return
+        resconst = SmallBitVectorConstant("0b" + "0" * arg0.number, types.SmallFixedBitVector(arg0.number))
+        res = self.newcast(
+            resconst,
+            op.resolved_type,
+        )
+        return res
+
+    def optimize_sail_signed(self, op):
+        (arg0,) = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        return self.newcast(
+            self.newop(
+                "@signed_bv",
+                [arg0, MachineIntConstant(typ0.width)],
+                types.MachineInt(),
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+    def optimize_sail_unsigned(self, op):
+        (arg0,) = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        width_as_num = MachineIntConstant(typ0.width)
+        if typ0.width < 64:
+            # will always fit into a machine signed int
+            res = self.newop(
+                "@unsigned_bv",
+                [arg0, width_as_num],
+                types.MachineInt(),
+                op.sourcepos,
+                op.varname_hint,
+            )
+            return self._make_int64_to_int(res, op.sourcepos)
+        return self.newop(
+            "@unsigned_bv_wrapped_res",
+            [arg0, width_as_num],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_zero_extend_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_number(arg1)
+        if arg1.number > 64:
+            return
+        if typ0.width == arg1.number:
+            res = arg0
+        else:
+            res = self.newop(
+                "@zero_extend_bv_i_i",
+                [arg0, MachineIntConstant(typ0.width), arg1],
+                types.SmallFixedBitVector(arg1.number),
+                op.sourcepos,
+                op.varname_hint,
+            )
+        return self.newcast(
+            res,
+            op.resolved_type,
+        )
+
+    def optimize_sign_extend_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_number(arg1)
+        if arg1.number > 64:
+            return
+        if typ0.width == arg1.number:
+            res = arg0
+        else:
+            res = self.newop(
+                "@sign_extend_bv_i_i",
+                [arg0, MachineIntConstant(typ0.width), arg1],
+                types.SmallFixedBitVector(arg1.number),
+                op.sourcepos,
+                op.varname_hint,
+            )
+        return self.newcast(
+            res,
+            op.resolved_type,
+        )
+
+    @symmetric
+    def optimize_add_int(self, op, arg0, arg1):
+        arg1 = self._extract_machineint(arg1)
+        return self.newop(
+            "@add_o_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_add_o_i_wrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        num0 = num1 = None
+        try:
+            num1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if num1.number == 0:
+                return arg0
+            if isinstance(arg0, Operation):
+                # (a - b) + b == a
+                if (arg0.name == "@sub_i_i_wrapped_res" and
+                    self._args(arg0)[1] == num1):
+                    return self._make_int64_to_int(self._args(arg0)[0], op.sourcepos)
+                if (arg0.name == "@sub_o_i_wrapped_res" and
+                    self._args(arg0)[1] == num1):
+                    return self._args(arg0)[0]
+        arg0 = self._extract_machineint(arg0)
+        return self.newop(
+            "@add_i_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_add_i_i_wrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_number(arg0)
+        arg1 = self._extract_number(arg1)
+        # can const-fold
+        res = arg0.number + arg1.number
+        if isinstance(res, int): # no overflow
+            return self._make_int64_to_int(MachineIntConstant(res), op.sourcepos)
+
+    def optimize_sub_int(self, op):
+        arg0, arg1 = self._args(op)
+        try:
+            num1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if num1.number == 0:
+                return arg0
+            try:
+                num0 = self._extract_number(arg0)
+            except NoMatchException:
+                pass
+            else:
+                # can const-fold
+                res = num0.number - num1.number
+                if isinstance(res, int): # no overflow
+                    return self._make_int64_to_int(MachineIntConstant(res), op.sourcepos)
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
+        return self.newop(
+            "@sub_i_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_sub_int(self, op):
+        arg0, arg1 = self._args(op)
+        arg1 = self._extract_machineint(arg1)
+        return self.newop(
+            "@sub_o_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_sub_o_i_wrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 0:
+                return arg0
+        arg0 = self._extract_machineint(arg0)
+        return self.newop(
+            "@sub_i_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_sub_i_i_wrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 0:
+                return self._make_int64_to_int(arg0, op.sourcepos)
+        arg0 = self._extract_number(arg0)
+        arg1 = self._extract_number(arg1)
+        # can const-fold
+        res = arg0.number - arg1.number
+        if isinstance(res, int): # no overflow
+            return self._make_int64_to_int(MachineIntConstant(res), op.sourcepos)
+
+    def optimize_get_slice_int_i_o_i(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        arg0 = self._extract_number(arg0)
+        arg2 = self._extract_machineint(arg2)
+        length = arg0.number
+        if length > 64:
+            return
+        restyp = types.SmallFixedBitVector(length)
+        try:
+            arg1 = self._extract_machineint(arg1)
+        except NoMatchException:
+            res = self.newop(
+                "@get_slice_int_i_o_i_unwrapped_res",
+                [arg0, arg1, arg2],
+                restyp,
+                op.sourcepos,
+                op.varname_hint,
+            )
+        else:
+            res = self.newop(
+                "@get_slice_int_i_i_i",
+                [arg0, arg1, arg2],
+                restyp,
+                op.sourcepos,
+                op.varname_hint,
+            )
+
+        return self.newcast(
+            res,
+            op.resolved_type,
+        )
+
+    def optimize_add_bits_int(self, op):
+        arg0, arg1 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_machineint(arg1)
+
+        return self.newcast(
+            self.newop(
+                "@add_bits_int_bv_i",
+                [arg0, MachineIntConstant(typ0.width), arg1],
+                typ0,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+    def optimize_sub_bits_int(self, op):
+        arg0, arg1 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_machineint(arg1)
+
+        return self.newcast(
+            self.newop(
+                "@sub_bits_int_bv_i",
+                [arg0, MachineIntConstant(typ0.width), arg1],
+                typ0,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+
+    def optimize_shiftl_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        assert arg1.resolved_type is types.MachineInt()
+
+        return self.newcast(
+            self.newop(
+                "@shiftl_bv_i",
+                [arg0, MachineIntConstant(typ0.width), arg1],
+                typ0,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+    def optimize_length(self, op):
+        arg0, = self._args(op)
+        res = self.newop(
+                "@length_unwrapped_res",
+                [arg0],
+                types.MachineInt(),
+                op.sourcepos,
+                op.varname_hint,
+        )
+        if isinstance(arg0, Cast):
+            realtyp = arg0.op.resolved_type
+            if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
+                res = MachineIntConstant(realtyp.width)
+        return self._make_int64_to_int(res, op.sourcepos)
+
+    def optimize_length_unwrapped_res(self, op):
+        arg0, = self._args(op)
+        if isinstance(arg0, Cast):
+            realtyp = arg0.op.resolved_type
+            if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
+                return MachineIntConstant(realtyp.width)
+
+
+    def optimize_undefined_bitvector_i(self, op):
+        arg0, = self._args(op)
+        num = self._extract_number(arg0)
+        if num.number > 64:
+            return
+        return self.newcast(
+            SmallBitVectorConstant("0b" + "0" * num.number, types.SmallFixedBitVector(num.number)),
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+

@@ -3,7 +3,7 @@ from pydrofoil.types import *
 from pydrofoil.ir import *
 
 class FakeCodeGen:
-    builtin_names = {"zz5izDzKz5i64": "int_to_int64"}
+    builtin_names = {"zz5izDzKz5i64": "int_to_int64", "zz5i64zDzKz5i": "int64_to_int"}
 
 fakecodegen = FakeCodeGen()
 
@@ -299,10 +299,15 @@ def test_append():
     block0 = Block()
     i1 = block0.emit(Cast, '$cast', [SmallBitVectorConstant(0b01, SmallFixedBitVector(2))], GenericBitVector(), '`5 100:30-100:41', 'zz40')
     i2 = block0.emit(Cast, '$cast', [zcreg], GenericBitVector(), '`5 100:30-100:41', 'zz41')
-    i3 = block0.emit(Operation, 'zbitvector_concat', [i1, i2], GenericBitVector(), '`5 100:30-100:41', 'zz42')
+    i3 = block0.emit(Operation, 'append', [i1, i2], GenericBitVector(), '`5 100:30-100:41', 'zz42')
     i4 = block0.emit(Cast, '$cast', [i3], SmallFixedBitVector(5), '`5 100:30-100:41', 'return')
     block0.next = Return(i4, None)
     graph = Graph('zcreg2reg_idx', [zcreg], block0)
     simplify(graph, fakecodegen)
     res = print_graph_construction(graph)
-    assert "\n".join(res) == ""
+    assert "\n".join(res) == """\
+zcreg = Argument('zcreg', SmallFixedBitVector(3))
+block0 = Block()
+i1 = block0.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(1, SmallFixedBitVector(2)), MachineIntConstant(3), zcreg], SmallFixedBitVector(5), '`5 100:30-100:41', 'zz42')
+block0.next = Return(i1, None)
+graph = Graph('zcreg2reg_idx', [zcreg], block0)"""

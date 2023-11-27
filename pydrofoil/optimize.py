@@ -341,66 +341,6 @@ class OptVisitor(parse.Visitor):
         assert expr.resolved_type is not None
         return expr.resolved_type
 
-    def _extract_smallfixedbitvector(self, arg):
-        if not isinstance(arg, parse.CastExpr):
-            raise NoMatchException
-        typ = self._gettyp(arg.expr)
-        if not isinstance(typ, types.SmallFixedBitVector):
-            assert typ is types.GenericBitVector() or isinstance(
-                typ, types.BigFixedBitVector
-            )
-            raise NoMatchException
-        arg = arg.expr
-        return arg, typ
-
-    def _extract_machineint(self, arg):
-        if arg.resolved_type is types.MachineInt():
-            return arg
-        if (
-            not isinstance(arg, parse.OperationExpr)
-            or self._builtinname(arg.name) != "int64_to_int"
-        ):
-            raise NoMatchException
-        return arg.args[0]
-
-    def _extract_number(self, arg):
-        if isinstance(arg, parse.Number):
-            return arg
-        num = self._extract_machineint(arg)
-        if not isinstance(num, parse.Number):
-            raise NoMatchException
-        return num
-
-    def optimize_vector_subrange_o_i_i(self, expr):
-        arg0, arg1, arg2 = expr.args
-
-        arg1 = self._extract_number(arg1)
-        arg2 = self._extract_number(arg2)
-        width = arg1.number - arg2.number + 1
-        if width > 64:
-            return
-
-        assert expr.resolved_type is types.GenericBitVector()
-        try:
-            arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        except NoMatchException:
-            res = parse.OperationExpr(
-                "@vector_subrange_o_i_i_unwrapped_res",
-                [arg0, arg1, arg2],
-                types.SmallFixedBitVector(width),
-                expr.sourcepos,
-            )
-        else:
-            res = parse.OperationExpr(
-                "@vector_subrange_fixed_bv_i_i",
-                [arg0, arg1, arg2],
-                types.SmallFixedBitVector(width),
-                expr.sourcepos,
-            )
-        return parse.CastExpr(
-            res,
-            expr.resolved_type,
-        )
 
     def optimize_vector_update_subrange_o_i_i_o(self, expr):
         arg0, arg1, arg2, arg3 = expr.args
@@ -517,33 +457,6 @@ class OptVisitor(parse.Visitor):
             expr.resolved_type,
         )
         return res
-
-    @symmetric
-    def optimize_eq_int(self, expr, arg0, arg1):
-        arg1 = self._extract_machineint(arg1)
-        return parse.OperationExpr(
-            "@eq_int_o_i", [arg0, arg1], expr.resolved_type, expr.sourcepos
-        )
-
-    def optimize_eq_int_o_i(self, expr):
-        arg0, arg1 = expr.args
-        arg0 = self._extract_machineint(arg0)
-        return parse.OperationExpr(
-            "@eq_int_i_i", [arg0, arg1], expr.resolved_type, expr.sourcepos
-        )
-
-    def optimize_int_to_int64(self, expr):
-        (arg0,) = expr.args
-
-        if not isinstance(arg0, parse.OperationExpr):
-            return
-        if self._builtinname(arg0.name) == "int64_to_int":
-            return arg0.args[0]
-        if arg0.name == "@unsigned_bv_wrapped_res":
-            return parse.OperationExpr(
-                "@unsigned_bv", arg0.args, expr.resolved_type, expr.sourcepos
-            )
-        return None
 
     @symmetric
     def optimize_xor_bits(self, expr, arg0, arg1):

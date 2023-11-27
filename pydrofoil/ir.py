@@ -26,7 +26,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # eq_bits(cast(Op1, gbv), cast(Op2, gbv)) -> eq_bits_bv_bv(Op1, Op2, 
 
 # start optimization: outriscv.py is 247000 loc
-# 154 kloc
+# 135 kloc
 
 
 def construct_ir(functionast, codegen, singleblock=False):
@@ -475,13 +475,22 @@ class Graph(object):
         # minimal consistency check, will add things later
         entrymap = self.make_entrymap()
         # check that phi.prevvalues only contains predecessors of a block
+        defined_vars = set(self.args)
         for block in self.iterblocks():
             for op in block:
+                defined_vars.add(op)
                 if not isinstance(op, Phi):
                     continue
                 for prevblock in op.prevblocks:
                     assert prevblock in entrymap
                     assert prevblock in entrymap[block]
+        # check that all the used values are defined somewhere
+        for block in self.iterblocks():
+            for op in block:
+                for value in op.getargs():
+                    assert value in defined_vars or isinstance(value, Constant)
+            for value in block.next.getargs():
+                assert value in defined_vars or isinstance(value, Constant)
 
     def replace_op(self, oldop, newop):
         for block in self.iterblocks():
@@ -766,7 +775,7 @@ class Return(Next):
         self.sourcepos = sourcepos
 
     def getargs(self):
-        return [self.value]
+        return [self.value] if self.value is not None else []
 
     def replace_op(self, oldop, newop):
         if self.value is oldop:
@@ -900,7 +909,8 @@ def simplify(graph, codegen):
     res = remove_dead(graph, codegen) or res
     res = remove_empty_blocks(graph) or res
     res = swap_not(graph, codegen) or res
-    graph.check()
+    if res:
+        graph.check()
     return res
 
 @repeat
@@ -1045,18 +1055,58 @@ class LocalOptimizer(object):
                 self.replacements[op] = newop
         block.operations = self.newoperations
 
+    def newop(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
+        newop = Operation(
+            name, args, resolved_type, sourcepos,
+            varname_hint)
+        self.newoperations.append(newop)
+        return newop
+
+    def newcast(self, arg, resolved_type, sourcepos=None, varname_hint=None):
+        newop = Cast(arg, resolved_type, sourcepos, varname_hint)
+        self.newoperations.append(newop)
+        return newop
+
+    def _convert_to_machineint(self, arg):
+        try:
+            return self._extract_machineint(arg)
+        except NoMatchException:
+            # call int_to_int64
+            return self.newop("zz5izDzKz5i64", [arg], types.MachineInt())
+
+    def _args(self, op):
+        return [self.replacements.get(value, value) for value in op.args]
+
     def _optimize_op(self, block, index, op):
         if isinstance(op, Cast):
-            arg, = op.args
+            arg, = self._args(op)
             if isinstance(arg, Cast):
-                if arg.args[0].resolved_type is op.resolved_type:
+                arg2, = self._args(arg)
+                if arg2.resolved_type is op.resolved_type:
                     block.operations[index] = None
-                    return arg.args[0]
-                newop = Cast(arg.args[0], op.resolved_type, op.sourcepos, op.varname_hint)
-                self.newoperations.append(newop)
-                return newop
+                    return arg2
+                return self.newcast(arg2, op.resolved_type, op.sourcepos, op.varname_hint)
         elif type(op) is Operation:
             name = self._builtinname(op.name)
+            if name in supportcode.all_unwraps:
+                specs, unwrapped_name = supportcode.all_unwraps[name]
+                # these are unconditional unwraps, just rewrite them right here
+                assert len(specs) == len(op.args)
+                newargs = []
+                for argspec, arg in zip(specs, self._args(op)):
+                    if argspec == "o":
+                        newargs.append(arg)
+                    elif argspec == "i":
+                        newargs.append(self._convert_to_machineint(arg))
+                    else:
+                        assert 0, "unknown spec"
+                return self.newop(
+                    "@" + unwrapped_name,
+                    newargs,
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
             meth = getattr(self, "optimize_%s" % name.lstrip("@"), None)
             if meth:
                 try:
@@ -1083,20 +1133,35 @@ class LocalOptimizer(object):
             raise NoMatchException
         return expr, typ
 
+    def _extract_machineint(self, arg):
+        if arg.resolved_type is types.MachineInt():
+            return arg
+        if (
+            not isinstance(arg, Operation)
+            or self._builtinname(arg.name) != "int64_to_int"
+        ):
+            raise NoMatchException
+        return arg.args[0]
+
+    def _extract_number(self, arg):
+        if isinstance(arg, MachineIntConstant):
+            return arg
+        num = self._extract_machineint(arg)
+        if not isinstance(num, MachineIntConstant):
+            raise NoMatchException
+        return num
 
     @symmetric
     def optimize_eq_bits(self, op, arg0, arg1):
         arg0, typ = self._extract_smallfixedbitvector(arg0)
         arg1 = Cast(arg1, typ)
         self.newoperations.append(arg1)
-        newop = Operation(
+        return self.newop(
             "@eq_bits_bv_bv", [arg0, arg1], op.resolved_type, op.sourcepos,
             op.varname_hint)
-        self.newoperations.append(newop)
-        return newop
 
     def optimize_int64_to_int(self, op):
-        (arg0,) = op.args
+        (arg0,) = self._args(op)
         if (
             not isinstance(arg0, Operation)
             or self._builtinname(arg0.name) != "int_to_int64"
@@ -1105,10 +1170,58 @@ class LocalOptimizer(object):
         return arg0.args[0]
 
     def optimize_int_to_int64(self, op):
-        (arg0,) = op.args
+        (arg0,) = self._args(op)
         if (
             not isinstance(arg0, Operation)
             or self._builtinname(arg0.name) != "int64_to_int"
         ):
             return
         return arg0.args[0]
+
+    @symmetric
+    def optimize_eq_int(self, op, arg0, arg1):
+        arg1 = self._extract_machineint(arg1)
+        return self.newop(
+            "@eq_int_o_i", [arg0, arg1], op.resolved_type, op.sourcepos, op.varname_hint
+        )
+
+    def optimize_eq_int_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        return self.newop(
+            "@eq", [arg0, arg1], op.resolved_type, op.sourcepos, op.varname_hint
+        )
+
+    def optimize_vector_subrange_o_i_i(self, op):
+        arg0, arg1, arg2 = self._args(op)
+
+        arg1 = self._extract_number(arg1)
+        arg2 = self._extract_number(arg2)
+        width = arg1.number - arg2.number + 1
+        if width > 64:
+            return
+
+        assert op.resolved_type is types.GenericBitVector()
+        try:
+            arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        except NoMatchException:
+            res = self.newop(
+                "@vector_subrange_o_i_i_unwrapped_res",
+                [arg0, arg1, arg2],
+                types.SmallFixedBitVector(width),
+                op.sourcepos,
+                op.varname_hint,
+            )
+        else:
+            res = self.newop(
+                "@vector_subrange_fixed_bv_i_i",
+                [arg0, arg1, arg2],
+                types.SmallFixedBitVector(width),
+                op.sourcepos,
+                op.varname_hint,
+            )
+        return self.newcast(
+            res,
+            op.resolved_type,
+        )
+

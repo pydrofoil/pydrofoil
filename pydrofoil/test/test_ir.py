@@ -3,7 +3,7 @@ from pydrofoil.types import *
 from pydrofoil.ir import *
 
 class FakeCodeGen:
-    builtin_names = {}
+    builtin_names = {"zz5izDzKz5i64": "int_to_int64"}
 
 fakecodegen = FakeCodeGen()
 
@@ -161,4 +161,40 @@ def test_int_and_back():
 block0 = Block()
 block0.next = Return(MachineIntConstant(15), None)
 graph = Graph('f', [], block0)"""
-    
+ 
+def test_eq_int():
+    zr = Argument('zr', MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Operation, 'int64_to_int', [MachineIntConstant(0)], Int(), '`80', 'zz4128')
+    i2 = block0.emit(Operation, 'int64_to_int', [zr], Int(), '`82', 'zz4130')
+    i3 = block0.emit(Operation, 'eq_int', [i2, i1], Bool(), '`83', 'zz4129')
+    block0.next = Return(i3)
+    graph = Graph("f", [zr], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+zr = Argument('zr', MachineInt())
+block0 = Block()
+i1 = block0.emit(Operation, '@eq', [zr, MachineIntConstant(0)], Bool(), '`83', 'zz4129')
+block0.next = Return(i1, None)
+graph = Graph('f', [zr], block0)"""
+
+def test_vector_subrange():
+    zargz3 = Argument('zargz3', SmallFixedBitVector(64))
+    block0 = Block()
+    i1 = block0.emit(Operation, 'int64_to_int', [MachineIntConstant(6)], Int(), '`36 84:17-84:31', 'zz412137')
+    i2 = block0.emit(Operation, 'int64_to_int', [MachineIntConstant(0)], Int(), '`36 84:17-84:31', 'zz412138')
+    i3 = block0.emit(Cast, '$cast', [zargz3], GenericBitVector(), '`36 84:17-84:31', 'zz412139')
+    i4 = block0.emit(Operation, 'vector_subrange', [i3, i1, i2], GenericBitVector(), '`36 84:17-84:31', 'zz412140')
+    i5 = block0.emit(Cast, '$cast', [i4], SmallFixedBitVector(7), '`36 84:17-84:31', 'zz412111')
+    block0.next = Return(i5)
+    graph = Graph("f", [zargz3], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+zargz3 = Argument('zargz3', SmallFixedBitVector(64))
+block0 = Block()
+i1 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [zargz3, MachineIntConstant(6), MachineIntConstant(0)], SmallFixedBitVector(7), '`36 84:17-84:31', 'zz412140')
+block0.next = Return(i1, None)
+graph = Graph('f', [zargz3], block0)"""
+

@@ -293,3 +293,16 @@ block0 = Block()
 i2 = block0.emit(Operation, '@add_bits_bv_bv', [zx, zy, MachineIntConstant(64)], SmallFixedBitVector(64), '`25 286:37-286:63', 'zz422')
 block0.next = Return(i2, None)
 graph = Graph('update', [zx, zy], block0)"""
+
+def test_append():
+    zcreg = Argument('zcreg', SmallFixedBitVector(3))
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [SmallBitVectorConstant(0b01, SmallFixedBitVector(2))], GenericBitVector(), '`5 100:30-100:41', 'zz40')
+    i2 = block0.emit(Cast, '$cast', [zcreg], GenericBitVector(), '`5 100:30-100:41', 'zz41')
+    i3 = block0.emit(Operation, 'zbitvector_concat', [i1, i2], GenericBitVector(), '`5 100:30-100:41', 'zz42')
+    i4 = block0.emit(Cast, '$cast', [i3], SmallFixedBitVector(5), '`5 100:30-100:41', 'return')
+    block0.next = Return(i4, None)
+    graph = Graph('zcreg2reg_idx', [zcreg], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == ""

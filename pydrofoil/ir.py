@@ -24,6 +24,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # @neq(X, Y) -> @not(@eq(X, Y))
 
+# check out rotatel
+
 # start optimization: outriscv.py is 247000 loc
 # 133 kloc
 
@@ -376,6 +378,16 @@ class Block(object):
                 assert op.prevblocks == res
             else:
                 res = op.prevblocks
+        return res
+
+    def copy_operations(self, replacements):
+        res = []
+        for op in self.operations:
+            assert not isinstance(op, Phi)
+            newop = Operation(op.name, [replacements.get(arg, arg) for arg in op.args], op.resolved_type, op.sourcepos, op.varname_hint)
+            newop.__class__ = op.__class__
+            replacements[op] = newop
+            res.append(newop)
         return res
 
     def _dot(self, dotgen, seen, print_varnames):
@@ -918,6 +930,8 @@ def repeat(func):
 
 @repeat
 def simplify(graph, codegen):
+    graph.check()
+    inline(graph, codegen)
     graph.check()
     res = LocalOptimizer(graph, codegen).optimize()
     graph.check()
@@ -1771,16 +1785,13 @@ class LocalOptimizer(object):
                 op.sourcepos,
                 op.varname_hint,
         )
-        if isinstance(arg0, Cast):
-            realtyp = arg0.op.resolved_type
-            if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
-                res = MachineIntConstant(realtyp.width)
         return self._make_int64_to_int(res, op.sourcepos)
 
     def optimize_length_unwrapped_res(self, op):
         arg0, = self._args(op)
         if isinstance(arg0, Cast):
-            realtyp = arg0.op.resolved_type
+            arg0arg0, = self._args(arg0)
+            realtyp = arg0arg0.resolved_type
             if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
                 return MachineIntConstant(realtyp.width)
 
@@ -1796,4 +1807,28 @@ class LocalOptimizer(object):
             op.sourcepos,
             op.varname_hint,
         )
+
+def inline(graph, codegen):
+    changed = False
+    for block in graph.iterblocks():
+        index = 0
+        while index < len(block.operations):
+            op = block[index]
+            if isinstance(op, Operation) and op.name in codegen.inlinable_functions:
+                subgraph = codegen.inlinable_functions[op.name]
+                if isinstance(subgraph.startblock.next, Return) and subgraph.startblock.next.value is not None:
+                    newops, res = copy_ops(op, subgraph)
+                    if newops is not None:
+                        block.operations[index : index + 1] = newops
+                        graph.replace_op(op, res)
+                        index = 0
+                        continue
+            index += 1
+
+def copy_ops(op, subgraph):
+    assert len(list(subgraph.iterblocks())) == 1
+    replacements = {arg: argexpr for arg, argexpr in zip(subgraph.args, op.args)}
+    ops = subgraph.startblock.copy_operations(replacements)
+    res = subgraph.startblock.next.value
+    return ops, replacements.get(res, res)
 

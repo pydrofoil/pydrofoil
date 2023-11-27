@@ -503,7 +503,7 @@ class __extend__(parse.Function):
         #if vafter.seen != vbefore.seen:
         #    import pdb; pdb.set_trace()
         if inlinable:
-            codegen.inlinable_functions[self.name] = self, graph
+            codegen.inlinable_functions[self.name] = graph
         #entrycounts = self._compute_entrycounts(blocks)
         #if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
         #    print "making method!", self.name

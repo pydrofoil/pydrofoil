@@ -14,6 +14,8 @@ class CodeEmitter(object):
         self.codegen = codegen
         self.graph_construction_code = ir.print_graph_construction(self.graph)
         remove_critical_edges(graph)
+
+        self.use_count_ops = count_uses(graph)
         remove_phis(graph)
 
         # assign PCs
@@ -87,8 +89,11 @@ class CodeEmitter(object):
 
     def _op_helper(self, op, svalue):
         assert isinstance(svalue, str)
-        res = self._get_print_varname(op)
-        emit = "%s = %s" % (res, svalue)
+        if self.use_count_ops[op] == 0:
+            emit = svalue
+        else:
+            res = self._get_print_varname(op)
+            emit = "%s = %s" % (res, svalue)
         sourcepos = op.sourcepos
         if sourcepos:
             emit += " # " + sourcepos
@@ -274,3 +279,12 @@ def remove_phis(graph):
             block.operations[:] = [op for op in block.operations if not isinstance(op, ir.Phi)]
 
     
+def count_uses(graph):
+    uses = defaultdict(int)
+    for block in graph.iterblocks():
+        for op in block.operations:
+            for arg in op.getargs():
+                uses[arg] += 1
+        for arg in block.next.getargs():
+            uses[arg] += 1
+    return uses

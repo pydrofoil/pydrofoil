@@ -242,9 +242,36 @@ def test_and_not_bits():
     i2 = block0.emit(Operation, 'not_bits', [i1], GenericBitVector(), '`25 286:51-286:62', 'zz424')
     i3 = block0.emit(Cast, '$cast', [zy], GenericBitVector(), '`25 286:37-286:63', 'zz420')
     i4 = block0.emit(Operation, 'and_bits', [i3, i2], GenericBitVector(), '`25 286:37-286:63', 'zz422')
-    i8 = block0.emit(Cast, '$cast', [zy], SmallFixedBitVector(64), '`25 286:37-286:63', 'zz420')
+    i8 = block0.emit(Cast, '$cast', [i4], SmallFixedBitVector(64), '`25 286:37-286:63', 'zz420')
     block0.next = Return(i8)
-    graph = Graph('update', [zx], block0)
+    graph = Graph('update', [zx, zy], block0)
     simplify(graph, fakecodegen)
     res = print_graph_construction(graph)
-    assert "\n".join(res) == ""
+    assert "\n".join(res) == """\
+zx = Argument('zx', SmallFixedBitVector(64))
+zy = Argument('zy', SmallFixedBitVector(64))
+block0 = Block()
+i2 = block0.emit(Operation, '@not_vec_bv', [zx, MachineIntConstant(64)], SmallFixedBitVector(64), '`25 286:51-286:62', None)
+i3 = block0.emit(Operation, '@and_vec_bv_bv', [zy, i2], SmallFixedBitVector(64), '`25 286:37-286:63', 'zz422')
+block0.next = Return(i3, None)
+graph = Graph('update', [zx, zy], block0)"""
+
+def test_add_bits():
+    zx = Argument('zx', SmallFixedBitVector(64))
+    zy = Argument('zy', SmallFixedBitVector(64))
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [zx], GenericBitVector(), '`25 286:37-286:63', 'zz420')
+    i3 = block0.emit(Cast, '$cast', [zy], GenericBitVector(), '`25 286:37-286:63', 'zz420')
+    i4 = block0.emit(Operation, 'add_bits', [i1, i3], GenericBitVector(), '`25 286:37-286:63', 'zz422')
+    i8 = block0.emit(Cast, '$cast', [i4], SmallFixedBitVector(64), '`25 286:37-286:63', 'zz420')
+    block0.next = Return(i8)
+    graph = Graph('update', [zx, zy], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+zx = Argument('zx', SmallFixedBitVector(64))
+zy = Argument('zy', SmallFixedBitVector(64))
+block0 = Block()
+i2 = block0.emit(Operation, '@add_bits_bv_bv', [zx, zy, MachineIntConstant(64)], SmallFixedBitVector(64), '`25 286:37-286:63', 'zz422')
+block0.next = Return(i2, None)
+graph = Graph('update', [zx, zy], block0)"""

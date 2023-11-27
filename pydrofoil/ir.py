@@ -25,7 +25,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # @neq(X, Y) -> @not(@eq(X, Y))
 
 # start optimization: outriscv.py is 247000 loc
-# 135 kloc
+# 134 kloc
 
 
 def construct_ir(functionast, codegen, singleblock=False):
@@ -1017,7 +1017,7 @@ class NoMatchException(Exception):
 
 def symmetric(func):
     def optimize(self, op):
-        arg0, arg1 = op.args
+        arg0, arg1 = self._args(op)
         try:
             res = func(self, op, arg0, arg1)
         except NoMatchException:
@@ -1260,4 +1260,96 @@ class LocalOptimizer(object):
             op.resolved_type,
             op.sourcepos,
             op.varname_hint,
+        )
+
+    @symmetric
+    def optimize_xor_bits(self, op, arg0, arg1):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self.newcast(arg1, typ0)
+        return self.newcast(
+            self.newop(
+                "@xor_vec_bv_bv",
+                [arg0, arg1],
+                typ0,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+    @symmetric
+    def optimize_and_bits(self, op, arg0, arg1):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self.newcast(arg1, typ0)
+        return self.newcast(
+            self.newop(
+                "@and_vec_bv_bv",
+                [arg0, arg1],
+                typ0,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+    @symmetric
+    def optimize_or_bits(self, op, arg0, arg1):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self.newcast(arg1, typ0)
+        return self.newcast(
+            self.newop("@or_vec_bv_bv", [arg0, arg1], typ0, op.sourcepos, op.varname_hint),
+            op.resolved_type,
+        )
+
+    def optimize_not_bits(self, op):
+        (arg0,) = op.args
+        #if isinstance(arg0, parse.OperationExpr) and arg0.name == "@zeros_i":
+        #    return parse.OperationExpr("@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+
+        return self.newcast(
+            self.newop(
+                "@not_vec_bv", [arg0, MachineIntConstant(typ0.width)], typ0, op.sourcepos
+            ),
+            op.resolved_type,
+            op.varname_hint,
+        )
+
+    @symmetric
+    def optimize_add_bits(self, op, arg0, arg1):
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self.newcast(arg1, typ0)
+        return self.newcast(
+            self.newop(
+                "@add_bits_bv_bv",
+                [arg0, arg1, MachineIntConstant(typ0.width)],
+                typ0,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+    def optimize_sub_bits(self, op):
+        arg0, arg1 = self._args(op)
+        try:
+            arg0, typ = self._extract_smallfixedbitvector(arg0)
+        except NoMatchException:
+            try:
+                arg1, typ = self._extract_smallfixedbitvector(arg1)
+            except NoMatchException:
+                return None
+            else:
+                arg0 = self.newcast(arg0, typ)
+        else:
+            arg1 = self.newcast(arg1, typ)
+        return self.newcast(
+            self.newop(
+                "@sub_bits_bv_bv",
+                [arg0, arg1, MachineIntConstant(typ.width)],
+                typ,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
         )

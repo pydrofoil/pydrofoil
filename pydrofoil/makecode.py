@@ -44,6 +44,7 @@ class Codegen(object):
         self.add_global("@slice_fixed_bv_i_i", "supportcode.slice_fixed_bv_i_i")
         self.add_global("@vector_subrange_o_i_i_unwrapped_res", "supportcode.vector_subrange_o_i_i_unwrapped_res")
         self.add_global("@vector_slice_o_i_i_unwrapped_res", "supportcode.vector_slice_o_i_i_unwrapped_res")
+        self.add_global("@eq_bits", "supportcode.eq_bits")
         self.add_global("@eq_bits_bv_bv", "supportcode.eq_bits_bv_bv")
         self.add_global("@neq_bits_bv_bv", "supportcode.neq_bits_bv_bv")
         self.add_global("@eq_int_o_i", "supportcode.eq_int_o_i")

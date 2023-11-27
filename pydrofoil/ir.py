@@ -15,8 +15,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - constants
 # - split huge functions
 # - start porting optimizations
-#   - inlining
-#   - nesting ifs
 #   - nested operations
 #   - cached boxed constants
 #   - neq -> not eq
@@ -24,10 +22,9 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # @neq(X, Y) -> @not(@eq(X, Y))
 
-# check out rotatel
 
 # start optimization: outriscv.py is 247000 loc
-# 133 kloc
+# 139 kloc
 
 
 def construct_ir(functionast, codegen, singleblock=False):
@@ -183,11 +180,15 @@ class SSABuilder(object):
     def _build_block(self, block, ssablock):
         for index, op in enumerate(block):
             if isinstance(op, parse.LocalVarDeclaration):
-                assert op.value is None
-                if isinstance(op.resolved_type, types.Struct):
-                    ssaop = Allocate(op.resolved_type, op.sourcepos)
+                # weird special case for uint64c
+                if op.value is not None:
+                    args = self._get_args(op.value.args)
+                    ssaop = Operation(op.value.name, args, op.value.resolved_type, op.value.sourcepos, op.name)
                 else:
-                    ssaop = DefaultValue(op.resolved_type, op.sourcepos)
+                    if isinstance(op.resolved_type, types.Struct):
+                        ssaop = Allocate(op.resolved_type, op.sourcepos)
+                    else:
+                        ssaop = DefaultValue(op.resolved_type, op.sourcepos)
                 self.variable_map[op.name] = self._addop(ssaop)
             elif isinstance(op, parse.Operation):
                 args = self._get_args(op.args)
@@ -207,19 +208,38 @@ class SSABuilder(object):
                     self._addop(value)
                 self._store(op.result, value)
             elif isinstance(op, parse.StructElementAssignment):
-                field, = op.fields
+                lastfield = op.fields[-1]
+                firstfields = op.fields[:-1]
                 obj = self._get_arg(op.obj)
+                typ = obj.resolved_type
+                for field in firstfields:
+                    typ = typ.fieldtyps[field]
+                    obj = self._addop(FieldAccess(field, [obj], typ))
+
                 fieldval = self._get_arg(op.value)
-                typ = obj.resolved_type.fieldtyps[field]
+                typ = typ.fieldtyps[lastfield]
                 if fieldval.resolved_type != typ:
                     fieldval = self._addop(Cast(fieldval, typ, op.sourcepos))
-                self._addop(FieldWrite(field, [obj, fieldval], types.Unit(), op.sourcepos))
+                self._addop(FieldWrite(lastfield, [obj, fieldval], types.Unit(), op.sourcepos))
             elif isinstance(op, parse.GeneralAssignment):
+                args = self._get_args(op.rhs.args)
+                rhs = Operation(op.rhs.name, args, op.rhs.resolved_type, op.sourcepos)
+                self._addop(rhs)
                 if isinstance(op.lhs, parse.RefAssignment):
-                    args = self._get_args(op.rhs.args)
-                    rhs = Operation(op.rhs.name, args, op.rhs.resolved_type, op.sourcepos)
-                    self._addop(rhs)
                     self._addop(RefAssignment([self._get_arg(op.lhs.ref), rhs], types.Unit(), op.sourcepos))
+                elif isinstance(op.lhs, parse.StructElementAssignment):
+                    lastfield = op.lhs.fields[-1]
+                    firstfields = op.lhs.fields[:-1]
+                    obj = self._get_arg(op.lhs.obj)
+                    typ = obj.resolved_type
+                    for field in firstfields:
+                        typ = typ.fieldtyps[field]
+                        obj = self._addop(FieldAccess(field, [obj], typ))
+                    typ = typ.fieldtyps[lastfield]
+                    if rhs.resolved_type != typ:
+                        import pdb;pdb.set_trace()
+                        rhs = self._addop(Cast(rhs, typ, op.sourcepos))
+                    self._addop(FieldWrite(lastfield, [obj, rhs], types.Unit(), op.sourcepos))
                 else:
                     import pdb; pdb.set_trace()
 

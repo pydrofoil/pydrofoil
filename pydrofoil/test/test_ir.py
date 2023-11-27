@@ -233,3 +233,18 @@ block0 = Block()
 i1 = block0.emit(Operation, '@vector_access_bv_i', [zx, MachineIntConstant(7)], Bit(), '`35 86:29-86:33', 'zz46')
 block0.next = Return(i1, None)
 graph = Graph('update', [zx], block0)"""
+
+def test_and_not_bits():
+    zx = Argument('zx', SmallFixedBitVector(64))
+    zy = Argument('zy', SmallFixedBitVector(64))
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [zx], GenericBitVector(), '`25 286:37-286:63', 'zz420')
+    i2 = block0.emit(Operation, 'not_bits', [i1], GenericBitVector(), '`25 286:51-286:62', 'zz424')
+    i3 = block0.emit(Cast, '$cast', [zy], GenericBitVector(), '`25 286:37-286:63', 'zz420')
+    i4 = block0.emit(Operation, 'and_bits', [i3, i2], GenericBitVector(), '`25 286:37-286:63', 'zz422')
+    i8 = block0.emit(Cast, '$cast', [zy], SmallFixedBitVector(64), '`25 286:37-286:63', 'zz420')
+    block0.next = Return(i8)
+    graph = Graph('update', [zx], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == ""

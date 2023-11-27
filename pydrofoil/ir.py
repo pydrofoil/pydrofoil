@@ -26,6 +26,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # start optimization: outriscv.py is 247000 loc
 # 139 kloc
 
+# outarm.py is 4974 kloc
+
 
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:
@@ -1787,6 +1789,38 @@ class LocalOptimizer(object):
         return self.newcast(
             self.newop(
                 "@shiftl_bv_i",
+                [arg0, MachineIntConstant(typ0.width), arg1],
+                typ0,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+    def optimize_shiftr_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        assert arg1.resolved_type is types.MachineInt()
+
+        return self.newcast(
+            self.newop(
+                "@shiftr_bv_i",
+                [arg0, MachineIntConstant(typ0.width), arg1],
+                typ0,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+    def optimize_arith_shiftr_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        assert arg1.resolved_type is types.MachineInt()
+
+        return self.newcast(
+            self.newop(
+                "@arith_shiftr_bv_i",
                 [arg0, MachineIntConstant(typ0.width), arg1],
                 typ0,
                 op.sourcepos,

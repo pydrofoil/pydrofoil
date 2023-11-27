@@ -71,6 +71,8 @@ class Codegen(object):
         self.add_global("@sub_bits_bv_bv", "supportcode.sub_bits_bv_bv")
         self.add_global("@sub_bits_int_bv_i", "supportcode.sub_bits_int_bv_i")
         self.add_global("@shiftl_bv_i", "supportcode.shiftl_bv_i")
+        self.add_global("@shiftr_bv_i", "supportcode.shiftr_bv_i")
+        self.add_global("@arith_shiftr_bv_i", "supportcode.arith_shiftr_bv_i")
         self.add_global("@length_unwrapped_res", "supportcode.length_unwrapped_res")
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("UINT64_C", "supportcode.uint64c")

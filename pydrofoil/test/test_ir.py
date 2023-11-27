@@ -312,3 +312,25 @@ block0 = Block()
 i1 = block0.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(1, SmallFixedBitVector(2)), MachineIntConstant(3), zcreg], SmallFixedBitVector(5), '`5 100:30-100:41', 'zz42')
 block0.next = Return(i1, None)
 graph = Graph('zcreg2reg_idx', [zcreg], block0)"""
+
+def test_shiftr():
+    for kind in "@shiftr_o_i", "@arith_shiftr_o_i":
+        arg = Argument('arg', SmallFixedBitVector(64))
+        block0 = Block()
+        i1 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [arg, MachineIntConstant(47), MachineIntConstant(0)], SmallFixedBitVector(48), '`3484', 'zz44')
+        i2 = block0.emit(Operation, '@zero_extend_bv_i_i', [i1, MachineIntConstant(48), MachineIntConstant(64)], SmallFixedBitVector(64), '`26 426:31-426:66', 'zz449')
+        i2 = block0.emit(Cast, '$cast', [i2], GenericBitVector(), None, None)
+        i3 = block0.emit(Operation, kind, [i2, MachineIntConstant(1)], GenericBitVector(), '`26 426:31-426:71', 'zz445')
+        i4 = block0.emit(Cast, '$cast', [i3], SmallFixedBitVector(64), '`26 426:31-426:71', 'zhtif_exit_code')
+        block0.next = Return(i4, None)
+        graph = Graph('zcreg2reg_idx', [arg], block0)
+        simplify(graph, fakecodegen)
+        res = print_graph_construction(graph)
+        assert "\n".join(res) == """\
+arg = Argument('arg', SmallFixedBitVector(64))
+block0 = Block()
+i1 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [arg, MachineIntConstant(47), MachineIntConstant(0)], SmallFixedBitVector(48), '`3484', 'zz44')
+i2 = block0.emit(Operation, '@zero_extend_bv_i_i', [i1, MachineIntConstant(48), MachineIntConstant(64)], SmallFixedBitVector(64), '`26 426:31-426:66', 'zz449')
+i3 = block0.emit(Operation, '%s_bv_i', [i2, MachineIntConstant(64), MachineIntConstant(1)], SmallFixedBitVector(64), '`26 426:31-426:71', 'zz445')
+block0.next = Return(i3, None)
+graph = Graph('zcreg2reg_idx', [arg], block0)""" % (kind[:-4], )

@@ -224,9 +224,16 @@ def shiftl_bv_i(machine, a, width, i):
 def shiftr(machine, gbv, i):
     return gbv.rshift(i)
 
+def shiftr_bv_i(machine, a, width, i):
+    return _mask(width, a >> i)
+
 @unwrap("o i")
 def arith_shiftr(machine, gbv, i):
     return gbv.arith_rshift(i)
+
+def arith_shiftr_bv_i(machine, a, width, i):
+    signed = signed_bv(machine, a, width)
+    return _mask(width, r_uint(signed >> i))
 
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)

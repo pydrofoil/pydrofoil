@@ -146,7 +146,10 @@ class CodeEmitter(object):
     def emit_op_GlobalWrite(self, op):
         target = self.codegen.getinfo(op.name).write_pyname
         value = self._get_arg(op.args[0])
-        self.codegen.emit("%s = %s" % (target, value))
+        if "%" not in target:
+            self.codegen.emit("%s = %s" % (target, value))
+        else:
+            self.codegen.emit(target % (value, ))
 
     def emit_op_UnionVariantCheck(self, op):
         clsname = self.codegen.getname(op.name)

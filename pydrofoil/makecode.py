@@ -487,25 +487,13 @@ class __extend__(parse.Function):
         from pydrofoil.ir import construct_ir
         from pydrofoil.emitfunction import emit_function_code
         from pydrofoil import optimize
-        graph = construct_ir(self, codegen)
-        #vbefore = CollectSourceVisitor()
-        #vbefore.visit(self)
         pyname = codegen.getname(self.name)
         assert pyname.startswith("func_")
         #if codegen.globalnames[self.name].pyname is not None:
         #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
         #    return
         self.pyname = pyname
-        inlinable = len(list(graph.iterblocks())) == 1 and len(graph.startblock.operations) <= 40
         typ = codegen.globalnames[self.name].ast.typ
-        #vafter = CollectSourceVisitor()
-        #for pc, block in blocks.iteritems():
-        #    for op in block:
-        #        vafter.visit(op)
-        #if vafter.seen != vbefore.seen:
-        #    import pdb; pdb.set_trace()
-        if inlinable:
-            codegen.inlinable_functions[self.name] = graph
         blocks = self._prepare_blocks()
         if self.detect_union_switch(blocks[0]):
             print "making method!", self.name
@@ -521,6 +509,11 @@ class __extend__(parse.Function):
                 return
             except optimize.CantSplitError:
                 print "didn't manage"
+
+        graph = construct_ir(self, codegen)
+        inlinable = len(list(graph.iterblocks())) == 1 and len(graph.startblock.operations) <= 40
+        if inlinable:
+            codegen.inlinable_functions[self.name] = graph
 
         with self._scope(codegen, pyname):
             emit_function_code(graph, self, codegen)
@@ -694,10 +687,8 @@ class __extend__(parse.Function):
         args = self.args
         prev_extra_args = []
         startpc = 0
-        if "zis_CSR_defined" in self.name:
-            import pdb;pdb.set_trace()
-        while len(blocks) > 30: # 150 / 120
-            g1, g2, transferpc = optimize.split_graph(blocks, 20, start_node=startpc)
+        while len(blocks) > 150: # 150 / 120
+            g1, g2, transferpc = optimize.split_graph(blocks, 120, start_node=startpc)
             print "previous size", len(blocks), "afterwards:", len(g1), len(g2)
             # compute the local variables that are declared in g1 and used in g2,
             # they become extra arguments
@@ -719,14 +710,14 @@ class __extend__(parse.Function):
             # which variables are declared in g1, and also assigned to in g2,
             # but aren't arguments?
             need_declaration = assignment_targets.intersection(declared_variables_g1) - set(args) - set(extra_args_names)
-            assert not need_declaration
+            if need_declaration:
+                raise optimize.CantSplitError
             # make a copy to not mutate blocks
             #transferstartblock = g2[transferpc] = g2[transferpc][:]
             #for declvar in need_declaration:
             #    transferstartblock.insert(0, declared_variables_g1[declvar])
             callargs = args + extra_args_names
             next_func_name = self.pyname + "_next_" + str(transferpc)
-            #next_call = "return %s(machine, %s)" % (next_func_name, ", ".join(callargs))
             g1[transferpc] = [parse.Operation("return", next_func_name, [parse.Var(name) for name in callargs]),
                               parse.End()]
             functyp = codegen.globalnames[self.name].typ

@@ -241,14 +241,6 @@ class OptVisitor(parse.Visitor):
         ):
             return cast.expr
 
-    def _make_int64_to_int(self, expr, sourcepos=None):
-        return parse.OperationExpr(
-            "zz5i64zDzKz5i", # int64_to_int
-            [expr],
-            types.Int(),
-            sourcepos,
-        )
-
     def visit_OperationExpr(self, expr):
         assert expr.resolved_type is not None
         name = self._builtinname(expr.name)
@@ -283,13 +275,6 @@ class OptVisitor(parse.Visitor):
         restypnew = getattr(res, 'resolved_type', None)
         assert restypold is restypnew or restypold is types.MachineInt() and isinstance(res, parse.Number)
         return res
-
-    def _convert_to_machineint(self, arg):
-        try:
-            return self._extract_machineint(arg)
-        except NoMatchException:
-            # call int_to_int64
-            return parse.OperationExpr("zz5izDzKz5i64", [arg], types.MachineInt())
 
     def visit_Operation(self, operation):
         assert operation.resolved_type is not None
@@ -340,7 +325,6 @@ class OptVisitor(parse.Visitor):
     def _gettyp(self, expr):
         assert expr.resolved_type is not None
         return expr.resolved_type
-
 
     def optimize_vector_update_subrange_o_i_i_o(self, expr):
         arg0, arg1, arg2, arg3 = expr.args

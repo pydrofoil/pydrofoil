@@ -161,7 +161,7 @@ def test_int_and_back():
 block0 = Block()
 block0.next = Return(MachineIntConstant(15), None)
 graph = Graph('f', [], block0)"""
- 
+
 def test_eq_int():
     zr = Argument('zr', MachineInt())
     block0 = Block()
@@ -198,3 +198,22 @@ i1 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [zargz3, MachineInt
 block0.next = Return(i1, None)
 graph = Graph('f', [zargz3], block0)"""
 
+def test_vector_update_subrange():
+    zv = Argument('zv', SmallFixedBitVector(64))
+    zx = Argument('zx', SmallFixedBitVector(1))
+    block0 = Block()
+    i3 = block0.emit(Cast, '$cast', [zv], GenericBitVector(), '`509', 'zz45')
+    i4 = block0.emit(Cast, '$cast', [zx], GenericBitVector(), '`511', 'zz46')
+    i5 = block0.emit(Operation, '@vector_update_subrange_o_i_i_o', [i3, MachineIntConstant(0), MachineIntConstant(0), i4], GenericBitVector(), '`513', 'zz47')
+    i6 = block0.emit(Cast, '$cast', [i5], SmallFixedBitVector(64), '`514', 'zz40')
+    block0.next = Return(i6, None)
+    graph = Graph('update', [zv, zx], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+zv = Argument('zv', SmallFixedBitVector(64))
+zx = Argument('zx', SmallFixedBitVector(1))
+block0 = Block()
+i2 = block0.emit(Operation, '@vector_update_subrange_fixed_bv_i_i_bv', [zv, MachineIntConstant(0), MachineIntConstant(0), zx], SmallFixedBitVector(64), '`513', 'zz47')
+block0.next = Return(i2, None)
+graph = Graph('update', [zv, zx], block0)"""

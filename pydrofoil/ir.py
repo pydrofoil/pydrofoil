@@ -26,7 +26,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # start optimization: outriscv.py is 247000 loc
 # 139 kloc
 
-# outarm.py is 4974 kloc
+# outarm.py is 4067 kloc
 
 
 def construct_ir(functionast, codegen, singleblock=False):

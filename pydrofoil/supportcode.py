@@ -42,6 +42,9 @@ def unwrap(spec):
         wrappedfunc.__dict__.update(func.__dict__)
         unwrapped_name = func.func_name + "_" + "_".join(argspecs)
         globals()[unwrapped_name] = func
+        if func.func_name in purefunctions:
+            purefunctions[func.func_name] = wrappedfunc
+            purefunctions[unwrapped_name] = func
         wrappedfunc.func_name += "_" + func.func_name
         all_unwraps[func.func_name] = (argspecs, unwrapped_name)
         return wrappedfunc
@@ -361,6 +364,7 @@ def ones(machine, num):
         return bitvector.from_bigint(num, rbigint.fromint(-1))
 
 @unwrap("i")
+@purefunction
 def undefined_bitvector(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 
@@ -505,7 +509,7 @@ def int64_to_int(machine, i):
 def string_to_int(machine, s):
     return Integer.fromstr(s)
 
-
+@purefunction
 def undefined_int(machine, _):
     return Integer.fromint(0)
 
@@ -601,6 +605,7 @@ def print_real(machine, s, r):
 def to_real(machine, i):
     return Real(i.tobigint(), ONERBIGINT, normalized=True)
 
+@purefunction
 def undefined_real(machine, _):
     return Real.fromint(12, 19)
 
@@ -629,9 +634,11 @@ def sail_putchar(machine, i):
     os.write(STDOUT, chr(i.toint() & 0xff))
     return ()
 
+@purefunction
 def undefined_bool(machine, _):
     return False
 
+@purefunction
 def undefined_unit(machine, _):
     return ()
 

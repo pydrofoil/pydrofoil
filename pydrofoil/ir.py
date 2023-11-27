@@ -23,7 +23,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 #   - all the bitvector and integer optimizations
 
 # @neq(X, Y) -> @not(@eq(X, Y))
-# eq_bits(cast(Op1, gbv), cast(Op2, gbv)) -> eq_bits_bv_bv(Op1, Op2, 
 
 # start optimization: outriscv.py is 247000 loc
 # 135 kloc
@@ -1249,3 +1248,16 @@ class LocalOptimizer(object):
             types.GenericBitVector()
         )
 
+    def optimize_vector_access_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        if isinstance(arg0.resolved_type, types.Vec):
+            return
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        arg1 = self._extract_machineint(arg1)
+        return self.newop(
+            "@vector_access_bv_i",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )

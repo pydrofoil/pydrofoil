@@ -217,3 +217,19 @@ block0 = Block()
 i2 = block0.emit(Operation, '@vector_update_subrange_fixed_bv_i_i_bv', [zv, MachineIntConstant(0), MachineIntConstant(0), zx], SmallFixedBitVector(64), '`513', 'zz47')
 block0.next = Return(i2, None)
 graph = Graph('update', [zv, zx], block0)"""
+
+def test_vector_access():
+    zx = Argument('zx', SmallFixedBitVector(8))
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [zx], GenericBitVector(), '`35 86:29-86:33', 'zz48')
+    i2 = block0.emit(Operation, '@vector_access_o_i', [i1, MachineIntConstant(7)], Bit(), '`35 86:29-86:33', 'zz46')
+    block0.next = Return(i2)
+    graph = Graph('update', [zx], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+zx = Argument('zx', SmallFixedBitVector(8))
+block0 = Block()
+i1 = block0.emit(Operation, '@vector_access_bv_i', [zx, MachineIntConstant(7)], Bit(), '`35 86:29-86:33', 'zz46')
+block0.next = Return(i1, None)
+graph = Graph('update', [zx], block0)"""

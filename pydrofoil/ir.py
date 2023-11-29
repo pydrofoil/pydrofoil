@@ -7,13 +7,11 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # TODOS:
 # - enum reads as constants
+# - lets as constants?
 # - remove useless phis
 # - remove the typ argument of side-effecting ops
 # - vector_update_inplace
 
-# - empty blocks removal (careful with critical edges)
-# - constants
-# - split huge functions
 # - start porting optimizations
 #   - nested operations
 #   - cached boxed constants

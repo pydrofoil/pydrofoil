@@ -708,6 +708,8 @@ class __extend__(parse.Function):
                 needed_args.update(op.find_used_vars())
                 if isinstance(op, parse.Assignment):
                     assignment_targets.add(op.result)
+                if isinstance(op, parse.Operation):
+                    assignment_targets.add(op.result)
             extra_args_names = sorted(needed_args.intersection(declared_variables_g1))
             extra_args = [(name, declared_variables_g1[name]) for name in extra_args_names]
 

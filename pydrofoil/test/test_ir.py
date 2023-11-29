@@ -398,3 +398,19 @@ block0 = Block()
 i1 = block0.emit(Operation, '@zero_extend_o_i_unwrapped_res', [value, MachineIntConstant(64)], SmallFixedBitVector(64), '`5 234:29-234:46', 'return')
 block0.next = Return(i1, None)
 graph = Graph('f', [value], block0)"""
+
+def test_sign_extend_unwrapped_res():
+    value = Argument('value', GenericBitVector())
+    block0 = Block()
+    i0 = block0.emit(Operation, '@sign_extend_o_i', [value, MachineIntConstant(64)], GenericBitVector(), '`5 234:29-234:46', 'return')
+    i1 = block0.emit(Cast, '$cast', [i0], SmallFixedBitVector(64), '`7 3419:16-3419:38', 'zz42')
+    block0.next = Return(i1, None)
+    graph = Graph('f', [value], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+value = Argument('value', GenericBitVector())
+block0 = Block()
+i1 = block0.emit(Operation, '@sign_extend_o_i_unwrapped_res', [value, MachineIntConstant(64)], SmallFixedBitVector(64), '`5 234:29-234:46', 'return')
+block0.next = Return(i1, None)
+graph = Graph('f', [value], block0)"""

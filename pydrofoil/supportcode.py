@@ -158,6 +158,11 @@ def sign_extend_bv_i_i(machine, bv, width, targetwidth):
     m = r_uint(1) << (width - 1)
     return _mask(targetwidth, (bv ^ m) - m)
 
+def sign_extend_o_i_unwrapped_res(machine, bv, size):
+    assert size <= 64
+    assert isinstance(bv, bitvector.SmallBitVector)
+    return sign_extend_bv_i_i(machine, bv.touint(), bv.size(), size)
+
 @unwrap("o i")
 @objectmodel.always_inline
 def zero_extend(machine, gbv, size):

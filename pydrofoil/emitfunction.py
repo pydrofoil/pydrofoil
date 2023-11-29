@@ -175,8 +175,19 @@ class CodeEmitter(object):
     def emit_op_Cast(self, op):
         fromtyp = op.args[0].resolved_type
         totyp = op.resolved_type
-        arg = self._get_arg(op.args[0])
-        self._op_helper(op, pair(fromtyp, totyp).convert(arg, self.codegen))
+        if (isinstance(fromtyp, types.SmallFixedBitVector) and totyp is
+            types.GenericBitVector() and
+            isinstance(op.args[0], ir.SmallBitVectorConstant)
+        ):
+            name = "bitvectorconstant%s" % op.args[0].value
+            with self.codegen.cached_declaration(fromtyp, name) as arg:
+                self.codegen.emit("%s = bitvector.from_ruint(%s, r_uint(%s))" % (
+                    arg, fromtyp.width, op.args[0].value))
+
+        else:
+            arg = self._get_arg(op.args[0])
+            arg = pair(fromtyp, totyp).convert(arg, self.codegen)
+        self._op_helper(op, arg)
 
     def emit_op_FieldAccess(self, op):
         return self._op_helper(op, "%s.%s" % (self._get_arg(op.args[0]), op.name))

@@ -167,6 +167,11 @@ def zero_extend(machine, gbv, size):
 def zero_extend_bv_i_i(machine, bv, width, targetwidth):
     return bv # XXX correct?
 
+def zero_extend_o_i_unwrapped_res(machine, bv, size):
+    assert size <= 64
+    assert isinstance(bv, bitvector.SmallBitVector)
+    return bv.touint()
+
 @purefunction
 def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)

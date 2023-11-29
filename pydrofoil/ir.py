@@ -1598,10 +1598,28 @@ class LocalOptimizer(object):
 
     def optimize_zero_extend_o_i(self, op):
         arg0, arg1 = self._args(op)
-        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1 = self._extract_number(arg1)
         if arg1.number > 64:
             return
+        return self.newcast(
+            self.newop(
+                "@zero_extend_o_i_unwrapped_res",
+                [arg0, arg1],
+                types.SmallFixedBitVector(arg1.number),
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type,
+        )
+
+    def optimize_zero_extend_o_i_unwrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        arg1 = self._extract_number(arg1)
+        assert arg1.number <= 64
+        try:
+            arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        except NoMatchException:
+            raise
         if typ0.width == arg1.number:
             res = arg0
         else:

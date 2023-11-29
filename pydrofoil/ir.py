@@ -18,9 +18,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 #   - nested operations
 #   - cached boxed constants
 #   - neq -> not eq
-#   - all the bitvector and integer optimizations
 
-# @neq(X, Y) -> @not(@eq(X, Y))
 
 
 # start optimization: outriscv.py is 247000 loc
@@ -1285,6 +1283,42 @@ class LocalOptimizer(object):
         return self.newop(
             "@eq", [arg0, arg1], op.resolved_type, op.sourcepos, op.varname_hint
         )
+
+    def optimize_lt(self, op):
+        arg0, arg1 = self._args(op)
+        if arg0.resolved_type is not types.Int():
+            return
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
+        return self.newop("@lt", [arg0, arg1], op.resolved_type, op.sourcepos,
+                          op.varname_hint)
+
+    def optimize_gt(self, op):
+        arg0, arg1 = self._args(op)
+        if arg0.resolved_type is not types.Int():
+            return
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
+        return self.newop("@gt", [arg0, arg1], op.resolved_type, op.sourcepos,
+                          op.varname_hint)
+
+    def optimize_lteq(self, op):
+        arg0, arg1 = self._args(op)
+        if arg0.resolved_type is not types.Int():
+            return
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
+        return self.newop("@lteq", [arg0, arg1], op.resolved_type, op.sourcepos,
+                          op.varname_hint)
+
+    def optimize_gteq(self, op):
+        arg0, arg1 = self._args(op)
+        if arg0.resolved_type is not types.Int():
+            return
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
+        return self.newop("@gteq", [arg0, arg1], op.resolved_type, op.sourcepos,
+                          op.varname_hint)
 
     def optimize_vector_subrange_o_i_i(self, op):
         arg0, arg1, arg2 = self._args(op)

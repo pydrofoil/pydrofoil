@@ -334,3 +334,26 @@ i2 = block0.emit(Operation, '@zero_extend_bv_i_i', [i1, MachineIntConstant(48), 
 i3 = block0.emit(Operation, '%s_bv_i', [i2, MachineIntConstant(64), MachineIntConstant(1)], SmallFixedBitVector(64), '`26 426:31-426:71', 'zz445')
 block0.next = Return(i3, None)
 graph = Graph('zcreg2reg_idx', [arg], block0)""" % (kind[:-4], )
+
+def test_int_cmp():
+    a1 = Argument('i', SmallFixedBitVector(52))
+    a2 = Argument('i', SmallFixedBitVector(52))
+    block0 = Block()
+    i1 = block0.emit(Operation, '@unsigned_bv', [a1, MachineIntConstant(52)], MachineInt(), '`41 263:11-263:24', 'zz429')
+    i2 = block0.emit(Operation, '@unsigned_bv', [a2, MachineIntConstant(52)], MachineInt(), '`41 263:29-263:42', 'zz427')
+    i3 = block0.emit(Operation, 'zz5i64zDzKz5i', [i1], Int(), '`41 263:11-263:42', 'zz424')
+    i4 = block0.emit(Operation, 'zz5i64zDzKz5i', [i2], Int(), '`41 263:11-263:42', 'zz425')
+    i5 = block0.emit(Operation, 'lt', [i3, i4], Bool(), '`41 263:11-263:42', 'zz412')
+    block0.next = Return(i5, None)
+    graph = Graph('f', [a1, a2], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+i = Argument('i', SmallFixedBitVector(52))
+i = Argument('i', SmallFixedBitVector(52))
+block0 = Block()
+i2 = block0.emit(Operation, '@unsigned_bv', [i, MachineIntConstant(52)], MachineInt(), '`41 263:11-263:24', 'zz429')
+i3 = block0.emit(Operation, '@unsigned_bv', [i, MachineIntConstant(52)], MachineInt(), '`41 263:29-263:42', 'zz427')
+i4 = block0.emit(Operation, '@lt', [i2, i3], Bool(), '`41 263:11-263:42', 'zz412')
+block0.next = Return(i4, None)
+graph = Graph('f', [i, i], block0)"""

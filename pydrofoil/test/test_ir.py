@@ -357,3 +357,28 @@ i3 = block0.emit(Operation, '@unsigned_bv', [i, MachineIntConstant(52)], Machine
 i4 = block0.emit(Operation, '@lt', [i2, i3], Bool(), '`41 263:11-263:42', 'zz412')
 block0.next = Return(i4, None)
 graph = Graph('f', [i, i], block0)"""
+
+
+def test_set_slice():
+    zval_name = Argument('zval_name', SmallFixedBitVector(64))
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [zval_name], GenericBitVector(), '`7 47:10-47:38', 'zz419')
+    i2 = block0.emit(Cast, '$cast', [SmallBitVectorConstant(0b00000, SmallFixedBitVector(5))], GenericBitVector(), '`7 47:10-47:38', 'zz420')
+    i3 = block0.emit(Operation, '@set_slice_i_i_o_i_o', [MachineIntConstant(64), MachineIntConstant(5), i1, MachineIntConstant(3), i2], GenericBitVector(), '`7 47:10-47:38', 'zz421')
+    i4 = block0.emit(Cast, '$cast', [SmallBitVectorConstant(0b0, SmallFixedBitVector(1))], GenericBitVector(), '`7 48:10-48:35', 'zz413')
+    i5 = block0.emit(Operation, '@set_slice_i_i_o_i_o', [MachineIntConstant(64), MachineIntConstant(1), i3, MachineIntConstant(14), i4], GenericBitVector(), '`7 48:10-48:35', 'zz414')
+    i6 = block0.emit(Cast, '$cast', [SmallBitVectorConstant(0b0000000000000000000000000000000000000, SmallFixedBitVector(37))], GenericBitVector(), '`7 49:10-49:72', 'zz46')
+    i7 = block0.emit(Operation, '@set_slice_i_i_o_i_o', [MachineIntConstant(64), MachineIntConstant(37), i5, MachineIntConstant(27), i6], GenericBitVector(), '`7 49:10-49:72', 'zz47')
+    i8 = block0.emit(Cast, '$cast', [i7], SmallFixedBitVector(64), '`7 49:10-49:72', 'zz40')
+    block0.next = Return(i8, None)
+    graph = Graph('z__get_FPCR', [zval_name], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+zval_name = Argument('zval_name', SmallFixedBitVector(64))
+block0 = Block()
+i1 = block0.emit(Operation, '@vector_update_subrange_fixed_bv_i_i_bv', [zval_name, MachineIntConstant(7), MachineIntConstant(3), SmallBitVectorConstant(0, SmallFixedBitVector(5))], SmallFixedBitVector(64), '`7 47:10-47:38', 'zz421')
+i2 = block0.emit(Operation, '@vector_update_subrange_fixed_bv_i_i_bv', [i1, MachineIntConstant(14), MachineIntConstant(14), SmallBitVectorConstant(0, SmallFixedBitVector(1))], SmallFixedBitVector(64), '`7 48:10-48:35', 'zz414')
+i3 = block0.emit(Operation, '@vector_update_subrange_fixed_bv_i_i_bv', [i2, MachineIntConstant(63), MachineIntConstant(27), SmallBitVectorConstant(0, SmallFixedBitVector(37))], SmallFixedBitVector(64), '`7 49:10-49:72', 'zz47')
+block0.next = Return(i3, None)
+graph = Graph('z__get_FPCR', [zval_name], block0)"""

@@ -1107,7 +1107,7 @@ class LocalOptimizer(object):
             while 1:
                 changed = self.graph.replace_ops(self.replacements)
                 if not changed:
-                    return True
+                    break
             self.graph.check()
             return True
         return False
@@ -1353,30 +1353,6 @@ class LocalOptimizer(object):
             op.resolved_type,
         )
 
-    def optimize_vector_update_subrange_o_i_i_o(self, op):
-        arg0, arg1, arg2, arg3 = self._args(op)
-
-        arg1 = self._extract_number(arg1)
-        arg2 = self._extract_number(arg2)
-        width = arg1.number - arg2.number + 1
-        if width > 64:
-            return
-
-        assert op.resolved_type is types.GenericBitVector()
-        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg3, typ3 = self._extract_smallfixedbitvector(arg3)
-        assert 0 <= arg2.number <= arg2.number < typ0.width
-        assert typ3.width == width
-        res = self.newop(
-            "@vector_update_subrange_fixed_bv_i_i_bv",
-            [arg0, arg1, arg2, arg3],
-            typ0, op.sourcepos, op.varname_hint,
-        )
-        return self.newcast(
-            res,
-            types.GenericBitVector()
-        )
-
     def optimize_vector_access_o_i(self, op):
         arg0, arg1 = self._args(op)
         if isinstance(arg0.resolved_type, types.Vec):
@@ -1558,6 +1534,18 @@ class LocalOptimizer(object):
         return self.newcast(
             res,
             op.resolved_type,
+        )
+
+    def optimize_set_slice_i_i_o_i_o(self, op):
+        arg0, arg1, arg2, arg3, arg4 = self._args(op)
+        start = self._extract_number(arg3)
+        _, typ = self._extract_smallfixedbitvector(arg4)
+        return self.newop(
+            "@vector_update_subrange_o_i_i_o",
+            [arg2, MachineIntConstant(start.number + typ.width - 1), start, arg4],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
         )
 
     def optimize_zeros_i(self, op):

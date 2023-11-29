@@ -325,7 +325,7 @@ def slice(machine, bv, start, length):
 def vector_slice_o_i_i_unwrapped_res(machine, bv, start, length):
     return bv.subrange_unwrapped_res(start + length - 1, start)
 
-@unwrap("o o o i o")
+@unwrap("i i o i o")
 @objectmodel.specialize.argtype(3)
 def set_slice(machine, _len, _slen, bv, start, bv_new):
     return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)

@@ -30,6 +30,7 @@ class CodeEmitter(object):
 
     def emit(self):
         codegen = self.codegen
+        codegen.emit("# return type %s" % (getattr(self.functionast.resolved_type, 'restype', 'unit'), ))
         for comment in self.graph_construction_code:
             codegen.emit("# " + comment)
         if len(self.blocks) == 1:

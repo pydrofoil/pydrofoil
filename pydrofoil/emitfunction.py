@@ -75,6 +75,13 @@ class CodeEmitter(object):
             return str(value.value)
         if isinstance(value, ir.MachineIntConstant):
             return str(value.number)
+        if isinstance(value, ir.IntConstant):
+            s = str(value.number)
+            name = "smallintconst%s" % s
+            name = name.replace("-", "_minus_")
+            with self.codegen.cached_declaration(s, name) as pyname:
+                self.codegen.emit("%s = bitvector.SmallInteger(%s)" % (pyname, s))
+            return pyname
         if isinstance(value, ir.SmallBitVectorConstant):
             return "r_uint(%s)" % (value.value, )
         if isinstance(value, ir.AstConstant):

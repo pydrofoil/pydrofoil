@@ -778,6 +778,18 @@ class MachineIntConstant(Constant):
         return "MachineIntConstant(%r)" % (self.number, )
 
 
+class IntConstant(Constant):
+    resolved_type = types.Int()
+    def __init__(self, number):
+        self.number = number
+
+    def _repr(self, print_varnames):
+        return repr(self)
+
+    def __repr__(self):
+        return "IntConstant(%r)" % (self.number, )
+
+
 class SmallBitVectorConstant(Constant):
     def __init__(self, value, resolved_type):
         self.value = value
@@ -1200,6 +1212,9 @@ class LocalOptimizer(object):
     def _extract_machineint(self, arg):
         if arg.resolved_type is types.MachineInt():
             return arg
+        if isinstance(arg, IntConstant):
+            if isinstance(arg.number, int):
+                return MachineIntConstant(arg.number)
         if (
             not isinstance(arg, Operation)
             or self._builtinname(arg.name) != "int64_to_int"
@@ -1236,6 +1251,8 @@ class LocalOptimizer(object):
 
     def optimize_int64_to_int(self, op):
         (arg0,) = self._args(op)
+        if isinstance(arg0, MachineIntConstant):
+            return IntConstant(arg0.number)
         if (
             not isinstance(arg0, Operation)
             or self._builtinname(arg0.name) != "int_to_int64"
@@ -1245,6 +1262,9 @@ class LocalOptimizer(object):
 
     def optimize_int_to_int64(self, op):
         (arg0,) = self._args(op)
+        if isinstance(arg0, IntConstant):
+            assert isinstance(arg0.number, int)
+            return MachineIntConstant(arg0.number)
         if (
             not isinstance(arg0, Operation)
             or self._builtinname(arg0.name) != "int64_to_int"

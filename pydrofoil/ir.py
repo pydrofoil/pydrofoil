@@ -1765,34 +1765,6 @@ class LocalOptimizer(object):
 
     def optimize_sub_int(self, op):
         arg0, arg1 = self._args(op)
-        try:
-            num1 = self._extract_number(arg1)
-        except NoMatchException:
-            pass
-        else:
-            if num1.number == 0:
-                return arg0
-            try:
-                num0 = self._extract_number(arg0)
-            except NoMatchException:
-                pass
-            else:
-                # can const-fold
-                res = num0.number - num1.number
-                if isinstance(res, int): # no overflow
-                    return self._make_int64_to_int(MachineIntConstant(res), op.sourcepos)
-        arg0 = self._extract_machineint(arg0)
-        arg1 = self._extract_machineint(arg1)
-        return self.newop(
-            "@sub_i_i_wrapped_res",
-            [arg0, arg1],
-            op.resolved_type,
-            op.sourcepos,
-            op.varname_hint,
-        )
-
-    def optimize_sub_int(self, op):
-        arg0, arg1 = self._args(op)
         arg1 = self._extract_machineint(arg1)
         return self.newop(
             "@sub_o_i_wrapped_res",
@@ -1835,6 +1807,23 @@ class LocalOptimizer(object):
         res = arg0.number - arg1.number
         if isinstance(res, int): # no overflow
             return self._make_int64_to_int(MachineIntConstant(res), op.sourcepos)
+
+    @symmetric
+    def optimize_mult_int(self, op, arg0, arg1):
+        arg0 = self._extract_number(arg0)
+        if arg0.number == 1:
+            return arg1
+        arg1 = self._extract_number(arg1)
+        res = arg0.number * arg1.number
+        if isinstance(res, int):
+            return IntConstant(res)
+
+    def optimize_neg_int(self, op):
+        arg0, = self._args(op)
+        arg0 = self._extract_number(arg0)
+        res = -arg0.number
+        if isinstance(res, int):
+            return IntConstant(res)
 
     def optimize_get_slice_int_i_o_i(self, op):
         arg0, arg1, arg2 = self._args(op)

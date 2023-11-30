@@ -12,15 +12,9 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # - start porting optimizations
 #   - nested operations
-#   - cached boxed constants
 #   - neq -> not eq
 
 
-
-# start optimization: outriscv.py is 247000 loc
-# 139 kloc
-
-# outarm.py is 4067 kloc
 
 
 def construct_ir(functionast, codegen, singleblock=False):

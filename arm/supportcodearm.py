@@ -91,7 +91,7 @@ def get_main(outarm):
     jit.unroll_safe(outarm.func_zexecute_aarch64_instrs_integer_arithmetic_rev)
 
     for name, func in outarm.__dict__.iteritems():
-        if "IMPDEF_boolean" in name:
+        if "IMPDEF" in name:
             func = objectmodel.specialize.arg(1)(func)
             objectmodel.always_inline(func)
 

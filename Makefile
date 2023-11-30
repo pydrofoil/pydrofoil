@@ -4,6 +4,7 @@ ALL: pydrofoil-riscv
 
 ## RISC-V targets:
 
+.PHONY: pydrofoil-riscv
 pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build the pydrofoil RISC-V emulator
 	pkg-config libffi # if this fails, libffi development headers arent installed
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
@@ -182,6 +183,7 @@ pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o: ## Build the
 
 ## ARM model targets
 
+.PHONY: pydrofoil-arm
 pydrofoil-arm: pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py
 

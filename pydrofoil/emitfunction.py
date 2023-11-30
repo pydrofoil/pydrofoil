@@ -216,8 +216,8 @@ class CodeEmitter(object):
         oftyp = op.resolved_type.typ
         res = self._get_print_varname(op)
         args = self._get_args(op.args)
-        # XXX slow but at least correct for now
-        self._op_helper(op, "supportcode.vector_update_inplace(machine, None, %s)" % (args, ))
+        # is optimized away in the common case
+        self._op_helper(op, "supportcode.vector_update_list(machine, %s)" % (args, ))
 
     # ________________________________________________
     # jumps etc

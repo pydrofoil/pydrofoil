@@ -44,7 +44,7 @@ class Codegen(object):
         self.add_global("@slice_fixed_bv_i_i", "supportcode.slice_fixed_bv_i_i")
         self.add_global("@vector_subrange_o_i_i_unwrapped_res", "supportcode.vector_subrange_o_i_i_unwrapped_res")
         self.add_global("@vector_slice_o_i_i_unwrapped_res", "supportcode.vector_slice_o_i_i_unwrapped_res")
-        self.add_global("@vector_update_inplace_o_i_o", "supportcode.vector_update_inplace_o_i_o")
+        self.add_global("@helper_vector_update_inplace_o_i_o", "supportcode.helper_vector_update_inplace_o_i_o")
         self.add_global("@eq_bits", "supportcode.eq_bits")
         self.add_global("@eq_bits_bv_bv", "supportcode.eq_bits_bv_bv")
         self.add_global("@neq_bits_bv_bv", "supportcode.neq_bits_bv_bv")
@@ -885,6 +885,7 @@ class __extend__(parse.Assignment):
         rhs = pair(othertyp, typ).convert(self.value, codegen)
         # hack to make array updates not do a copy
         if rhs.startswith("supportcode.helper_vector_update_list_o_i_o(machine, " + result):
+            import pdb;pdb.set_trace()
 
             assert rhs.endswith(")")
             rhs = rhs[:-1] + ", res=%s)" % (result, )

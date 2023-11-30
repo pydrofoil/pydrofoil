@@ -278,12 +278,6 @@ def append_64(machine, bv, v):
 def vector_update(machine, bv, index, element):
     return bv.update_bit(index, element)
 
-@objectmodel.specialize.argtype(1, 3)
-def vector_update_inplace_o_i_o(machine, vec, index, element):
-    if vec is None:
-        raise TypeError
-    vec[index] = element
-
 @unwrap("o i")
 def vector_access(machine, vec, index):
     return vec.read_bit(index)
@@ -658,10 +652,21 @@ def internal_pick(machine, lst):
 @objectmodel.specialize.argtype(2, 4)
 def vector_update_inplace(machine, res, l, index, element):
     # super weird, the C backend does the same
-    # XXX slow so far
     l = l[:]
     l[index] = element
     return l
+
+@objectmodel.specialize.argtype(1, 3)
+def vector_update_list(machine, l, index, element):
+    l = l[:]
+    l[index] = element
+    return l
+
+@objectmodel.specialize.argtype(1, 3)
+def helper_vector_update_inplace_o_i_o(machine, vec, index, element):
+    if vec is None:
+        raise TypeError
+    vec[index] = element
 
 @objectmodel.specialize.argtype(2)
 def undefined_vector(machine, size, element):

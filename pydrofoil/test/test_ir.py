@@ -432,6 +432,28 @@ index = Argument('index', MachineInt())
 block0 = Block()
 i1 = block0.emit(GlobalRead, 'z_R', [], FVec(31, SmallFixedBitVector(64)), None, None)
 i2 = block0.emit(Cast, '$cast', [i1], Vec(SmallFixedBitVector(64)), '`7 1087:12-1087:17', 'zz416')
-i3 = block0.emit(Operation, '@vector_update_inplace_o_i_o', [i2, index, SmallBitVectorConstant(1, SmallFixedBitVector(2))], Unit(), '`7 1087:12-1087:17', 'zz418')
+i3 = block0.emit(Operation, '@helper_vector_update_inplace_o_i_o', [i2, index, SmallBitVectorConstant(1, SmallFixedBitVector(2))], Unit(), '`7 1087:12-1087:17', 'zz418')
 block0.next = Return(None, None)
 graph = Graph('f', [index], block0)"""
+
+def test_fill_fresh_vector():
+    block0 = Block()
+    i1 = block0.emit(VectorInit, '$zinternal_vector_init', [MachineIntConstant(3)], Vec(MachineInt()), '`41 765:95-765:126', None)
+    i2 = block0.emit(VectorUpdate, '$zinternal_vector_update', [i1, MachineIntConstant(0), MachineIntConstant(5)], Vec(MachineInt()), None, None)
+    i3 = block0.emit(VectorUpdate, '$zinternal_vector_update', [i2, MachineIntConstant(1), MachineIntConstant(7)], Vec(MachineInt()), None, None)
+    i4 = block0.emit(VectorUpdate, '$zinternal_vector_update', [i3, MachineIntConstant(2), MachineIntConstant(9)], Vec(MachineInt()), None, None)
+    i5 = block0.emit(Operation, 'zvalidDoubleRegs', [IntConstant(3), i4], Bool(), '`41 765:95-765:126', 'zz46820')
+    block0.next = Return(i5, None)
+    graph = Graph('f', [], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+block0 = Block()
+i0 = block0.emit(VectorInit, '$zinternal_vector_init', [MachineIntConstant(3)], Vec(MachineInt()), '`41 765:95-765:126', None)
+i1 = block0.emit(Operation, '@helper_vector_update_inplace_o_i_o', [i0, MachineIntConstant(0), MachineIntConstant(5)], Unit(), None, None)
+i2 = block0.emit(Operation, '@helper_vector_update_inplace_o_i_o', [i0, MachineIntConstant(1), MachineIntConstant(7)], Unit(), None, None)
+i3 = block0.emit(Operation, '@helper_vector_update_inplace_o_i_o', [i0, MachineIntConstant(2), MachineIntConstant(9)], Unit(), None, None)
+i4 = block0.emit(Operation, 'zvalidDoubleRegs', [IntConstant(3), i0], Bool(), '`41 765:95-765:126', 'zz46820')
+block0.next = Return(i4, None)
+graph = Graph('f', [], block0)"""
+

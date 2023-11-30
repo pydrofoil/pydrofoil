@@ -10,7 +10,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - lets as constants?
 # - remove useless phis
 # - remove the typ argument of side-effecting ops
-# - vector_update_inplace
 
 # - start porting optimizations
 #   - nested operations
@@ -1226,9 +1225,21 @@ class LocalOptimizer(object):
             return
         # we read a list (from typically a register), update it, write it back.
         # that means we can do it inplace instead
-        update_op.name = "@vector_update_inplace_o_i_o"
+        update_op.name = "@helper_vector_update_inplace_o_i_o"
         update_op.resolved_type = types.Unit()
         return REMOVE # don't need the GlobalWrite any more
+
+    def _optimize_VectorUpdate(self, op, block, index):
+        update_list, index, element = self._args(op)
+        if not isinstance(update_list, VectorInit):
+            return
+        self.newop("@helper_vector_update_inplace_o_i_o",
+            [update_list, index, element],
+            types.Unit(),
+            op.sourcepos,
+            op.varname_hint,
+        )
+        return update_list # it's inplace, so the result is the same as the argument
 
     def _builtinname(self, name):
         return self.codegen.builtin_names.get(name, name)

@@ -414,3 +414,24 @@ block0 = Block()
 i1 = block0.emit(Operation, '@sign_extend_o_i_unwrapped_res', [value, MachineIntConstant(64)], SmallFixedBitVector(64), '`5 234:29-234:46', 'return')
 block0.next = Return(i1, None)
 graph = Graph('f', [value], block0)"""
+
+def test_vector_update_list():
+    index = Argument('index', MachineInt())
+    block0 = Block()
+    i6 = block0.emit(GlobalRead, 'z_R', [], FVec(31, SmallFixedBitVector(64)), None, None)
+    i7 = block0.emit(Cast, '$cast', [i6], Vec(SmallFixedBitVector(64)), '`7 1087:12-1087:17', 'zz416')
+    i8 = block0.emit(Operation, '@vector_update_o_i_o', [i7, index, SmallBitVectorConstant(0b01, SmallFixedBitVector(2))], Vec(SmallFixedBitVector(64)), '`7 1087:12-1087:17', 'zz418')
+    i9 = block0.emit(Cast, '$cast', [i8], FVec(31, SmallFixedBitVector(64)), '`7 1087:12-1087:17', 'z_R')
+    block0.emit(GlobalWrite, 'z_R', [i9], FVec(31, SmallFixedBitVector(64)), None, None)
+    block0.next = Return(None, None)
+    graph = Graph('f', [index], block0)
+    simplify(graph, fakecodegen)
+    res = print_graph_construction(graph)
+    assert "\n".join(res) == """\
+index = Argument('index', MachineInt())
+block0 = Block()
+i1 = block0.emit(GlobalRead, 'z_R', [], FVec(31, SmallFixedBitVector(64)), None, None)
+i2 = block0.emit(Cast, '$cast', [i1], Vec(SmallFixedBitVector(64)), '`7 1087:12-1087:17', 'zz416')
+i3 = block0.emit(Operation, '@vector_update_inplace_o_i_o', [i2, index, SmallBitVectorConstant(1, SmallFixedBitVector(2))], Unit(), '`7 1087:12-1087:17', 'zz418')
+block0.next = Return(None, None)
+graph = Graph('f', [index], block0)"""

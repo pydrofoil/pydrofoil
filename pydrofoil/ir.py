@@ -1090,6 +1090,7 @@ def symmetric(func):
         return func(self, op, arg1, arg0)
     return optimize
 
+REMOVE = "REMOVE"
 
 class LocalOptimizer(object):
     def __init__(self, graph, codegen):
@@ -1114,7 +1115,9 @@ class LocalOptimizer(object):
         self.newoperations = []
         for i, op in enumerate(block.operations):
             newop = self._optimize_op(block, i, op)
-            if newop is not None:
+            if newop is REMOVE:
+                pass
+            elif newop is not None:
                 assert op.resolved_type is newop.resolved_type
                 self.replacements[op] = newop
         block.operations = self.newoperations
@@ -1150,45 +1153,82 @@ class LocalOptimizer(object):
         return [self._get_op_replacement(value) for value in op.args]
 
     def _optimize_op(self, block, index, op):
-        if isinstance(op, Cast):
-            arg, = self._args(op)
-            if isinstance(arg, Cast):
-                arg2, = self._args(arg)
-                if arg2.resolved_type is op.resolved_type:
-                    block.operations[index] = None
-                    return arg2
-                return self.newcast(arg2, op.resolved_type, op.sourcepos, op.varname_hint)
-        elif type(op) is Operation:
-            name = self._builtinname(op.name)
-            if name in supportcode.all_unwraps:
-                specs, unwrapped_name = supportcode.all_unwraps[name]
-                # these are unconditional unwraps, just rewrite them right here
-                assert len(specs) == len(op.args)
-                newargs = []
-                for argspec, arg in zip(specs, self._args(op)):
-                    if argspec == "o":
-                        newargs.append(arg)
-                    elif argspec == "i":
-                        newargs.append(self._convert_to_machineint(arg))
-                    else:
-                        assert 0, "unknown spec"
-                return self.newop(
-                    "@" + unwrapped_name,
-                    newargs,
-                    op.resolved_type,
-                    op.sourcepos,
-                    op.varname_hint,
-                )
-            meth = getattr(self, "optimize_%s" % name.lstrip("@"), None)
-            if meth:
-                try:
-                    newop = meth(op)
-                except NoMatchException:
-                    pass
-                else:
-                    if newop is not None:
-                        return newop
+        meth = getattr(self, "_optimize_" + type(op).__name__, None)
+        if meth:
+            res = meth(op, block, index)
+            if res is not None:
+                return res
         self.newoperations.append(op)
+        return
+
+    def _optimize_Cast(self, op, block, index):
+        arg, = self._args(op)
+        if isinstance(arg, Cast):
+            arg2, = self._args(arg)
+            if arg2.resolved_type is op.resolved_type:
+                block.operations[index] = None
+                return arg2
+            return self.newcast(arg2, op.resolved_type, op.sourcepos, op.varname_hint)
+
+    def _optimize_Operation(self, op, block, index):
+        name = self._builtinname(op.name)
+        if name in supportcode.all_unwraps:
+            specs, unwrapped_name = supportcode.all_unwraps[name]
+            # these are unconditional unwraps, just rewrite them right here
+            assert len(specs) == len(op.args)
+            newargs = []
+            for argspec, arg in zip(specs, self._args(op)):
+                if argspec == "o":
+                    newargs.append(arg)
+                elif argspec == "i":
+                    newargs.append(self._convert_to_machineint(arg))
+                else:
+                    assert 0, "unknown spec"
+            return self.newop(
+                "@" + unwrapped_name,
+                newargs,
+                op.resolved_type,
+                op.sourcepos,
+                op.varname_hint,
+            )
+        meth = getattr(self, "optimize_%s" % name.lstrip("@"), None)
+        if meth:
+            try:
+                newop = meth(op)
+            except NoMatchException:
+                pass
+            else:
+                if newop is not None:
+                    return newop
+
+    def _optimize_GlobalWrite(self, op, block, index):
+        arg, = self._args(op)
+        # annoying pattern matching
+        if not isinstance(arg, Cast):
+            return
+        update_op, = self._args(arg)
+        if not isinstance(update_op, Operation):
+            return
+        if not update_op.name == "@vector_update_o_i_o":
+            return
+        update_list, index, element = self._args(update_op)
+        if update_list.resolved_type is types.GenericBitVector():
+            return
+        if not isinstance(update_list, Cast):
+            import pdb;pdb.set_trace()
+            return
+        update_list_cast, = self._args(update_list)
+        if not isinstance(update_list_cast, GlobalRead):
+            import pdb;pdb.set_trace()
+            return
+        if update_list_cast.name != op.name:
+            import pdb;pdb.set_trace()
+            return
+        # we read a list (from typically a register), update it, write it back.
+        # that means we can do it inplace instead
+        update_op.name = "@vector_update_inplace_o_i_o"
+        update_op.resolved_type = types.Unit()
+        return REMOVE # don't need the GlobalWrite any more
 
     def _builtinname(self, name):
         return self.codegen.builtin_names.get(name, name)

@@ -279,15 +279,10 @@ def vector_update(machine, bv, index, element):
     return bv.update_bit(index, element)
 
 @objectmodel.specialize.argtype(1, 3)
-def helper_vector_update_list_o_i_o(machine, vec, index, element, res=None):
+def vector_update_inplace_o_i_o(machine, vec, index, element):
     if vec is None:
         raise TypeError
-    if res is None:
-        res = vec[:]
-    else:
-        assert res is vec
-    res[index] = element
-    return res
+    vec[index] = element
 
 @unwrap("o i")
 def vector_access(machine, vec, index):

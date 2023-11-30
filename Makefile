@@ -183,6 +183,10 @@ pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o: ## Build the
 
 ## ARM model targets
 
+.PHONY: pydrofoil-arm-test
+pydrofoil-test-arm: pypy/rpython/bin/rpython pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## Run the ARM emulator unit tests
+	PYTHONPATH=. ./pypy_binary/bin/python pypy/pytest.py -v arm/
+
 .PHONY: pydrofoil-arm
 pydrofoil-arm: pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py
@@ -191,7 +195,7 @@ sail-arm/arm-v9.3-a/src/v8_base.sail: ## Clone the sail-arm submodule
 	git submodule update --init --depth 1
 
 .PHONY: regen-arm-ir-files
-regen-arm-ir-files: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build arm IR
+regen-arm-ir-files: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build ARM IR
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.3-a/ gen_ir
 	mv sail-arm/arm-v9.3-a/ir/armv9.ir arm/
 

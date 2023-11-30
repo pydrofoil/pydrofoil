@@ -1050,7 +1050,8 @@ class ObjectBase(object):
     _attrs_ = []
 
 class LetsBase(object):
-    _attrs_ = []
+    def _freeze_(self):
+        return True
 
 class Globals(object):
     _immutable_fields_ = ['mem']

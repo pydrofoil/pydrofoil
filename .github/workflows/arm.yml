@@ -49,6 +49,9 @@ jobs:
         path: arm/armv9.ir
         key: ${{ steps.cache-ir-restore.outputs.cache-primary-key }}
 
+    - name: Run ARM unit test
+      run: |
+        make pydrofoil-test-arm
 
     - name: build ARM
       run: |

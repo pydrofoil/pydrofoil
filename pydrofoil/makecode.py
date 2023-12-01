@@ -490,7 +490,7 @@ def iterblockops(blocks):
 
 class __extend__(parse.Function):
     def make_code(self, codegen):
-        from pydrofoil.ir import construct_ir
+        from pydrofoil.ir import construct_ir, should_inline
         from pydrofoil.emitfunction import emit_function_code
         from pydrofoil import optimize
         pyname = codegen.getname(self.name)
@@ -517,7 +517,7 @@ class __extend__(parse.Function):
                 print "didn't manage"
 
         graph = construct_ir(self, codegen)
-        inlinable = len(list(graph.iterblocks())) == 1 and len(graph.startblock.operations) <= 40
+        inlinable = should_inline(graph)
         if inlinable:
             codegen.inlinable_functions[self.name] = graph
 

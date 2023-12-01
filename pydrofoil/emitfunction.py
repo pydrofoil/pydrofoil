@@ -53,7 +53,6 @@ class CodeEmitter(object):
         self.emitted.add(block)
         codegen = self.codegen
         for i, op in enumerate(block.operations):
-            assert not isinstance(op, ir.Phi) # should have been removed
             getattr(self, "emit_op_" + op.__class__.__name__, self.emit_op_default)(op)
         getattr(self, "emit_next_" + block.next.__class__.__name__, self.emit_next_default)(block.next)
 
@@ -228,6 +227,9 @@ class CodeEmitter(object):
     def emit_op_Comment(self, op):
         self.codegen.emit("# %s" % (op.name, ))
 
+    def emit_op_Phi(self, op):
+        pass
+
     # ________________________________________________
     # jumps etc
 
@@ -306,8 +308,6 @@ def remove_phis(graph):
             assert not {target for target, _ in ops}.intersection({source for _, source in ops})
             for target, source in ops:
                 block.operations.append(ir.NonSSAAssignment(target, source))
-        for block in allblocks:
-            block.operations[:] = [op for op in block.operations if not isinstance(op, ir.Phi)]
 
 def count_uses(graph):
     uses = defaultdict(int)

@@ -14,6 +14,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 #   - nested operations
 #   - neq -> not eq
 
+# before inlining: 4753 -> 7223
+# filesize 83 MB -> ...
 
 
 
@@ -350,12 +352,15 @@ def build_ssa(blocks, functionast, functionargs, codegen, startpc=0, extra_args=
 class Block(object):
     _pc = -1 # assigned later in emitfunction
 
-    def __init__(self, operations=None):
+    def __init__(self, operations=None, next=None):
         if operations is None:
             operations = []
         assert isinstance(operations, list)
         self.operations = operations
-        self.next = None
+        self.next = next
+        
+    def __repr__(self):
+        return "<Block operations=%s next=%s>" % (self.operations, self.next.__class__.__name__)
 
     def __getitem__(self, index):
         return self.operations[index]
@@ -391,12 +396,23 @@ class Block(object):
                 res = op.prevblocks
         return res
 
-    def copy_operations(self, replacements):
+    def copy_operations(self, replacements, block_replacements=None):
+        def replace(arg):
+            if isinstance(arg, Constant):
+                return arg
+            return replacements[arg]
         res = []
         for op in self.operations:
-            assert not isinstance(op, Phi)
-            newop = Operation(op.name, [replacements.get(arg, arg) for arg in op.args], op.resolved_type, op.sourcepos, op.varname_hint)
-            newop.__class__ = op.__class__
+            if isinstance(op, NonSSAAssignment):
+                continue
+            elif isinstance(op, Phi):
+                newop = Phi(
+                    [block_replacements[block] for block in op.prevblocks],
+                    [replace(arg) for arg in op.prevvalues],
+                    op.resolved_type)
+            else:
+                newop = Operation(op.name, [replace(arg) for arg in op.args], op.resolved_type, op.sourcepos, op.varname_hint)
+                newop.__class__ = op.__class__
             replacements[op] = newop
             res.append(newop)
         return res
@@ -625,27 +641,27 @@ class StructConstruction(Operation):
     can_have_side_effects = False
 
     def __repr__(self):
-        return "StructConstruction(%r, %r, %r)" % (self.name, self.args)
+        return "StructConstruction(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
 class FieldAccess(Operation):
     can_have_side_effects = False
 
     def __repr__(self):
-        return "FieldAccess(%r, %r, %r)" % (self.name, self.args)
+        return "FieldAccess(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
 class FieldWrite(Operation):
     def __repr__(self):
-        return "FieldWrite(%r, %r, %r)" % (self.name, self.args)
+        return "FieldWrite(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
 class UnionVariantCheck(Operation):
     can_have_side_effects = False
 
     def __repr__(self):
-        return "UnionVariantCheck(%r, %r, %r)" % (self.name, self.args)
+        return "UnionVariantCheck(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
 class UnionCast(Operation):
     def __repr__(self):
-        return "UnionCast(%r, %r, %r)" % (self.name, self.args)
+        return "UnionCast(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
 class GlobalRead(Operation):
     can_have_side_effects = False
@@ -2056,6 +2072,7 @@ class LocalOptimizer(object):
             op.varname_hint,
         )
 
+@repeat
 def inline(graph, codegen):
     changed = False
     for block in graph.iterblocks():
@@ -2071,8 +2088,32 @@ def inline(graph, codegen):
                         block.operations[index : index + 1] = newops
                         graph.replace_op(op, res)
                         index = 0
+                        changed = True
                         continue
+                elif not subgraph.has_loop:
+                    # complicated case
+                    # split current block
+                    print "inlining", graph.name, subgraph.name
+                    newblock = Block()
+                    oldops = block.operations[:]
+                    newblock.operations = block.operations[index + 1:]
+                    del block.operations[index:]
+                    block.operations.append(Comment("inlined %s" % subgraph.name))
+                    newblock.next = block.next
+                    for furtherblock in block.next.next_blocks():
+                        furtherblock.replace_prev(block, newblock)
+                    start_block, return_block = copy_blocks(subgraph, op)
+                    block.next = Goto(start_block)
+                    res, = return_block.operations
+                    assert return_block.next is None
+                    return_block.next = Goto(newblock)
+                    graph.replace_op(op, return_block.operations[0])
+                    graph.check()
+                    simplify_phis(graph)
+                    remove_empty_blocks(graph)
+                    return True
             index += 1
+    return changed
 
 def copy_ops(op, subgraph):
     assert len(list(subgraph.iterblocks())) == 1
@@ -2081,3 +2122,74 @@ def copy_ops(op, subgraph):
     res = subgraph.startblock.next.value
     return ops, replacements.get(res, res)
 
+def copy_blocks(graph, op):
+    returnphi = Phi([], [], None)
+    returnblock = Block([returnphi])
+    replacements = {arg: argexpr for arg, argexpr in zip(graph.args, op.args)}
+    blocks = {block: Block() for block in graph.iterblocks()}
+    todo_next = []
+    for block in topo_order(graph):
+        ops = block.copy_operations(replacements, blocks)
+        newblock = blocks[block]
+        newblock.operations = ops
+        todo_next.append((block.next, newblock))
+
+    while todo_next:
+        next, newblock = todo_next.pop()
+        if isinstance(next, Return):
+            assert next.value is not None
+            returnphi.prevvalues.append(replacements.get(next.value, next.value))
+            returnphi.prevblocks.append(newblock)
+            returnphi.resolved_type = next.value.resolved_type
+            newblock.next = Goto(returnblock)
+        elif isinstance(next, Goto):
+            newblock.next = Goto(blocks[next.target], next.sourcepos)
+        elif isinstance(next, ConditionalGoto):
+            newblock.next = ConditionalGoto(
+                replacements.get(next.booleanvalue, next.booleanvalue),
+                blocks[next.truetarget],
+                blocks[next.falsetarget],
+                next.sourcepos,
+            )
+        elif isinstance(next, Raise):
+            newblock.next = Raise(next.kind, next.sourcepos)
+        else:
+            assert 0, "unreachable"
+
+    return blocks[graph.startblock], returnblock
+
+def should_inline(graph):
+    if graph.has_loop:
+        return False
+    blocks = list(graph.iterblocks())
+    if any([isinstance(block.next, Return) and block.next.value is None for block in blocks]):
+        return False
+    for op, _ in graph.iterblockops():
+        if isinstance(op, Operation) and op.name == graph.name:
+            return False # no recursive inlining
+    number_ops = len([op for block in blocks for op in block.operations])
+    return len(blocks) < 10 and number_ops < 50
+    
+
+def topo_order(graph):
+    order = list(graph.iterblocks()) # dfs
+
+    # do a (slighly bad) topological sort
+    incoming = defaultdict(set)
+    for block in order:
+        for nextblock in block.next.next_blocks():
+            incoming[nextblock].add(block)
+    no_incoming = [order[0]]
+    topoorder = []
+    while no_incoming:
+        block = no_incoming.pop()
+        topoorder.append(block)
+        for child in set(block.next.next_blocks()):
+            incoming[child].discard(block)
+            if not incoming[child]:
+                no_incoming.append(child)
+                del incoming[child]
+    # check result
+    assert set(topoorder) == set(order)
+    assert len(set(topoorder)) == len(topoorder)
+    return topoorder

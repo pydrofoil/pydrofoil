@@ -14,7 +14,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 #   - nested operations
 #   - neq -> not eq
 
-# before inlining: 4753 -> 7223
+# before inlining: 4753 -> 6602
 # filesize 83 MB -> ...
 
 
@@ -2191,7 +2191,7 @@ def should_inline(graph):
         if isinstance(op, Operation) and op.name == graph.name:
             return False # no recursive inlining
     number_ops = len([op for block in blocks for op in block.operations])
-    return len(blocks) < 10 and number_ops < 50
+    return len(blocks) < 8 and number_ops < 25
     
 
 def topo_order(graph):

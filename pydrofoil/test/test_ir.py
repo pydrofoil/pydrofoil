@@ -470,3 +470,13 @@ index = Argument('index', Int())
 block0 = Block()
 block0.next = Return(IntConstant(-12), None)
 graph = Graph('f', [index], block0)""")
+
+def test_ediv_constfold():
+    block0 = Block()
+    i1 = block0.emit(Operation, 'ediv_int', [IntConstant(128), IntConstant(2)], Int(), '`7 11526:20-11526:32', 'zz4179')
+    block0.next = Return(i1, None)
+    graph = Graph('f', [], block0)
+    check_simplify(graph, """\
+block0 = Block()
+block0.next = Return(IntConstant(64), None)
+graph = Graph('f', [], block0)""") 

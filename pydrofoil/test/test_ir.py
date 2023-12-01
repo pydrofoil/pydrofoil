@@ -693,3 +693,15 @@ def test_toposort():
     graph = Graph('zprivLevel_of_bits', [zp], block0)
 
     assert set(topo_order(graph)) == set(graph.iterblocks())
+
+
+def test_constfold_lteq():
+    block0 = Block()
+    i1 = block0.emit(Operation, '@lteq', [MachineIntConstant(64), MachineIntConstant(1)], Bool(), '`2 141:32-141:48', 'zz40')
+    block0.next = Return(i1, None)
+    graph = Graph('f', [], block0)
+    check_simplify(graph, """\
+block0 = Block()
+block0.next = Return(BooleanConstant.FALSE, None)
+graph = Graph('f', [], block0)""")
+

@@ -17,13 +17,13 @@ def _make_code(rv64=True):
     support_code = "from riscv import supportcoderiscv as supportcode"
     res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', })
     ## XXX horrible hack, they should be fixed in the model!
-    #assert res.count("def func_zread_ram(machine, zrk") == 1
-    #res = res.replace("def func_zread_ram(machine, zrk", "def func_zread_ram(machine, executable_flag, zrk")
-    #assert res.count("func_zread_ram(machine, i") == 1
-    #res = res.replace("func_zread_ram(machine, i", "func_zread_ram(machine, (type(zt) is Union_zAccessTypezIuzK_zExecutezIuzK), i")
-    #assert res.count("platform_read_mem") == 1
-    #res = res.replace("platform_read_mem(machine, ", "platform_read_mem(machine, executable_flag, ")
-    res = res.replace("platform_read_mem(machine, ", "platform_read_mem(machine, (type(zt) is Union_zAccessTypezIuzK_zExecutezIuzK), ")
+    assert res.count("def func_zread_ram(machine, zrk") == 1
+    res = res.replace("def func_zread_ram(machine, zrk", "def func_zread_ram(machine, executable_flag, zrk")
+    assert res.count("func_zread_ram(machine, i") == 1
+    res = res.replace("func_zread_ram(machine, i", "func_zread_ram(machine, (type(zt) is Union_zAccessTypezIuzK_zExecutezIuzK), i")
+    assert res.count("platform_read_mem") == 1
+    res = res.replace("platform_read_mem(machine, ", "platform_read_mem(machine, executable_flag, ")
+    #res = res.replace("platform_read_mem(machine, ", "platform_read_mem(machine, (type(zt) is Union_zAccessTypezIuzK_zExecutezIuzK), ")
     bits = 64 if rv64 else 32
 
     ## another one of them:

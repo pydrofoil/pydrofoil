@@ -24,7 +24,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 
 # before inlining: 4753 -> 6516
-# filesize 83 MB -> ...
+# filesize 83 MB -> 83 MB
 
 
 
@@ -778,6 +778,10 @@ class BooleanConstant(Constant):
     def __repr__(self):
         return self._repr({})
 
+    @staticmethod
+    def frombool(value):
+        return BooleanConstant.TRUE if value else BooleanConstant.FALSE
+
 BooleanConstant.TRUE = BooleanConstant(True)
 BooleanConstant.FALSE = BooleanConstant(False)
 
@@ -1432,7 +1436,9 @@ class LocalOptimizer(object):
     def optimize_lt(self, op):
         arg0, arg1 = self._args(op)
         if arg0.resolved_type is not types.Int():
-            return
+            arg0 = self._extract_number(arg0)
+            arg1 = self._extract_number(arg1)
+            return BooleanConstant.frombool(arg0.number < arg1.number)
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
         return self.newop("@lt", [arg0, arg1], op.resolved_type, op.sourcepos,
@@ -1441,7 +1447,9 @@ class LocalOptimizer(object):
     def optimize_gt(self, op):
         arg0, arg1 = self._args(op)
         if arg0.resolved_type is not types.Int():
-            return
+            arg0 = self._extract_number(arg0)
+            arg1 = self._extract_number(arg1)
+            return BooleanConstant.frombool(arg0.number > arg1.number)
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
         return self.newop("@gt", [arg0, arg1], op.resolved_type, op.sourcepos,
@@ -1450,7 +1458,9 @@ class LocalOptimizer(object):
     def optimize_lteq(self, op):
         arg0, arg1 = self._args(op)
         if arg0.resolved_type is not types.Int():
-            return
+            arg0 = self._extract_number(arg0)
+            arg1 = self._extract_number(arg1)
+            return BooleanConstant.frombool(arg0.number <= arg1.number)
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
         return self.newop("@lteq", [arg0, arg1], op.resolved_type, op.sourcepos,
@@ -1459,7 +1469,9 @@ class LocalOptimizer(object):
     def optimize_gteq(self, op):
         arg0, arg1 = self._args(op)
         if arg0.resolved_type is not types.Int():
-            return
+            arg0 = self._extract_number(arg0)
+            arg1 = self._extract_number(arg1)
+            return BooleanConstant.frombool(arg0.number >= arg1.number)
         arg0 = self._extract_machineint(arg0)
         arg1 = self._extract_machineint(arg1)
         return self.newop("@gteq", [arg0, arg1], op.resolved_type, op.sourcepos,

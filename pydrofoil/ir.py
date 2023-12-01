@@ -70,6 +70,7 @@ class SSABuilder(object):
         self.entryblocks = compute_entryblocks(blocks)
         self.variable_map = None # {name: Value}
         self.variable_maps_at_end = {} # {pc: variable_map}
+        self.has_loop = False
         self.patch_phis = defaultdict(list)
         self.startpc = startpc
         self.extra_args = extra_args
@@ -97,7 +98,7 @@ class SSABuilder(object):
             self.patch_phis[pc] = None
             self.variable_maps_at_end[pc] = self.variable_map
             self.variable_map = None
-        graph = Graph(self.functionast.name, self.args, self.allblocks[self.startpc])
+        graph = Graph(self.functionast.name, self.args, self.allblocks[self.startpc], self.has_loop)
         #if random.random() < 0.01:
         #    self.view = 1
         simplify(graph, self.codegen)
@@ -110,6 +111,7 @@ class SSABuilder(object):
         for prevpc in entry:
             if not prevpc < pc:
                 loopblock = True
+                self.has_loop = True
         if entry == []:
             assert pc == self.startpc
             self.variable_map = {}
@@ -440,10 +442,16 @@ class Block(object):
 
 
 class Graph(object):
-    def __init__(self, name, args, startblock):
+    def __init__(self, name, args, startblock, has_loop=False):
         self.name = name
         self.args = args
         self.startblock = startblock
+        self.has_loop = has_loop
+        if has_loop:
+            self.view()
+
+    def __repr__(self):
+        return "<Graph %s %s>" % (self.name, self.args)
 
     def view(self):
         from rpython.translator.tool.make_dot import DotGen

@@ -30,7 +30,10 @@ class CodeEmitter(object):
 
     def emit(self):
         codegen = self.codegen
-        codegen.emit("# return type %s" % (getattr(self.functionast.resolved_type, 'restype', 'unit'), ))
+        codegen.emit("# return type %s%s" % (
+            getattr(self.functionast.resolved_type, 'restype', 'unit'),
+            " has loop" if self.graph.has_loop else ""
+            ))
         for comment in self.graph_construction_code:
             codegen.emit("# " + comment)
         if len(self.blocks) == 1:
@@ -287,7 +290,7 @@ def remove_critical_edges(graph):
             new_block.next = ir.Goto(next_block)
             block.next.replace_next(next_block, new_block)
             next_block.replace_prev(block, new_block)
-            
+
 def remove_phis(graph):
     all_newops = defaultdict(list)
     allblocks = list(graph.iterblocks())
@@ -306,7 +309,6 @@ def remove_phis(graph):
         for block in allblocks:
             block.operations[:] = [op for op in block.operations if not isinstance(op, ir.Phi)]
 
-    
 def count_uses(graph):
     uses = defaultdict(int)
     for block in graph.iterblocks():

@@ -2182,6 +2182,8 @@ def copy_blocks(graph, op):
     return blocks[graph.startblock], returnblock
 
 def should_inline(graph):
+    if "step_model" in graph.name:
+        return False
     if graph.has_loop:
         return False
     blocks = list(graph.iterblocks())

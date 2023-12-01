@@ -7,8 +7,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # TODOS:
 # - enum reads as constants
-# - remove useless phis
-# - remove the typ argument of side-effecting ops
+# - remove the typ argument of side-effecting ops?
+# - let as constant *in IR*
 
 # - start porting optimizations
 #   - nested operations

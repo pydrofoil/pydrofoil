@@ -757,6 +757,7 @@ BooleanConstant.FALSE = BooleanConstant(False)
 class MachineIntConstant(Constant):
     resolved_type = types.MachineInt()
     def __init__(self, number):
+        assert isinstance(number, int)
         self.number = number
 
     def _repr(self, print_varnames):
@@ -1760,8 +1761,7 @@ class LocalOptimizer(object):
         arg1 = self._extract_number(arg1)
         # can const-fold
         res = arg0.number + arg1.number
-        if isinstance(res, int): # no overflow
-            return self._make_int64_to_int(MachineIntConstant(res), op.sourcepos)
+        return IntConstant(res)
 
     def optimize_sub_int(self, op):
         arg0, arg1 = self._args(op)
@@ -1805,8 +1805,7 @@ class LocalOptimizer(object):
         arg1 = self._extract_number(arg1)
         # can const-fold
         res = arg0.number - arg1.number
-        if isinstance(res, int): # no overflow
-            return self._make_int64_to_int(MachineIntConstant(res), op.sourcepos)
+        return IntConstant(res)
 
     @symmetric
     def optimize_mult_int(self, op, arg0, arg1):
@@ -1828,21 +1827,20 @@ class LocalOptimizer(object):
             )
         arg1 = self._extract_number(arg1)
         res = arg0.number * arg1.number
-        if isinstance(res, int):
-            return IntConstant(res)
+        return IntConstant(res)
 
     def optimize_shl_int_o_i(self, op):
         arg0, arg1 = self._args(op)
         arg0 = self._extract_number(arg0)
         arg1 = self._extract_number(arg1)
-        return IntConstant(arg0.number << arg1.number)
+        res = arg0.number << arg1.number
+        return IntConstant(res)
 
     def optimize_neg_int(self, op):
         arg0, = self._args(op)
         arg0 = self._extract_number(arg0)
         res = -arg0.number
-        if isinstance(res, int):
-            return IntConstant(res)
+        return IntConstant(res)
 
     def optimize_ediv_int(self, op):
         arg0, arg1 = self._args(op)

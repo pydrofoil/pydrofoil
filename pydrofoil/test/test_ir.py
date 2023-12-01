@@ -493,3 +493,13 @@ def test_ediv_constfold():
 block0 = Block()
 block0.next = Return(IntConstant(64), None)
 graph = Graph('f', [], block0)""") 
+
+def test_pow_i():
+    block0 = Block()
+    i1 = block0.emit(Operation, '@pow2_i', [MachineIntConstant(32)], Int(), '`7 150231:75-150231:81', 'zz492')
+    block0.next = Return(i1, None)
+    graph = Graph('f', [], block0)
+    check_simplify(graph, """\
+block0 = Block()
+block0.next = Return(IntConstant(4294967296), None)
+graph = Graph('f', [], block0)""")

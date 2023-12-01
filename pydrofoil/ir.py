@@ -1853,6 +1853,11 @@ class LocalOptimizer(object):
         if arg0.number >= 0 and arg1.number > 0:
             return IntConstant(arg0.number // arg1.number)
 
+    def optimize_pow2_i(self, op):
+        arg0, = self._args(op)
+        arg0 = self._extract_number(arg0)
+        return IntConstant(2 ** arg0.number)
+
     def optimize_get_slice_int_i_o_i(self, op):
         arg0, arg1, arg2 = self._args(op)
         arg0 = self._extract_number(arg0)

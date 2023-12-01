@@ -95,6 +95,9 @@ class CodeEmitter(object):
                 return ast.string
             if isinstance(ast, parse.Unit):
                 return "()"
+        if isinstance(value, ir.DefaultValue):
+            return value.resolved_type.uninitialized_value
+
         import pdb; pdb.set_trace()
 
     def _get_args(self, args):
@@ -205,9 +208,6 @@ class CodeEmitter(object):
         self.codegen.emit("%s.copy_into(%s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
 
     def emit_op_Allocate(self, op):
-        self._op_helper(op, op.resolved_type.uninitialized_value)
-
-    def emit_op_DefaultValue(self, op):
         self._op_helper(op, op.resolved_type.uninitialized_value)
 
     def emit_op_RefOf(self, op):

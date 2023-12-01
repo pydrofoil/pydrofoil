@@ -14,7 +14,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 #   - nested operations
 #   - neq -> not eq
 
-# before inlining: 4753 -> 6602
+# before inlining: 4753 -> 6516
 # filesize 83 MB -> ...
 
 
@@ -188,7 +188,9 @@ class SSABuilder(object):
                     if isinstance(op.resolved_type, types.Struct):
                         ssaop = Allocate(op.resolved_type, op.sourcepos)
                     else:
-                        ssaop = DefaultValue(op.resolved_type, op.sourcepos)
+                        const = DefaultValue(op.resolved_type)
+                        self.variable_map[op.name] = const
+                        continue
                 self.variable_map[op.name] = self._addop(ssaop)
             elif isinstance(op, parse.Operation):
                 args = self._get_args(op.args)
@@ -265,7 +267,7 @@ class SSABuilder(object):
                 ssablock.next = Raise(op.kind, op.sourcepos)
             elif isinstance(op, parse.Arbitrary):
                 restyp = self.functionast.resolved_type.restype
-                res = self._addop(DefaultValue(restyp, op.sourcepos))
+                res = DefaultValue(restyp)
                 ssablock.next = Return(res, op.sourcepos)
             elif isinstance(op, parse.JustStop):
                 ssablock.next = JustStop()
@@ -619,15 +621,6 @@ class Cast(Operation):
     def __repr__(self):
         return "Cast(%r, %r, %r)" % (self.args[0], self.resolved_type, self.sourcepos)
 
-class DefaultValue(Operation):
-    can_have_side_effects = False
-
-    def __init__(self, resolved_type, sourcepos):
-        Operation.__init__(self, "$default", [], resolved_type, sourcepos)
-
-    def __repr__(self):
-        return "DefaultValue(%r, %r)" % (self.resolved_type, self.sourcepos, )
-
 class Allocate(Operation):
     can_have_side_effects = False
 
@@ -816,6 +809,13 @@ class SmallBitVectorConstant(Constant):
     def __repr__(self):
         return "SmallBitVectorConstant(%s, %s)" % (self.value, self.resolved_type)
 
+class DefaultValue(Constant):
+
+    def __init__(self, resolved_type):
+        self.resolved_type = resolved_type
+
+    def __repr__(self):
+        return "DefaultValue(%r)" % (self.resolved_type, )
 
 # next
 

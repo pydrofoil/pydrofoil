@@ -10,9 +10,18 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - remove the typ argument of side-effecting ops?
 # - let as constant *in IR*
 
-# - start porting optimizations
-#   - nested operations
-#   - neq -> not eq
+# - nested operations
+# - neq -> not eq
+
+# - lt etc const folding
+# - lt etc one arg machine int
+
+# - move int_to_int64 to earlier in block
+
+# - truncate has know bitwidth sometimes
+# - zero_extend const folding
+
+
 
 # before inlining: 4753 -> 6516
 # filesize 83 MB -> ...
@@ -2184,6 +2193,14 @@ def copy_blocks(graph, op):
 def should_inline(graph):
     if "step_model" in graph.name:
         return False
+    if "subrange_subrange" in graph.name:
+        return True
+    if "slice_mask" in graph.name:
+        return True
+    if "sail_mask" in graph.name:
+        return True
+    if "extzzv" in graph.name:
+        return True
     if graph.has_loop:
         return False
     blocks = list(graph.iterblocks())
@@ -2193,7 +2210,7 @@ def should_inline(graph):
         if isinstance(op, Operation) and op.name == graph.name:
             return False # no recursive inlining
     number_ops = len([op for block in blocks for op in block.operations])
-    return len(blocks) < 8 and number_ops < 25
+    return len(blocks) < 4 and number_ops < 25
     
 
 def topo_order(graph):

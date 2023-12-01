@@ -991,14 +991,13 @@ def repeat(func):
     return repeated
 
 def simplify(graph, codegen):
-    if graph.name == "zImplementedSMEVectorLength":
-        import pdb;pdb.set_trace()
     res = _simplify(graph, codegen)
     return res
 
 @repeat
 def _simplify(graph, codegen):
     res = False
+    res = join_blocks(graph) or res
     graph.check()
     res = remove_dead(graph, codegen) or res
     graph.check()
@@ -1059,6 +1058,29 @@ def remove_empty_blocks(graph):
             block.next.replace_next(nextblock, nextblock.next.target)
             nextblock.next.target.replace_prev(nextblock, block)
             changed = True
+    return changed
+
+@repeat
+def join_blocks(graph):
+    entrymap = graph.make_entrymap()
+    changed = False
+    for block in entrymap:
+        if block.operations is None:
+            continue
+        while 1:
+            if not isinstance(block.next, Goto):
+                break
+            nextblock = block.next.target
+            if len(entrymap[nextblock]) != 1:
+                break
+            for op in nextblock.operations:
+                assert not isinstance(op, Phi)
+            block.operations.extend(nextblock.operations)
+            nextblock.operations = None
+            changed = True
+            block.next = nextblock.next
+            for nextnextblock in block.next.next_blocks():
+                nextnextblock.replace_prev(nextblock, block)
     return changed
 
 @repeat
@@ -2111,6 +2133,7 @@ def inline(graph, codegen):
                     graph.check()
                     simplify_phis(graph)
                     remove_empty_blocks(graph)
+                    join_blocks(graph)
                     return True
             index += 1
     return changed

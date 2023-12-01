@@ -18,9 +18,10 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # - move int_to_int64 to earlier in block
 
-# - truncate has know bitwidth sometimes
+# - truncate has known bitwidth sometimes
 # - zero_extend const folding
 
+# - shift with 0 does nothing
 
 
 # before inlining: 4753 -> 6516
@@ -539,6 +540,7 @@ class Graph(object):
                     assert prevblock in entrymap[block]
         # check that all the used values are defined somewhere
         for block in self.iterblocks():
+            assert len(set(block.operations)) == len(block.operations)
             for op in block:
                 for value in op.getargs():
                     assert value in defined_vars or isinstance(value, Constant)
@@ -1196,6 +1198,9 @@ class LocalOptimizer(object):
         self.codegen = codegen
         self.changed = False
 
+    def view(self):
+        self.graph.view()
+
     def optimize(self):
         self.replacements = {}
         for block in self.graph.iterblocks():
@@ -1233,6 +1238,11 @@ class LocalOptimizer(object):
         self.newoperations.append(newop)
         return newop
 
+    def newphi(self, prevblocks, prevvalues, resolved_type):
+        newop = Phi(prevblocks, prevvalues, resolved_type)
+        self.newoperations.append(newop)
+        return newop
+
     def _convert_to_machineint(self, arg):
         try:
             return self._extract_machineint(arg)
@@ -1254,9 +1264,13 @@ class LocalOptimizer(object):
     def _optimize_op(self, block, index, op):
         meth = getattr(self, "_optimize_" + type(op).__name__, None)
         if meth:
-            res = meth(op, block, index)
-            if res is not None:
-                return res
+            try:
+                res = meth(op, block, index)
+            except NoMatchException:
+                pass
+            else:
+                if res is not None:
+                    return res
         self.newoperations.append(op)
         return
 
@@ -1340,6 +1354,20 @@ class LocalOptimizer(object):
             op.varname_hint,
         )
         return update_list # it's inplace, so the result is the same as the argument
+
+    def _optimize_Phi(self, op, block, index):
+        if op.resolved_type is types.GenericBitVector():
+            bvs = []
+            for arg in op.prevvalues:
+                arg, typ = self._extract_smallfixedbitvector(self._get_op_replacement(arg))
+                bvs.append(arg)
+            return self.newcast(
+                self.newphi(
+                    op.prevblocks,
+                    bvs,
+                    typ),
+                types.GenericBitVector()
+            )
 
     def _builtinname(self, name):
         return self.codegen.builtin_names.get(name, name)

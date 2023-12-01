@@ -447,6 +447,19 @@ block0 = Block()
 block0.next = Return(index, None)
 graph = Graph('f', [index], block0)""")
 
+def test_mult_to_shift():
+    index = Argument('index', Int())
+    block0 = Block()
+    i1 = block0.emit(Operation, 'mult_int', [IntConstant(8), index], Int(), '`7 14894:55-14894:60', 'zz422')
+    block0.next = Return(i1, None)
+    graph = Graph('f', [index], block0)
+    check_simplify(graph, """\
+index = Argument('index', Int())
+block0 = Block()
+i1 = block0.emit(Operation, '@shl_int_o_i', [index, MachineIntConstant(3)], Int(), '`7 14894:55-14894:60', 'zz422')
+block0.next = Return(i1, None)
+graph = Graph('f', [index], block0)""")
+
 def test_mult_constfold():
     index = Argument('index', Int())
     block0 = Block()

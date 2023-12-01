@@ -1813,10 +1813,29 @@ class LocalOptimizer(object):
         arg0 = self._extract_number(arg0)
         if arg0.number == 1:
             return arg1
+        if arg0.number == 0:
+            return IntConstant(0)
+        if arg0.number & (arg0.number - 1) == 0:
+            # power of two
+            exponent = arg0.number.bit_length() - 1
+            assert 1 << exponent == arg0.number
+            return self.newop(
+                "@shl_int_o_i",
+                [arg1, MachineIntConstant(exponent)],
+                op.resolved_type,
+                op.sourcepos,
+                op.varname_hint,
+            )
         arg1 = self._extract_number(arg1)
         res = arg0.number * arg1.number
         if isinstance(res, int):
             return IntConstant(res)
+
+    def optimize_shl_int_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_number(arg0)
+        arg1 = self._extract_number(arg1)
+        return IntConstant(arg0.number << arg1.number)
 
     def optimize_neg_int(self, op):
         arg0, = self._args(op)

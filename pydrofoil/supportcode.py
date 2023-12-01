@@ -437,6 +437,7 @@ def tmod_int(machine, ia, ib):
     return ia.tmod(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def ediv_int(machine, a, b):
     return a.ediv(b)
 

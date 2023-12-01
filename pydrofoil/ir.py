@@ -694,6 +694,10 @@ class NonSSAAssignment(Operation):
     def __repr__(self):
         return "NonSSAAssignment(%r, %r)" % (self.args[0], self.args[1])
 
+class Comment(Operation):
+    def __init__(self, comment):
+        Operation.__init__(self, comment, [], types.Unit())
+
 class Phi(Value):
     can_have_side_effects = False
 
@@ -2011,6 +2015,7 @@ def inline(graph, codegen):
                 subgraph = codegen.inlinable_functions[op.name]
                 if isinstance(subgraph.startblock.next, Return) and subgraph.startblock.next.value is not None:
                     newops, res = copy_ops(op, subgraph)
+                    newops = [Comment("inlined %s" % subgraph.name)] + newops
                     if newops is not None:
                         block.operations[index : index + 1] = newops
                         graph.replace_op(op, res)

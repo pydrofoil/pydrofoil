@@ -222,6 +222,9 @@ class CodeEmitter(object):
         # is optimized away in the common case
         self._op_helper(op, "supportcode.vector_update_list(machine, %s)" % (args, ))
 
+    def emit_op_Comment(self, op):
+        self.codegen.emit("# %s" % (op.name, ))
+
     # ________________________________________________
     # jumps etc
 

@@ -447,8 +447,6 @@ class Graph(object):
         self.args = args
         self.startblock = startblock
         self.has_loop = has_loop
-        if has_loop:
-            self.view()
 
     def __repr__(self):
         return "<Graph %s %s>" % (self.name, self.args)
@@ -814,7 +812,7 @@ class Next(object):
 
     def getargs(self):
         return []
-    
+
     def replace_next(self, block, otherblock):
         pass
 
@@ -920,9 +918,11 @@ def print_graph_construction(graph):
     for arg in graph.args:
         print_varnames[arg] = arg.name
         res.append("%s = %r" % (arg.name, arg))
-    # XXX print arguments
     for block, name in blocknames.iteritems():
         res.append("%s = Block()" % name)
+    pending_updates = defaultdict(list)
+    seen_ops = set()
+
     for block, blockname in blocknames.iteritems():
         for op in block.operations:
             name = op._get_print_name(print_varnames)
@@ -932,8 +932,20 @@ def print_graph_construction(graph):
             else:
                 assert isinstance(op, Phi)
                 blockargs = ", ".join([blocknames[b] for b in op.prevblocks])
-                args = ", ".join([a._repr(print_varnames) for a in op.prevvalues])
+                args = []
+                for index, a in enumerate(op.prevvalues):
+                    if isinstance(a, (Operation, Phi)) and a not in seen_ops:
+                        args.append('None')
+                        pending_updates[a].append((name, index))
+                    else:
+                        args.append(a._repr(print_varnames))
+
+                args = ", ".join(args)
                 res.append("%s = %s.emit_phi([%s], [%s], %s)" % (name, blockname, blockargs, args, op.resolved_type))
+            if pending_updates[op]:
+                for prevname, index in pending_updates[op]:
+                    res.append("%s.prevvalues[%s] = %s" % (prevname, index, name))
+            seen_ops.add(op)
         res.append("%s.next = %s" % (blockname, block.next._repr(print_varnames, blocknames)))
     res.append("graph = Graph(%r, [%s], block0)" % (graph.name, ", ".join(arg.name for arg in graph.args)))
     return res
@@ -962,16 +974,25 @@ def repeat(func):
             ever_changed = True
     return repeated
 
-@repeat
 def simplify(graph, codegen):
-    graph.check()
-    inline(graph, codegen)
-    graph.check()
-    res = LocalOptimizer(graph, codegen).optimize()
-    graph.check()
-    res = remove_if_true_false(graph) or res
+    if graph.name == "zImplementedSMEVectorLength":
+        import pdb;pdb.set_trace()
+    res = _simplify(graph, codegen)
+    return res
+
+@repeat
+def _simplify(graph, codegen):
+    res = False
     graph.check()
     res = remove_dead(graph, codegen) or res
+    graph.check()
+    res = simplify_phis(graph) or res
+    graph.check()
+    res = inline(graph, codegen) or res
+    graph.check()
+    res = LocalOptimizer(graph, codegen).optimize() or res
+    graph.check()
+    res = remove_if_true_false(graph) or res
     graph.check()
     res = remove_empty_blocks(graph) or res
     graph.check()
@@ -1041,6 +1062,27 @@ def swap_not(graph, codegen):
     return changed
 
 @repeat
+def simplify_phis(graph):
+    replace_phis = {}
+    for block in graph.iterblocks():
+        for index, op in enumerate(block.operations):
+            if not isinstance(op, Phi):
+                continue
+            values = set(op.prevvalues)
+            if len(values) == 1 or (len(values) == 2 and op in values):
+                values.discard(op)
+                value, = values
+                block.operations[index] = None
+                replace_phis[op] = value
+                # this is really inefficient, but I don't want to think
+                block.operations = [op for op in block.operations if op is not None]
+                graph.replace_ops(replace_phis)
+                return True
+
+
+    return False
+
+@repeat
 def remove_if_true_false(graph):
     changed = False
     for block in graph.iterblocks():
@@ -1101,6 +1143,7 @@ class LocalOptimizer(object):
     def __init__(self, graph, codegen):
         self.graph = graph
         self.codegen = codegen
+        self.changed = False
 
     def optimize(self):
         self.replacements = {}
@@ -1114,14 +1157,14 @@ class LocalOptimizer(object):
                     break
             self.graph.check()
             return True
-        return False
+        return self.changed
 
     def optimize_block(self, block):
         self.newoperations = []
         for i, op in enumerate(block.operations):
             newop = self._optimize_op(block, i, op)
             if newop is REMOVE:
-                pass
+                self.changed = True
             elif newop is not None:
                 assert op.resolved_type is newop.resolved_type
                 self.replacements[op] = newop

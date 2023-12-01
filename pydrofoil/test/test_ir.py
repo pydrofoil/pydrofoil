@@ -492,7 +492,7 @@ def test_ediv_constfold():
     check_simplify(graph, """\
 block0 = Block()
 block0.next = Return(IntConstant(64), None)
-graph = Graph('f', [], block0)""") 
+graph = Graph('f', [], block0)""")
 
 def test_pow_i():
     block0 = Block()
@@ -503,3 +503,57 @@ def test_pow_i():
 block0 = Block()
 block0.next = Return(IntConstant(4294967296), None)
 graph = Graph('f', [], block0)""")
+
+def test_simplify_loop_phi():
+    zxs = Argument('zxs', SmallFixedBitVector(8))
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block0.next = Goto(block1, None)
+    i1 = block1.emit_phi([block0, block3], [zxs, None], SmallFixedBitVector(8))
+    i1.prevvalues[1] = i1
+    i2 = block1.emit_phi([block0, block3], [SmallBitVectorConstant(0x00, SmallFixedBitVector(8)), None], SmallFixedBitVector(8))
+    i4 = block1.emit_phi([block0, block3], [MachineIntConstant(7), None], MachineInt())
+    i4.prevvalues[1] = i4
+    i5 = block1.emit_phi([block0, block3], [MachineIntConstant(1), None], MachineInt())
+    i5.prevvalues[1] = i5
+    i6 = block1.emit_phi([block0, block3], [MachineIntConstant(0), None], MachineInt())
+    i8 = block1.emit(Operation, '@gt', [i6, i4], Bool(), '`1 279:2-280:19', None)
+    block1.next = ConditionalGoto(i8, block2, block3, '`1 279:2-280:19')
+    block2.next = Return(i2, None)
+    i9 = block3.emit(Operation, '@sub_i_i_wrapped_res', [MachineIntConstant(7), i6], Int(), '`1 280:15-280:18', 'zz416')
+    i10 = block3.emit(Operation, 'zz5izDzKz5i64', [i9], MachineInt(), None, None)
+    i11 = block3.emit(Operation, '@vector_access_bv_i', [i1, i10], Bit(), '`1 280:12-280:19', 'zz47')
+    i12 = block3.emit(Cast, '$cast', [i2], GenericBitVector(), '`1 280:4-280:9', 'zz48')
+    i13 = block3.emit(Operation, '@vector_update_o_i_o', [i12, i6, i11], GenericBitVector(), '`1 280:4-280:9', 'zz410')
+    i3 = block3.emit(Cast, '$cast', [i13], SmallFixedBitVector(8), '`1 280:4-280:9', 'zz40')
+    i2.prevvalues[1] = i3
+    i7 = block3.emit(Operation, '@iadd', [i6, i5], MachineInt(), '`1 279:2-280:19', 'zz45')
+    i6.prevvalues[1] = i7
+    block3.next = Goto(block1, None)
+    graph = Graph('zreverse_bits_in_byte', [zxs], block0, True)
+    check_simplify(graph, """\
+zxs = Argument('zxs', SmallFixedBitVector(8))
+block0 = Block()
+block1 = Block()
+block2 = Block()
+block3 = Block()
+block0.next = Goto(block1, None)
+i1 = block1.emit_phi([block0, block3], [SmallBitVectorConstant(0, SmallFixedBitVector(8)), None], SmallFixedBitVector(8))
+i2 = block1.emit_phi([block0, block3], [MachineIntConstant(0), None], MachineInt())
+i3 = block1.emit(Operation, '@gt', [i2, MachineIntConstant(7)], Bool(), '`1 279:2-280:19', None)
+block1.next = ConditionalGoto(i3, block2, block3, '`1 279:2-280:19')
+block2.next = Return(i1, None)
+i4 = block3.emit(Operation, '@sub_i_i_wrapped_res', [MachineIntConstant(7), i2], Int(), '`1 280:15-280:18', 'zz416')
+i5 = block3.emit(Operation, 'zz5izDzKz5i64', [i4], MachineInt(), None, None)
+i6 = block3.emit(Operation, '@vector_access_bv_i', [zxs, i5], Bit(), '`1 280:12-280:19', 'zz47')
+i7 = block3.emit(Cast, '$cast', [i1], GenericBitVector(), '`1 280:4-280:9', 'zz48')
+i8 = block3.emit(Operation, '@vector_update_o_i_o', [i7, i2, i6], GenericBitVector(), '`1 280:4-280:9', 'zz410')
+i9 = block3.emit(Cast, '$cast', [i8], SmallFixedBitVector(8), '`1 280:4-280:9', 'zz40')
+i1.prevvalues[1] = i9
+i10 = block3.emit(Operation, '@iadd', [i2, MachineIntConstant(1)], MachineInt(), '`1 279:2-280:19', 'zz45')
+i2.prevvalues[1] = i10
+block3.next = Goto(block1, None)
+graph = Graph('zreverse_bits_in_byte', [zxs], block0)""")
+

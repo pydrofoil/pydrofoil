@@ -20,9 +20,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - truncate has known bitwidth sometimes
 # - zero_extend const folding
 
-# - shift with 0 does nothing
-
 # - unsigned_bv const folding
+# get_slice_int_i_i_i const folding
 
 # risc-v:
 # mul_o_i, backwards mul_i_i_must_fit, sub_i_i_must_fit
@@ -2102,6 +2101,12 @@ class LocalOptimizer(object):
 
     def optimize_shiftl_o_i(self, op):
         arg0, arg1 = self._args(op)
+        try:
+            arg1 = self._extract_number(arg1)
+            if arg1.number == 0:
+                return arg0
+        except NoMatchException:
+            pass
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         assert arg1.resolved_type is types.MachineInt()
 
@@ -2118,6 +2123,12 @@ class LocalOptimizer(object):
 
     def optimize_shiftr_o_i(self, op):
         arg0, arg1 = self._args(op)
+        try:
+            arg1 = self._extract_number(arg1)
+            if arg1.number == 0:
+                return arg0
+        except NoMatchException:
+            pass
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         assert arg1.resolved_type is types.MachineInt()
 
@@ -2134,6 +2145,12 @@ class LocalOptimizer(object):
 
     def optimize_arith_shiftr_o_i(self, op):
         arg0, arg1 = self._args(op)
+        try:
+            arg1 = self._extract_number(arg1)
+            if arg1.number == 0:
+                return arg0
+        except NoMatchException:
+            pass
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         assert arg1.resolved_type is types.MachineInt()
 

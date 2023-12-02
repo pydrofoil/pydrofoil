@@ -831,3 +831,16 @@ i4.prevvalues[1] = i29
 block5.next = Goto(block1, None)
 block6.next = Goto(block5, None)
 graph = Graph('zexecute', [arg2, arg4], block0)""")
+
+
+def test_shift_0():
+    arg = Argument('arg', GenericBitVector())
+    block0 = Block()
+    i1 = block0.emit(Operation, '@shiftl_o_i', [arg, MachineIntConstant(0)], GenericBitVector(), '`2 337:4-337:35', 'return')
+    block0.next = Return(i1, None)
+    graph = Graph('f', [arg], block0)
+    check_simplify(graph, """\
+arg = Argument('arg', GenericBitVector())
+block0 = Block()
+block0.next = Return(arg, None)
+graph = Graph('f', [arg], block0)""")

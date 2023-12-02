@@ -23,6 +23,12 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # - shift with 0 does nothing
 
+# - unsigned_bv const folding
+
+# risc-v:
+# mul_o_i, let as const, backwards mul_i_i_must_fit, sub_i_i_must_fit
+# vector_subrange_o_i_i with smallbv argument and unknown bounds
+# CSE
 
 # before inlining: 4753 -> 6516
 # filesize 83 MB -> 83 MB
@@ -602,6 +608,7 @@ class Operation(Value):
         self.name = name
         self.args = args
         self.resolved_type = resolved_type
+        assert isinstance(sourcepos, (str, type(None)))
         self.sourcepos = sourcepos
         self.varname_hint = varname_hint
 
@@ -1250,7 +1257,7 @@ class LocalOptimizer(object):
             # call int_to_int64
             return self.newop("zz5izDzKz5i64", [arg], types.MachineInt())
 
-    def _make_int64_to_int(self, arg, sourcepos):
+    def _make_int64_to_int(self, arg, sourcepos=None):
         return self.newop("zz5i64zDzKz5i", [arg], types.Int(), sourcepos)
 
     def _get_op_replacement(self, value):
@@ -1368,6 +1375,19 @@ class LocalOptimizer(object):
                     typ),
                 types.GenericBitVector()
             )
+        if op.resolved_type is types.Int():
+            machineints = []
+            for arg in op.prevvalues:
+                arg = self._extract_machineint(self._get_op_replacement(arg))
+                machineints.append(arg)
+            if all(isinstance(arg, Constant) for arg in machineints):
+                return
+            return self._make_int64_to_int(
+                self.newphi(
+                    op.prevblocks,
+                    machineints,
+                    types.MachineInt())
+            )
 
     def _builtinname(self, name):
         return self.codegen.builtin_names.get(name, name)
@@ -1394,6 +1414,8 @@ class LocalOptimizer(object):
             not isinstance(arg, Operation)
             or self._builtinname(arg.name) != "int64_to_int"
         ):
+            if isinstance(arg, Cast):
+                import pdb;pdb.set_trace()
             raise NoMatchException
         return arg.args[0]
 
@@ -1748,7 +1770,7 @@ class LocalOptimizer(object):
     def optimize_sail_signed(self, op):
         (arg0,) = self._args(op)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        return self.newcast(
+        return self._make_int64_to_int(
             self.newop(
                 "@signed_bv",
                 [arg0, MachineIntConstant(typ0.width)],
@@ -1756,7 +1778,6 @@ class LocalOptimizer(object):
                 op.sourcepos,
                 op.varname_hint,
             ),
-            op.resolved_type,
         )
 
     def optimize_sail_unsigned(self, op):

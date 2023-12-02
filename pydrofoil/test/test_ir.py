@@ -464,12 +464,13 @@ def test_mult_constfold():
     index = Argument('index', Int())
     block0 = Block()
     i1 = block0.emit(Operation, 'mult_int', [IntConstant(12), IntConstant(2)], Int(), '`7 14894:55-14894:60', 'zz422')
-    block0.next = Return(i1, None)
+    i2 = block0.emit(Operation, 'mult_int', [i1, IntConstant(16)], Int(), '`7 14894:55-14894:60', 'zz422')
+    block0.next = Return(i2, None)
     graph = Graph('f', [index], block0)
     check_simplify(graph, """\
 index = Argument('index', Int())
 block0 = Block()
-block0.next = Return(IntConstant(24), None)
+block0.next = Return(IntConstant(384), None)
 graph = Graph('f', [index], block0)""")
 
 def test_neg_constfold():
@@ -848,11 +849,12 @@ graph = Graph('f', [arg], block0)""")
 def test_constfold_MachineInt():
     block0 = Block()
     i1 = block0.emit(Operation, '@unsigned_bv', [SmallBitVectorConstant('0xC03', SmallFixedBitVector(12)), MachineIntConstant(12)], MachineInt(), '`1 231:32-231:43', 'zz40')
-    block0.next = Return(i1, None)
+    i2 = block0.emit(Operation, '@add_i_i_wrapped_res', [i1, MachineIntConstant(-75)], Int(), None, None)
+    block0.next = Return(i2, None)
     graph = Graph('f', [], block0)
     check_simplify(graph, """\
 block0 = Block()
-block0.next = Return(MachineIntConstant(3075), None)
+block0.next = Return(IntConstant(3000), None)
 graph = Graph('f', [], block0)""")
 
 def test_constfold_SmallFixedBitVector(): 

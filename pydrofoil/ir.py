@@ -17,16 +17,11 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - nested operations
 # - neq -> not eq
 
-# - lt etc const folding
 # - lt etc one arg machine int
 
 # - move int_to_int64 to earlier in block
 
 # - truncate has known bitwidth sometimes
-# - zero_extend const folding
-
-# - unsigned_bv const folding
-# get_slice_int_i_i_i const folding
 
 # risc-v:
 # mul_o_i, backwards mul_i_i_must_fit, sub_i_i_must_fit
@@ -1355,10 +1350,11 @@ class LocalOptimizer(object):
             return
         if op.resolved_type is types.Real():
             return # later
-        if not all(isinstance(arg, Constant) for arg in op.args):
+        args = self._args(op)
+        if not all(isinstance(arg, Constant) for arg in args):
             return
         runtimeargs = []
-        for arg in op.args:
+        for arg in args:
             if isinstance(arg, IntConstant):
                 runtimeargs.append(Integer.fromint(arg.number))
             elif isinstance(arg, MachineIntConstant):
@@ -1370,7 +1366,7 @@ class LocalOptimizer(object):
             elif arg.resolved_type is types.Unit():
                 runtimeargs.append(())
             else:
-                import pdb;pdb.set_trace()
+                #import pdb;pdb.set_trace()
                 return None
         if name not in supportcode.purefunctions:
             print "COOOOOOOOOOOOOOOOOOOOOOOOOOOOULDNT FOLD", name
@@ -1380,6 +1376,8 @@ class LocalOptimizer(object):
         res = func(None, *runtimeargs)
         if op.resolved_type is types.MachineInt():
             return MachineIntConstant(res)
+        if op.resolved_type is types.Int():
+            return IntConstant(int(res.tolong()))
         if isinstance(op.resolved_type, types.SmallFixedBitVector):
             return SmallBitVectorConstant.from_ruint(op.resolved_type.width, res)
 
@@ -1980,14 +1978,6 @@ class LocalOptimizer(object):
             op.varname_hint,
         )
 
-    def optimize_add_i_i_wrapped_res(self, op):
-        arg0, arg1 = self._args(op)
-        arg0 = self._extract_number(arg0)
-        arg1 = self._extract_number(arg1)
-        # can const-fold
-        res = arg0.number + arg1.number
-        return IntConstant(res)
-
     def optimize_sub_int(self, op):
         arg0, arg1 = self._args(op)
         arg1 = self._extract_machineint(arg1)
@@ -2026,11 +2016,6 @@ class LocalOptimizer(object):
         else:
             if arg1.number == 0:
                 return self._make_int64_to_int(arg0, op.sourcepos)
-        arg0 = self._extract_number(arg0)
-        arg1 = self._extract_number(arg1)
-        # can const-fold
-        res = arg0.number - arg1.number
-        return IntConstant(res)
 
     @symmetric
     def optimize_mult_int(self, op, arg0, arg1):
@@ -2050,22 +2035,6 @@ class LocalOptimizer(object):
                 op.sourcepos,
                 op.varname_hint,
             )
-        arg1 = self._extract_number(arg1)
-        res = arg0.number * arg1.number
-        return IntConstant(res)
-
-    def optimize_shl_int_o_i(self, op):
-        arg0, arg1 = self._args(op)
-        arg0 = self._extract_number(arg0)
-        arg1 = self._extract_number(arg1)
-        res = arg0.number << arg1.number
-        return IntConstant(res)
-
-    def optimize_neg_int(self, op):
-        arg0, = self._args(op)
-        arg0 = self._extract_number(arg0)
-        res = -arg0.number
-        return IntConstant(res)
 
     def optimize_ediv_int(self, op):
         arg0, arg1 = self._args(op)
@@ -2075,11 +2044,6 @@ class LocalOptimizer(object):
         arg0 = self._extract_number(arg0)
         if arg0.number >= 0 and arg1.number > 0:
             return IntConstant(arg0.number // arg1.number)
-
-    def optimize_pow2_i(self, op):
-        arg0, = self._args(op)
-        arg0 = self._extract_number(arg0)
-        return IntConstant(2 ** arg0.number)
 
     def optimize_get_slice_int_i_o_i(self, op):
         arg0, arg1, arg2 = self._args(op)

@@ -116,31 +116,39 @@ def unsigned_bv(machine, op, n):
     return intmask(op)
 
 @objectmodel.always_inline
+@purefunction
 def add_bits_int(machine, a, b):
     return a.add_int(b)
 
 @objectmodel.always_inline
+@purefunction
 def add_bits_int_bv_i(machine, a, width, b):
     return _mask(width, a + r_uint(b))
 
 @objectmodel.always_inline
+@purefunction
 def add_bits(machine, a, b):
     return a.add_bits(b)
 
+@purefunction
 def add_bits_bv_bv(machine, a, b, width):
     return _mask(width, a + b)
 
+@purefunction
 def sub_bits_int(machine, a, b):
     return a.sub_int(b)
 
 @objectmodel.always_inline
+@purefunction
 def sub_bits_int_bv_i(machine, a, width, b):
     return _mask(width, a - r_uint(b))
 
 @objectmodel.always_inline
+@purefunction
 def sub_bits(machine, a, b):
     return a.sub_bits(b)
 
+@purefunction
 def sub_bits_bv_bv(machine, a, b, width):
     return _mask(width, a - b)
 
@@ -167,6 +175,7 @@ def sign_extend_o_i_unwrapped_res(machine, bv, size):
 
 @unwrap("o i")
 @objectmodel.always_inline
+@purefunction
 def zero_extend(machine, gbv, size):
     return gbv.zero_extend(size)
 
@@ -379,6 +388,7 @@ def zeros(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 
 @unwrap("i")
+@purefunction
 def ones(machine, num):
     if num <= 64:
         return bitvector.from_ruint(num, r_uint(-1))
@@ -391,6 +401,7 @@ def undefined_bitvector(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 
 @unwrap("o i")
+@purefunction
 def sail_truncate(machine, bv, i):
     return bv.truncate(i)
 
@@ -398,64 +409,81 @@ def sail_truncate(machine, bv, i):
 # integers
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def eq_int(machine, a, b):
     assert isinstance(a, Integer)
     return a.eq(b)
 
+@purefunction
 def eq_int_i_i(machine, a, b):
     return a == b
 
+@purefunction
 def eq_int_o_i(machine, a, b):
     return a.int_eq(b)
 
+@purefunction
 def eq_bit(machine, a, b):
     return a == b
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def lteq(machine, ia, ib):
     return ia.le(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def lt(machine, ia, ib):
     return ia.lt(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def gt(machine, ia, ib):
     return ia.gt(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def gteq(machine, ia, ib):
     return ia.ge(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def add_int(machine, ia, ib):
     return ia.add(ib)
 
+@purefunction
 def add_o_i_wrapped_res(machine, a, b):
     return a.int_add(b)
 
+@purefunction
 def add_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.add_i_i(a, b)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def sub_int(machine, ia, ib):
     return ia.sub(ib)
 
+@purefunction
 def sub_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.sub_i_i(a, b)
 
+@purefunction
 def sub_o_i_wrapped_res(machine, a, b):
     return a.int_sub(b)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def mult_int(machine, ia, ib):
     return ia.mul(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def tdiv_int(machine, ia, ib):
     return ia.tdiv(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def tmod_int(machine, ia, ib):
     return ia.tmod(ib)
 
@@ -465,16 +493,19 @@ def ediv_int(machine, a, b):
     return a.ediv(b)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def emod_int(machine, a, b):
     return a.emod(b)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def max_int(machine, ia, ib):
     if ia.gt(ib):
         return ia
     return ib
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def min_int(machine, ia, ib):
     if ia.lt(ib):
         return ia
@@ -540,12 +571,14 @@ def undefined_int(machine, _):
     return Integer.fromint(0)
 
 @unwrap("i")
+@purefunction
 def pow2(machine, x):
     assert x >= 0
     if x < 63:
         return Integer.fromint(1 << x)
     return Integer.frombigint(ONERBIGINT.lshift(x))
 
+@purefunction
 def neg_int(machine, x):
     return Integer.fromint(0).sub(x)
 
@@ -556,19 +589,24 @@ def hex_str(machine, x):
     return x.hex()
 
 @unwrap("o i")
+@purefunction
 def shl_int(machine, i, shift):
     return i.lshift(shift)
 
 @unwrap("o i")
+@purefunction
 def shr_int(machine, i, shift):
     return i.rshift(shift)
 
+@purefunction
 def shl_mach_int(machine, i, shift):
     return i << shift
 
+@purefunction
 def shr_mach_int(machine, i, shift):
     return i >> shift
 
+@purefunction
 def abs_int(machine, i):
     return i.abs()
 

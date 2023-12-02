@@ -247,7 +247,7 @@ def test_vector_access():
     check_simplify(graph, """\
 zx = Argument('zx', SmallFixedBitVector(8))
 block0 = Block()
-i1 = block0.emit(Operation, '@vector_access_bv_i', [zx, MachineIntConstant(7)], Bit(), '`35 86:29-86:33', 'zz46')
+i1 = block0.emit(Operation, '@vector_access_bv_i', [zx, MachineIntConstant(7)], SmallFixedBitVector(1), '`35 86:29-86:33', 'zz46')
 block0.next = Return(i1, None)
 graph = Graph('update', [zx], block0)""")
 
@@ -547,7 +547,7 @@ block1.next = ConditionalGoto(i3, block2, block3, '`1 279:2-280:19')
 block2.next = Return(i1, None)
 i4 = block3.emit(Operation, '@sub_i_i_wrapped_res', [MachineIntConstant(7), i2], Int(), '`1 280:15-280:18', 'zz416')
 i5 = block3.emit(Operation, 'zz5izDzKz5i64', [i4], MachineInt(), None, None)
-i6 = block3.emit(Operation, '@vector_access_bv_i', [zxs, i5], Bit(), '`1 280:12-280:19', 'zz47')
+i6 = block3.emit(Operation, '@vector_access_bv_i', [zxs, i5], SmallFixedBitVector(1), '`1 280:12-280:19', 'zz47')
 i7 = block3.emit(Cast, '$cast', [i1], GenericBitVector(), '`1 280:4-280:9', 'zz48')
 i8 = block3.emit(Operation, '@vector_update_o_i_o', [i7, i2, i6], GenericBitVector(), '`1 280:4-280:9', 'zz410')
 i9 = block3.emit(Cast, '$cast', [i8], SmallFixedBitVector(8), '`1 280:4-280:9', 'zz40')
@@ -844,3 +844,23 @@ arg = Argument('arg', GenericBitVector())
 block0 = Block()
 block0.next = Return(arg, None)
 graph = Graph('f', [arg], block0)""")
+
+def test_constfold_MachineInt():
+    block0 = Block()
+    i1 = block0.emit(Operation, '@unsigned_bv', [SmallBitVectorConstant('0xC03', SmallFixedBitVector(12)), MachineIntConstant(12)], MachineInt(), '`1 231:32-231:43', 'zz40')
+    block0.next = Return(i1, None)
+    graph = Graph('f', [], block0)
+    check_simplify(graph, """\
+block0 = Block()
+block0.next = Return(MachineIntConstant(3075), None)
+graph = Graph('f', [], block0)""")
+
+def test_constfold_SmallFixedBitVector(): 
+    block0 = Block()
+    i1 = block0.emit(Operation, '@zero_extend_bv_i_i', [SmallBitVectorConstant('0b1', SmallFixedBitVector(1)), MachineIntConstant(1), MachineIntConstant(39)], SmallFixedBitVector(39), None, None)
+    block0.next = Return(i1, None)
+    graph = Graph('f', [], block0)
+    check_simplify(graph, """\
+block0 = Block()
+block0.next = Return(SmallBitVectorConstant('0b000000000000000000000000000000000000001', SmallFixedBitVector(39)), None)
+graph = Graph('f', [], block0)""")

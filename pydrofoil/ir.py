@@ -1,9 +1,14 @@
 import random
 from collections import defaultdict
+
 from pydrofoil import parse, types, binaryop, operations, supportcode
+from pydrofoil.bitvector import Integer
+
 from rpython.tool.udir import udir
+from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 
 from dotviewer.graphpage import GraphPage as BaseGraphPage
+
 
 # TODOS:
 # - enum reads as constants
@@ -840,11 +845,19 @@ class SmallBitVectorConstant(Constant):
         self.value = value
         self.resolved_type = resolved_type
 
+    @staticmethod
+    def from_ruint(size, val):
+        if size % 4 == 0:
+            value = '0x' + hex(val)[2:].rjust(size // 4, '0')
+        else:
+            value = '0b' + bin(val)[2:].rjust(size, '0')
+        return SmallBitVectorConstant(value, types.SmallFixedBitVector(size))
+
     def _repr(self, print_varnames):
         return repr(self)
 
     def __repr__(self):
-        return "SmallBitVectorConstant(%s, %s)" % (self.value, self.resolved_type)
+        return "SmallBitVectorConstant(%r, %s)" % (self.value, self.resolved_type)
 
 class DefaultValue(Constant):
 
@@ -1335,6 +1348,40 @@ class LocalOptimizer(object):
             else:
                 if newop is not None:
                     return newop
+        # try generic constant folding
+        name = name.lstrip("@")
+        func = getattr(supportcode, name, None)
+        if not func:
+            return
+        if op.resolved_type is types.Real():
+            return # later
+        if not all(isinstance(arg, Constant) for arg in op.args):
+            return
+        runtimeargs = []
+        for arg in op.args:
+            if isinstance(arg, IntConstant):
+                runtimeargs.append(Integer.fromint(arg.number))
+            elif isinstance(arg, MachineIntConstant):
+                runtimeargs.append(arg.number)
+            elif isinstance(arg, SmallBitVectorConstant):
+                runtimeargs.append(r_uint(eval(arg.value)))
+            elif arg.resolved_type is types.Real():
+                return # later
+            elif arg.resolved_type is types.Unit():
+                runtimeargs.append(())
+            else:
+                import pdb;pdb.set_trace()
+                return None
+        if name not in supportcode.purefunctions:
+            print "COOOOOOOOOOOOOOOOOOOOOOOOOOOOULDNT FOLD", name
+            return
+        if "undefined" in name:
+            return
+        res = func(None, *runtimeargs)
+        if op.resolved_type is types.MachineInt():
+            return MachineIntConstant(res)
+        if isinstance(op.resolved_type, types.SmallFixedBitVector):
+            return SmallBitVectorConstant.from_ruint(op.resolved_type.width, res)
 
     def _optimize_GlobalWrite(self, op, block, index):
         arg, = self._args(op)

@@ -179,12 +179,7 @@ class Unit(Type):
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
-class Bit(Type):
-    uninitialized_value = "r_uint(0)"
-
-    def __repr__(self):
-        return "%s()" % (type(self).__name__, )
+Bit = lambda : SmallFixedBitVector(1)
 
 @unique
 class String(Type):

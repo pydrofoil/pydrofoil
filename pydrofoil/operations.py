@@ -97,10 +97,10 @@ class __extend__(types.Enum):
         assert restyp is types.Bool()
         return "%s == %s" % (sargs[0], sargs[1])
 
-class __extend__(types.Bit):
-    def make_op_code_special_eq(self, ast, sargs, argtyps, restyp):
-        assert restyp is types.Bool()
-        return "%s == %s" % (sargs[0], sargs[1])
+#class __extend__(types.Bit):
+#    def make_op_code_special_eq(self, ast, sargs, argtyps, restyp):
+#        assert restyp is types.Bool()
+#        return "%s == %s" % (sargs[0], sargs[1])
 
 class __extend__(types.String):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):

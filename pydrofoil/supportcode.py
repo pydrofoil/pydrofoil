@@ -104,10 +104,12 @@ def signed_bv(machine, op, n):
     return intmask((op ^ m) - m)
 
 @objectmodel.always_inline
+@purefunction
 def unsigned_bv_wrapped_res(machine, op, n):
     return bitvector.Integer.from_ruint(op)
 
 @objectmodel.always_inline
+@purefunction
 def unsigned_bv(machine, op, n):
     if n == 64 and (op & (r_uint(1) << 63)):
         raise ValueError
@@ -169,6 +171,7 @@ def zero_extend(machine, gbv, size):
     return gbv.zero_extend(size)
 
 @objectmodel.always_inline
+@purefunction
 def zero_extend_bv_i_i(machine, bv, width, targetwidth):
     return bv # XXX correct?
 
@@ -214,6 +217,7 @@ def or_vec_bv_bv(machine, bva, bvb):
 def not_bits(machine, gvba):
     return gvba.invert()
 
+@purefunction
 def not_vec_bv(machine, bva, width):
     return _mask(width, ~bva)
 
@@ -259,34 +263,43 @@ def replicate_bits(machine, bv, repetition):
     return bv.replicate(repetition)
 
 
+@purefunction
 def sail_unsigned(machine, gbv):
     return gbv.unsigned()
 
+@purefunction
 def sail_signed(machine, gbv):
     return gbv.signed()
 
+@purefunction
 def append(machine, bv1, bv2):
     return bv1.append(bv2)
 
+@purefunction
 def bitvector_concat_bv_bv(machine, bv1, width, bv2):
     return (bv1 << width) | bv2
 
+@purefunction
 def append_64(machine, bv, v):
     return bv.append_64(v)
 
 @unwrap("o i o")
+@purefunction
 def vector_update(machine, bv, index, element):
     return bv.update_bit(index, element)
 
 @unwrap("o i")
+@purefunction
 def vector_access(machine, vec, index):
     return vec.read_bit(index)
 
+@purefunction
 def vector_access_bv_i(machine, bv, index):
     if index == 0:
         return bv & r_uint(1)
     return r_uint(1) & safe_rshift(None, bv, index)
 
+@purefunction
 def update_fbits(machine, fb, index, element):
     assert 0 <= index < 64
     if element:
@@ -295,9 +308,11 @@ def update_fbits(machine, fb, index, element):
         return fb & ~(r_uint(1) << index)
 
 @unwrap("o i i o")
+@purefunction
 def vector_update_subrange(machine, bv, n, m, s):
     return bv.update_subrange(n, m, s)
 
+@purefunction
 def vector_update_subrange_fixed_bv_i_i_bv(machine, bv, n, m, s):
     width = n - m + 1
     mask = ~(((r_uint(1) << width) - 1) << m)
@@ -306,30 +321,36 @@ def vector_update_subrange_fixed_bv_i_i_bv(machine, bv, n, m, s):
 @unwrap("o i i")
 @objectmodel.always_inline
 @objectmodel.specialize.argtype(1)
+@purefunction
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n, m)
 
 @objectmodel.always_inline
 @objectmodel.specialize.argtype(1)
+@purefunction
 def vector_subrange_o_i_i_unwrapped_res(machine, bv, n, m):
     return bv.subrange_unwrapped_res(n, m)
 
 @unwrap("o i i")
 @objectmodel.specialize.argtype(1)
+@purefunction
 def slice(machine, bv, start, length):
     return bv.subrange(start + length - 1, start)
 
 @objectmodel.always_inline
 @objectmodel.specialize.argtype(1)
+@purefunction
 def vector_slice_o_i_i_unwrapped_res(machine, bv, start, length):
     return bv.subrange_unwrapped_res(start + length - 1, start)
 
 @unwrap("i i o i o")
 @objectmodel.specialize.argtype(3)
+@purefunction
 def set_slice(machine, _len, _slen, bv, start, bv_new):
     return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)
 
 @objectmodel.always_inline
+@purefunction
 def vector_subrange_fixed_bv_i_i(machine, v, n, m):
     res = safe_rshift(None, v, m)
     width = n - m + 1
@@ -337,6 +358,7 @@ def vector_subrange_fixed_bv_i_i(machine, v, n, m):
     return _mask(width, res)
 
 @objectmodel.always_inline
+@purefunction
 def slice_fixed_bv_i_i(machine, v, start, length):
     return vector_subrange_fixed_bv_i_i(machine, v, start + length - 1, start)
 
@@ -352,6 +374,7 @@ def uint64c(machine, num):
     return bitvector.from_ruint(64, r_uint(num))
 
 @unwrap("i")
+@purefunction
 def zeros(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 
@@ -458,12 +481,15 @@ def min_int(machine, ia, ib):
     return ib
 
 @unwrap("i o i")
+@purefunction
 def get_slice_int(machine, len, n, start):
     return n.slice(len, start)
 
+@purefunction
 def get_slice_int_i_o_i_unwrapped_res(machine, len, n, start):
     return n.slice_unwrapped_res(len, start)
 
+@purefunction
 def get_slice_int_i_i_i(machine, len, i, start):
     return _mask(len, r_uint(i >> start))
 

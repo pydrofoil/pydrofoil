@@ -405,6 +405,9 @@ def undefined_bitvector(machine, num):
 def sail_truncate(machine, bv, i):
     return bv.truncate(i)
 
+@purefunction
+def truncate_bv_i(machine, bv, i):
+    return _mask(i, bv)
 
 # integers
 

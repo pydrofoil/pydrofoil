@@ -866,3 +866,19 @@ def test_constfold_SmallFixedBitVector():
 block0 = Block()
 block0.next = Return(SmallBitVectorConstant('0b000000000000000000000000000000000000001', SmallFixedBitVector(39)), None)
 graph = Graph('f', [], block0)""")
+
+def test_truncate():
+    arg = Argument('arg', SmallFixedBitVector(64))
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [arg], GenericBitVector(), None, None)
+    i2 = block0.emit(Operation, '@sail_truncate_o_i', [i1, MachineIntConstant(64)], GenericBitVector(), '`4 80:17-80:31', 'return')
+    i3 = block0.emit(Operation, '@sail_truncate_o_i', [i2, MachineIntConstant(52)], GenericBitVector(), '`4 80:17-80:31', 'return')
+    i4 = block0.emit(Cast, '$cast', [i3], SmallFixedBitVector(52), None, None)
+    block0.next = Return(i4, None)
+    graph = Graph('f', [arg], block0)
+    check_simplify(graph, """\
+arg = Argument('arg', SmallFixedBitVector(64))
+block0 = Block()
+i1 = block0.emit(Operation, '@truncate_bv_i', [arg, MachineIntConstant(52)], SmallFixedBitVector(52), '`4 80:17-80:31', 'return')
+block0.next = Return(i1, None)
+graph = Graph('f', [arg], block0)""")

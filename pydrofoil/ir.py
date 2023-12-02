@@ -21,12 +21,13 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # - move int_to_int64 to earlier in block
 
-# - truncate has known bitwidth sometimes
-
 # risc-v:
 # mul_o_i, backwards mul_i_i_must_fit, sub_i_i_must_fit
 # vector_subrange_o_i_i with smallbv argument and unknown bounds
 # CSE
+
+# - replicate
+# - sub_i_o_wrapped_res
 
 # before inlining: 4753 -> 6516
 # filesize 83 MB -> 83 MB
@@ -854,6 +855,7 @@ class SmallBitVectorConstant(Constant):
     def __repr__(self):
         return "SmallBitVectorConstant(%r, %s)" % (self.value, self.resolved_type)
 
+
 class DefaultValue(Constant):
 
     def __init__(self, resolved_type):
@@ -861,6 +863,8 @@ class DefaultValue(Constant):
 
     def __repr__(self):
         return "DefaultValue(%r)" % (self.resolved_type, )
+
+
 
 # next
 
@@ -1343,6 +1347,7 @@ class LocalOptimizer(object):
             else:
                 if newop is not None:
                     return newop
+
         # try generic constant folding
         name = name.lstrip("@")
         func = getattr(supportcode, name, None)
@@ -1366,10 +1371,8 @@ class LocalOptimizer(object):
             elif arg.resolved_type is types.Unit():
                 runtimeargs.append(())
             else:
-                #import pdb;pdb.set_trace()
                 return None
         if name not in supportcode.purefunctions:
-            print "COOOOOOOOOOOOOOOOOOOOOOOOOOOOULDNT FOLD", name
             return
         if "undefined" in name:
             return
@@ -2207,6 +2210,25 @@ class LocalOptimizer(object):
             op.sourcepos,
             op.varname_hint,
         )
+
+    def optimize_sail_truncate_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0, typ = self._extract_smallfixedbitvector(arg0)
+        num = self._extract_number(arg1)
+        if typ.width < num.number:
+            return
+        if typ.width == num.number:
+            newop = arg0
+        else:
+            newop = self.newop(
+                "@truncate_bv_i",
+                [arg0, num],
+                types.SmallFixedBitVector(num.number),
+                op.sourcepos,
+                op.varname_hint
+            )
+        return self.newcast(newop, op.resolved_type)
+
 
 @repeat
 def inline(graph, codegen):

@@ -85,6 +85,7 @@ class Codegen(object):
         self.promoted_registers = promoted_registers
         self.all_registers = {}
         self.inlinable_functions = {}
+        self.let_values = {}
 
     def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -809,7 +810,7 @@ class __extend__(parse.Files):
 
 class __extend__(parse.Let):
     def make_code(self, codegen):
-        from pydrofoil.ir import construct_ir
+        from pydrofoil.ir import construct_ir, extract_global_value
         codegen.emit("# %s" % (self, ))
         pyname = "machine.l.%s" % self.name
         codegen.add_global(self.name, pyname, self.typ.resolve_type(codegen), self, pyname)
@@ -817,6 +818,9 @@ class __extend__(parse.Let):
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
             graph = construct_ir(self, codegen, singleblock=True)
             emit_function_code(graph, self, codegen)
+            value = extract_global_value(graph, self.name)
+            if value is not None:
+                codegen.let_values[self.name] = value
             return
             blocks = {0: self.body[:]}
             optimize_blocks(blocks, codegen)

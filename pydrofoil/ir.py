@@ -8,7 +8,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # TODOS:
 # - enum reads as constants
 # - remove the typ argument of side-effecting ops?
-# - let as constant *in IR*
 
 # - nested operations
 # - neq -> not eq
@@ -26,7 +25,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - unsigned_bv const folding
 
 # risc-v:
-# mul_o_i, let as const, backwards mul_i_i_must_fit, sub_i_i_must_fit
+# mul_o_i, backwards mul_i_i_must_fit, sub_i_i_must_fit
 # vector_subrange_o_i_i with smallbv argument and unknown bounds
 # CSE
 
@@ -302,6 +301,8 @@ class SSABuilder(object):
                 return BooleanConstant.TRUE
             elif parseval.name == 'false':
                 return BooleanConstant.FALSE
+            if parseval.name in self.codegen.let_values:
+                return self.codegen.let_values[parseval.name]
             register_read = GlobalRead(parseval.name, parseval.resolved_type)
             self._addop(register_read)
             return register_read
@@ -363,6 +364,21 @@ class SSABuilder(object):
 def build_ssa(blocks, functionast, functionargs, codegen, startpc=0, extra_args=None):
     builder = SSABuilder(blocks, functionast, functionargs, codegen, startpc, extra_args)
     return builder.build()
+
+def extract_global_value(graph, name):
+    block = graph.startblock
+    if not isinstance(block.next, JustStop):
+        return
+    lastop = block.operations[-1]
+    if not isinstance(lastop, GlobalWrite):
+        return
+    if name != lastop.name:
+        return
+    value = lastop.args[0]
+    if not isinstance(value, Constant):
+        return
+    return value
+
 
 
 # graph

@@ -980,6 +980,7 @@ class ConditionalGoto(Next):
 def print_graph_construction(graph):
     res = []
     blocks = list(graph.iterblocks())
+
     blocknames = {block: "block%s" % i for i, block in enumerate(blocks)}
     print_varnames = {}
     for arg in graph.args:
@@ -2341,7 +2342,7 @@ def should_inline(graph):
             return False # no recursive inlining
     number_ops = len([op for block in blocks for op in block.operations])
     return len(blocks) < 4 and number_ops < 25
-    
+
 
 def topo_order(graph):
     order = list(graph.iterblocks()) # dfs
@@ -2419,3 +2420,25 @@ def remove_double_exception_check(graph, codegen):
         return True
     return False
 
+def find_anticipated_casts(graph):
+    blocks = topo_order(graph)
+    blocks.reverse()
+    # set entries are tuples (value, targettype)
+    anticipated_casts = {}
+
+    for block in blocks:
+        # go over the predecessors and intersect
+        assert block not in anticipated_casts
+        s = anticipated_casts[block] = set()
+        next_blocks = list(block.next.next_blocks())
+        if next_blocks:
+            s.update(anticipated_casts[next_blocks[0]])
+            for next_block in next_blocks[1:]:
+                s.intersection_update(anticipated_casts[next_block])
+        # add casts happening *within* the block
+        for op in block.operations:
+            if isinstance(op, Cast) and isinstance(op.resolved_type, types.SmallFixedBitVector):
+                s.add((op.args[0], op.resolved_type))
+            if isinstance(op, Operation) and op.name == 'zz5izDzKz5i64':
+                s.add((op.args[0], op.resolved_type))
+    return anticipated_casts

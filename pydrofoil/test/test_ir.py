@@ -924,3 +924,73 @@ i3 = block2.emit(Operation, 'zsail_assert', [i2], Unit(), '`7 1262:4-1263:17', '
 i4 = block2.emit(Operation, 'zz5izDzKz5i64', [i0], MachineInt(), '`7 1263:4-1263:17', 'zz43')
 block2.next = Return(i4, None)
 graph = Graph('zAArch64_PAMax', [], block0)'''
+
+def test_anticipated_cast():
+    arg = Argument('arg', GenericBitVector())
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    block7 = Block()
+    block8 = Block()
+    block9 = Block()
+    block10 = Block()
+    block11 = Block()
+    block12 = Block()
+    block13 = Block()
+    block14 = Block()
+    block15 = Block()
+    block16 = Block()
+    block17 = Block()
+    i0 = block0.emit(Operation, 'z__IMPDEF_integer_map', [], Int(), '`6 70:11-70:34', 'zz40')
+    i1 = block0.emit(GlobalRead, 'have_exception', [], Bool(), None, None)
+    block0.next = ConditionalGoto(i1, block1, block2, '`6 70:11-70:34')
+    block1.next = Return(DefaultValue(MachineInt()), None)
+    i2 = block2.emit(Operation, '@eq_int_o_i', [i0, MachineIntConstant(32)], Bool(), '`7 1262:11-1262:22', 'zz46')
+    block2.next = ConditionalGoto(i2, block3, block5, '`7 1262:11-1262:106')
+    block3.next = Goto(block4, None)
+    i3 = block4.emit_phi([block7, block3], [None, BooleanConstant.TRUE], Bool())
+    i4 = block4.emit(Operation, 'zsail_assert', [i3], Unit(), '`7 1262:4-1263:17', 'zz45')
+    i5 = block4.emit(Operation, 'zz5izDzKz5i64', [i0], MachineInt(), '`7 1263:4-1263:17', 'zz43')
+    block4.next = Return(i5, None)
+    i6 = block5.emit(Operation, '@eq_int_o_i', [i0, MachineIntConstant(36)], Bool(), '`7 1262:25-1262:36', 'zz48')
+    block5.next = ConditionalGoto(i6, block6, block8, '`7 1262:25-1262:106')
+    block6.next = Goto(block7, None)
+    i7 = block7.emit_phi([block10, block6], [None, BooleanConstant.TRUE], Bool())
+    i3.prevvalues[0] = i7
+    block7.next = Goto(block4, None)
+    i8 = block8.emit(Operation, '@eq_int_o_i', [i0, MachineIntConstant(40)], Bool(), '`7 1262:39-1262:50', 'zz410')
+    block8.next = ConditionalGoto(i8, block9, block11, '`7 1262:39-1262:106')
+    block9.next = Goto(block10, None)
+    i9 = block10.emit_phi([block13, block9], [None, BooleanConstant.TRUE], Bool())
+    i7.prevvalues[0] = i9
+    block10.next = Goto(block7, None)
+    i10 = block11.emit(Operation, '@eq_int_o_i', [i0, MachineIntConstant(42)], Bool(), '`7 1262:53-1262:64', 'zz412')
+    block11.next = ConditionalGoto(i10, block12, block14, '`7 1262:53-1262:106')
+    block12.next = Goto(block13, None)
+    i11 = block13.emit_phi([block16, block12], [None, BooleanConstant.TRUE], Bool())
+    i9.prevvalues[0] = i11
+    i100 = block13.emit(Cast, '$cast', [arg], SmallFixedBitVector(64), None, None)
+    block13.next = Goto(block10, None)
+    i12 = block14.emit(Operation, '@eq_int_o_i', [i0, MachineIntConstant(44)], Bool(), '`7 1262:67-1262:78', 'zz414')
+    block14.next = ConditionalGoto(i12, block15, block17, '`7 1262:67-1262:106')
+    block15.next = Goto(block16, None)
+    i13 = block16.emit_phi([block17, block15], [None, BooleanConstant.TRUE], Bool())
+    i11.prevvalues[0] = i13
+    block16.next = Goto(block13, None)
+    i14 = block17.emit(Operation, '@eq_int_o_i', [i0, MachineIntConstant(48)], Bool(), '`7 1262:81-1262:92', 'zz416')
+    block17.next = Goto(block16, None)
+    i13.prevvalues[0] = i14
+    graph = Graph('zAArch64_PAMax', [arg], block0)
+    casts = find_anticipated_casts(graph)
+    for block in graph.iterblocks():
+        s = casts[block]
+        if block in (block0, block1):
+            assert s == set()
+        elif block in (block11, block12, block13, block14, block15, block16, block17):
+            assert s == {(arg, SmallFixedBitVector(64)), (i0, MachineInt())}
+        else:
+            assert s == {(i0, MachineInt())}

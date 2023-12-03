@@ -24,10 +24,13 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # risc-v:
 # mul_o_i, backwards mul_i_i_must_fit, sub_i_i_must_fit
 # vector_subrange_o_i_i with smallbv argument and unknown bounds
+# read_kind_of_flags has weird diamond patterns
 # CSE
 
 # - replicate
 # - sub_i_o_wrapped_res
+
+# - zeq_bool (?!)
 
 # - double have_exception checks
 
@@ -1064,6 +1067,8 @@ def _simplify(graph, codegen):
     res = remove_empty_blocks(graph) or res
     graph.check()
     res = swap_not(graph, codegen) or res
+    graph.check()
+    res = cse(graph, codegen) or res
     if res:
         graph.check()
     return res
@@ -2465,3 +2470,55 @@ def move_casts_early(graph):
                 assert isinstance(resolved_type, types.SmallFixedBitVector)
                 cast = Cast(op, resolved_type)
             block.operations.insert(index, cast)
+
+@repeat
+def cse(graph, codegen):
+    def can_replace(op):
+        if isinstance(op, Phi):
+            return False
+        if isinstance(op, Cast):
+            return True
+        if op.name == "@not":
+            return True
+        name = codegen.builtin_names.get(op.name, op.name)
+        name = name.lstrip('@')
+        return type(op) is Operation and name in supportcode.purefunctions
+
+    # very simple forward CSE pass
+    if graph.has_loop:
+        return False
+
+    replacements = {}
+    available = {} # block -> block -> prev_op
+
+    entry_map = graph.make_entrymap()
+    blocks = topo_order(graph)
+    for block in blocks:
+        available_in_block = {}
+        if entry_map[block]:
+            if len(entry_map[block]) == 1:
+                available_in_block = available[entry_map[block][0]].copy()
+            else:
+                # intersection of what's available in the previous blocks
+                for key, prev_op in available[entry_map[block][0]].iteritems():
+                    if not all(available[prev_block].get(key, None) == prev_op
+                               for prev_block in entry_map[block]):
+                        continue
+                    available_in_block[key] = prev_op
+        available[block] = available_in_block
+        for index, op in enumerate(block.operations):
+            if not can_replace(op):
+                continue
+            key = (type(op), op.name, tuple(replacements.get(arg, arg) for arg in op.args), op.resolved_type)
+            if key in available_in_block:
+                block.operations[index] = None
+                replacements[op] = available_in_block[key]
+                print "==" * 10, "CSE", key, op
+            else:
+                available_in_block[key] = op
+    if replacements:
+        for block in blocks:
+            block.operations = [op for op in block.operations if op is not None]
+        graph.replace_ops(replacements)
+        return True
+    return False

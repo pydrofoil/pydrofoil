@@ -29,6 +29,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - replicate
 # - sub_i_o_wrapped_res
 
+# - double have_exception checks
+
 # before inlining: 4753 -> 6516
 # filesize 83 MB -> 83 MB
 
@@ -2270,6 +2272,7 @@ def inline(graph, codegen):
                     simplify_phis(graph)
                     remove_empty_blocks(graph)
                     join_blocks(graph)
+                    remove_double_exception_check(graph, codegen)
                     return True
             index += 1
     return changed
@@ -2362,3 +2365,57 @@ def topo_order(graph):
     assert set(topoorder) == set(order)
     assert len(set(topoorder)) == len(topoorder)
     return topoorder
+
+def remove_double_exception_check(graph, codegen):
+    def is_exception_check(block, index):
+        op = block.operations[index]
+        if not isinstance(op, GlobalRead):
+            return False
+        if op.name != "have_exception":
+            return False
+        if not isinstance(block.next, ConditionalGoto):
+            return False
+        if block.next.booleanvalue is not op:
+            return False
+        return True
+    def is_exceptional_return(block):
+        if block.operations:
+            return False
+        if not isinstance(block.next, Return):
+            return False
+        return isinstance(block.next.value, DefaultValue)
+
+    def find_next_op(block):
+        while not block.operations:
+            if not isinstance(block.next, Goto):
+                return None, None
+            block = block.next.target
+        for i, op in enumerate(block.operations):
+            if not isinstance(op, Phi):
+                return block, i
+        return None, None
+
+    for block in graph.iterblocks():
+        if not block.operations:
+            continue
+        if not is_exception_check(block, -1):
+            continue
+        nextblock, index = find_next_op(block.next.truetarget)
+        if nextblock is None:
+            continue
+        if not is_exception_check(nextblock, index):
+            continue
+        if len(nextblock.operations) - 1 != index:
+            continue
+        exceptional_return = nextblock.next.truetarget
+        if not is_exceptional_return(exceptional_return):
+            continue
+        block.next.truetarget = exceptional_return
+        nextblock.next.booleanvalue = BooleanConstant.FALSE
+        remove_if_true_false(graph)
+        remove_empty_blocks(graph)
+        join_blocks(graph)
+        remove_dead(graph, codegen)
+        return True
+    return False
+

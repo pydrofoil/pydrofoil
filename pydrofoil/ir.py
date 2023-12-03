@@ -2442,3 +2442,26 @@ def find_anticipated_casts(graph):
             if isinstance(op, Operation) and op.name == 'zz5izDzKz5i64':
                 s.add((op.args[0], op.resolved_type))
     return anticipated_casts
+
+def move_casts_early(graph):
+    anticipated_casts = find_anticipated_casts(graph)
+    entrymap = graph.make_entrymap()
+    for block in graph.iterblocks():
+        # we are looking for casts that are anticipated here, but not
+        # anticipated in *all* predecessors
+        for op, resolved_type in anticipated_casts[block]:
+            if all((op, resolved_type) in anticipated_casts[prev_block]
+                        for prev_block in entrymap[block]):
+                continue
+            # it's anticipated, but not in all predecessors. add it to the
+            # block
+            if op in block.operations:
+                index = block.operations.index(op) + 1
+            else:
+                index = 0
+            if resolved_type is types.MachineInt():
+                cast = Operation('zz5izDzKz5i64', [op], resolved_type)
+            else:
+                assert isinstance(resolved_type, types.SmallFixedBitVector)
+                cast = Cast(op, resolved_type)
+            block.operations.insert(index, cast)

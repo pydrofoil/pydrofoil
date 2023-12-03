@@ -242,16 +242,20 @@ def prerr_bits(machine, s, b):
 
 
 @unwrap("o i")
+@purefunction
 def shiftl(machine, gbv, i):
     return gbv.lshift(abs(i))
 
+@purefunction
 def shiftl_bv_i(machine, a, width, i):
     return _mask(width, a << i)
 
 @unwrap("o i")
+@purefunction
 def shiftr(machine, gbv, i):
     return gbv.rshift(i)
 
+@purefunction
 def shiftr_bv_i(machine, a, width, i):
     return _mask(width, a >> i)
 

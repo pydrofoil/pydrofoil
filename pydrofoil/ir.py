@@ -36,6 +36,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # why does cse not work for int64_to_int(zsizze) in func_zAArch64_MemSingle_read__1?
 
+# get rid of do_double_casts again
+
 # before inlining: 4753 -> 6516
 # filesize 83 MB -> 83 MB
 
@@ -1039,12 +1041,14 @@ class GraphPage(BaseGraphPage):
 def repeat(func):
     def repeated(*args, **kwargs):
         ever_changed = False
-        while 1:
+        for i in range(1000):
             changed = func(*args, **kwargs)
             assert isinstance(changed, bool)
             if not changed:
                 return ever_changed
             ever_changed = True
+        print "LIMIT REACHED!", args[0].name
+        return ever_changed
     return repeated
 
 def simplify(graph, codegen):
@@ -1061,8 +1065,6 @@ def _simplify(graph, codegen):
     res = simplify_phis(graph) or res
     graph.check()
     inline_res = inline(graph, codegen)
-    if inline_res:
-        move_casts_early(graph, codegen)
     res = inline_res or res
     graph.check()
     res = LocalOptimizer(graph, codegen, do_double_casts=False).optimize() or res
@@ -1261,6 +1263,10 @@ class LocalOptimizer(object):
         self.graph = graph
         self.codegen = codegen
         self.changed = False
+        if not graph.has_loop:
+            self.anticipated_casts = find_anticipated_casts(graph)
+        else:
+            self.anticipated_casts = {}
         self.do_double_casts = do_double_casts
 
     def view(self):
@@ -1269,6 +1275,7 @@ class LocalOptimizer(object):
     def optimize(self):
         self.replacements = {}
         for block in self.graph.iterblocks():
+            self.current_block = block
             self.optimize_block(block)
         if self.replacements:
             # XXX do them all in one go
@@ -1317,6 +1324,9 @@ class LocalOptimizer(object):
 
     def _make_int64_to_int(self, arg, sourcepos=None):
         return self.newop("zz5i64zDzKz5i", [arg], types.Int(), sourcepos)
+
+    def _make_int_to_int64(self, arg, sourcepos=None):
+        return self.newop("zz5izDzKz5i64", [arg], types.MachineInt(), sourcepos)
 
     def _get_op_replacement(self, value):
         while value in self.replacements:
@@ -1495,6 +1505,12 @@ class LocalOptimizer(object):
             assert typ is types.GenericBitVector() or isinstance(
                 typ, types.BigFixedBitVector
             )
+            # xxx, wrong complexity
+            anticipated = self.anticipated_casts.get(self.current_block, set())
+            casts = {typ for (op, typ) in anticipated if self.replacements.get(op, op) is arg}
+            if not casts:
+                raise NoMatchException
+            import pdb;pdb.set_trace()
             raise NoMatchException
         return expr, typ
 
@@ -1510,6 +1526,9 @@ class LocalOptimizer(object):
         ):
             if isinstance(arg, Cast):
                 import pdb;pdb.set_trace()
+            anticipated = self.anticipated_casts.get(self.current_block, set())
+            if (arg, types.MachineInt()) in anticipated:
+                return self._make_int_to_int64(arg)
             raise NoMatchException
         return arg.args[0]
 
@@ -2471,67 +2490,6 @@ def find_anticipated_casts(graph):
             if isinstance(op, Operation) and op.name == 'zz5izDzKz5i64':
                 s.add((op.args[0], op.resolved_type))
     return anticipated_casts
-
-def move_casts_early(graph, codegen):
-    if graph.has_loop:
-        return
-    anticipated_casts = find_anticipated_casts(graph)
-    entrymap = graph.make_entrymap()
-    replacements = {} # block -> op -> newop
-    for block in graph.iterblocks():
-        # we are looking for casts that are anticipated here, but not
-        # anticipated in *all* predecessors
-        replacements[block] = {}
-        for op, resolved_type in anticipated_casts[block]:
-            if all((op, resolved_type) in anticipated_casts[prev_block]
-                        for prev_block in entrymap[block]):
-                continue
-            # it's anticipated, but not in all predecessors. add it to the
-            # block
-            if op in block.operations:
-                index = block.operations.index(op) + 1
-            else:
-                index = 0
-            if resolved_type is types.MachineInt():
-                cast = Operation('zz5izDzKz5i64', [op], resolved_type)
-                inv_cast = Operation('zz5i64zDzKz5i', [cast], op.resolved_type)
-            else:
-                assert isinstance(resolved_type, types.SmallFixedBitVector)
-                cast = Cast(op, resolved_type)
-                inv_cast = Cast(cast, op.resolved_type)
-            block.operations.insert(index, cast)
-            block.operations.insert(index + 1, inv_cast)
-            replacements[block][op] = inv_cast
-
-    blocks = topo_order(graph)
-
-    for block in blocks:
-        # we inherit replacements from the predecessors
-        prev_blocks = entrymap[block]
-        if prev_blocks:
-            if len(prev_blocks) == 1:
-                replacements_in_block = replacements[prev_blocks[0]].copy()
-            else:
-                # intersection of what's available in the previous blocks
-                for key, prev_op in replacements[prev_blocks[0]].iteritems():
-                    if not all(replacements[prev_block].get(key, None) == prev_op
-                               for prev_block in prev_blocks):
-                        continue
-                    replacements_in_block[key] = prev_op
-            replacements[block].update(replacements_in_block)
-        for op, new_op in replacements[block].iteritems():
-            if op in block.operations:
-                index = block.operations.index(op) + 1
-            else:
-                index = 0
-            if new_op in block.operations:
-                index = max(index, block.operations.index(new_op) + 1)
-            d = {op: new_op}
-            for index in range(index, len(block.operations)):
-                curr_op = block.operations[index]
-                curr_op.replace_ops(d)
-            block.next.replace_ops(d)
-    cse(graph, codegen)
 
 @repeat
 def cse(graph, codegen):

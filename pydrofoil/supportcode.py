@@ -152,9 +152,11 @@ def sub_bits(machine, a, b):
 def sub_bits_bv_bv(machine, a, b, width):
     return _mask(width, a - b)
 
+@purefunction
 def length(machine, gbv):
     return gbv.size_as_int()
 
+@purefunction
 def length_unwrapped_res(machine, gbv):
     return gbv.size()
 

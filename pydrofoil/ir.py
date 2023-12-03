@@ -32,7 +32,9 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # - zeq_bool (?!)
 
-# - double have_exception checks
+# - cse in loops
+
+# why does cse not work for int64_to_int(zsizze) in func_zAArch64_MemSingle_read__1?
 
 # before inlining: 4753 -> 6516
 # filesize 83 MB -> 83 MB
@@ -1058,9 +1060,12 @@ def _simplify(graph, codegen):
     graph.check()
     res = simplify_phis(graph) or res
     graph.check()
-    res = inline(graph, codegen) or res
+    inline_res = inline(graph, codegen)
+    if inline_res:
+        move_casts_early(graph, codegen)
+    res = inline_res or res
     graph.check()
-    res = LocalOptimizer(graph, codegen).optimize() or res
+    res = LocalOptimizer(graph, codegen, do_double_casts=False).optimize() or res
     graph.check()
     res = remove_if_true_false(graph) or res
     graph.check()
@@ -1069,9 +1074,26 @@ def _simplify(graph, codegen):
     res = swap_not(graph, codegen) or res
     graph.check()
     res = cse(graph, codegen) or res
+    graph.check()
+    res = LocalOptimizer(graph, codegen, do_double_casts=True).optimize() or res
     if res:
         graph.check()
     return res
+
+# def find_double_computation(graph):
+#     # nonsense
+#     if graph.has_loop:
+#         return
+#     seen = set()
+#     for block in topo_order(graph):
+#         for op in block:
+#             if type(op) not in [Cast, Operation]:
+#                 continue # phi, later
+#             key = (op.name, tuple(op.args), op.resolved_type)
+#             if key in seen:
+#                 import pdb;pdb.set_trace()
+#             else:
+#                 seen.add(key)
 
 @repeat
 def remove_dead(graph, codegen):
@@ -1235,10 +1257,11 @@ def symmetric(func):
 REMOVE = "REMOVE"
 
 class LocalOptimizer(object):
-    def __init__(self, graph, codegen):
+    def __init__(self, graph, codegen, do_double_casts=True):
         self.graph = graph
         self.codegen = codegen
         self.changed = False
+        self.do_double_casts = do_double_casts
 
     def view(self):
         self.graph.view()
@@ -1318,7 +1341,7 @@ class LocalOptimizer(object):
 
     def _optimize_Cast(self, op, block, index):
         arg, = self._args(op)
-        if isinstance(arg, Cast):
+        if self.do_double_casts and isinstance(arg, Cast):
             arg2, = self._args(arg)
             if arg2.resolved_type is op.resolved_type:
                 block.operations[index] = None
@@ -1521,12 +1544,13 @@ class LocalOptimizer(object):
         (arg0,) = self._args(op)
         if isinstance(arg0, MachineIntConstant):
             return IntConstant(arg0.number)
-        if (
-            not isinstance(arg0, Operation)
-            or self._builtinname(arg0.name) != "int_to_int64"
-        ):
-            return
-        return arg0.args[0]
+        if self.do_double_casts:
+            if (
+                not isinstance(arg0, Operation)
+                or self._builtinname(arg0.name) != "int_to_int64"
+            ):
+                return
+            return arg0.args[0]
 
     def optimize_int_to_int64(self, op):
         (arg0,) = self._args(op)
@@ -2448,12 +2472,16 @@ def find_anticipated_casts(graph):
                 s.add((op.args[0], op.resolved_type))
     return anticipated_casts
 
-def move_casts_early(graph):
+def move_casts_early(graph, codegen):
+    if graph.has_loop:
+        return
     anticipated_casts = find_anticipated_casts(graph)
     entrymap = graph.make_entrymap()
+    replacements = {} # block -> op -> newop
     for block in graph.iterblocks():
         # we are looking for casts that are anticipated here, but not
         # anticipated in *all* predecessors
+        replacements[block] = {}
         for op, resolved_type in anticipated_casts[block]:
             if all((op, resolved_type) in anticipated_casts[prev_block]
                         for prev_block in entrymap[block]):
@@ -2466,10 +2494,44 @@ def move_casts_early(graph):
                 index = 0
             if resolved_type is types.MachineInt():
                 cast = Operation('zz5izDzKz5i64', [op], resolved_type)
+                inv_cast = Operation('zz5i64zDzKz5i', [cast], op.resolved_type)
             else:
                 assert isinstance(resolved_type, types.SmallFixedBitVector)
                 cast = Cast(op, resolved_type)
+                inv_cast = Cast(cast, op.resolved_type)
             block.operations.insert(index, cast)
+            block.operations.insert(index + 1, inv_cast)
+            replacements[block][op] = inv_cast
+
+    blocks = topo_order(graph)
+
+    for block in blocks:
+        # we inherit replacements from the predecessors
+        prev_blocks = entrymap[block]
+        if prev_blocks:
+            if len(prev_blocks) == 1:
+                replacements_in_block = replacements[prev_blocks[0]].copy()
+            else:
+                # intersection of what's available in the previous blocks
+                for key, prev_op in replacements[prev_blocks[0]].iteritems():
+                    if not all(replacements[prev_block].get(key, None) == prev_op
+                               for prev_block in prev_blocks):
+                        continue
+                    replacements_in_block[key] = prev_op
+            replacements[block].update(replacements_in_block)
+        for op, new_op in replacements[block].iteritems():
+            if op in block.operations:
+                index = block.operations.index(op) + 1
+            else:
+                index = 0
+            if new_op in block.operations:
+                index = max(index, block.operations.index(new_op) + 1)
+            d = {op: new_op}
+            for index in range(index, len(block.operations)):
+                curr_op = block.operations[index]
+                curr_op.replace_ops(d)
+            block.next.replace_ops(d)
+    cse(graph, codegen)
 
 @repeat
 def cse(graph, codegen):
@@ -2491,18 +2553,19 @@ def cse(graph, codegen):
     replacements = {}
     available = {} # block -> block -> prev_op
 
-    entry_map = graph.make_entrymap()
+    entrymap = graph.make_entrymap()
     blocks = topo_order(graph)
     for block in blocks:
         available_in_block = {}
-        if entry_map[block]:
-            if len(entry_map[block]) == 1:
-                available_in_block = available[entry_map[block][0]].copy()
+        prev_blocks = entrymap[block]
+        if prev_blocks:
+            if len(prev_blocks) == 1:
+                available_in_block = available[prev_blocks[0]].copy()
             else:
                 # intersection of what's available in the previous blocks
-                for key, prev_op in available[entry_map[block][0]].iteritems():
+                for key, prev_op in available[prev_blocks[0]].iteritems():
                     if not all(available[prev_block].get(key, None) == prev_op
-                               for prev_block in entry_map[block]):
+                               for prev_block in prev_blocks):
                         continue
                     available_in_block[key] = prev_op
         available[block] = available_in_block

@@ -557,7 +557,7 @@ i1.prevvalues[1] = i9
 i10 = block3.emit(Operation, '@iadd', [i2, MachineIntConstant(1)], MachineInt(), '`1 279:2-280:19', 'zz45')
 i2.prevvalues[1] = i10
 block3.next = Goto(block1, None)
-graph = Graph('zreverse_bits_in_byte', [zxs], block0)""")
+graph = Graph('zreverse_bits_in_byte', [zxs], block0, True)""")
 
 
 def test_complicated_inlining():
@@ -746,7 +746,7 @@ def test_toposort_best_attempt():
     block10.next = Goto(block4, None)
     block11.next = Goto(block6, None)
     block12.next = Goto(block2, None)
-    graph = Graph('zvalidDoubleRegs', [zn, zregs], block0)
+    graph = Graph('zvalidDoubleRegs', [zn, zregs], block0, True)
     topo_order_best_attempt(graph)
 
 def test_constfold_lteq():
@@ -878,7 +878,7 @@ i24 = block5.emit(Operation, '@iadd', [i4, MachineIntConstant(8)], MachineInt(),
 i4.prevvalues[1] = i24
 block5.next = Goto(block1, None)
 block6.next = Goto(block5, None)
-graph = Graph('zexecute', [arg2, arg4], block0)
+graph = Graph('zexecute', [arg2, arg4], block0, True)
 """)
 
 

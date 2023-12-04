@@ -1023,7 +1023,7 @@ def print_graph_construction(graph):
                     res.append("%s.prevvalues[%s] = %s" % (prevname, index, name))
             seen_ops.add(op)
         res.append("%s.next = %s" % (blockname, block.next._repr(print_varnames, blocknames)))
-    res.append("graph = Graph(%r, [%s], block0, %s)" % (graph.name, ", ".join(arg.name for arg in graph.args)), graph.has_loop)
+    res.append("graph = Graph(%r, [%s], block0%s)" % (graph.name, ", ".join(arg.name for arg in graph.args), ", True" if graph.has_loop else ""))
     return res
 
 

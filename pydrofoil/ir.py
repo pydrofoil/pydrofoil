@@ -1023,7 +1023,7 @@ def print_graph_construction(graph):
                     res.append("%s.prevvalues[%s] = %s" % (prevname, index, name))
             seen_ops.add(op)
         res.append("%s.next = %s" % (blockname, block.next._repr(print_varnames, blocknames)))
-    res.append("graph = Graph(%r, [%s], block0)" % (graph.name, ", ".join(arg.name for arg in graph.args)))
+    res.append("graph = Graph(%r, [%s], block0, %s)" % (graph.name, ", ".join(arg.name for arg in graph.args)), graph.has_loop)
     return res
 
 
@@ -1264,10 +1264,7 @@ class LocalOptimizer(object):
         self.graph = graph
         self.codegen = codegen
         self.changed = False
-        if not graph.has_loop:
-            self.anticipated_casts = find_anticipated_casts(graph)
-        else:
-            self.anticipated_casts = {}
+        self.anticipated_casts = find_anticipated_casts(graph)
         self.do_double_casts = do_double_casts
 
     def view(self):
@@ -2419,6 +2416,48 @@ def topo_order(graph):
     assert len(set(topoorder)) == len(topoorder)
     return topoorder
 
+
+def topo_order_best_attempt(graph):
+    # supports loops too
+    if not graph.has_loop:
+        return topo_order(graph)
+
+    order = list(graph.iterblocks()) # dfs
+
+    incoming = defaultdict(set)
+    for block in order:
+        for nextblock in block.next.next_blocks():
+            incoming[nextblock].add(block)
+    no_incoming = [order[0]]
+    incoming = dict(incoming)
+    assert set(incoming).union({graph.startblock}) == set(order)
+    result = []
+    while 1:
+        while no_incoming:
+            assert set(incoming).union(result).union(no_incoming) == set(order)
+            block = no_incoming.pop()
+            assert block not in incoming
+            assert block not in result
+            result.append(block)
+            for child in set(block.next.next_blocks()):
+                if child in incoming:
+                    incoming[child].discard(block)
+                    if not incoming[child]:
+                        no_incoming.append(child)
+                        del incoming[child]
+        if not incoming:
+            break
+        # we have a loop. just pick a block
+        for block in order:
+            if block in incoming:
+                no_incoming.append(block)
+                del incoming[block]
+                break
+    # check result
+    assert set(result) == set(order)
+    assert len(set(result)) == len(result)
+    return result
+
 def remove_double_exception_check(graph, codegen):
     def is_exception_check(block, index):
         op = block.operations[index]
@@ -2473,17 +2512,17 @@ def remove_double_exception_check(graph, codegen):
     return False
 
 def find_anticipated_casts(graph):
-    blocks = topo_order(graph)
+    blocks = topo_order_best_attempt(graph)
     blocks.reverse()
     # set entries are tuples (value, targettype)
     anticipated_casts = {}
 
     for block in blocks:
-        # go over the predecessors and intersect
+        # go over the successors and intersect
         assert block not in anticipated_casts
         s = anticipated_casts[block] = set()
         next_blocks = list(block.next.next_blocks())
-        if next_blocks:
+        if next_blocks and all(next_block in anticipated_casts for next_block in next_blocks):
             s.update(anticipated_casts[next_blocks[0]])
             for next_block in next_blocks[1:]:
                 s.intersection_update(anticipated_casts[next_block])
@@ -2509,14 +2548,11 @@ def cse(graph, codegen):
         return type(op) is Operation and name in supportcode.purefunctions
 
     # very simple forward CSE pass
-    if graph.has_loop:
-        return False
-
     replacements = {}
     available = {} # block -> block -> prev_op
 
     entrymap = graph.make_entrymap()
-    blocks = topo_order(graph)
+    blocks = topo_order_best_attempt(graph)
     for block in blocks:
         available_in_block = {}
         prev_blocks = entrymap[block]
@@ -2526,7 +2562,7 @@ def cse(graph, codegen):
             else:
                 # intersection of what's available in the previous blocks
                 for key, prev_op in available[prev_blocks[0]].iteritems():
-                    if not all(available[prev_block].get(key, None) == prev_op
+                    if not all(available.get(prev_block, {}).get(key, None) == prev_op
                                for prev_block in prev_blocks):
                         continue
                     available_in_block[key] = prev_op

@@ -1058,6 +1058,41 @@ i14.prevvalues[0] = i15
 block17.next = Goto(block16, None)
 graph = Graph('zAArch64_PAMax', [arg], block0)'''
 
+def test_anticipated_cast_bv():
+    zv = Argument('zv', SmallFixedBitVector(32))
+    zshift = Argument('zshift', SmallFixedBitVector(5))
+    block0 = Block()
+    i2 = block0.emit(Operation, 'zz5i64zDzKz5i', [MachineIntConstant(64)], Int(), '`1 252:25-252:39', 'zz49')
+    i3 = block0.emit(Cast, '$cast', [zv], GenericBitVector(), '`1 252:25-252:39', 'zz410')
+    i4 = block0.emit(Comment, 'inlined zsign_extend', [], Unit(), None, None)
+    i5 = block0.emit(Operation, 'zz5izDzKz5i64', [i2], MachineInt(), None, None)
+    i6 = block0.emit(Operation, '@sign_extend_o_i', [i3, i5], GenericBitVector(), '`1 193:29-193:51', 'return')
+    i7 = block0.emit(Cast, '$cast', [i6], SmallFixedBitVector(64), '`1 252:25-252:39', 'zz40')
+    i8 = block0.emit(Cast, '$cast', [i7], GenericBitVector(), '`1 253:5-253:17', 'zz46')
+    i9 = block0.emit(Cast, '$cast', [zshift], GenericBitVector(), '`1 253:5-253:17', 'zz47')
+    i10 = block0.emit(Operation, 'shift_bits_right', [i8, i9], GenericBitVector(), '`1 253:5-253:17', 'zz48')
+    i11 = block0.emit(Cast, '$cast', [i10], SmallFixedBitVector(64), '`1 253:5-253:17', 'zz41')
+    i12 = block0.emit(Operation, 'zz5i64zDzKz5i', [MachineIntConstant(31)], Int(), '`1 253:4-253:25', 'zz42')
+    i13 = block0.emit(Operation, 'zz5i64zDzKz5i', [MachineIntConstant(0)], Int(), '`1 253:4-253:25', 'zz43')
+    i14 = block0.emit(Cast, '$cast', [i11], GenericBitVector(), '`1 253:4-253:25', 'zz44')
+    i15 = block0.emit(Operation, 'vector_subrange', [i14, i12, i13], GenericBitVector(), '`1 253:4-253:25', 'zz45')
+    i16 = block0.emit(Cast, '$cast', [i15], SmallFixedBitVector(32), '`1 253:4-253:25', 'return')
+    block0.next = Return(i16, None)
+    graph = Graph('zshift_right_arith32', [zv, zshift], block0)
+    check_simplify(graph, '''
+zv = Argument('zv', SmallFixedBitVector(32))
+zshift = Argument('zshift', SmallFixedBitVector(5))
+block0 = Block()
+i2 = block0.emit(Comment, 'inlined zsign_extend', [], Unit(), None, None)
+i3 = block0.emit(Operation, '@sign_extend_bv_i_i', [zv, MachineIntConstant(32), MachineIntConstant(64)], SmallFixedBitVector(64), '`1 193:29-193:51', 'return')
+i4 = block0.emit(Cast, '$cast', [i3], GenericBitVector(), '`1 253:5-253:17', 'zz46')
+i5 = block0.emit(Cast, '$cast', [zshift], GenericBitVector(), '`1 253:5-253:17', 'zz47')
+i6 = block0.emit(Operation, 'shift_bits_right', [i4, i5], GenericBitVector(), '`1 253:5-253:17', 'zz48')
+i7 = block0.emit(Cast, '$cast', [i6], SmallFixedBitVector(64), None, None)
+i8 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [i7, MachineIntConstant(31), MachineIntConstant(0)], SmallFixedBitVector(32), '`1 253:4-253:25', 'zz45')
+block0.next = Return(i8, None)
+graph = Graph('zshift_right_arith32', [zv, zshift], block0)
+''')
 
 def test_cse():
     zaddr = Argument('zaddr', SmallFixedBitVector(64))
@@ -1355,3 +1390,5 @@ graph = Graph('zis_ones_subrange', [zxs, zi, zj], block0)
     # i32 = block0.emit(Operation, '@eq_bits_bv_bv', [i30, i31], Bool(), '`7 11346:11-11346:76', 'zz40')
     # block0.next = Return(i32, None)
     # graph = Graph('zCheckAllInAlignedQuantity', [zaddress, zsizze, zalignment], block0)
+
+

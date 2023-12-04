@@ -1501,6 +1501,14 @@ class LocalOptimizer(object):
 
     def _extract_smallfixedbitvector(self, arg):
         if not isinstance(arg, Cast):
+            # xxx, wrong complexity
+            anticipated = self.anticipated_casts.get(self.current_block, set())
+            casts = {typ for (op, typ) in anticipated if self.replacements.get(op, op) is arg}
+            if not casts:
+                raise NoMatchException
+            if len(casts) == 1:
+                typ, = casts
+                return self.newcast(arg, typ), typ
             raise NoMatchException
         expr = arg.args[0]
         typ = expr.resolved_type
@@ -1508,12 +1516,6 @@ class LocalOptimizer(object):
             assert typ is types.GenericBitVector() or isinstance(
                 typ, types.BigFixedBitVector
             )
-            # xxx, wrong complexity
-            anticipated = self.anticipated_casts.get(self.current_block, set())
-            casts = {typ for (op, typ) in anticipated if self.replacements.get(op, op) is arg}
-            if not casts:
-                raise NoMatchException
-            import pdb;pdb.set_trace()
             raise NoMatchException
         return expr, typ
 
@@ -2266,6 +2268,7 @@ class LocalOptimizer(object):
         )
 
     def optimize_sail_truncate_o_i(self, op):
+
         arg0, arg1 = self._args(op)
         arg0, typ = self._extract_smallfixedbitvector(arg0)
         num = self._extract_number(arg1)
@@ -2537,7 +2540,6 @@ def cse(graph, codegen):
             if key in available_in_block:
                 block.operations[index] = None
                 replacements[op] = available_in_block[key]
-                print "==" * 10, "CSE", key, op
             else:
                 available_in_block[key] = op
     if replacements:

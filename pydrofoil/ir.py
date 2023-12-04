@@ -1233,8 +1233,10 @@ def remove_if_true_false(graph):
 
 @repeat
 def remove_if_phi_constant(graph):
+    from pydrofoil.emitfunction import count_uses
     if graph.has_loop:
         return False
+    uses = count_uses(graph)
     res = False
     replacements = {}
     for block in graph.iterblocks():
@@ -1250,6 +1252,8 @@ def remove_if_phi_constant(graph):
         if block.next.booleanvalue is not op:
             continue
         if len(op.prevvalues) != 2:
+            continue
+        if uses[op] != 1:
             continue
         val0, val1 = op.prevvalues
         prevblock0, prevblock1 = op.prevblocks
@@ -2347,7 +2351,6 @@ def inline(graph, codegen):
                 elif not subgraph.has_loop:
                     # complicated case
                     # split current block
-                    print "inlining", graph.name, subgraph.name
                     newblock = Block()
                     oldops = block.operations[:]
                     newblock.operations = block.operations[index + 1:]

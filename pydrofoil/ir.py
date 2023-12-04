@@ -12,20 +12,16 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # TODOS:
 # - enum reads as constants
-# - remove the typ argument of side-effecting ops?
 
 # - nested operations
 # - neq -> not eq
 
 # - lt etc one arg machine int
 
-# - move int_to_int64 to earlier in block
-
 # risc-v:
 # mul_o_i, backwards mul_i_i_must_fit, sub_i_i_must_fit
-# vector_subrange_o_i_i with smallbv argument and unknown bounds
+# vector_subrange_o_i_i with smallbv argument and unknown bounds (hard)
 # read_kind_of_flags has weird diamond patterns
-# CSE
 
 # - replicate
 # - sub_i_o_wrapped_res
@@ -38,8 +34,10 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # get rid of do_double_casts again
 
-# before inlining: 4753 -> 6516
-# filesize 83 MB -> 83 MB
+# type specialization: func_zAArch64_AddrTop should return MachineInt
+# is_zero/one_subrange is a nice example for something that could accept SmallFixedBitVector (and MachineInts)
+# can have both "demand" (casts inside a function)
+# and "supply" (arguments from outside)
 
 
 

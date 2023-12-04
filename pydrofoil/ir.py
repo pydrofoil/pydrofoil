@@ -1079,6 +1079,8 @@ def _simplify(graph, codegen):
     res = cse(graph, codegen) or res
     graph.check()
     res = LocalOptimizer(graph, codegen, do_double_casts=True).optimize() or res
+    graph.check()
+    res = remove_if_phi_constant(graph) or res
     if res:
         graph.check()
     return res
@@ -1198,8 +1200,6 @@ def simplify_phis(graph):
                 block.operations = [op for op in block.operations if op is not None]
                 graph.replace_ops(replace_phis)
                 return True
-
-
     return False
 
 @repeat
@@ -1240,6 +1240,47 @@ def remove_if_true_false(graph):
         if replace_phis:
             graph.replace_ops(replace_phis)
     return changed
+
+@repeat
+def remove_if_phi_constant(graph):
+    if graph.has_loop:
+        return False
+    res = False
+    replacements = {}
+    for block in graph.iterblocks():
+        if len(block.operations) != 1:
+            continue
+        op, = block.operations
+        if not isinstance(op, Phi):
+            continue
+        if op.resolved_type is not types.Bool():
+            continue
+        if not isinstance(block.next, ConditionalGoto):
+            continue
+        if block.next.booleanvalue is not op:
+            continue
+        if len(op.prevvalues) != 2:
+            continue
+        val0, val1 = op.prevvalues
+        prevblock0, prevblock1 = op.prevblocks
+        if not isinstance(val0, BooleanConstant):
+            val0, val1 = val1, val0
+            prevblock0, prevblock1 = prevblock1, prevblock0
+        if not isinstance(val0, BooleanConstant):
+            continue
+        if val0.value:
+            target0 = block.next.truetarget
+        else:
+            target0 = block.next.falsetarget
+        replacements[op] = val1
+        block.operations = []
+        assert isinstance(prevblock0.next, Goto)
+        assert prevblock0.next.target is block
+        prevblock0.next.target = target0
+        res = True
+    if res:
+        graph.replace_ops(replacements)
+    return res
 
 class NoMatchException(Exception):
     pass
@@ -2263,7 +2304,6 @@ class LocalOptimizer(object):
         )
 
     def optimize_sail_truncate_o_i(self, op):
-
         arg0, arg1 = self._args(op)
         arg0, typ = self._extract_smallfixedbitvector(arg0)
         num = self._extract_number(arg1)
@@ -2281,6 +2321,20 @@ class LocalOptimizer(object):
             )
         return self.newcast(newop, op.resolved_type)
 
+    @symmetric
+    def optimize_eq_bool(self, op, arg0, arg1):
+        if not isinstance(arg0, BooleanConstant):
+            raise NoMatchException
+        if arg0.value:
+            return arg1
+        else:
+            return self.newop(
+                "@not",
+                [arg1],
+                types.Bool(),
+                op.sourcepos,
+                op.varname_hint
+            )
 
 @repeat
 def inline(graph, codegen):

@@ -466,7 +466,10 @@ class Block(object):
         seen.add(self)
         res = []
         for index, op in enumerate(self.operations):
-            name = op._get_print_name(print_varnames)
+            if op is None:
+                res.append('None')
+                continue
+            name = op._get_print_name(print_varnames) if op is not None else 'None'
             if isinstance(op, Operation):
                 oprepr = "%s(%s) [%s]" % (
                     op.name,

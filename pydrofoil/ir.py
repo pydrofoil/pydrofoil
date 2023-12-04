@@ -1040,15 +1040,18 @@ class GraphPage(BaseGraphPage):
 # some simple graph simplifications
 
 def repeat(func):
-    def repeated(*args, **kwargs):
+    def repeated(graph, *args, **kwargs):
         ever_changed = False
         for i in range(1000):
-            changed = func(*args, **kwargs)
+            changed = func(graph, *args, **kwargs)
             assert isinstance(changed, bool)
             if not changed:
-                return ever_changed
+                break
             ever_changed = True
-        print "LIMIT REACHED!", args[0].name
+        else:
+            print "LIMIT REACHED!", graph
+        if ever_changed:
+            graph.check()
         return ever_changed
     return repeated
 
@@ -1060,29 +1063,16 @@ def simplify(graph, codegen):
 def _simplify(graph, codegen):
     res = False
     res = join_blocks(graph) or res
-    graph.check()
     res = remove_dead(graph, codegen) or res
-    graph.check()
     res = simplify_phis(graph) or res
-    graph.check()
-    inline_res = inline(graph, codegen)
-    res = inline_res or res
-    graph.check()
+    res = inline(graph, codegen) or res
     res = LocalOptimizer(graph, codegen, do_double_casts=False).optimize() or res
-    graph.check()
     res = remove_if_true_false(graph) or res
-    graph.check()
     res = remove_empty_blocks(graph) or res
-    graph.check()
     res = swap_not(graph, codegen) or res
-    graph.check()
     res = cse(graph, codegen) or res
-    graph.check()
     res = LocalOptimizer(graph, codegen, do_double_casts=True).optimize() or res
-    graph.check()
     res = remove_if_phi_constant(graph) or res
-    if res:
-        graph.check()
     return res
 
 # def find_double_computation(graph):

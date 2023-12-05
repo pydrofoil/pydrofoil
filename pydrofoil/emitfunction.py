@@ -30,10 +30,12 @@ class CodeEmitter(object):
 
     def emit(self):
         codegen = self.codegen
-        codegen.emit("# return type %s%s" % (
-            getattr(self.functionast.resolved_type, 'restype', 'unit'),
-            " has loop" if self.graph.has_loop else ""
-            ))
+        try:
+            codegen.emit("# return type %s%s" % (self.functionast.resolved_type.restype,
+                " has loop" if self.graph.has_loop else ""
+                ))
+        except AttributeError:
+            pass
         for comment in self.graph_construction_code:
             codegen.emit("# " + comment)
         if len(self.blocks) == 1:

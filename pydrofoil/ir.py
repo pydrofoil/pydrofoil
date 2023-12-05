@@ -34,12 +34,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # get rid of do_double_casts again
 
-# type specialization: func_zAArch64_AddrTop should return MachineInt
-# is_zero/one_subrange is a nice example for something that could accept SmallFixedBitVector (and MachineInts)
-# can have both "demand" (casts inside a function)
-# and "supply" (arguments from outside)
-
-
 
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:
@@ -1056,7 +1050,11 @@ def repeat(func):
     return repeated
 
 def simplify(graph, codegen):
+    from pydrofoil.specialize import SpecializingOptimizer
     res = _simplify(graph, codegen)
+    if graph.name not in codegen.inlinable_functions:
+        SpecializingOptimizer(graph, codegen).optimize()
+    res = _simplify(graph, codegen) or res
     return res
 
 @repeat
@@ -1294,7 +1292,7 @@ def symmetric(func):
 
 REMOVE = "REMOVE"
 
-class LocalOptimizer(object):
+class BaseOptimizer(object):
     def __init__(self, graph, codegen, do_double_casts=True):
         self.graph = graph
         self.codegen = codegen
@@ -1330,6 +1328,10 @@ class LocalOptimizer(object):
                 assert op.resolved_type is newop.resolved_type
                 self.replacements[op] = newop
         block.operations = self.newoperations
+
+    def _optimize_op(self, block, index, op):
+        # base implementation, does nothing
+        self.newoperations.append(op)
 
     def newop(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
         newop = Operation(
@@ -1368,6 +1370,58 @@ class LocalOptimizer(object):
 
     def _args(self, op):
         return [self._get_op_replacement(value) for value in op.args]
+
+    def _builtinname(self, name):
+        return self.codegen.builtin_names.get(name, name)
+
+    def _extract_smallfixedbitvector(self, arg):
+        if not isinstance(arg, Cast):
+            # xxx, wrong complexity
+            anticipated = self.anticipated_casts.get(self.current_block, set())
+            casts = {typ for (op, typ) in anticipated if self.replacements.get(op, op) is arg}
+            if not casts:
+                raise NoMatchException
+            if len(casts) == 1:
+                typ, = casts
+                return self.newcast(arg, typ), typ
+            raise NoMatchException
+        expr = arg.args[0]
+        typ = expr.resolved_type
+        if not isinstance(typ, types.SmallFixedBitVector):
+            assert typ is types.GenericBitVector() or isinstance(
+                typ, types.BigFixedBitVector
+            )
+            raise NoMatchException
+        return expr, typ
+
+    def _extract_machineint(self, arg):
+        if arg.resolved_type is types.MachineInt():
+            return arg
+        if isinstance(arg, IntConstant):
+            if isinstance(arg.number, int):
+                return MachineIntConstant(arg.number)
+        if (
+            not isinstance(arg, Operation)
+            or self._builtinname(arg.name) != "int64_to_int"
+        ):
+            if isinstance(arg, Cast):
+                import pdb;pdb.set_trace()
+            anticipated = self.anticipated_casts.get(self.current_block, set())
+            if (arg, types.MachineInt()) in anticipated:
+                return self._make_int_to_int64(arg)
+            raise NoMatchException
+        return arg.args[0]
+
+    def _extract_number(self, arg):
+        if isinstance(arg, MachineIntConstant):
+            return arg
+        num = self._extract_machineint(arg)
+        if not isinstance(num, MachineIntConstant):
+            raise NoMatchException
+        return num
+
+
+class LocalOptimizer(BaseOptimizer):
 
     def _optimize_op(self, block, index, op):
         meth = getattr(self, "_optimize_" + type(op).__name__, None)
@@ -1526,54 +1580,8 @@ class LocalOptimizer(object):
                     types.MachineInt())
             )
 
-    def _builtinname(self, name):
-        return self.codegen.builtin_names.get(name, name)
-
-    def _extract_smallfixedbitvector(self, arg):
-        if not isinstance(arg, Cast):
-            # xxx, wrong complexity
-            anticipated = self.anticipated_casts.get(self.current_block, set())
-            casts = {typ for (op, typ) in anticipated if self.replacements.get(op, op) is arg}
-            if not casts:
-                raise NoMatchException
-            if len(casts) == 1:
-                typ, = casts
-                return self.newcast(arg, typ), typ
-            raise NoMatchException
-        expr = arg.args[0]
-        typ = expr.resolved_type
-        if not isinstance(typ, types.SmallFixedBitVector):
-            assert typ is types.GenericBitVector() or isinstance(
-                typ, types.BigFixedBitVector
-            )
-            raise NoMatchException
-        return expr, typ
-
-    def _extract_machineint(self, arg):
-        if arg.resolved_type is types.MachineInt():
-            return arg
-        if isinstance(arg, IntConstant):
-            if isinstance(arg.number, int):
-                return MachineIntConstant(arg.number)
-        if (
-            not isinstance(arg, Operation)
-            or self._builtinname(arg.name) != "int64_to_int"
-        ):
-            if isinstance(arg, Cast):
-                import pdb;pdb.set_trace()
-            anticipated = self.anticipated_casts.get(self.current_block, set())
-            if (arg, types.MachineInt()) in anticipated:
-                return self._make_int_to_int64(arg)
-            raise NoMatchException
-        return arg.args[0]
-
-    def _extract_number(self, arg):
-        if isinstance(arg, MachineIntConstant):
-            return arg
-        num = self._extract_machineint(arg)
-        if not isinstance(num, MachineIntConstant):
-            raise NoMatchException
-        return num
+    def _optimize_NonSSAAssignment(self, op, block, index):
+        return REMOVE
 
     @symmetric
     def optimize_eq_bits(self, op, arg0, arg1):
@@ -2351,28 +2359,32 @@ def inline(graph, codegen):
                 elif not subgraph.has_loop:
                     # complicated case
                     # split current block
-                    newblock = Block()
-                    oldops = block.operations[:]
-                    newblock.operations = block.operations[index + 1:]
-                    del block.operations[index:]
-                    block.operations.append(Comment("inlined %s" % subgraph.name))
-                    newblock.next = block.next
-                    for furtherblock in block.next.next_blocks():
-                        furtherblock.replace_prev(block, newblock)
-                    start_block, return_block = copy_blocks(subgraph, op)
-                    block.next = Goto(start_block)
-                    res, = return_block.operations
-                    assert return_block.next is None
-                    return_block.next = Goto(newblock)
-                    graph.replace_op(op, return_block.operations[0])
-                    graph.check()
-                    simplify_phis(graph)
+                    _inline(graph, block, index, subgraph)
                     remove_empty_blocks(graph)
                     join_blocks(graph)
                     remove_double_exception_check(graph, codegen)
                     return True
             index += 1
     return changed
+
+def _inline(graph, block, index, subgraph):
+    op = block.operations[index]
+    newblock = Block()
+    oldops = block.operations[:]
+    newblock.operations = block.operations[index + 1:]
+    del block.operations[index:]
+    block.operations.append(Comment("inlined %s" % subgraph.name))
+    newblock.next = block.next
+    for furtherblock in block.next.next_blocks():
+        furtherblock.replace_prev(block, newblock)
+    start_block, return_block = copy_blocks(subgraph, op)
+    block.next = Goto(start_block)
+    res, = return_block.operations
+    assert return_block.next is None
+    return_block.next = Goto(newblock)
+    graph.replace_op(op, return_block.operations[0])
+    simplify_phis(graph)
+    graph.check()
 
 def copy_ops(op, subgraph):
     assert len(list(subgraph.iterblocks())) == 1

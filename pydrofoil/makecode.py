@@ -87,6 +87,7 @@ class Codegen(object):
         self.all_registers = {}
         self.inlinable_functions = {}
         self.let_values = {}
+        self.specialization_functions = {}
 
     def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -189,6 +190,14 @@ class Codegen(object):
         res.append("let_init(Machine)")
         res.append("\n".join(self.code))
         return "\n\n".join(res)
+
+    def emit_extra_graph(self, graph, functyp):
+        pyname = "func_" + graph.name
+        self.add_global(graph.name, pyname, functyp)
+        args = [arg.name for arg in graph.args]
+        first = "def %s(machine, %s):" % (pyname, ", ".join(args))
+        with self.emit_indent(first):
+            emit_function_code(graph, None, self)
 
 
 def parse_and_make_code(s, support_code, promoted_registers=set()):
@@ -493,6 +502,7 @@ def iterblockops(blocks):
 class __extend__(parse.Function):
     def make_code(self, codegen):
         from pydrofoil.ir import construct_ir, should_inline
+        from pydrofoil.specialize import Specializer, usefully_specializable
         from pydrofoil.emitfunction import emit_function_code
         from pydrofoil import optimize
         pyname = codegen.getname(self.name)
@@ -522,6 +532,9 @@ class __extend__(parse.Function):
         inlinable = should_inline(graph)
         if inlinable:
             codegen.inlinable_functions[self.name] = graph
+        else:
+            if len(blocks) < 50 and usefully_specializable(graph):
+                codegen.specialization_functions[self.name] = Specializer(graph, codegen)
 
         with self._scope(codegen, pyname):
             emit_function_code(graph, self, codegen)

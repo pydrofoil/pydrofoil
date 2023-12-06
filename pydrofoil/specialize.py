@@ -5,6 +5,9 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 # can have both "demand" (casts inside a function)
 # and "supply" (arguments from outside)
 
+# - demand ints
+# - result casts
+
 
 def usefully_specializable(graph):
     if graph.has_loop:
@@ -25,6 +28,7 @@ class Specializer(object):
             if isinstance(block.next, ir.Return):
                 if block.next.value is not None:
                     self.resulttyp = block.next.value.resolved_type
+        self.argtyps = [arg.resolved_type for arg in graph.args]
         self.cache = {}
         self.codegen = codegen
 
@@ -65,20 +69,20 @@ class Specializer(object):
         block = ir.Block(ops)
         block.next = ir.Return(ops[-1])
         graph = ir.Graph(self.graph.name + "_specialized_" + "_".join(sargs), args, block)
-        print "MAKING STUB", graph.name
+        print "MAKING SPECIALIZATION", graph.name
         ir._inline(graph, block, len(ops) - 1, self.graph)
         ir.simplify(graph, self.codegen)
-        import pdb;pdb.set_trace()
         typ = types.Function(types.Tuple(tuple(key)), self.resulttyp)
         self.codegen.emit_extra_graph(graph, typ)
+        self.codegen.specialization_functions[graph.name] = self
         return graph
 
     def _extract_key(self, call, optimizer):
         key = []
         args = []
         useful = False
-        for arg in call.args:
-            if arg.resolved_type is types.Int():
+        for arg, argtyp in zip(call.args, self.argtyps):
+            if argtyp is types.Int():
                 try:
                     arg = optimizer._extract_machineint(arg)
                 except ir.NoMatchException:
@@ -88,7 +92,7 @@ class Specializer(object):
                     args.append(arg)
                     useful = True
                     continue
-            elif isinstance(arg.resolved_type, types.GenericBitVector):
+            elif isinstance(argtyp, types.GenericBitVector):
                 try:
                     arg, typ = optimizer._extract_smallfixedbitvector(arg)
                 except ir.NoMatchException:
@@ -103,7 +107,6 @@ class Specializer(object):
         if not useful:
             key = None
         else:
-            print "SPECIALIZE", call
             key = tuple(key)
             assert len(key) == len(args) == len(call.args)
         return key, args

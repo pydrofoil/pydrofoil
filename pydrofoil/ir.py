@@ -1375,6 +1375,8 @@ class BaseOptimizer(object):
         return self.codegen.builtin_names.get(name, name)
 
     def _extract_smallfixedbitvector(self, arg):
+        if isinstance(arg.resolved_type, types.SmallFixedBitVector):
+            return arg, arg.resolved_type
         if not isinstance(arg, Cast):
             # xxx, wrong complexity
             anticipated = self.anticipated_casts.get(self.current_block, set())

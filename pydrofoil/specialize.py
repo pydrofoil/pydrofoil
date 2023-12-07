@@ -5,6 +5,8 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 # can have both "demand" (casts inside a function)
 # and "supply" (arguments from outside)
 
+# focus on: MemSingle_read
+
 # - demand ints
 # - result casts
 

@@ -20,13 +20,30 @@ def make_code(regen=True):
     outarm = _make_code(regen)
     return supportcodearm.get_main(outarm)
 
+def should_inline(name):
+    if "step_model" in name:
+        return False
+    if "subrange_subrange" in name:
+        return True
+    if "slice_mask" in name:
+        return True
+    if "sail_mask" in name:
+        return True
+    if "extzzv" in name:
+        return True
+    if "IMPDEF" in name:
+        return True
+
+
 def _make_code(regen=True):
     print "making python code"
+
     if regen:
         with open(armir, "rb") as f:
             s = f.read()
         support_code = "from arm import supportcodearm as supportcode"
-        res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS)
+        res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS,
+                                  should_inline=should_inline)
         with open(outarm, "w") as f:
             f.write(res)
         print "written file", outarm, "importing now"

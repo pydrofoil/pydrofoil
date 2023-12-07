@@ -20,7 +20,7 @@ class NameInfo(object):
 
 
 class Codegen(object):
-    def __init__(self, promoted_registers=frozenset()):
+    def __init__(self, promoted_registers=frozenset(), should_inline=None):
         self.declarations = []
         self.runtimeinit = []
         self.code = []
@@ -86,6 +86,8 @@ class Codegen(object):
         self.promoted_registers = promoted_registers
         self.all_registers = {}
         self.inlinable_functions = {}
+        # a function that returns True, False or None
+        self.should_inline = should_inline if should_inline is not None else lambda: None
         self.let_values = {}
         self.specialization_functions = {}
 
@@ -200,11 +202,11 @@ class Codegen(object):
             emit_function_code(graph, None, self)
 
 
-def parse_and_make_code(s, support_code, promoted_registers=set()):
+def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None):
     from pydrofoil.infer import infer
     ast = parse.parser.parse(parse.lexer.lex(s))
     context = infer(ast)
-    c = Codegen(promoted_registers)
+    c = Codegen(promoted_registers, should_inline=should_inline)
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib import jit")
         c.emit("from rpython.rlib.rbigint import rbigint")
@@ -529,7 +531,7 @@ class __extend__(parse.Function):
                 print "didn't manage"
 
         graph = construct_ir(self, codegen)
-        inlinable = should_inline(graph)
+        inlinable = should_inline(graph, codegen.should_inline)
         if inlinable:
             codegen.inlinable_functions[self.name] = graph
         else:

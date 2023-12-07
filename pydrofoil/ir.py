@@ -2349,6 +2349,8 @@ def inline(graph, codegen):
             op = block[index]
             if isinstance(op, Operation) and op.name in codegen.inlinable_functions:
                 subgraph = codegen.inlinable_functions[op.name]
+                if "IMPDEF" in subgraph.name and "map" in subgraph.name:
+                    import pdb;pdb.set_trace()
                 if isinstance(subgraph.startblock.next, Return) and subgraph.startblock.next.value is not None:
                     newops, res = copy_ops(op, subgraph)
                     newops = [Comment("inlined %s" % subgraph.name)] + newops
@@ -2431,17 +2433,10 @@ def copy_blocks(graph, op):
 
     return blocks[graph.startblock], returnblock
 
-def should_inline(graph):
-    if "step_model" in graph.name:
-        return False
-    if "subrange_subrange" in graph.name:
-        return True
-    if "slice_mask" in graph.name:
-        return True
-    if "sail_mask" in graph.name:
-        return True
-    if "extzzv" in graph.name:
-        return True
+def should_inline(graph, model_specific_should_inline):
+    res = model_specific_should_inline(graph.name)
+    if res is not None:
+        return res
     if graph.has_loop:
         return False
     blocks = list(graph.iterblocks())

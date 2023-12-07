@@ -2349,8 +2349,6 @@ def inline(graph, codegen):
             op = block[index]
             if isinstance(op, Operation) and op.name in codegen.inlinable_functions:
                 subgraph = codegen.inlinable_functions[op.name]
-                if "IMPDEF" in subgraph.name and "map" in subgraph.name:
-                    import pdb;pdb.set_trace()
                 if isinstance(subgraph.startblock.next, Return) and subgraph.startblock.next.value is not None:
                     newops, res = copy_ops(op, subgraph)
                     newops = [Comment("inlined %s" % subgraph.name)] + newops

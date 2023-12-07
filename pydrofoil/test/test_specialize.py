@@ -9,6 +9,9 @@ class FakeCodeGen:
         self.inlinable_functions = {}
         self.specialization_functions = {}
 
+    def emit_extra_graph(self, graph, typ):
+        pass
+
 def test_specialize():
     fakecodegen = FakeCodeGen()
     zxs = Argument('zxs', GenericBitVector())
@@ -91,3 +94,46 @@ def test_specialize():
     assert type(op.args[1]) is MachineIntConstant
     assert op.args[1].number == 51
     assert op.args[2] == i
+
+def test_specialize_bool_value():
+    zcond = Argument('zcond', Bool())
+    block6 = Block()
+    block8 = Block()
+    block9 = Block()
+    block10 = Block()
+    block8.next = ConditionalGoto(zcond, block9, block10, '`7 2013:10-2017:11')
+    i14 = block6.emit_phi([block9, block10], [None, None], Bool())
+    block6.next = Return(i14, None)
+    i21 = block9.emit(GlobalRead, 'zBRBFCR_EL1', [], SmallFixedBitVector(64), None, None)
+    i22 = block9.emit(Operation, '@slice_fixed_bv_i_i', [i21, MachineIntConstant(22), MachineIntConstant(1)], SmallFixedBitVector(1), '`7 2014:21-2014:45', 'zz427')
+    i23 = block9.emit(GlobalRead, 'zBRBFCR_EL1', [], SmallFixedBitVector(64), None, None)
+    i24 = block9.emit(Operation, '@slice_fixed_bv_i_i', [i23, MachineIntConstant(16), MachineIntConstant(1)], SmallFixedBitVector(1), '`7 2014:49-2014:73', 'zz423')
+    i25 = block9.emit(Operation, '@eq_bits_bv_bv', [i22, i24], Bool(), '`7 2014:21-2014:73', 'zz415')
+    i26 = block9.emit(Operation, '@not', [i25], Bool(), None, None)
+    i14.prevvalues[0] = i26
+    block9.next = Goto(block6, None)
+    i27 = block10.emit(GlobalRead, 'zBRBFCR_EL1', [], SmallFixedBitVector(64), None, None)
+    i28 = block10.emit(Operation, '@slice_fixed_bv_i_i', [i27, MachineIntConstant(17), MachineIntConstant(1)], SmallFixedBitVector(1), '`7 2016:21-2016:45', 'zz440')
+    i29 = block10.emit(GlobalRead, 'zBRBFCR_EL1', [], SmallFixedBitVector(64), None, None)
+    i30 = block10.emit(Operation, '@slice_fixed_bv_i_i', [i29, MachineIntConstant(16), MachineIntConstant(1)], SmallFixedBitVector(1), '`7 2016:49-2016:73', 'zz436')
+    i31 = block10.emit(Operation, '@eq_bits_bv_bv', [i28, i30], Bool(), '`7 2016:21-2016:73', 'zz428')
+    i32 = block10.emit(Operation, '@not', [i31], Bool(), None, None)
+    i14.prevvalues[1] = i32
+    block10.next = Goto(block6, None)
+    graph = Graph('filter', [zcond], block8)
+
+    assert usefully_specializable(graph)
+
+    fakecodegen = FakeCodeGen()
+    spec = Specializer(graph, fakecodegen)
+    fakecodegen.specialization_functions['filter'] = spec
+
+    block = Block()
+    i3 = block.emit(Operation, 'filter', [BooleanConstant.TRUE], Bool(), None, None)
+    block.next = Return(i3)
+    calling_graph = Graph("call_filter", [], block)
+    opt = SpecializingOptimizer(calling_graph, fakecodegen)
+    opt.optimize()
+    specialized_graph, = spec.cache.values()
+    assert len(list(specialized_graph.iterblocks())) == 1
+

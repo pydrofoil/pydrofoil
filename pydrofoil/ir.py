@@ -1491,6 +1491,8 @@ class LocalOptimizer(BaseOptimizer):
         runtimeargs = []
         for arg in args:
             if isinstance(arg, IntConstant):
+                if not isinstance(arg.number, int):
+                    return None # XXX can be improved
                 runtimeargs.append(Integer.fromint(arg.number))
             elif isinstance(arg, MachineIntConstant):
                 runtimeargs.append(arg.number)
@@ -1506,13 +1508,19 @@ class LocalOptimizer(BaseOptimizer):
             return
         if "undefined" in name:
             return
-        res = func(None, *runtimeargs)
+        try:
+            res = func(None, *runtimeargs)
+        except (Exception, AssertionError) as e:
+            print "generict const-folding failed", name, op, "with error", e, "arguments", args
+            return None
         if op.resolved_type is types.MachineInt():
             return MachineIntConstant(res)
         if op.resolved_type is types.Int():
             return IntConstant(int(res.tolong()))
         if isinstance(op.resolved_type, types.SmallFixedBitVector):
             return SmallBitVectorConstant.from_ruint(op.resolved_type.width, res)
+        if op.resolved_type is types.Bool():
+            import pdb;pdb.set_trace()
 
     def _optimize_GlobalWrite(self, op, block, index):
         arg, = self._args(op)
@@ -1856,8 +1864,10 @@ class LocalOptimizer(BaseOptimizer):
         assert op.resolved_type is types.GenericBitVector()
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg3, typ3 = self._extract_smallfixedbitvector(arg3)
-        assert 0 <= arg2.number <= arg2.number < typ0.width
-        assert typ3.width == width
+        if not 0 <= arg2.number <= arg2.number < typ0.width:
+            return
+        if not typ3.width == width:
+            return
         res = self.newop(
             "@vector_update_subrange_fixed_bv_i_i_bv",
             [arg0, arg1, arg2, arg3],
@@ -1917,7 +1927,7 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_zeros_i(self, op):
         arg0, = self._args(op)
         arg0 = self._extract_number(arg0)
-        if arg0.number > 64:
+        if arg0.number > 64 or arg0.number < 1:
             return
         resconst = SmallBitVectorConstant("0b" + "0" * arg0.number, types.SmallFixedBitVector(arg0.number))
         res = self.newcast(
@@ -2339,6 +2349,14 @@ class LocalOptimizer(BaseOptimizer):
                 op.sourcepos,
                 op.varname_hint
             )
+
+    def optimize_eq(self, op):
+        arg0, arg1 = self._args(op)
+        if isinstance(arg0, MachineIntConstant) and isinstance(arg0, MachineIntConstant):
+            return BooleanConstant.frombool(arg0.number == arg1.number)
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            import pdb;pdb.set_trace()
+
 
 @repeat
 def inline(graph, codegen):

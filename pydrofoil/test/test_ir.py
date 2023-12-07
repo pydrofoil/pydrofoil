@@ -1736,4 +1736,13 @@ graph = Graph('zread_kind_of_flags', [zaq, zrl, zres], block0)
     # block0.next = Return(i32, None)
     # graph = Graph('zCheckAllInAlignedQuantity', [zaddress, zsizze, zalignment], block0)
 
-
+def test_eq_constfold():
+    block0 = Block()
+    i0 = block0.emit(Operation, '@eq', [MachineIntConstant(2), MachineIntConstant(0)], Bool(), '`7 433:7-433:17', 'zz40')
+    block0.next = Return(i0, None)
+    g = Graph("nope", [], block0)
+    check_simplify(g, '''
+block0 = Block()
+block0.next = Return(BooleanConstant.FALSE, None)
+graph = Graph('nope', [], block0)
+''')

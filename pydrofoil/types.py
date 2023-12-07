@@ -117,7 +117,7 @@ class SmallFixedBitVector(Type):
 
     def __init__(self, width):
         # size known at compile time
-        assert width <= 64
+        assert 0 <= width <= 64
         self.width = width
 
     def __repr__(self):

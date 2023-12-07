@@ -89,7 +89,7 @@ def test_specialize():
     simplify(calling_graph, fakecodegen)
 
     op = block.operations[0]
-    assert op.name == 'zis_zzero_subrange_specialized_bv52_i_o'
+    assert op.name == 'zis_zzero_subrange_specialized_bv52_51_o'
     assert op.args[0] == bv
     assert type(op.args[1]) is MachineIntConstant
     assert op.args[1].number == 51
@@ -134,6 +134,50 @@ def test_specialize_bool_value():
     calling_graph = Graph("call_filter", [], block)
     opt = SpecializingOptimizer(calling_graph, fakecodegen)
     opt.optimize()
-    specialized_graph, = spec.cache.values()
+    (specialized_graph, _), = spec.cache.values()
     assert len(list(specialized_graph.iterblocks())) == 1
 
+
+def test_specialize_on_result():
+    zx = Argument('zx', GenericBitVector())
+    zshift = Argument('zshift', Int())
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    i2 = block0.emit(Operation, '@eq_int_o_i', [zshift, MachineIntConstant(0)], Bool(), '`7 433:7-433:17', 'zz40')
+    block0.next = ConditionalGoto(i2, block1, block3, '`7 433:4-434:59')
+    block1.next = Goto(block2, None)
+    i3 = block2.emit_phi([block3, block1], [None, zx], GenericBitVector())
+    block2.next = Return(i3, None)
+    i4 = block3.emit(Operation, '@length_unwrapped_res', [zx], MachineInt(), '`7 434:26-434:28', 'zz48')
+    i5 = block3.emit(Operation, 'zz5i64zDzKz5i', [i4], Int(), '`7 434:26-434:28', None)
+    i6 = block3.emit(Operation, 'emod_int', [zshift, i5], Int(), '`7 434:15-434:29', 'zz41')
+    i7 = block3.emit(Operation, 'zz5izDzKz5i64', [i6], MachineInt(), None, None)
+    i8 = block3.emit(Operation, '@shiftr_o_i', [zx, i7], GenericBitVector(), '`7 434:33-434:42', 'zz44')
+    i9 = block3.emit(Operation, '@sub_i_i_wrapped_res', [i4, i7], Int(), '`7 434:52-434:58', 'zz46')
+    i10 = block3.emit(Operation, 'zz5izDzKz5i64', [i9], MachineInt(), None, None)
+    i11 = block3.emit(Operation, '@shiftl_o_i', [zx, i10], GenericBitVector(), '`7 434:45-434:59', 'zz45')
+    i12 = block3.emit(Operation, 'or_bits', [i8, i11], GenericBitVector(), '`7 434:33-434:59', 'zz42')
+    i3.prevvalues[0] = i12
+    block3.next = Goto(block2, None)
+    graph = Graph('zROR', [zx, zshift], block0)
+
+    fakecodegen = FakeCodeGen()
+    spec = Specializer(graph, fakecodegen)
+    fakecodegen.specialization_functions['zROR'] = spec
+
+    zx = Argument('zx', SmallFixedBitVector(32))
+    block0 = Block()
+    i0 = block0.emit(Cast, '$cast', [zx], GenericBitVector(), None, None)
+    i1 = block0.emit(Operation, 'zROR', [i0, IntConstant(2)], GenericBitVector(), '`7 456:19-456:28', 'zz419')
+    i2 = block0.emit(Cast, '$cast', [i1], SmallFixedBitVector(32), '`7 456:19-456:28', 'zz419')
+    block0.next = Return(i2, None)
+    calling_graph = Graph('f', [zx], block0)
+    opt = SpecializingOptimizer(calling_graph, fakecodegen)
+    opt.optimize()
+    simplify(calling_graph, fakecodegen)
+    op = calling_graph.startblock.operations[0]
+    assert op.name == "zROR_specialized_bv32_2__bv32"
+    assert calling_graph.startblock.next.value is op
+    (specialized_graph, _), = spec.cache.values()

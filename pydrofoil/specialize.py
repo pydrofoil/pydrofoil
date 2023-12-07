@@ -39,14 +39,22 @@ class Specializer(object):
         if key is None:
             return None
         if key in self.cache:
-            stubgraph = self.cache[key]
+            stubgraph, restype = self.cache[key]
         else:
             if len(self.cache) > 64:
                 import pdb;pdb.set_trace()
                 return None
-            stubgraph = self._make_stub(key)
-            self.cache[key] = stubgraph
-        return optimizer.newop(stubgraph.name, args, call.resolved_type, call.sourcepos, call.varname_hint)
+            stubgraph, restype = self._make_stub(key)
+            self.cache[key] = stubgraph, restype
+        newcall = optimizer.newop(stubgraph.name, args, restype, call.sourcepos, call.varname_hint)
+        if restype != call.resolved_type:
+            if restype is types.MachineInt():
+                return optimizer._make_int64_to_int(newcall)
+            else:
+                assert isinstance(restype, types.SmallFixedBitVector)
+                assert call.resolved_type is types.GenericBitVector()
+                return optimizer.newcast(newcall, types.GenericBitVector())
+        return newcall
 
     def _make_stub(self, key):
         args = []
@@ -90,10 +98,40 @@ class Specializer(object):
         print "MAKING SPECIALIZATION", graph.name
         ir._inline(graph, block, len(ops) - 1, self.graph)
         ir.simplify(graph, self.codegen)
-        typ = types.Function(types.Tuple(tuple(key)), self.resulttyp)
+
+        # check whether we can specialize on the return type
+        returnblock = None
+        for block in graph.iterblocks():
+            if isinstance(block.next, ir.Return):
+                if returnblock is not None:
+                    break # only support a single return block for now
+                returnblock = block
+        else:
+            optimizer = ir.BaseOptimizer(graph, self.codegen)
+            resulttyp = self.resulttyp
+            if resulttyp is types.Int():
+                try:
+                    res = optimizer._extract_machineint(returnblock.next.value)
+                except ir.NoMatchException:
+                    pass
+                else:
+                    returnblock.next.value = res
+                    resulttyp = types.MachineInt()
+                    graph.name += "__i"
+                    ir.remove_dead(graph, self.codegen)
+            elif resulttyp is types.GenericBitVector():
+                try:
+                    res, resulttyp = optimizer._extract_smallfixedbitvector(returnblock.next.value)
+                except ir.NoMatchException:
+                    pass
+                else:
+                    returnblock.next.value = res
+                    graph.name += "__bv%s" % resulttyp.width
+                    ir.remove_dead(graph, self.codegen)
+        typ = types.Function(types.Tuple(tuple(key)), resulttyp)
         self.codegen.emit_extra_graph(graph, typ)
         self.codegen.specialization_functions[graph.name] = self
-        return graph
+        return graph, resulttyp
 
     def _extract_key(self, call, optimizer):
         key = []

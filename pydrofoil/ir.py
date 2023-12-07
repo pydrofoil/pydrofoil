@@ -1299,6 +1299,7 @@ class BaseOptimizer(object):
         self.changed = False
         self.anticipated_casts = find_anticipated_casts(graph)
         self.do_double_casts = do_double_casts
+        self.current_block = None
 
     def view(self):
         self.graph.view()

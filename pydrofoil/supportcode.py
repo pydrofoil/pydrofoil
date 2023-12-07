@@ -117,6 +117,7 @@ def unsigned_bv(machine, op, n):
 
 @objectmodel.always_inline
 @purefunction
+@objectmodel.specialize.argtype(1, 2)
 def add_bits_int(machine, a, b):
     return a.add_int(b)
 

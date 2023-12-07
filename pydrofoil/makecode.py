@@ -87,7 +87,7 @@ class Codegen(object):
         self.all_registers = {}
         self.inlinable_functions = {}
         # a function that returns True, False or None
-        self.should_inline = should_inline if should_inline is not None else lambda: None
+        self.should_inline = should_inline if should_inline is not None else lambda name: None
         self.let_values = {}
         self.specialization_functions = {}
 

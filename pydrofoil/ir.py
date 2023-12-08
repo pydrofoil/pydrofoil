@@ -2374,13 +2374,14 @@ class LocalOptimizer(BaseOptimizer):
         arg0, = self._args(op)
         if isinstance(arg0, BooleanConstant):
             return BooleanConstant.frombool(not arg0.value)
-        return self.newop(
-            "@not",
-            [arg0],
-            types.Bool(),
-            op.sourcepos,
-            op.varname_hint
-        )
+        if op.name != "@not": # standardize only, don't change all the time
+            return self.newop(
+                "@not",
+                [arg0],
+                types.Bool(),
+                op.sourcepos,
+                op.varname_hint
+            )
 
     def optimize_replicate_bits_o_i(self, op):
         arg0, arg1 = self._args(op)

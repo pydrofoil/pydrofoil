@@ -91,6 +91,8 @@ class Codegen(object):
         self.should_inline = should_inline if should_inline is not None else lambda name: None
         self.let_values = {}
         self.specialization_functions = {}
+        # (graphs, funcs) to emit at the end
+        self._all_graphs = []
 
     def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -188,6 +190,7 @@ class Codegen(object):
                 yield name
 
     def getcode(self):
+        self.finish_graphs()
         res = ["\n".join(self.declarations)]
         res.append("def let_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
         res.append("let_init(Machine)")
@@ -199,8 +202,26 @@ class Codegen(object):
         self.add_global(graph.name, pyname, functyp)
         args = [arg.name for arg in graph.args]
         first = "def %s(machine, %s):" % (pyname, ", ".join(args))
-        with self.emit_indent(first):
-            emit_function_code(graph, None, self)
+        def emit_extra(graph, codegen):
+            with self.emit_indent(first):
+                emit_function_code(graph, None, codegen)
+        self.add_graph(graph, emit_extra)
+
+    def add_graph(self, graph, emit_function, *args, **kwargs):
+        self._all_graphs.append((graph, emit_function, args, kwargs))
+
+    def finish_graphs(self):
+        from pydrofoil.ir import simplify
+        print "============== FINISHING =============="
+        index = 0
+        while index < len(self._all_graphs):
+            graph, func, args, kwargs = self._all_graphs[index]
+            print "\033[1K\rFINISHING %s/%s %s" % (index + 1, len(self._all_graphs), graph.name),
+            sys.stdout.flush()
+            res = simplify(graph, self) # can add new graphs
+            func(graph, self, *args, **kwargs)
+            index += 1
+
 
 
 def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None):
@@ -487,14 +508,6 @@ class __extend__(parse.Register):
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             graph = construct_ir(self, codegen, singleblock=True)
             emit_function_code(graph, self, codegen)
-            return
-            codegen.emit(" # register %s : %s" % (self.name, self.typ, ))
-            blocks = {0: self.body[:]}
-            optimize_blocks(blocks, codegen)
-            for i, op in enumerate(blocks[0]):
-                codegen.emit("# %s" % (op, ))
-                op.make_op_code(codegen)
-            codegen.emit()
 
 def iterblockops(blocks):
     for blockpc, block in sorted(blocks.items()):
@@ -506,7 +519,6 @@ class __extend__(parse.Function):
     def make_code(self, codegen):
         from pydrofoil.ir import construct_ir, should_inline
         from pydrofoil.specialize import Specializer, usefully_specializable
-        from pydrofoil.emitfunction import emit_function_code
         from pydrofoil import optimize
         pyname = codegen.getname(self.name)
         assert pyname.startswith("func_")
@@ -539,6 +551,9 @@ class __extend__(parse.Function):
             if usefully_specializable(graph):
                 codegen.specialization_functions[self.name] = Specializer(graph, codegen)
 
+        codegen.add_graph(graph, self.emit_regular_function, pyname)
+
+    def emit_regular_function(self, graph, codegen, pyname):
         with self._scope(codegen, pyname):
             emit_function_code(graph, self, codegen)
         codegen.emit()
@@ -629,7 +644,6 @@ class __extend__(parse.Function):
 
     def _emit_methods(self, blocks, codegen):
         from pydrofoil.ir import build_ssa
-        from pydrofoil.emitfunction import emit_function_code
         typ = codegen.globalnames[self.name].typ
         uniontyp = typ.argtype.elements[0]
         switches = []
@@ -665,9 +679,12 @@ class __extend__(parse.Function):
             local_blocks = self._find_reachable(copyblock, oldpc, blocks, known_cls)
             graph = build_ssa(local_blocks, self, self.args, codegen, startpc=oldpc)
             pyname = self.name + "_" + (cond.condition.variant if cond else "default")
-            with self._scope(codegen, pyname, method=True):
-                emit_function_code(graph, self, codegen)
-            codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
+            codegen.add_graph(graph, self.emit_method, pyname, clsname)
+
+    def emit_method(self, graph, codegen, pyname, clsname):
+        with self._scope(codegen, pyname, method=True):
+            emit_function_code(graph, self, codegen)
+        codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
 
     def _find_reachable(self, block, blockpc, blocks, known_cls=None):
         # return all the blocks reachable from "block", where self.args[0] is

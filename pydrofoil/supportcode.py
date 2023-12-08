@@ -88,7 +88,9 @@ make_dummy("softfloat_f64roundToInt")
 
 # generic helpers
 
-def raise_type_error():
+def raise_type_error(msg=''):
+    if msg:
+        print "INTERNAL ERROR", msg
     raise TypeError
 
 

@@ -15,7 +15,8 @@ class __extend__(pairtype(types.SmallFixedBitVector, types.GenericBitVector)):
 
 class __extend__(pairtype(types.SmallFixedBitVector, types.SmallFixedBitVector)):
     def convert((from_, to), expr, codegen):
-        assert from_ is to
+        if from_ is not to:
+            return "supportcode.raise_type_error('can not convert bv%s to bv%s')" % (from_.width, to.width)
         return expr
 
 class __extend__(pairtype(types.GenericBitVector, types.SmallFixedBitVector)):

@@ -9,8 +9,8 @@ class FakeCodeGen:
 
 fakecodegen = FakeCodeGen()
 
-def check_simplify(graph, expected):
-    res = simplify(graph, fakecodegen)
+def check_optimize(graph, expected):
+    res = optimize(graph, fakecodegen)
     assert res
     res = print_graph_construction(graph)
     expected = expected.strip()
@@ -141,7 +141,7 @@ def test_cast():
     i2 = block0.emit(Cast, '$cast', [i1], SmallFixedBitVector(1), '`1 14:2-14:5', 'zz43')
     block0.next = Return(i2, '')
     graph = Graph('f', [zb], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zb = Argument('zb', SmallFixedBitVector(1))
 block0 = Block()
 block0.next = Return(zb, '')
@@ -155,7 +155,7 @@ def test_eq_bits():
     i3 = block0.emit(Operation, 'eq_bits', [i1, i2], Bool(), '`5 120:4-120:8', 'zz410')
     block0.next = Return(i3, None)
     graph = Graph("f", [za], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 za = Argument('za', SmallFixedBitVector(2))
 block0 = Block()
 i1 = block0.emit(Operation, '@eq_bits_bv_bv', [za, SmallBitVectorConstant(1, SmallFixedBitVector(2))], Bool(), '`5 120:4-120:8', 'zz410')
@@ -170,7 +170,7 @@ def test_neq_bits():
     i3 = block0.emit(Operation, 'neq_bits', [i1, i2], Bool(), '`5 120:4-120:8', 'zz410')
     block0.next = Return(i3, None)
     graph = Graph("f", [za], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 za = Argument('za', SmallFixedBitVector(2))
 block0 = Block()
 i1 = block0.emit(Operation, '@eq_bits_bv_bv', [za, SmallBitVectorConstant(1, SmallFixedBitVector(2))], Bool(), '`5 120:4-120:8', 'zz410')
@@ -184,7 +184,7 @@ def test_int_and_back():
     i2 = block0.emit(Operation, 'int_to_int64', [i1], MachineInt(), '`5 295:30-295:32', 'zz40')
     block0.next = Return(i2)
     graph = Graph("f", [], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 block0 = Block()
 block0.next = Return(MachineIntConstant(15), None)
 graph = Graph('f', [], block0)""")
@@ -197,7 +197,7 @@ def test_eq_int():
     i3 = block0.emit(Operation, 'eq_int', [i2, i1], Bool(), '`83', 'zz4129')
     block0.next = Return(i3)
     graph = Graph("f", [zr], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zr = Argument('zr', MachineInt())
 block0 = Block()
 i1 = block0.emit(Operation, '@eq', [zr, MachineIntConstant(0)], Bool(), '`83', 'zz4129')
@@ -214,7 +214,7 @@ def test_vector_subrange():
     i5 = block0.emit(Cast, '$cast', [i4], SmallFixedBitVector(7), '`36 84:17-84:31', 'zz412111')
     block0.next = Return(i5)
     graph = Graph("f", [zargz3], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zargz3 = Argument('zargz3', SmallFixedBitVector(64))
 block0 = Block()
 i1 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [zargz3, MachineIntConstant(6), MachineIntConstant(0)], SmallFixedBitVector(7), '`36 84:17-84:31', 'zz412140')
@@ -231,7 +231,7 @@ def test_vector_update_subrange():
     i6 = block0.emit(Cast, '$cast', [i5], SmallFixedBitVector(64), '`514', 'zz40')
     block0.next = Return(i6, None)
     graph = Graph('update', [zv, zx], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zv = Argument('zv', SmallFixedBitVector(64))
 zx = Argument('zx', SmallFixedBitVector(1))
 block0 = Block()
@@ -246,7 +246,7 @@ def test_vector_access():
     i2 = block0.emit(Operation, '@vector_access_o_i', [i1, MachineIntConstant(7)], Bit(), '`35 86:29-86:33', 'zz46')
     block0.next = Return(i2)
     graph = Graph('update', [zx], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zx = Argument('zx', SmallFixedBitVector(8))
 block0 = Block()
 i1 = block0.emit(Operation, '@vector_access_bv_i', [zx, MachineIntConstant(7)], SmallFixedBitVector(1), '`35 86:29-86:33', 'zz46')
@@ -264,7 +264,7 @@ def test_and_not_bits():
     i8 = block0.emit(Cast, '$cast', [i4], SmallFixedBitVector(64), '`25 286:37-286:63', 'zz420')
     block0.next = Return(i8)
     graph = Graph('update', [zx, zy], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zx = Argument('zx', SmallFixedBitVector(64))
 zy = Argument('zy', SmallFixedBitVector(64))
 block0 = Block()
@@ -283,7 +283,7 @@ def test_add_bits():
     i8 = block0.emit(Cast, '$cast', [i4], SmallFixedBitVector(64), '`25 286:37-286:63', 'zz420')
     block0.next = Return(i8)
     graph = Graph('update', [zx, zy], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zx = Argument('zx', SmallFixedBitVector(64))
 zy = Argument('zy', SmallFixedBitVector(64))
 block0 = Block()
@@ -300,7 +300,7 @@ def test_append():
     i4 = block0.emit(Cast, '$cast', [i3], SmallFixedBitVector(5), '`5 100:30-100:41', 'return')
     block0.next = Return(i4, None)
     graph = Graph('zcreg2reg_idx', [zcreg], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zcreg = Argument('zcreg', SmallFixedBitVector(3))
 block0 = Block()
 i1 = block0.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(1, SmallFixedBitVector(2)), MachineIntConstant(3), zcreg], SmallFixedBitVector(5), '`5 100:30-100:41', 'zz42')
@@ -318,7 +318,7 @@ def test_shiftr():
         i4 = block0.emit(Cast, '$cast', [i3], SmallFixedBitVector(64), '`26 426:31-426:71', 'zhtif_exit_code')
         block0.next = Return(i4, None)
         graph = Graph('zcreg2reg_idx', [arg], block0)
-        check_simplify(graph, """\
+        check_optimize(graph, """\
 arg = Argument('arg', SmallFixedBitVector(64))
 block0 = Block()
 i1 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [arg, MachineIntConstant(47), MachineIntConstant(0)], SmallFixedBitVector(48), '`3484', 'zz44')
@@ -338,7 +338,7 @@ def test_int_cmp():
     i5 = block0.emit(Operation, 'lt', [i3, i4], Bool(), '`41 263:11-263:42', 'zz412')
     block0.next = Return(i5, None)
     graph = Graph('f', [a1, a2], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 i = Argument('i', SmallFixedBitVector(52))
 i = Argument('i', SmallFixedBitVector(52))
 block0 = Block()
@@ -362,7 +362,7 @@ def test_set_slice():
     i8 = block0.emit(Cast, '$cast', [i7], SmallFixedBitVector(64), '`7 49:10-49:72', 'zz40')
     block0.next = Return(i8, None)
     graph = Graph('z__get_FPCR', [zval_name], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zval_name = Argument('zval_name', SmallFixedBitVector(64))
 block0 = Block()
 i1 = block0.emit(Operation, '@vector_update_subrange_fixed_bv_i_i_bv', [zval_name, MachineIntConstant(7), MachineIntConstant(3), SmallBitVectorConstant(0, SmallFixedBitVector(5))], SmallFixedBitVector(64), '`7 47:10-47:38', 'zz421')
@@ -378,7 +378,7 @@ def test_zero_extend_unwrapped_res():
     i1 = block0.emit(Cast, '$cast', [i0], SmallFixedBitVector(64), '`7 3419:16-3419:38', 'zz42')
     block0.next = Return(i1, None)
     graph = Graph('f', [value], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 value = Argument('value', GenericBitVector())
 block0 = Block()
 i1 = block0.emit(Operation, '@zero_extend_o_i_unwrapped_res', [value, MachineIntConstant(64)], SmallFixedBitVector(64), '`5 234:29-234:46', 'return')
@@ -392,7 +392,7 @@ def test_sign_extend_unwrapped_res():
     i1 = block0.emit(Cast, '$cast', [i0], SmallFixedBitVector(64), '`7 3419:16-3419:38', 'zz42')
     block0.next = Return(i1, None)
     graph = Graph('f', [value], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 value = Argument('value', GenericBitVector())
 block0 = Block()
 i1 = block0.emit(Operation, '@sign_extend_o_i_unwrapped_res', [value, MachineIntConstant(64)], SmallFixedBitVector(64), '`5 234:29-234:46', 'return')
@@ -409,7 +409,7 @@ def test_vector_update_list():
     block0.emit(GlobalWrite, 'z_R', [i9], FVec(31, SmallFixedBitVector(64)), None, None)
     block0.next = Return(None, None)
     graph = Graph('f', [index], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 index = Argument('index', MachineInt())
 block0 = Block()
 i1 = block0.emit(GlobalRead, 'z_R', [], FVec(31, SmallFixedBitVector(64)), None, None)
@@ -427,7 +427,7 @@ def test_fill_fresh_vector():
     i5 = block0.emit(Operation, 'zvalidDoubleRegs', [IntConstant(3), i4], Bool(), '`41 765:95-765:126', 'zz46820')
     block0.next = Return(i5, None)
     graph = Graph('f', [], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 block0 = Block()
 i0 = block0.emit(VectorInit, '$zinternal_vector_init', [MachineIntConstant(3)], Vec(MachineInt()), '`41 765:95-765:126', None)
 i1 = block0.emit(Operation, '@helper_vector_update_inplace_o_i_o', [i0, MachineIntConstant(0), MachineIntConstant(5)], Unit(), None, None)
@@ -443,7 +443,7 @@ def test_mult_1():
     i1 = block0.emit(Operation, 'mult_int', [index, IntConstant(1)], Int(), '`7 14894:55-14894:60', 'zz422')
     block0.next = Return(i1, None)
     graph = Graph('f', [index], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 index = Argument('index', Int())
 block0 = Block()
 block0.next = Return(index, None)
@@ -455,7 +455,7 @@ def test_mult_to_shift():
     i1 = block0.emit(Operation, 'mult_int', [IntConstant(8), index], Int(), '`7 14894:55-14894:60', 'zz422')
     block0.next = Return(i1, None)
     graph = Graph('f', [index], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 index = Argument('index', Int())
 block0 = Block()
 i1 = block0.emit(Operation, '@shl_int_o_i', [index, MachineIntConstant(3)], Int(), '`7 14894:55-14894:60', 'zz422')
@@ -469,7 +469,7 @@ def test_mult_constfold():
     i2 = block0.emit(Operation, 'mult_int', [i1, IntConstant(16)], Int(), '`7 14894:55-14894:60', 'zz422')
     block0.next = Return(i2, None)
     graph = Graph('f', [index], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 index = Argument('index', Int())
 block0 = Block()
 block0.next = Return(IntConstant(384), None)
@@ -481,7 +481,7 @@ def test_neg_constfold():
     i1 = block0.emit(Operation, 'neg_int', [IntConstant(12)], Int(), '`7 14894:55-14894:60', 'zz422')
     block0.next = Return(i1, None)
     graph = Graph('f', [index], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 index = Argument('index', Int())
 block0 = Block()
 block0.next = Return(IntConstant(-12), None)
@@ -492,7 +492,7 @@ def test_ediv_constfold():
     i1 = block0.emit(Operation, 'ediv_int', [IntConstant(128), IntConstant(2)], Int(), '`7 11526:20-11526:32', 'zz4179')
     block0.next = Return(i1, None)
     graph = Graph('f', [], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 block0 = Block()
 block0.next = Return(IntConstant(64), None)
 graph = Graph('f', [], block0)""")
@@ -502,12 +502,12 @@ def test_pow_i():
     i1 = block0.emit(Operation, '@pow2_i', [MachineIntConstant(32)], Int(), '`7 150231:75-150231:81', 'zz492')
     block0.next = Return(i1, None)
     graph = Graph('f', [], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 block0 = Block()
 block0.next = Return(IntConstant(4294967296), None)
 graph = Graph('f', [], block0)""")
 
-def test_simplify_loop_phi():
+def test_optimize_loop_phi():
     zxs = Argument('zxs', SmallFixedBitVector(8))
     block0 = Block()
     block1 = Block()
@@ -536,7 +536,7 @@ def test_simplify_loop_phi():
     i6.prevvalues[1] = i7
     block3.next = Goto(block1, None)
     graph = Graph('zreverse_bits_in_byte', [zxs], block0, True)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 zxs = Argument('zxs', SmallFixedBitVector(8))
 block0 = Block()
 block1 = Block()
@@ -755,7 +755,7 @@ def test_constfold_lteq():
     i1 = block0.emit(Operation, '@lteq', [MachineIntConstant(64), MachineIntConstant(1)], Bool(), '`2 141:32-141:48', 'zz40')
     block0.next = Return(i1, None)
     graph = Graph('f', [], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 block0 = Block()
 block0.next = Return(BooleanConstant.FALSE, None)
 graph = Graph('f', [], block0)""")
@@ -837,7 +837,7 @@ def test_cast_of_phi():
     graph = Graph('zexecute', [arg2, arg4], block1)
     graph.has_loop = True
     graph.check()
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 arg2 = Argument('arg2', SmallFixedBitVector(5))
 arg4 = Argument('arg4', SmallFixedBitVector(5))
 block0 = Block()
@@ -889,7 +889,7 @@ def test_shift_0():
     i1 = block0.emit(Operation, '@shiftl_o_i', [arg, MachineIntConstant(0)], GenericBitVector(), '`2 337:4-337:35', 'return')
     block0.next = Return(i1, None)
     graph = Graph('f', [arg], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 arg = Argument('arg', GenericBitVector())
 block0 = Block()
 block0.next = Return(arg, None)
@@ -901,7 +901,7 @@ def test_constfold_MachineInt():
     i2 = block0.emit(Operation, '@add_i_i_wrapped_res', [i1, MachineIntConstant(-75)], Int(), None, None)
     block0.next = Return(i2, None)
     graph = Graph('f', [], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 block0 = Block()
 block0.next = Return(IntConstant(3000), None)
 graph = Graph('f', [], block0)""")
@@ -911,7 +911,7 @@ def test_constfold_SmallFixedBitVector():
     i1 = block0.emit(Operation, '@zero_extend_bv_i_i', [SmallBitVectorConstant('0b1', SmallFixedBitVector(1)), MachineIntConstant(1), MachineIntConstant(39)], SmallFixedBitVector(39), None, None)
     block0.next = Return(i1, None)
     graph = Graph('f', [], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 block0 = Block()
 block0.next = Return(SmallBitVectorConstant('0b000000000000000000000000000000000000001', SmallFixedBitVector(39)), None)
 graph = Graph('f', [], block0)""")
@@ -925,7 +925,7 @@ def test_truncate():
     i4 = block0.emit(Cast, '$cast', [i3], SmallFixedBitVector(52), None, None)
     block0.next = Return(i4, None)
     graph = Graph('f', [arg], block0)
-    check_simplify(graph, """\
+    check_optimize(graph, """\
 arg = Argument('arg', SmallFixedBitVector(64))
 block0 = Block()
 i1 = block0.emit(Operation, '@truncate_bv_i', [arg, MachineIntConstant(52)], SmallFixedBitVector(52), '`4 80:17-80:31', 'return')
@@ -1043,7 +1043,7 @@ def test_anticipated_cast():
             assert s == {(arg, SmallFixedBitVector(64)), (i0, MachineInt())}
         else:
             assert s == {(i0, MachineInt())}
-    simplify(graph, fakecodegen)
+    optimize(graph, fakecodegen)
     res = print_graph_construction(graph)
     got = "\n".join(res)
     assert got == '''\
@@ -1127,7 +1127,7 @@ def test_anticipated_cast_bv():
     i16 = block0.emit(Cast, '$cast', [i15], SmallFixedBitVector(32), '`1 253:4-253:25', 'return')
     block0.next = Return(i16, None)
     graph = Graph('zshift_right_arith32', [zv, zshift], block0)
-    check_simplify(graph, '''
+    check_optimize(graph, '''
 zv = Argument('zv', SmallFixedBitVector(32))
 zshift = Argument('zshift', SmallFixedBitVector(5))
 block0 = Block()
@@ -1299,7 +1299,7 @@ def test_rotater():
     i9 = block0.emit(Operation, 'or_bits', [i3, i8], GenericBitVector(), '`1 268:4-268:37', 'return')
     block0.next = Return(i9, None)
     graph = Graph('zrotater', [zv, zn], block0)
-    check_simplify(graph, '''
+    check_optimize(graph, '''
 zv = Argument('zv', GenericBitVector())
 zn = Argument('zn', Int())
 block0 = Block()
@@ -1357,7 +1357,7 @@ def test_is_ones_subrange():
     i22.prevvalues[0] = i27
     block6.next = Goto(block5, None)
     graph = Graph('zis_ones_subrange', [zxs, zi, zj], block0)
-    check_simplify(graph, '''
+    check_optimize(graph, '''
 zxs = Argument('zxs', GenericBitVector())
 zi = Argument('zi', Int())
 zj = Argument('zj', Int())
@@ -1600,7 +1600,7 @@ def test_read_kind_of_flags():
     block64.next = Goto(block4, None)
     block65.next = Goto(block2, None)
     graph = Graph('zread_kind_of_flags', [zaq, zrl, zres], block0)
-    check_simplify(graph, '''
+    check_optimize(graph, '''
 zaq = Argument('zaq', Bool())
 zrl = Argument('zrl', Bool())
 zres = Argument('zres', Bool())
@@ -1741,7 +1741,7 @@ def test_eq_constfold():
     i0 = block0.emit(Operation, '@eq', [MachineIntConstant(2), MachineIntConstant(0)], Bool(), '`7 433:7-433:17', 'zz40')
     block0.next = Return(i0, None)
     g = Graph("nope", [], block0)
-    check_simplify(g, '''
+    check_optimize(g, '''
 block0 = Block()
 block0.next = Return(BooleanConstant.FALSE, None)
 graph = Graph('nope', [], block0)
@@ -1809,7 +1809,7 @@ def test_sail_assert_true():
     i1 = block0.emit(Operation, 'sail_assert', [BooleanConstant.TRUE, AstConstant(parse.String(resolved_type=String(), string='"src/v8_base.sail:2440.22-2440.23"'), String())], Unit(), '`7 2440:8-2440:23', 'zz4192')
     block0.next = Return(BooleanConstant.TRUE, None)
     graph = Graph('happy_assert', [], block0)
-    check_simplify(graph, '''
+    check_optimize(graph, '''
 block0 = Block()
 block0.next = Return(BooleanConstant.TRUE, None)
 graph = Graph('happy_assert', [], block0)
@@ -1829,7 +1829,7 @@ def test_not_bool():
     block2.next = Return(i3, None)
     block3.next = Goto(block2, None)
     graph = Graph('zimplies', [zp, zq], block0)
-    check_simplify(graph, '''
+    check_optimize(graph, '''
 zp = Argument('zp', Bool())
 zq = Argument('zq', Bool())
 block0 = Block()
@@ -1859,7 +1859,7 @@ def test_replicate():
     i57 = block0.emit(Cast, '$cast', [i56], SmallFixedBitVector(64), None, None)
     block0.next = Return(i57, None)
     graph = Graph('repl', [arg], block0)
-    check_simplify(graph, '''
+    check_optimize(graph, '''
 arg = Argument('arg', SmallFixedBitVector(6))
 block0 = Block()
 i1 = block0.emit(Operation, '@vector_access_bv_i', [arg, MachineIntConstant(0)], SmallFixedBitVector(1), '`7 154392:52-154392:64', 'zz4634')
@@ -1876,7 +1876,7 @@ def test_update_fbits():
     i20 = block0.emit(Operation, '$zupdate_fbits', [SmallBitVectorConstant('0b0', SmallFixedBitVector(1)), MachineIntConstant(0), i19], SmallFixedBitVector(1), '`10 108666:24-108666:34', 'zz4152')
     block0.next = Return(i20, None)
     graph = Graph('upd', [arg], block0)
-    check_simplify(graph, '''
+    check_optimize(graph, '''
 arg = Argument('arg', SmallFixedBitVector(64))
 block0 = Block()
 i1 = block0.emit(Operation, '@vector_access_bv_i', [arg, MachineIntConstant(0)], SmallFixedBitVector(1), '`10 108666:25-108666:33', 'zz4151')

@@ -86,7 +86,7 @@ def test_specialize():
     calling_graph = Graph("zf", [bv, i], block)
     opt = SpecializingOptimizer(calling_graph, fakecodegen)
     opt.optimize()
-    simplify(calling_graph, fakecodegen)
+    optimize(calling_graph, fakecodegen)
 
     op = block.operations[1]
     assert op.name == 'zis_zzero_subrange_specialized_bv52_51_i'
@@ -176,7 +176,7 @@ def test_specialize_on_result():
     calling_graph = Graph('f', [zx], block0)
     opt = SpecializingOptimizer(calling_graph, fakecodegen)
     opt.optimize()
-    simplify(calling_graph, fakecodegen)
+    optimize(calling_graph, fakecodegen)
     op = calling_graph.startblock.operations[0]
     assert op.name == "zROR_specialized_bv32_2__bv32"
     assert calling_graph.startblock.next.value is op
@@ -214,7 +214,7 @@ def test_argument_demand_casts():
     block0.next = Return(i1, None)
     calling_graph = Graph('f', [a, bv], block0)
 
-    simplify(calling_graph, fakecodegen)
+    optimize(calling_graph, fakecodegen)
     assert calling_graph.startblock.operations[1].name == 'mask_specialized_i_o'
 
 def test_AddrTop_bug():

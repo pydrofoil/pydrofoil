@@ -117,7 +117,7 @@ class SSABuilder(object):
         graph = Graph(self.functionast.name, self.args, self.allblocks[self.startpc], self.has_loop)
         #if random.random() < 0.01:
         #    self.view = 1
-        simplify(graph, self.codegen)
+        ligth_simplify(graph, self.codegen)
         if self.view:
             graph.view()
         return graph
@@ -1062,16 +1062,20 @@ def repeat(func):
         return ever_changed
     return repeated
 
-def simplify(graph, codegen):
+def ligth_simplify(graph, codegen):
+    # in particular, don't specialize
+    return _optimize(graph, codegen)
+
+def optimize(graph, codegen):
     from pydrofoil.specialize import SpecializingOptimizer
-    res = _simplify(graph, codegen)
+    res = _optimize(graph, codegen)
     if graph.name not in codegen.inlinable_functions:
         SpecializingOptimizer(graph, codegen).optimize()
-    res = _simplify(graph, codegen) or res
+    res = _optimize(graph, codegen) or res
     return res
 
 @repeat
-def _simplify(graph, codegen):
+def _optimize(graph, codegen):
     res = False
     res = join_blocks(graph) or res
     res = remove_dead(graph, codegen) or res

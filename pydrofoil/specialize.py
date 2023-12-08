@@ -111,7 +111,7 @@ class Specializer(object):
         print "MAKING SPECIALIZATION", graph.name
         ir._inline(graph, block, len(ops) - 1, self.graph)
         graph.has_loop = self.graph.has_loop
-        ir.simplify(graph, self.codegen)
+        ir.optimize(graph, self.codegen)
 
         # check whether we can specialize on the return type
         returnblock = None

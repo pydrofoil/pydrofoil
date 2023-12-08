@@ -211,14 +211,14 @@ class Codegen(object):
         self._all_graphs.append((graph, emit_function, args, kwargs))
 
     def finish_graphs(self):
-        from pydrofoil.ir import simplify
+        from pydrofoil.ir import optimize
         print "============== FINISHING =============="
         index = 0
         while index < len(self._all_graphs):
             graph, func, args, kwargs = self._all_graphs[index]
             print "\033[1K\rFINISHING %s/%s %s" % (index + 1, len(self._all_graphs), graph.name),
             sys.stdout.flush()
-            res = simplify(graph, self) # can add new graphs
+            res = optimize(graph, self) # can add new graphs
             func(graph, self, *args, **kwargs)
             index += 1
 

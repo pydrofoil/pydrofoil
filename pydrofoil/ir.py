@@ -23,7 +23,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # vector_subrange_o_i_i with smallbv argument and unknown bounds (hard)
 # read_kind_of_flags has weird diamond patterns
 
-# - replicate
 # - sub_i_o_wrapped_res
 
 # - cse in loops
@@ -2381,6 +2380,27 @@ class LocalOptimizer(BaseOptimizer):
             types.Bool(),
             op.sourcepos,
             op.varname_hint
+        )
+
+    def optimize_replicate_bits_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg1 = self._extract_number(arg1)
+        if arg1.number == 1:
+            return arg0
+
+        arg0, typ = self._extract_smallfixedbitvector(arg0)
+        newwidth = typ.width * arg1.number
+        if newwidth > 64:
+            return
+        return self.newcast(
+            self.newop(
+                "@replicate_bv_i_i", [arg0, MachineIntConstant(typ.width),
+                                      arg1],
+                types.SmallFixedBitVector(newwidth),
+                op.sourcepos,
+                op.varname_hint
+            ),
+            op.resolved_type
         )
 
 

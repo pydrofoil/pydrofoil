@@ -275,9 +275,12 @@ def shift_bits_right(machine, gbv, gbva):
     return gbv.rshift_bits(gbva)
 
 @unwrap("o i")
+@purefunction
 def replicate_bits(machine, bv, repetition):
     return bv.replicate(repetition)
 
+def replicate_bv_i_i(machine, bv, width, repetition):
+    return bitvector.SmallBitVector._replicate(bv, width, repetition)
 
 @purefunction
 def sail_unsigned(machine, gbv):

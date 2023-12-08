@@ -99,7 +99,9 @@ class CodeEmitter(object):
                 return "()"
         if isinstance(value, ir.DefaultValue):
             return value.resolved_type.uninitialized_value
-
+        if isinstance(value, ir.EnumConstant):
+            pyname = self.codegen.getname(value.variant)
+            return pyname
         import pdb; pdb.set_trace()
 
     def _get_args(self, args):
@@ -158,7 +160,7 @@ class CodeEmitter(object):
         self.codegen.emit("%s = %s" % (res, arg1))
 
     def emit_op_GlobalRead(self, op):
-        pyname= self.codegen.getname(op.name)
+        pyname = self.codegen.getname(op.name)
         self._op_helper(op, pyname)
 
     def emit_op_GlobalWrite(self, op):

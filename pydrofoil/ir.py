@@ -11,8 +11,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 
 # TODOS:
-# - enum reads as constants
-
 # - nested operations
 # - neq -> not eq
 
@@ -304,6 +302,8 @@ class SSABuilder(object):
                 return BooleanConstant.FALSE
             if parseval.name in self.codegen.let_values:
                 return self.codegen.let_values[parseval.name]
+            if isinstance(parseval.resolved_type, types.Enum):
+                return EnumConstant(parseval.name, parseval.resolved_type)
             register_read = GlobalRead(parseval.name, parseval.resolved_type)
             self._addop(register_read)
             return register_read
@@ -873,6 +873,14 @@ class DefaultValue(Constant):
     def __repr__(self):
         return "DefaultValue(%r)" % (self.resolved_type, )
 
+
+class EnumConstant(Constant):
+    def __init__(self, variant, resolved_type):
+        self.variant = variant
+        self.resolved_type = resolved_type
+
+    def __repr__(self):
+        return "EnumConstant(%r, %r)" % (self.variant, self.resolved_type)
 
 
 # next

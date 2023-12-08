@@ -8,7 +8,6 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 # - demand ints of arguments
 # - demanded result casts
 # - make extract* deal with defaultvalue
-# - move away from linear code generation paradigm
 
 # later: need to specialize tuple return types
 

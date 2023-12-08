@@ -535,7 +535,7 @@ class __extend__(parse.Function):
         if inlinable:
             codegen.inlinable_functions[self.name] = graph
         else:
-            if len(blocks) < 50 and usefully_specializable(graph):
+            if usefully_specializable(graph):
                 codegen.specialization_functions[self.name] = Specializer(graph, codegen)
 
         with self._scope(codegen, pyname):

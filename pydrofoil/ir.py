@@ -1450,6 +1450,9 @@ class LocalOptimizer(BaseOptimizer):
 
     def _optimize_Cast(self, op, block, index):
         arg, = self._args(op)
+        if op.resolved_type is arg.resolved_type:
+            block.operations[index] = None
+            return arg
         if self.do_double_casts and isinstance(arg, Cast):
             arg2, = self._args(arg)
             if arg2.resolved_type is op.resolved_type:
@@ -2367,6 +2370,10 @@ class LocalOptimizer(BaseOptimizer):
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
             import pdb;pdb.set_trace()
 
+    def optimize_sail_assert(self, op):
+        arg0, arg1 = self._args(op)
+        if isinstance(arg0, BooleanConstant) and arg0.value:
+            return REMOVE
 
 @repeat
 def inline(graph, codegen):

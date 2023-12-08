@@ -1,4 +1,4 @@
-from pydrofoil.parse import *
+from pydrofoil import parse
 from pydrofoil.types import *
 from pydrofoil.ir import *
 
@@ -34,7 +34,7 @@ def make_bits_to_bool():
     block4 = Block()
     block5 = Block()
     i1 = block0.emit(Cast, '$cast', [zb], GenericBitVector(), '`1 14:2-14:5', 'zz43')
-    i2 = block0.emit(Cast, '$cast', [AstConstant(BitVectorConstant(constant='0b1', resolved_type=SmallFixedBitVector(1)), SmallFixedBitVector(1))], GenericBitVector(), '`1 14:2-14:5', 'zz44')
+    i2 = block0.emit(Cast, '$cast', [SmallBitVectorConstant('0b1', resolved_type=SmallFixedBitVector(1))], GenericBitVector(), '`1 14:2-14:5', 'zz44')
     i3 = block0.emit(Operation, 'zeq_bits', [i1, i2], Bool(), '`1 14:2-14:5', 'zz42')
     i4 = block0.emit(Operation, '@not', [i3], Bool(), '`1 13:27-16:1', None)
     block0.next = ConditionalGoto(i4, block4, block1, '`1 13:27-16:1')
@@ -60,7 +60,7 @@ block3 = Block()
 block4 = Block()
 block5 = Block()
 i1 = block0.emit(Cast, '$cast', [zb], GenericBitVector(), '`1 14:2-14:5', 'zz43')
-i2 = block0.emit(Cast, '$cast', [AstConstant(BitVectorConstant(constant='0b1', resolved_type=SmallFixedBitVector(1)), SmallFixedBitVector(1))], GenericBitVector(), '`1 14:2-14:5', 'zz44')
+i2 = block0.emit(Cast, '$cast', [SmallBitVectorConstant('0b1', SmallFixedBitVector(1))], GenericBitVector(), '`1 14:2-14:5', 'zz44')
 i3 = block0.emit(Operation, 'zeq_bits', [i1, i2], Bool(), '`1 14:2-14:5', 'zz42')
 block0.next = ConditionalGoto(i3, block1, block4, '`1 13:27-16:1')
 block1.next = Goto(block2, None)
@@ -82,7 +82,7 @@ block1 = Block()
 block2 = Block()
 block3 = Block()
 i1 = block0.emit(Cast, '$cast', [zb], GenericBitVector(), '`1 14:2-14:5', 'zz43')
-i2 = block0.emit(Cast, '$cast', [AstConstant(BitVectorConstant(constant='0b1', resolved_type=SmallFixedBitVector(1)), SmallFixedBitVector(1))], GenericBitVector(), '`1 14:2-14:5', 'zz44')
+i2 = block0.emit(Cast, '$cast', [SmallBitVectorConstant('0b1', SmallFixedBitVector(1))], GenericBitVector(), '`1 14:2-14:5', 'zz44')
 i3 = block0.emit(Operation, 'zeq_bits', [i1, i2], Bool(), '`1 14:2-14:5', 'zz42')
 i4 = block0.emit(Operation, '@not', [i3], Bool(), '`1 13:27-16:1', None)
 block0.next = ConditionalGoto(i4, block1, block3, '`1 13:27-16:1')
@@ -101,7 +101,7 @@ def test_remove_empty_blocks_2():
     block3 = Block()
     block0.next = ConditionalGoto(zx, block1, block3, '`1 204:26-204:48')
     block1.next = Goto(block2, None)
-    i1 = block2.emit_phi([block3, block1], [AstConstant(BitVectorConstant(constant='0b0', resolved_type=SmallFixedBitVector(1)), SmallFixedBitVector(1)), AstConstant(BitVectorConstant(constant='0b1', resolved_type=SmallFixedBitVector(1)), SmallFixedBitVector(1))], SmallFixedBitVector(1))
+    i1 = block2.emit_phi([block3, block1], [SmallBitVectorConstant('0b0', resolved_type=SmallFixedBitVector(1)), SmallBitVectorConstant('0b1', resolved_type=SmallFixedBitVector(1))], SmallFixedBitVector(1))
     block2.next = Return(i1, None)
     block3.next = Goto(block2, None)
     graph = Graph('zbool_to_bits', [zx], block0)
@@ -1802,3 +1802,15 @@ def test_inline_loop():
     graph.check()
 
     _inline(graph, block0, 1, subgraph)
+
+
+def test_sail_assert_true():
+    block0 = Block()
+    i1 = block0.emit(Operation, 'sail_assert', [BooleanConstant.TRUE, AstConstant(parse.String(resolved_type=String(), string='"src/v8_base.sail:2440.22-2440.23"'), String())], Unit(), '`7 2440:8-2440:23', 'zz4192')
+    block0.next = Return(BooleanConstant.TRUE, None)
+    graph = Graph('happy_assert', [], block0)
+    check_simplify(graph, '''
+block0 = Block()
+block0.next = Return(BooleanConstant.TRUE, None)
+graph = Graph('happy_assert', [], block0)
+''')

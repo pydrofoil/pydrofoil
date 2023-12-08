@@ -91,17 +91,15 @@ class CodeEmitter(object):
             return pyname
         if isinstance(value, ir.SmallBitVectorConstant):
             return "r_uint(%s)" % (value.value, )
-        if isinstance(value, ir.AstConstant):
-            ast = value.ast
-            if isinstance(ast, parse.String):
-                return ast.string
-            if isinstance(ast, parse.Unit):
-                return "()"
         if isinstance(value, ir.DefaultValue):
             return value.resolved_type.uninitialized_value
         if isinstance(value, ir.EnumConstant):
             pyname = self.codegen.getname(value.variant)
             return pyname
+        if isinstance(value, ir.UnitConstant):
+            return "()"
+        if isinstance(value, ir.StringConstant):
+            return value.string
         import pdb; pdb.set_trace()
 
     def _get_args(self, args):

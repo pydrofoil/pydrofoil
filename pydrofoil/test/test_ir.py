@@ -1806,7 +1806,7 @@ def test_inline_loop():
 
 def test_sail_assert_true():
     block0 = Block()
-    i1 = block0.emit(Operation, 'sail_assert', [BooleanConstant.TRUE, AstConstant(parse.String(resolved_type=String(), string='"src/v8_base.sail:2440.22-2440.23"'), String())], Unit(), '`7 2440:8-2440:23', 'zz4192')
+    i1 = block0.emit(Operation, 'sail_assert', [BooleanConstant.TRUE, StringConstant('"src/v8_base.sail:2440.22-2440.23"')], Unit(), '`7 2440:8-2440:23', 'zz4192')
     block0.next = Return(BooleanConstant.TRUE, None)
     graph = Graph('happy_assert', [], block0)
     check_optimize(graph, '''

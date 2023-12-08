@@ -221,6 +221,7 @@ class Codegen(object):
             res = optimize(graph, self) # can add new graphs
             func(graph, self, *args, **kwargs)
             index += 1
+        print "DONE"
 
 
 

@@ -766,12 +766,15 @@ def platform_write_mem_ea(machine, write_kind, addr_size, addr, n):
 
 # strings
 
+@purefunction
 def concat_str(machine, a, b):
     return a + b
 
+@purefunction
 def eq_string(machine, a, b):
     return a == b
 
+@purefunction
 def string_length(machine, s):
     return Integer.fromint(len(s))
 

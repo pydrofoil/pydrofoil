@@ -337,9 +337,11 @@ class SSABuilder(object):
             return MachineIntConstant(parseval.number)
         elif isinstance(parseval, parse.BitVectorConstant):
             return SmallBitVectorConstant(parseval.constant, parseval.resolved_type)
+        elif isinstance(parseval, parse.String):
+            return StringConstant(parseval.string)
         else:
-            assert isinstance(parseval, (parse.Unit, parse.String))
-            return AstConstant(parseval, parseval.resolved_type)
+            assert isinstance(parseval, parse.Unit)
+            return UnitConstant.UNIT
 
     def _build_condition(self, condition, sourcepos):
         if isinstance(condition, parse.Comparison):
@@ -593,9 +595,6 @@ class Graph(object):
 # values
 
 class Value(object):
-    def __init__(self, resolved_type):
-        self.resolved_type = resolved_type
-
     def _repr(self, print_varnames):
         return repr(self)
 
@@ -786,17 +785,6 @@ class Phi(Value):
 class Constant(Value):
     pass
 
-class AstConstant(Constant):
-    def __init__(self, ast, resolved_type):
-        self.ast = ast
-        self.resolved_type = resolved_type
-
-    def _repr(self, print_varnames):
-        return "%s(%s, %s)" % (self.__class__.__name__, self.ast, self.resolved_type)
-
-    def __repr__(self):
-        return "AstConstant(%r, %r)" % (self.ast, self.resolved_type)
-
 class BooleanConstant(Constant):
     def __init__(self, value):
         assert isinstance(value, bool)
@@ -882,6 +870,23 @@ class EnumConstant(Constant):
     def __repr__(self):
         return "EnumConstant(%r, %r)" % (self.variant, self.resolved_type)
 
+
+class StringConstant(Constant):
+    resolved_type = types.String()
+
+    def __init__(self, string):
+        self.string = string
+
+    def __repr__(self):
+        return "StringConstant(%r)" % (self.string, )
+
+
+class UnitConstant(Constant):
+    resolved_type = types.Unit()
+    def __repr__(self):
+        return "UnitConstant.UNIT"
+
+UnitConstant.UNIT = UnitConstant()
 
 # next
 
@@ -1511,6 +1516,10 @@ class LocalOptimizer(BaseOptimizer):
         args = self._args(op)
         if not all(isinstance(arg, Constant) for arg in args):
             return
+        if name not in supportcode.purefunctions:
+            return
+        if "undefined" in name:
+            return
         runtimeargs = []
         for arg in args:
             if isinstance(arg, IntConstant):
@@ -1525,12 +1534,10 @@ class LocalOptimizer(BaseOptimizer):
                 return # later
             elif arg.resolved_type is types.Unit():
                 runtimeargs.append(())
+            elif arg.resolved_type is types.String():
+                runtimeargs.append(eval(arg.string))
             else:
                 return None
-        if name not in supportcode.purefunctions:
-            return
-        if "undefined" in name:
-            return
         try:
             res = func(None, *runtimeargs)
         except (Exception, AssertionError) as e:

@@ -33,6 +33,15 @@ class Specializer(object):
                 if block.next.value is not None:
                     self.resulttyp = block.next.value.resolved_type
         self.argtyps = [arg.resolved_type for arg in graph.args]
+        self.demanded_argtyps = [None] * len(self.argtyps)
+
+        # XXX super wasteful to compute anticipated_casts all the time :-(
+        optimizer = ir.BaseOptimizer(graph, codegen)
+        for index, arg in enumerate(graph.args):
+            if arg.resolved_type is types.Int():
+                anticipated = optimizer.anticipated_casts.get(graph.startblock, set())
+                if (arg, types.MachineInt()) in anticipated:
+                    self.demanded_argtyps[index] = types.MachineInt()
         self.cache = {}
         self.codegen = codegen
 
@@ -144,7 +153,7 @@ class Specializer(object):
         key = []
         args = []
         useful = False
-        for arg, argtyp in zip(call.args, self.argtyps):
+        for arg, argtyp, demanded_argtyp in zip(call.args, self.argtyps, self.demanded_argtyps):
             if argtyp is types.Int() or argtyp is types.MachineInt():
                 try:
                     arg = optimizer._extract_machineint(arg)
@@ -172,6 +181,11 @@ class Specializer(object):
             elif isinstance(argtyp, types.Bool) and isinstance(arg, ir.BooleanConstant):
                 key.append((argtyp, arg.value))
                 args.append(arg)
+                useful = True
+                continue
+            if demanded_argtyp is types.MachineInt():
+                key.append((types.MachineInt(), None))
+                args.append(optimizer._make_int_to_int64(arg))
                 useful = True
                 continue
             key.append((arg.resolved_type, None))

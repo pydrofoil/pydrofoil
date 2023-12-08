@@ -88,12 +88,12 @@ def test_specialize():
     opt.optimize()
     simplify(calling_graph, fakecodegen)
 
-    op = block.operations[0]
-    assert op.name == 'zis_zzero_subrange_specialized_bv52_51_o'
+    op = block.operations[1]
+    assert op.name == 'zis_zzero_subrange_specialized_bv52_51_i'
     assert op.args[0] == bv
     assert type(op.args[1]) is MachineIntConstant
     assert op.args[1].number == 51
-    assert op.args[2] == i
+    assert op.args[2].args[0] == i
 
 def test_specialize_bool_value():
     zcond = Argument('zcond', Bool())
@@ -181,3 +181,40 @@ def test_specialize_on_result():
     assert op.name == "zROR_specialized_bv32_2__bv32"
     assert calling_graph.startblock.next.value is op
     (specialized_graph, _), = spec.cache.values()
+
+
+def test_argument_demand_casts():
+    zlen = Argument('zlen', Int())
+    zv = Argument('zv', GenericBitVector())
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    i2 = block0.emit(Operation, '@length_unwrapped_res', [zv], MachineInt(), '`2 141:39-141:48', 'zz41')
+    i3 = block0.emit(Operation, 'zz5izDzKz5i64', [zlen], MachineInt(), None, None)
+    i4 = block0.emit(Operation, '@lteq', [i3, i2], Bool(), '`2 141:32-141:48', 'zz40')
+    block0.next = ConditionalGoto(i4, block1, block3, '`2 141:29-141:100')
+    i5 = block1.emit(Operation, '@sail_truncate_o_i', [zv, i3], GenericBitVector(), '`2 141:54-141:70', 'return')
+    block1.next = Goto(block2, None)
+    i6 = block2.emit_phi([block3, block1], [None, i5], GenericBitVector())
+    block2.next = Return(i6, None)
+    i7 = block3.emit(Operation, '@zero_extend_o_i', [zv, i3], GenericBitVector(), '`2 141:76-141:100', 'return')
+    i6.prevvalues[0] = i7
+    block3.next = Goto(block2, None)
+    graph = Graph('mask', [zlen, zv], block0)
+
+    fakecodegen = FakeCodeGen()
+    spec = Specializer(graph, fakecodegen)
+    fakecodegen.specialization_functions['mask'] = spec
+
+    a = Argument('a', Int())
+    bv = Argument('bv', GenericBitVector())
+    block0 = Block()
+    i1 = block0.emit(Operation, 'mask', [a, bv], GenericBitVector(), '`7 456:19-456:28', 'zz419')
+    block0.next = Return(i1, None)
+    calling_graph = Graph('f', [a, bv], block0)
+
+    #opt = SpecializingOptimizer(calling_graph, fakecodegen)
+    #opt.optimize()
+    simplify(calling_graph, fakecodegen)
+    assert calling_graph.startblock.operations[1].name == 'mask_specialized_i_o'

@@ -2443,7 +2443,6 @@ def inline(graph, codegen):
                         continue
                 elif not subgraph.has_loop:
                     # complicated case
-                    # split current block
                     _inline(graph, block, index, subgraph)
                     remove_empty_blocks(graph)
                     join_blocks(graph)
@@ -2453,6 +2452,7 @@ def inline(graph, codegen):
     return changed
 
 def _inline(graph, block, index, subgraph):
+    # split current block
     op = block.operations[index]
     newblock = Block()
     oldops = block.operations[:]

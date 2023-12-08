@@ -1476,7 +1476,7 @@ class LocalOptimizer(BaseOptimizer):
                 op.sourcepos,
                 op.varname_hint,
             )
-        meth = getattr(self, "optimize_%s" % name.lstrip("@"), None)
+        meth = getattr(self, "optimize_%s" % name.lstrip("$@"), None)
         if meth:
             try:
                 newop = meth(op)
@@ -2403,6 +2403,12 @@ class LocalOptimizer(BaseOptimizer):
             ),
             op.resolved_type
         )
+
+    def optimize_zupdate_fbits(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        if arg0.resolved_type.width == 1:
+            assert arg1.number == 0
+            return arg2
 
 
 @repeat

@@ -431,10 +431,12 @@ class Block(object):
                 res = op.prevblocks
         return res
 
-    def copy_operations(self, replacements, block_replacements=None):
-        def replace(arg):
+    def copy_operations(self, replacements, block_replacements=None, patch_phis=None):
+        def replace(arg, is_phi=False):
             if isinstance(arg, Constant):
                 return arg
+            if is_phi and arg not in replacements:
+                return None
             return replacements[arg]
         res = []
         for op in self.operations:
@@ -443,8 +445,11 @@ class Block(object):
             elif isinstance(op, Phi):
                 newop = Phi(
                     [block_replacements[block] for block in op.prevblocks],
-                    [replace(arg) for arg in op.prevvalues],
+                    [replace(arg, is_phi=True) for arg in op.prevvalues],
                     op.resolved_type)
+                for index, (newarg, arg) in enumerate(zip(newop.prevvalues, op.prevvalues)):
+                    if newarg is None:
+                        patch_phis.append((newop, index, arg))
             else:
                 newop = Operation(op.name, [replace(arg) for arg in op.args], op.resolved_type, op.sourcepos, op.varname_hint)
                 newop.__class__ = op.__class__
@@ -1299,7 +1304,8 @@ class BaseOptimizer(object):
         self.changed = False
         self.anticipated_casts = find_anticipated_casts(graph)
         self.do_double_casts = do_double_casts
-        self.current_block = None
+        self.current_block = self.graph.startblock
+        self.replacements = {}
 
     def view(self):
         self.graph.view()
@@ -1316,6 +1322,7 @@ class BaseOptimizer(object):
                 if not changed:
                     break
             self.graph.check()
+            self.replacements.clear()
             return True
         return self.changed
 
@@ -2420,11 +2427,15 @@ def copy_blocks(graph, op):
     replacements = {arg: argexpr for arg, argexpr in zip(graph.args, op.args)}
     blocks = {block: Block() for block in graph.iterblocks()}
     todo_next = []
-    for block in topo_order(graph):
-        ops = block.copy_operations(replacements, blocks)
+    patch_phis = []
+    for block in topo_order_best_attempt(graph):
+        ops = block.copy_operations(replacements, blocks, patch_phis)
         newblock = blocks[block]
         newblock.operations = ops
         todo_next.append((block.next, newblock))
+
+    for op, index, arg in patch_phis:
+        op.prevvalues[index] = replacements[arg]
 
     while todo_next:
         next, newblock = todo_next.pop()

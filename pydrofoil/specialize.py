@@ -12,15 +12,15 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 
 
 def usefully_specializable(graph):
-    if graph.has_loop:
-        return False
     if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool)) for arg in graph.args):
         return False
+    numblocks = 0
     for block in graph.iterblocks():
         if isinstance(block.next, ir.Return):
             if block.next.value is None:
                 return False
-    return True
+        numblocks += 1
+    return numblocks < 100
 
 
 class Specializer(object):
@@ -39,11 +39,15 @@ class Specializer(object):
         if key is None:
             return None
         if key in self.cache:
-            stubgraph, restype = self.cache[key]
+            value = self.cache[key]
+            if value is None:
+                return None # recursive graph building, will be fixed later
+            stubgraph, restype = value
         else:
             if len(self.cache) > 64:
-                import pdb;pdb.set_trace()
+                print "TOO MANY VARIANTS!", self.graph.name
                 return None
+            self.cache[key] = None # meaning "in progress"
             stubgraph, restype = self._make_stub(key)
             self.cache[key] = stubgraph, restype
         newcall = optimizer.newop(stubgraph.name, args, restype, call.sourcepos, call.varname_hint)
@@ -97,6 +101,7 @@ class Specializer(object):
         graph = ir.Graph(self.graph.name + "_specialized_" + "_".join(sargs), args, block)
         print "MAKING SPECIALIZATION", graph.name
         ir._inline(graph, block, len(ops) - 1, self.graph)
+        graph.has_loop = self.graph.has_loop
         ir.simplify(graph, self.codegen)
 
         # check whether we can specialize on the return type
@@ -150,7 +155,7 @@ class Specializer(object):
                         value = None
                     key.append((types.MachineInt(), value))
                     args.append(arg)
-                    useful = True
+                    useful = argtyp is types.Int() or value is not None
                     continue
             elif isinstance(argtyp, types.GenericBitVector):
                 try:

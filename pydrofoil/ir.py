@@ -1539,7 +1539,8 @@ class LocalOptimizer(BaseOptimizer):
         if isinstance(op.resolved_type, types.SmallFixedBitVector):
             return SmallBitVectorConstant.from_ruint(op.resolved_type.width, res)
         if op.resolved_type is types.Bool():
-            import pdb;pdb.set_trace()
+            return BooleanConstant.frombool(res)
+            # XXX other types? import pdb;pdb.set_trace()
 
     def _optimize_GlobalWrite(self, op, block, index):
         arg, = self._args(op)

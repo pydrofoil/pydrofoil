@@ -149,7 +149,7 @@ class Specializer(object):
                 except ir.NoMatchException:
                     pass
                 else:
-                    if isinstance(arg, ir.MachineIntConstant):
+                    if isinstance(arg, ir.MachineIntConstant) and 0 <= arg.number <= 64:
                         value = arg.number
                     else:
                         value = None

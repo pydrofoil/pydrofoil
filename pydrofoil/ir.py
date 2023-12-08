@@ -16,8 +16,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - nested operations
 # - neq -> not eq
 
-# not_bool
-
 # - lt etc one arg machine int
 
 # risc-v:
@@ -27,8 +25,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # - replicate
 # - sub_i_o_wrapped_res
-
-# - cast to same type
 
 # - cse in loops
 
@@ -2374,6 +2370,19 @@ class LocalOptimizer(BaseOptimizer):
         arg0, arg1 = self._args(op)
         if isinstance(arg0, BooleanConstant) and arg0.value:
             return REMOVE
+
+    def optimize_not(self, op):
+        arg0, = self._args(op)
+        if isinstance(arg0, BooleanConstant):
+            return BooleanConstant.frombool(not arg0.value)
+        return self.newop(
+            "@not",
+            [arg0],
+            types.Bool(),
+            op.sourcepos,
+            op.varname_hint
+        )
+
 
 @repeat
 def inline(graph, codegen):

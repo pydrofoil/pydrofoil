@@ -1,15 +1,17 @@
 from pydrofoil import types, ir, parse, supportcode, bitvector
 
 # type specialization: func_zAArch64_AddrTop should return MachineInt
-# is_zero/one_subrange is a nice example for something that could accept SmallFixedBitVector (and MachineInts)
 # can have both "demand" (casts inside a function)
 # and "supply" (arguments from outside)
 
 # focus on: MemSingle_read
 
-# - demand ints
-# - result casts
+# - demand ints of arguments
+# - demanded result casts
+# - make extract* deal with defaultvalue
+# - move away from linear code generation paradigm
 
+# later: need to specialize tuple return types
 
 def usefully_specializable(graph):
     if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool)) for arg in graph.args):

@@ -16,6 +16,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - nested operations
 # - neq -> not eq
 
+# not_bool
+
 # - lt etc one arg machine int
 
 # risc-v:
@@ -26,7 +28,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - replicate
 # - sub_i_o_wrapped_res
 
-# - zeq_bool (?!)
+# - cast to same type
 
 # - cse in loops
 

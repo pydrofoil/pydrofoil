@@ -77,23 +77,30 @@ def get_main(outarm):
         return setinstr(machine, opcode)
     outarm.func_z__SetThisInstr = jitsetinstr
 
-    jit.dont_look_inside(outarm.func_zAArch32_AutoGen_ArchitectureReset)
-    jit.dont_look_inside(outarm.func_zAArch64_AutoGen_ArchitectureReset)
-    jit.unroll_safe(outarm.func_zMem_read__1)
-    jit.unroll_safe(outarm.func_zAArch64_MemSingle_read__1)
-    jit.unroll_safe(outarm.func_zMem_set__1)
-    jit.unroll_safe(outarm.func_zAArch64_MemSingle_set__1)
-    jit.unroll_safe(outarm.func_zAArch64_S1Translate)
-    jit.unroll_safe(outarm.func_zAArch64_S1Walk)
-    jit.unroll_safe(outarm.func_zAArch64_S2Translate)
-    jit.unroll_safe(outarm.func_zMaybeZeroSVEUppers)
-    jit.unroll_safe(outarm.func_zAArch64_DataMemZero)
-    jit.unroll_safe(outarm.func_zexecute_aarch64_instrs_integer_arithmetic_rev)
-
     for name, func in outarm.__dict__.iteritems():
         if "IMPDEF" in name:
             func = objectmodel.specialize.arg(1)(func)
             objectmodel.always_inline(func)
+        if "func_zMem_read__1" in name:
+            jit.unroll_safe(func)
+        if "func_zMem_set__1" in name:
+            jit.unroll_safe(func)
+        if "MemSingle_" in name:
+            jit.unroll_safe(func)
+        if "S1Translate" in name:
+            jit.unroll_safe(func)
+        if "S2Translate" in name:
+            jit.unroll_safe(func)
+        if "S1Walk" in name:
+            jit.unroll_safe(func)
+        if "MaybeZeroSVEUppers" in name:
+            jit.unroll_safe(func)
+        if "DataMemZero" in name:
+            jit.unroll_safe(func)
+        if "instrs_integer_arithmetic" in name:
+            jit.unroll_safe(func)
+        if "ArchitectureReset" in name:
+            jit.unroll_safe(func)
 
     def main(argv):
         try:

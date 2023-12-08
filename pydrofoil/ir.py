@@ -2353,7 +2353,7 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_eq(self, op):
         arg0, arg1 = self._args(op)
-        if isinstance(arg0, MachineIntConstant) and isinstance(arg0, MachineIntConstant):
+        if isinstance(arg0, MachineIntConstant) and isinstance(arg1, MachineIntConstant):
             return BooleanConstant.frombool(arg0.number == arg1.number)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
             import pdb;pdb.set_trace()

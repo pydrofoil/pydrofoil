@@ -1,7 +1,6 @@
 from pydrofoil import types, ir, parse, supportcode, bitvector
 
 # type specialization: func_zAArch64_AddrTop should return MachineInt
-# can have both "demand" (casts inside a function)
 # and "supply" (arguments from outside)
 
 # focus on: MemSingle_read

@@ -21,11 +21,14 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # risc-v:
 # mul_o_i, backwards mul_i_i_must_fit, sub_i_i_must_fit
 # vector_subrange_o_i_i with smallbv argument and unknown bounds (hard)
-# read_kind_of_flags has weird diamond patterns
+# read_kind_of_flags has weird diamond patterns, needs dominance
 
 # - sub_i_o_wrapped_res
 
-# - cse in loops
+# deal with exceptional paths better in the context of inlining (and specialization)
+
+# zsext_slice is a good example of cse not sharing int_to_int64 through two
+# paths that get merged
 
 # why does cse not work for int64_to_int(zsizze) in func_zAArch64_MemSingle_read__1?
 

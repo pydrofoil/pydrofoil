@@ -11,6 +11,9 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 
 # later: need to specialize tuple return types
 
+# allow inlining of small specialized functions
+# specialize phi as constants?
+
 def usefully_specializable(graph):
     if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool)) for arg in graph.args):
         return False

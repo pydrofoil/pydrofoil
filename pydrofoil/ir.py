@@ -32,6 +32,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # get rid of do_double_casts again
 
+# optimize tdiv/ediv: division by 1, conversion to MachineInt possible sometimes
+
 
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:

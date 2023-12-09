@@ -369,11 +369,11 @@ def _get_successors(block):
 
 
 def compute_predecessors(G):
-    result = defaultdict(set)
+    result = defaultdict(list)
     for num, succs in G.iteritems():
         for succ in succs:
-            result[succ].add(num)
-        result[num].add(num)
+            result[succ].append(num)
+        result[num].append(num)
     return result
 
 
@@ -453,8 +453,9 @@ def bfs_edges(G, start=0):
         if node in seen:
             continue
         seen.add(node)
-        todo.extend(G[node])
-        for succ in G[node]:
+        successors = G[node]
+        todo.extend(successors)
+        for succ in successors:
             res.append((node, succ))
     return res
 
@@ -489,19 +490,15 @@ class CantSplitError(Exception):
 
 def split_graph(blocks, min_size=6, start_node=0):
     G = _extract_graph(blocks)
-    return_blocks = {num for (num, block) in blocks.iteritems() if isinstance(block[-1], parse.End)}
-    end_blocks = {num for (num, block) in blocks.iteritems() if isinstance(block[-1], parse.FunctionEndingStatement)}
-    return_edges = [(source, target) for (source, target) in bfs_edges(G, start_node) if target in return_blocks]
-    return_edges.reverse()
+    preds = compute_predecessors(G)
     # split graph, starting from exit edges (ie an edge going to a block
     # ending with End)
     graph1 = {}
-    last_working_graph1 = None
-    while 1:
+    for source, target in bfs_edges(G, start_node):
+        if not isinstance(blocks[target][-1], parse.End):
+            continue
         # approach: from the edge going to the 'End' node, extend by adding
         # predecessors up to fixpoint
-        source, target = return_edges.pop()
-        preds = compute_predecessors(G)
         graph1[target] = blocks[target]
         todo = [source]
         while todo:
@@ -517,37 +514,35 @@ def split_graph(blocks, min_size=6, start_node=0):
             for succ in G[node]:
                 if succ in graph1:
                     continue
-                if succ in end_blocks:
-                    graph1[succ] = blocks[succ]
+                block = blocks[succ]
+                if isinstance(block[-1], parse.FunctionEndingStatement):
+                    graph1[succ] = block
                 else:
                     transfer_nodes.add(succ)
         # try to remove some transfer nodes, if they are themselves only a
-        # single block away from an end_blocks (happens with exceptions)
+        # single block away from an end block (happens with exceptions)
         for node in list(transfer_nodes):
-            if len(G[node]) > 1:
+            successors = G[node]
+            if len(successors) > 1:
                 continue
-            succ, = G[node]
-            if succ not in end_blocks:
+            succ, = successors
+            block = blocks[succ]
+            if not isinstance(block[-1], parse.FunctionEndingStatement):
                 continue
             graph1[node] = blocks[node]
-            graph1[succ] = blocks[succ]
+            graph1[succ] = block
             transfer_nodes.remove(node)
 
         # if we only have a single transfer_node left, we have a potential
         # split
         if len(transfer_nodes) == 1:
-            last_working_graph1 = graph1.copy()
-            last_transfer_nodes = transfer_nodes.copy()
             if len(graph1) > min_size:
                 break
-        if len(graph1) == len(blocks) or not return_edges:
+        if len(graph1) == len(blocks):
             # didn't manage to split
-            if last_working_graph1:
-                print "going back to earlier result, size", len(last_working_graph1)
-                graph1 = last_working_graph1
-                transfer_nodes = last_transfer_nodes
-                break
             raise CantSplitError
+    else:
+        raise CantSplitError
     # compute graph2
     graph2 = {}
     for node in G:
@@ -556,13 +551,14 @@ def split_graph(blocks, min_size=6, start_node=0):
     # add reachable end nodes
     for node in list(graph2):
         for succ in G[node]:
-            if succ in end_blocks:
-                graph2[succ] = blocks[succ]
+            block = blocks[succ]
+            if isinstance(block[-1], parse.FunctionEndingStatement):
+                graph2[succ] = block
     # consistency check:
     for num, block in blocks.iteritems():
         assert num in graph1 or num in graph2
         if num in graph1 and num in graph2:
-            assert num in end_blocks
+            assert isinstance(blocks[num][-1], parse.FunctionEndingStatement)
     transferpc, = transfer_nodes
     assert transferpc not in graph1
     assert transferpc in graph2

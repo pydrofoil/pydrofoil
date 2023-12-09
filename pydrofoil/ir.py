@@ -1429,23 +1429,46 @@ class BaseOptimizer(object):
             raise NoMatchException
         return expr, typ
 
-    def _extract_machineint(self, arg):
+    def _extract_machineint(self, arg, want_constant=True):
         if arg.resolved_type is types.MachineInt():
             return arg
         if isinstance(arg, IntConstant):
+            if not want_constant:
+                raise NoMatchException
             if isinstance(arg.number, int):
                 return MachineIntConstant(arg.number)
+        if isinstance(arg, DefaultValue):
+            return DefaultValue(types.MachineInt())
         if (
-            not isinstance(arg, Operation)
-            or self._builtinname(arg.name) != "int64_to_int"
+            isinstance(arg, Operation)
+            and self._builtinname(arg.name) == "int64_to_int"
         ):
-            if isinstance(arg, Cast):
-                import pdb;pdb.set_trace()
-            anticipated = self.anticipated_casts.get(self.current_block, set())
-            if (arg, types.MachineInt()) in anticipated:
-                return self._make_int_to_int64(arg)
-            raise NoMatchException
-        return arg.args[0]
+            return arg.args[0]
+        if isinstance(arg, Cast):
+            import pdb;pdb.set_trace()
+        anticipated = self.anticipated_casts.get(self.current_block, set())
+        if (arg, types.MachineInt()) in anticipated:
+            return self._make_int_to_int64(arg)
+        if isinstance(arg, Phi):
+            if self.graph.has_loop:
+                raise NoMatchException # can be solved
+            prevvalues = []
+            for prevvalue in arg.prevvalues:
+                prevvalues.append(self._extract_machineint(
+                    self._get_op_replacement(prevvalue),
+                    want_constant=want_constant))
+            newres = Phi(arg.prevblocks, prevvalues, types.MachineInt())
+            # this is quite delicate, need to insert the Phi into the right block
+            if arg in self.current_block.operations:
+                self.newoperations.insert(0, newres)
+                return newres
+            for prevblock in arg.prevblocks:
+                if isinstance(prevblock.next, Goto):
+                    homeblock = prevblock.next.target
+                    if arg in homeblock.operations:
+                        homeblock.operations.insert(0, newres)
+                        return newres
+        raise NoMatchException
 
     def _extract_number(self, arg):
         if isinstance(arg, MachineIntConstant):
@@ -1618,7 +1641,7 @@ class LocalOptimizer(BaseOptimizer):
         if op.resolved_type is types.Int():
             machineints = []
             for arg in op.prevvalues:
-                arg = self._extract_machineint(self._get_op_replacement(arg))
+                arg = self._extract_machineint(self._get_op_replacement(arg), want_constant=False)
                 machineints.append(arg)
             if all(isinstance(arg, Constant) for arg in machineints):
                 return

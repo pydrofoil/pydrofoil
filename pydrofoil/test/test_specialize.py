@@ -252,3 +252,18 @@ def test_AddrTop_bug():
     block8.next = Goto(block5, None)
     block9.next = Goto(block5, None)
     graph = Graph('zAddrTop', [zaddress, zIsInstr, zel], block0)
+
+    fakecodegen = FakeCodeGen()
+    optimize(graph, fakecodegen)
+    spec = Specializer(graph, fakecodegen)
+    fakecodegen.specialization_functions['zAddrTop'] = spec
+
+    zaddress = Argument('zaddress', SmallFixedBitVector(64))
+    zel = Argument('zel', SmallFixedBitVector(2))
+    block0 = Block()
+    i1 = block0.emit(Operation, 'zAddrTop', [zaddress, BooleanConstant.TRUE, zel], Int(), '`7 456:19-456:28', 'zz419')
+    block0.next = Return(i1, None)
+    calling_graph = Graph('f', [zaddress, zel], block0)
+
+    optimize(calling_graph, fakecodegen)
+    assert calling_graph.startblock.operations[0].name == 'zAddrTop_specialized_o_True_o__i'

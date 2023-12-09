@@ -62,6 +62,8 @@ class Specializer(object):
             self.cache[key] = None # meaning "in progress"
             stubgraph, restype = self._make_stub(key)
             self.cache[key] = stubgraph, restype
+        if call.name == stubgraph.name:
+            return None # no change in optimization level
         newcall = optimizer.newop(stubgraph.name, args, restype, call.sourcepos, call.varname_hint)
         if restype != call.resolved_type:
             if restype is types.MachineInt():

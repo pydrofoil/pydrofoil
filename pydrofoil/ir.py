@@ -34,6 +34,11 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # optimize tdiv/ediv: division by 1, conversion to MachineInt possible sometimes
 
+# make anticipated casts deal with phi renaming?
+
+# sail asserts as control flow
+
+# concat(concat(x, const1), const2) -> concat(x, const1+const2)
 
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:
@@ -1628,14 +1633,25 @@ class LocalOptimizer(BaseOptimizer):
     def _optimize_Phi(self, op, block, index):
         if op.resolved_type is types.GenericBitVector():
             bvs = []
+            seentyp = None
             for arg in op.prevvalues:
-                arg, typ = self._extract_smallfixedbitvector(self._get_op_replacement(arg))
-                bvs.append(arg)
+                if isinstance(arg, DefaultValue):
+                    bvs.append(DefaultValue(None))
+                else:
+                    arg, typ = self._extract_smallfixedbitvector(self._get_op_replacement(arg))
+                    bvs.append(arg)
+                    if seentyp is None:
+                        seentyp = typ
+                    elif seentyp is not typ:
+                        raise NoMatchException
+            for arg in bvs:
+                if isinstance(arg, DefaultValue):
+                    arg.resolved_type = seentyp
             return self.newcast(
                 self.newphi(
                     op.prevblocks,
                     bvs,
-                    typ),
+                    seentyp),
                 types.GenericBitVector()
             )
         if op.resolved_type is types.Int():
@@ -2423,6 +2439,7 @@ class LocalOptimizer(BaseOptimizer):
         arg0, arg1 = self._args(op)
         if isinstance(arg0, BooleanConstant) and arg0.value:
             return REMOVE
+    optimize_zsail_assert = optimize_sail_assert
 
     def optimize_not(self, op):
         arg0, = self._args(op)
@@ -2436,6 +2453,8 @@ class LocalOptimizer(BaseOptimizer):
                 op.sourcepos,
                 op.varname_hint
             )
+
+    optimize_not_ = optimize_not
 
     def optimize_replicate_bits_o_i(self, op):
         arg0, arg1 = self._args(op)

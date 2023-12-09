@@ -13,7 +13,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # TODOS:
 # - nested operations
-# - neq -> not eq
 
 # - lt etc one arg machine int
 
@@ -33,7 +32,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # get rid of do_double_casts again
 
-# optimize tdiv/ediv: division by 1, conversion to MachineInt possible sometimes
+# optimize tdiv/ediv: conversion to MachineInt possible sometimes
 
 # make anticipated casts deal with phi renaming?
 
@@ -1715,6 +1714,16 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type
         )
 
+    @symmetric
+    def optimize_neq(self, op, arg0, arg1):
+        return self.newop(
+            "@not", [self.newop(
+                "@eq",
+                [arg0, arg1], op.resolved_type, op.sourcepos, op.varname_hint
+            )],
+            op.resolved_type
+        )
+
     def optimize_int64_to_int(self, op):
         (arg0,) = self._args(op)
         if isinstance(arg0, MachineIntConstant):
@@ -2476,6 +2485,8 @@ class LocalOptimizer(BaseOptimizer):
         arg0, = self._args(op)
         if isinstance(arg0, BooleanConstant):
             return BooleanConstant.frombool(not arg0.value)
+        if isinstance(arg0, Operation) and arg0.name == '@not':
+            return self._args(arg0)[0]
         if op.name != "@not": # standardize only, don't change all the time
             return self.newop(
                 "@not",

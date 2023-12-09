@@ -1978,10 +1978,25 @@ def test_div_1():
     i2 = block0.emit(Operation, 'ediv_int', [i1, IntConstant(1)], Int(), '`1 186:4-186:22', 'zz41')
     block0.next = Return(i2, None)
     graph = Graph('f', [a], block0)
-    graph.view()
     check_optimize(graph, '''
 a = Argument('a', Int())
 block0 = Block()
 block0.next = Return(a, None)
 graph = Graph('f', [a], block0)
 ''')
+
+def test_neq():
+    zr = Argument('zr', MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Operation, '@neq', [zr, MachineIntConstant(0)], Bool(), '`83', 'zz4129')
+    i2 = block0.emit(Operation, '@not', [i1], Bool(), '`83', 'zz4129')
+    block0.next = Return(i2, None)
+    graph = Graph('f', [zr], block0)
+    check_optimize(graph, """
+zr = Argument('zr', MachineInt())
+block0 = Block()
+i1 = block0.emit(Operation, '@eq', [zr, MachineIntConstant(0)], Bool(), '`83', 'zz4129')
+block0.next = Return(i1, None)
+graph = Graph('f', [zr], block0)
+""")
+

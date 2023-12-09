@@ -1,4 +1,5 @@
 import sys
+import time
 from contextlib import contextmanager
 from rpython.tool.pairtype import pair
 
@@ -212,6 +213,7 @@ class Codegen(object):
 
     def finish_graphs(self):
         from pydrofoil.ir import optimize
+        t1 = time.time()
         print "============== FINISHING =============="
         index = 0
         while index < len(self._all_graphs):
@@ -221,8 +223,8 @@ class Codegen(object):
             res = optimize(graph, self) # can add new graphs
             func(graph, self, *args, **kwargs)
             index += 1
-        print "DONE"
-
+        t2 = time.time()
+        print "DONE, took seconds", round(t2 - t1, 2)
 
 
 def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None):
@@ -266,6 +268,7 @@ class __extend__(parse.File):
     def make_code(self, codegen):
         import traceback
         failure_count = 0
+        t1 = time.time()
         for index, decl in enumerate(self.declarations):
             print "\033[1K\rMAKING CODE FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl),
             sys.stdout.flush()
@@ -278,6 +281,8 @@ class __extend__(parse.File):
                 failure_count += 1
                 codegen.level = 0
             codegen.emit()
+        t2 = time.time()
+        print "AST WALKING DONE, took seconds:", round(t2 - t1, 2)
 
 class __extend__(parse.Declaration):
     def make_code(self, codegen):

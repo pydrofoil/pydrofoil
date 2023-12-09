@@ -14,6 +14,8 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 # allow inlining of small specialized functions
 # specialize phi as constants?
 
+# zFPDefaultNaN__1_specialized_16_o
+
 def usefully_specializable(graph):
     if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool)) for arg in graph.args):
         return False

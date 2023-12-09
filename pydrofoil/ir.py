@@ -40,6 +40,9 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # concat(concat(x, const1), const2) -> concat(x, const1+const2)
 
+# vector_update_o_i_o with bv to update_fbits
+
+
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:
     # a dictionary {label-as-int: [list of operations]}

@@ -212,7 +212,7 @@ class Codegen(object):
         self._all_graphs.append((graph, emit_function, args, kwargs))
 
     def finish_graphs(self):
-        from pydrofoil.ir import optimize
+        from pydrofoil.ir import optimize, print_stats
         t1 = time.time()
         print "============== FINISHING =============="
         index = 0
@@ -225,12 +225,18 @@ class Codegen(object):
             index += 1
         t2 = time.time()
         print "DONE, took seconds", round(t2 - t1, 2)
+        print_stats()
 
 
 def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None):
     from pydrofoil.infer import infer
+    t1 = time.time()
     ast = parse.parser.parse(parse.lexer.lex(s))
+    t2 = time.time()
+    print "parsing took", round(t2 - t1, 2)
     context = infer(ast)
+    t3 = time.time()
+    print "infer took", round(t3 - t2, 2)
     c = Codegen(promoted_registers, should_inline=should_inline)
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib import jit")

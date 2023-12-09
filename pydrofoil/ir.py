@@ -1,4 +1,5 @@
 import random
+import time
 from collections import defaultdict
 
 from pydrofoil import parse, types, binaryop, operations, supportcode
@@ -1061,8 +1062,28 @@ class GraphPage(BaseGraphPage):
 
 # some simple graph simplifications
 
+
+TIMINGS = defaultdict(float)
+COUNTS = defaultdict(int)
+
+def print_stats():
+    print "OPTIMIZATION STATISTICS"
+    timings = TIMINGS.items()
+    timings.sort(key=lambda element: element[1])
+    timings.reverse()
+    total = 0.0
+    maxnamesize = 0
+    for name, t in timings:
+        total += t
+        maxnamesize = max(maxnamesize, len(name))
+    for name, t in timings:
+        print name.rjust(maxnamesize), "time:", round(t, 2), "number of times called:", COUNTS[name], "time/call:", round(t / COUNTS[name], 4), "percentage:", round(t / total * 100, 1)
+        total += t
+    print "TOTAL", round(total, 2)
+
 def repeat(func):
     def repeated(graph, *args, **kwargs):
+        t1 = time.time()
         ever_changed = False
         for i in range(1000):
             changed = func(graph, *args, **kwargs)
@@ -1074,6 +1095,9 @@ def repeat(func):
             print "LIMIT REACHED!", graph, func.func_name
         if ever_changed:
             graph.check()
+        t2 = time.time()
+        TIMINGS[func.func_name] += t2 - t1
+        COUNTS[func.func_name] += 1
         return ever_changed
     return repeated
 

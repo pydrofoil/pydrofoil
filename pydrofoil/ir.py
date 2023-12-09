@@ -1063,7 +1063,7 @@ def repeat(func):
                 break
             ever_changed = True
         else:
-            print "LIMIT REACHED!", graph
+            print "LIMIT REACHED!", graph, func.func_name
         if ever_changed:
             graph.check()
         return ever_changed
@@ -1077,12 +1077,16 @@ def optimize(graph, codegen):
     from pydrofoil.specialize import SpecializingOptimizer
     res = _optimize(graph, codegen)
     if graph.name not in codegen.inlinable_functions:
-        SpecializingOptimizer(graph, codegen).optimize()
-    res = _optimize(graph, codegen) or res
+        for i in range(100):
+            specialized = SpecializingOptimizer(graph, codegen).optimize()
+            if specialized:
+                res = _bare_optimize(graph, codegen) or res
+            else:
+                break
+        res = _optimize(graph, codegen) or res
     return res
 
-@repeat
-def _optimize(graph, codegen):
+def _bare_optimize(graph, codegen):
     res = False
     res = join_blocks(graph) or res
     res = remove_dead(graph, codegen) or res
@@ -1096,6 +1100,8 @@ def _optimize(graph, codegen):
     res = LocalOptimizer(graph, codegen, do_double_casts=True).optimize() or res
     res = remove_if_phi_constant(graph) or res
     return res
+
+_optimize = repeat(_bare_optimize)
 
 # def find_double_computation(graph):
 #     # nonsense

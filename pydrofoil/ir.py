@@ -1233,10 +1233,8 @@ def remove_if_true_false(graph):
         if not isinstance(cond, ConditionalGoto) or type(cond.booleanvalue) is not BooleanConstant:
             continue
         if cond.booleanvalue.value:
-            deadblock = cond.falsetarget
             takenblock = cond.truetarget
         else:
-            deadblock = cond.truetarget
             takenblock = cond.falsetarget
         block.next = Goto(takenblock)
         changed = True

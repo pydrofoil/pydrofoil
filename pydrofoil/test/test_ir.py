@@ -1970,3 +1970,18 @@ i6.prevvalues[1] = i9
 block6.next = Goto(block5, None)
 graph = Graph('zFPDefaultNaN__1_specialized_16_o', [zN, zfpcr], block0)
 ''')
+
+def test_div_1():
+    a = Argument('a', Int())
+    block0 = Block()
+    i1 = block0.emit(Operation, 'tdiv_int', [a, IntConstant(1)], Int(), '`1 186:4-186:22', 'zz41')
+    i2 = block0.emit(Operation, 'ediv_int', [i1, IntConstant(1)], Int(), '`1 186:4-186:22', 'zz41')
+    block0.next = Return(i2, None)
+    graph = Graph('f', [a], block0)
+    graph.view()
+    check_optimize(graph, '''
+a = Argument('a', Int())
+block0 = Block()
+block0.next = Return(a, None)
+graph = Graph('f', [a], block0)
+''')

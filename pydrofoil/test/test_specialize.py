@@ -232,7 +232,7 @@ def test_AddrTop_bug():
     block8 = Block()
     block9 = Block()
     i3 = block0.emit(Operation, 'zHaveEL', [zel], Bool(), '`7 1932:11-1932:21', 'zz49')
-    i4 = block0.emit(Operation, 'zsail_assert', [i3], Unit(), '`7 1931:42-1943:1', 'zz410')
+    i4 = block0.emit(Operation, 'zsail_assert', [i3, StringConstant('')], Unit(), '`7 1931:42-1943:1', 'zz410')
     i5 = block0.emit(Operation, 'zS1TranslationRegime', [zel], SmallFixedBitVector(2), '`7 1933:27-1933:50', 'zz40')
     i6 = block0.emit(GlobalRead, 'have_exception', [], Bool(), None, None)
     block0.next = ConditionalGoto(i6, block1, block2, '`7 1933:27-1933:50')

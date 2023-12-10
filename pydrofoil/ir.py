@@ -654,6 +654,9 @@ class Value(object):
     def getargs(self):
         return []
 
+    def comparison_key(self):
+        return self
+
     def __repr__(self):
         return "<%s %x>" % (self.__class__.__name__, id(self))
 
@@ -862,6 +865,9 @@ class MachineIntConstant(Constant):
     def _repr(self, print_varnames):
         return repr(self)
 
+    def comparison_key(self):
+        return (MachineIntConstant, self.number, self.resolved_type)
+
     def __repr__(self):
         return "MachineIntConstant(%r)" % (self.number, )
 
@@ -873,6 +879,9 @@ class IntConstant(Constant):
 
     def _repr(self, print_varnames):
         return repr(self)
+
+    def comparison_key(self):
+        return (IntConstant, self.number, self.resolved_type)
 
     def __repr__(self):
         return "IntConstant(%r)" % (self.number, )
@@ -891,6 +900,9 @@ class SmallBitVectorConstant(Constant):
             value = '0b' + bin(val)[2:].rjust(size, '0')
         return SmallBitVectorConstant(value, types.SmallFixedBitVector(size))
 
+    def comparison_key(self):
+        return (SmallBitVectorConstant, self.value, self.resolved_type)
+
     def _repr(self, print_varnames):
         return repr(self)
 
@@ -903,6 +915,9 @@ class DefaultValue(Constant):
     def __init__(self, resolved_type):
         self.resolved_type = resolved_type
 
+    def comparison_key(self):
+        return (DefaultValue, self.resolved_type)
+
     def __repr__(self):
         return "DefaultValue(%r)" % (self.resolved_type, )
 
@@ -911,6 +926,9 @@ class EnumConstant(Constant):
     def __init__(self, variant, resolved_type):
         self.variant = variant
         self.resolved_type = resolved_type
+
+    def comparison_key(self):
+        return (EnumConstant, self.variant, self.resolved_type)
 
     def __repr__(self):
         return "EnumConstant(%r, %r)" % (self.variant, self.resolved_type)
@@ -921,6 +939,9 @@ class StringConstant(Constant):
 
     def __init__(self, string):
         self.string = string
+
+    def comparison_key(self):
+        return (StringConstant, self.string, self.resolved_type)
 
     def __repr__(self):
         return "StringConstant(%r)" % (self.string, )
@@ -2915,7 +2936,7 @@ def cse(graph, codegen):
         for index, op in enumerate(block.operations):
             if not can_replace(op):
                 continue
-            key = (type(op), op.name, tuple(replacements.get(arg, arg) for arg in op.args), op.resolved_type)
+            key = (type(op), op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args), op.resolved_type)
             if key in available_in_block:
                 block.operations[index] = None
                 replacements[op] = available_in_block[key]

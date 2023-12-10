@@ -17,8 +17,10 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - lt etc one arg machine int
 
 # risc-v:
-# mul_o_i, backwards mul_i_i_must_fit, sub_i_i_must_fit
-# vector_subrange_o_i_i with smallbv argument and unknown bounds (hard)
+# mul_o_i, backwards mul_i_i_must_fit
+# vector_subrange_o_i_i with smallbv argument and unknown bounds (hard). idea:
+# check whether difference between index args is computable
+
 # read_kind_of_flags has weird diamond patterns, needs dominance
 
 # - sub_i_o_wrapped_res
@@ -37,8 +39,17 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # make anticipated casts deal with phi renaming?
 
 # concat(concat(x, const1), const2) -> concat(x, const1+const2)
+# example:
+    # i198 = block110.emit(Operation, 'zget_16_random_bits', [UnitConstant.UNIT], SmallFixedBitVector(16), '`12 827:24-827:44', 'zz42')
+    # i199 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant('0x00', SmallFixedBitVector(8)), MachineIntConstant(16), i198], SmallFixedBitVector(24), '`12 828:48-828:66', 'zz417')
+    # i200 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant('0b000000', SmallFixedBitVector(6)), MachineIntConstant(24), i199], SmallFixedBitVector(30), '`12 828:32-828:66', 'zz414')
+    # i201 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant('0b10', SmallFixedBitVector(2)), MachineIntConstant(30), i200], SmallFixedBitVector(32), '`12 828:14-828:66', 'zz410')
 
-# vector_update_o_i_o with bv to update_fbits
+# const-fold update_fbits
+
+# cse of UnionCast?
+
+# combine several steps of phi nodes
 
 
 def construct_ir(functionast, codegen, singleblock=False):
@@ -315,6 +326,10 @@ class SSABuilder(object):
                 return BooleanConstant.TRUE
             elif parseval.name == 'false':
                 return BooleanConstant.FALSE
+            if parseval.name == 'bitzero':
+                return SmallBitVectorConstant('0b0', types.Bit())
+            elif parseval.name == 'bitone':
+                return SmallBitVectorConstant('0b1', types.Bit())
             if parseval.name in self.codegen.let_values:
                 return self.codegen.let_values[parseval.name]
             if isinstance(parseval.resolved_type, types.Enum):
@@ -2596,6 +2611,25 @@ class LocalOptimizer(BaseOptimizer):
         if arg0.resolved_type.width == 1:
             assert arg1.number == 0
             return arg2
+
+    def optimize_vector_update_o_i_o(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        if arg0.resolved_type is not types.GenericBitVector():
+            return
+        assert arg2.resolved_type is types.SmallFixedBitVector(1)
+        arg0, typ = self._extract_smallfixedbitvector(arg0)
+        if isinstance(arg1, MachineIntConstant):
+            assert 0 <= arg1.number < typ.width
+        return self.newcast(
+            self.newop(
+                '$zupdate_fbits',
+                [arg0, arg1, arg2],
+                typ,
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type
+        )
 
 
 @repeat

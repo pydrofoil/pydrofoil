@@ -550,12 +550,10 @@ block1.next = ConditionalGoto(i3, block2, block3, '`1 279:2-280:19')
 block2.next = Return(i1, None)
 i4 = block3.emit(Operation, '@sub_i_i_must_fit', [MachineIntConstant(7), i2], MachineInt(), '`1 280:15-280:18', 'zz416')
 i5 = block3.emit(Operation, '@vector_access_bv_i', [zxs, i4], SmallFixedBitVector(1), '`1 280:12-280:19', 'zz47')
-i6 = block3.emit(Cast, '$cast', [i1], GenericBitVector(), '`1 280:4-280:9', 'zz48')
-i7 = block3.emit(Operation, '@vector_update_o_i_o', [i6, i2, i5], GenericBitVector(), '`1 280:4-280:9', 'zz410')
-i8 = block3.emit(Cast, '$cast', [i7], SmallFixedBitVector(8), '`1 280:4-280:9', 'zz40')
-i1.prevvalues[1] = i8
-i9 = block3.emit(Operation, '@iadd', [i2, MachineIntConstant(1)], MachineInt(), '`1 279:2-280:19', 'zz45')
-i2.prevvalues[1] = i9
+i6 = block3.emit(Operation, '$zupdate_fbits', [i1, i2, i5], SmallFixedBitVector(8), '`1 280:4-280:9', 'zz410')
+i1.prevvalues[1] = i6
+i7 = block3.emit(Operation, '@iadd', [i2, MachineIntConstant(1)], MachineInt(), '`1 279:2-280:19', 'zz45')
+i2.prevvalues[1] = i7
 block3.next = Goto(block1, None)
 graph = Graph('zreverse_bits_in_byte', [zxs], block0, True)
 """)
@@ -2055,6 +2053,23 @@ def test_add_i_i_wrapped_res_0():
 a = Argument('a', MachineInt())
 block0 = Block()
 i1 = block0.emit(Operation, 'zz5i64zDzKz5i', [a], Int(), '`7 154655:32-154655:57', None)
+block0.next = Return(i1, None)
+graph = Graph('f', [a], block0)
+''')
+
+
+def test_narrow_vector_o_i_o():
+    a = Argument('a', SmallFixedBitVector(64))
+    block0 = Block()
+    i18 = block0.emit(Cast, '$cast', [a], GenericBitVector(), '`59 88:19-88:42', 'zz425')
+    i20 = block0.emit(Operation, '@vector_update_o_i_o', [i18, MachineIntConstant(0), SmallBitVectorConstant('0b0', SmallFixedBitVector(1))], GenericBitVector(), '`59 88:19-88:42', 'zz426')
+    i21 = block0.emit(Cast, '$cast', [i20], SmallFixedBitVector(64), '`59 88:19-88:42', 'zz412')
+    block0.next = Return(i21, None)
+    graph = Graph('f', [a], block0)
+    check_optimize(graph, '''
+a = Argument('a', SmallFixedBitVector(64))
+block0 = Block()
+i1 = block0.emit(Operation, '$zupdate_fbits', [a, MachineIntConstant(0), SmallBitVectorConstant('0b0', SmallFixedBitVector(1))], SmallFixedBitVector(64), '`59 88:19-88:42', 'zz426')
 block0.next = Return(i1, None)
 graph = Graph('f', [a], block0)
 ''')

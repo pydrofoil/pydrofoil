@@ -1803,11 +1803,13 @@ def test_inline_loop():
 
 def test_sail_assert_true():
     block0 = Block()
-    i1 = block0.emit(Operation, 'sail_assert', [BooleanConstant.TRUE, StringConstant('"src/v8_base.sail:2440.22-2440.23"')], Unit(), '`7 2440:8-2440:23', 'zz4192')
+    i1 = block0.emit(Operation, 'zsail_assert', [BooleanConstant.TRUE, StringConstant('"src/v8_base.sail:2440.22-2440.23"')], Unit(), '`7 2440:8-2440:23', 'zz4192')
     block0.next = Return(BooleanConstant.TRUE, None)
     graph = Graph('happy_assert', [], block0)
+    convert_sail_assert_to_exception(graph, fakecodegen)
     check_optimize(graph, '''
 block0 = Block()
+i0 = block0.emit(Comment, 'sail_assert src/v8_base.sail:2440.22-2440.23', [], Unit(), None, None)
 block0.next = Return(BooleanConstant.TRUE, None)
 graph = Graph('happy_assert', [], block0)
 ''')
@@ -1939,7 +1941,6 @@ def test_defaultvalue_bv():
     block4 = Block()
     block5 = Block()
     block6 = Block()
-    i3 = block0.emit(Operation, 'zsail_assert', [BooleanConstant.TRUE, StringConstant('"src/v8_base.sail:148477.38-148477.39"')], Unit(), '`7 148476:37-148487:1', 'zz445')
     i6 = block0.emit(Operation, 'zUsingAArch32', [UnitConstant.UNIT], Bool(), '`7 148480:51-148480:65', 'zz427')
     i7 = block0.emit(GlobalRead, 'have_exception', [], Bool(), None, None)
     block0.next = ConditionalGoto(i7, block1, block3, '`7 148480:51-148480:65')

@@ -1796,13 +1796,6 @@ class LocalOptimizer(BaseOptimizer):
             return MachineIntConstant(arg0.number)
         if not isinstance(arg0, Operation):
             return
-        if arg0.name.endswith("_wrapped_res") and 0:
-            newname = arg0.name.lstrip("@")[:-len('_wrapped_res')] + "_must_fit"
-            if hasattr(supportcode, newname):
-                import pdb;pdb.set_trace()
-                return self.newop("@" + newname, arg0.args, types.MachineInt(),
-                                  arg0.sourcepos, arg0.varname_hint)
-            print "MIIIISSING", newname
         if (
             not isinstance(arg0, Operation)
             or self._builtinname(arg0.name) != "int64_to_int"
@@ -2559,12 +2552,6 @@ class LocalOptimizer(BaseOptimizer):
             return BooleanConstant.frombool(arg0.number == arg1.number)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
             import pdb;pdb.set_trace()
-
-    def optimize_sail_assert(self, op):
-        arg0, arg1 = self._args(op)
-        if isinstance(arg0, BooleanConstant) and arg0.value:
-            return REMOVE
-    optimize_zsail_assert = optimize_sail_assert
 
     def optimize_not(self, op):
         arg0, = self._args(op)

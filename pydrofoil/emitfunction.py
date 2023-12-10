@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from rpython.tool.pairtype import pair
 
-from pydrofoil import ir, parse, types
+from pydrofoil import ir, parse, types, supportcode
 
 def emit_function_code(graph, functionast, codegen):
     CodeEmitter(graph, functionast, codegen).emit()
@@ -27,6 +27,7 @@ class CodeEmitter(object):
         self.entrymap = graph.make_entrymap()
         self.emitted = set()
         self.print_varnames = {}
+        self._single_use_ops = {}
 
     def emit(self):
         codegen = self.codegen
@@ -70,9 +71,26 @@ class CodeEmitter(object):
         res = self.print_varnames[op] = "%s_%s" % (name, len(self.print_varnames))
         return res
 
+    def _can_print_op_anywhere(self, op):
+        if isinstance(op, ir.Cast):
+            return True
+        if isinstance(op, ir.UnionCast):
+            return True
+        if op.name == "@not":
+            return True
+        name = self.codegen.builtin_names.get(op.name, op.name)
+        name = name.lstrip('@')
+        return type(op) is ir.Operation and name in supportcode.purefunctions
+
     def _get_arg(self, value):
         if isinstance(value, (ir.Phi, ir.Operation)):
-            return self._get_print_varname(value)
+            varname = self._get_print_varname(value)
+            if varname in self._single_use_ops:
+                arg = self._single_use_ops[varname]
+                assert arg is not None
+                self._single_use_ops[varname] = None
+                return arg
+            return varname
         if isinstance(value, ir.Argument):
             return value.name
         if isinstance(value, ir.BooleanConstant):
@@ -107,10 +125,14 @@ class CodeEmitter(object):
 
     def _op_helper(self, op, svalue):
         assert isinstance(svalue, str)
-        if self.use_count_ops[op] == 0:
+        use_count = self.use_count_ops[op]
+        if use_count == 0:
             emit = svalue
         else:
             res = self._get_print_varname(op)
+            if use_count == 1 and self._can_print_op_anywhere(op):
+                self._single_use_ops[res] = svalue
+                return
             emit = "%s = %s" % (res, svalue)
         sourcepos = op.sourcepos
         if sourcepos:
@@ -123,7 +145,6 @@ class CodeEmitter(object):
     def emit_op_Operation(self, op):
         codegen = self.codegen
         name = op.name
-        args = self._get_args(op.args)
         argtyps = [arg.resolved_type for arg in op.args]
         restyp = op.resolved_type
         if name in codegen.globalnames:
@@ -140,6 +161,7 @@ class CodeEmitter(object):
                 res = meth(self.codegen, [self._get_arg(arg) for arg in op.args], argtyps, restyp)
                 self._op_helper(op, res)
                 return
+        args = self._get_args(op.args)
         opname = codegen.getname(name)
         info = codegen.getinfo(name)
         if isinstance(info.typ, types.Function) or opname.startswith("supportcode."):

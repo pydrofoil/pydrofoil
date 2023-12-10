@@ -2907,6 +2907,8 @@ def cse(graph, codegen):
             return False
         if isinstance(op, Cast):
             return True
+        if isinstance(op, UnionCast):
+            return True
         if op.name == "@not":
             return True
         name = codegen.builtin_names.get(op.name, op.name)

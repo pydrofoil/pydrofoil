@@ -1579,7 +1579,7 @@ def test_read_kind_of_flags():
     i57 = block48.emit(Operation, 'zNonezIEread_kindz5zK', [], Int(), '`27 112:29-112:35', 'zz40')
     i10.prevvalues[7] = i57
     block48.next = Goto(block6, None)
-    block49.next = Raise('match', '`27 104:2-113:3')
+    block49.next = Raise(StringConstant("'match'"), '`27 104:2-113:3')
     block50.next = Goto(block47, None)
     block51.next = Goto(block45, None)
     block52.next = Goto(block41, None)
@@ -1654,7 +1654,7 @@ block12.next = ConditionalGoto(zres, block13, block18, '`27 111:4-111:35')
 block13.next = ConditionalGoto(zres, block14, block16, '`27 112:4-112:35')
 block14.next = ConditionalGoto(zrl, block15, block16, '`27 112:4-112:35')
 block15.next = ConditionalGoto(zaq, block16, block17, '`27 104:2-113:3')
-block16.next = Raise(match, '`27 104:2-113:3')
+block16.next = Raise(StringConstant("'match'"), '`27 104:2-113:3')
 i6 = block17.emit(Operation, 'zNonezIEread_kindz5zK', [], Int(), '`27 112:29-112:35', 'zz40')
 i5.prevvalues[7] = i6
 block17.next = Goto(block11, None)
@@ -1815,7 +1815,7 @@ graph = Graph('happy_assert', [], block0)
 def test_sail_assert_to_control_flow():
     a = Argument('a', Bool())
     block0 = Block()
-    i1 = block0.emit(Operation, 'zsail_assert', [a, StringConstant('"sad"')], Unit(), None, None)
+    i1 = block0.emit(Operation, 'zsail_assert', [a, StringConstant('"bad"')], Unit(), None, None)
     block0.next = Return(a, None)
     graph = Graph('f', [a], block0)
     convert_sail_assert_to_exception(graph, fakecodegen)
@@ -1825,9 +1825,10 @@ a = Argument('a', Bool())
 block0 = Block()
 block1 = Block()
 block2 = Block()
+i1 = block0.emit(Comment, 'sail_assert bad', [], Unit(), None, None)
 block0.next = ConditionalGoto(a, block1, block2, None)
 block1.next = Return(a, None)
-block2.next = Raise("sad", None)
+block2.next = Raise(StringConstant('"bad"'), None)
 graph = Graph('f', [a], block0)"""
 
 

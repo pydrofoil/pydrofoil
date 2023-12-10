@@ -1374,6 +1374,10 @@ def convert_sail_assert_to_exception(graph, codegen):
             newblock = block.split(index, keep_op=False)
             failblock = Block()
             failblock.next = Raise(op.args[1], None)
+            if isinstance(op.args[1], StringConstant):
+                assert_str = 'sail_assert'
+                assert_str += ' ' + eval(op.args[1].string)
+                block.operations.append(Comment(assert_str))
             block.next = ConditionalGoto(op.args[0], newblock, failblock, op.sourcepos)
             res = True
             # try with the next blocks, but if there are multiple asserts in

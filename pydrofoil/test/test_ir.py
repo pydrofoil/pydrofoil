@@ -2068,6 +2068,18 @@ i1 = block0.emit(Operation, '$zupdate_fbits', [a, MachineIntConstant(0), SmallBi
 block0.next = Return(i1, None)
 graph = Graph('f', [a], block0)
 ''')
+
+def test_constfold_update_fbits():
+    block0 = Block()
+    i1 = block0.emit(Operation, '$zupdate_fbits', [SmallBitVectorConstant('0b01', SmallFixedBitVector(2)), MachineIntConstant(0), SmallBitVectorConstant('0b0', SmallFixedBitVector(1))], SmallFixedBitVector(2), '`59 88:19-88:42', 'zz426')
+    block0.next = Return(i1, None)
+    graph = Graph('f', [], block0)
+    check_optimize(graph, '''
+block0 = Block()
+block0.next = Return(SmallBitVectorConstant('0b00', SmallFixedBitVector(2)), None)
+graph = Graph('f', [], block0)
+''')
+
 def test_ediv_i_i():
     a = Argument('a', MachineInt())
     block0 = Block()

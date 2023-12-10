@@ -321,7 +321,7 @@ def vector_access_bv_i(machine, bv, index):
     return r_uint(1) & safe_rshift(None, bv, index)
 
 @purefunction
-def update_fbits(machine, fb, index, element):
+def zupdate_fbits(machine, fb, index, element):
     assert 0 <= index < 64
     if element:
         return fb | (r_uint(1) << index)

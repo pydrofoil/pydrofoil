@@ -1656,7 +1656,7 @@ class LocalOptimizer(BaseOptimizer):
                     return newop
 
         # try generic constant folding
-        name = name.lstrip("@")
+        name = name.lstrip("@$")
         func = getattr(supportcode, name, None)
         if not func:
             return

@@ -1790,6 +1790,15 @@ class LocalOptimizer(BaseOptimizer):
         if isinstance(arg0, IntConstant):
             assert isinstance(arg0.number, int)
             return MachineIntConstant(arg0.number)
+        if not isinstance(arg0, Operation):
+            return
+        if arg0.name.endswith("_wrapped_res") and 0:
+            newname = arg0.name.lstrip("@")[:-len('_wrapped_res')] + "_must_fit"
+            if hasattr(supportcode, newname):
+                import pdb;pdb.set_trace()
+                return self.newop("@" + newname, arg0.args, types.MachineInt(),
+                                  arg0.sourcepos, arg0.varname_hint)
+            print "MIIIISSING", newname
         if (
             not isinstance(arg0, Operation)
             or self._builtinname(arg0.name) != "int64_to_int"
@@ -2240,6 +2249,7 @@ class LocalOptimizer(BaseOptimizer):
                     self._args(arg0)[1] == num1):
                     return self._args(arg0)[0]
         arg0 = self._extract_machineint(arg0)
+
         return self.newop(
             "@add_i_i_wrapped_res",
             [arg0, arg1],
@@ -2247,6 +2257,22 @@ class LocalOptimizer(BaseOptimizer):
             op.sourcepos,
             op.varname_hint,
         )
+
+    @symmetric
+    def optimize_add_i_i_wrapped_res(self, op, arg0, arg1):
+        anticipated = self.anticipated_casts.get(self.current_block, set())
+        if (op, types.MachineInt()) in anticipated:
+            return self._make_int64_to_int(
+                self.newop("@add_i_i_must_fit", op.args, types.MachineInt(),
+                           op.sourcepos, op.varname_hint)
+            )
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 0:
+                return self._make_int64_to_int(arg0, op.sourcepos)
 
     def optimize_sub_int(self, op):
         arg0, arg1 = self._args(op)
@@ -2278,6 +2304,12 @@ class LocalOptimizer(BaseOptimizer):
         )
 
     def optimize_sub_i_i_wrapped_res(self, op):
+        anticipated = self.anticipated_casts.get(self.current_block, set())
+        if (op, types.MachineInt()) in anticipated:
+            return self._make_int64_to_int(
+                self.newop("@sub_i_i_must_fit", op.args, types.MachineInt(),
+                           op.sourcepos, op.varname_hint)
+            )
         arg0, arg1 = self._args(op)
         try:
             arg1 = self._extract_number(arg1)

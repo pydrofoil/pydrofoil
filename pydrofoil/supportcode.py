@@ -474,6 +474,13 @@ def add_o_i_wrapped_res(machine, a, b):
 def add_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.add_i_i(a, b)
 
+@purefunction
+def add_i_i_must_fit(machine, a, b):
+    try:
+        return ovfcheck(a + b)
+    except OverflowError:
+        assert 0, "must not happen"
+
 @objectmodel.specialize.argtype(1)
 @purefunction
 def sub_int(machine, ia, ib):
@@ -482,6 +489,13 @@ def sub_int(machine, ia, ib):
 @purefunction
 def sub_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.sub_i_i(a, b)
+
+@purefunction
+def sub_i_i_must_fit(machine, a, b):
+    try:
+        return ovfcheck(a - b)
+    except OverflowError:
+        assert 0, "must not happen"
 
 @purefunction
 def sub_o_i_wrapped_res(machine, a, b):

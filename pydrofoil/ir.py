@@ -36,8 +36,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # make anticipated casts deal with phi renaming?
 
-# sail asserts as control flow
-
 # concat(concat(x, const1), const2) -> concat(x, const1+const2)
 
 # vector_update_o_i_o with bv to update_fbits
@@ -127,6 +125,7 @@ class SSABuilder(object):
         graph = Graph(self.functionast.name, self.args, self.allblocks[self.startpc], self.has_loop)
         #if random.random() < 0.01:
         #    self.view = 1
+        convert_sail_assert_to_exception(graph, self.codegen)
         ligth_simplify(graph, self.codegen)
         if self.view:
             graph.view()
@@ -170,6 +169,9 @@ class SSABuilder(object):
                 if len(set(othervalues + [value0])) == 1:
                     self.variable_map[var] = value0
                 else:
+                    if value0.resolved_type is types.Unit():
+                        self.variable_map[var] = UnitConstant.UNIT
+                        continue
                     phi = Phi(
                         [self.allblocks[prevpc] for prevpc in entry],
                         [value0] + othervalues,
@@ -188,6 +190,9 @@ class SSABuilder(object):
             for var, value in self.variable_maps_at_end[prevpc].iteritems():
                 if value is None:
                     self.variable_map[var] = None # uninintialized along some path
+                    continue
+                if value.resolved_type is types.Unit():
+                    self.variable_map[var] = UnitConstant.UNIT
                     continue
                 phi = Phi(
                     [self.allblocks[otherprevpc] for otherprevpc in entry],
@@ -224,7 +229,7 @@ class SSABuilder(object):
                     ssaop = VectorUpdate(args, op.resolved_type, op.sourcepos)
                 else:
                     ssaop = Operation(op.name, args, op.resolved_type, op.sourcepos, op.result)
-                self._addop(ssaop)
+                ssaop = self._addop(ssaop)
                 self._store(op.result, ssaop)
             elif isinstance(op, parse.Assignment):
                 value = self._get_arg(op.value, op.result)
@@ -288,7 +293,7 @@ class SSABuilder(object):
                 assert index + 2 == len(block)
                 break
             elif isinstance(op, parse.Exit):
-                ssablock.next = Raise(op.kind, op.sourcepos)
+                ssablock.next = Raise(StringConstant(repr(op.kind)), op.sourcepos)
             elif isinstance(op, parse.Arbitrary):
                 restyp = self.functionast.resolved_type.restype
                 res = DefaultValue(restyp)
@@ -313,7 +318,8 @@ class SSABuilder(object):
             if parseval.name in self.codegen.let_values:
                 return self.codegen.let_values[parseval.name]
             if isinstance(parseval.resolved_type, types.Enum):
-                return EnumConstant(parseval.name, parseval.resolved_type)
+                if parseval.name in parseval.resolved_type.ast.names:
+                    return EnumConstant(parseval.name, parseval.resolved_type)
             register_read = GlobalRead(parseval.name, parseval.resolved_type)
             self._addop(register_read)
             return register_read
@@ -366,6 +372,8 @@ class SSABuilder(object):
     def _addop(self, op):
         assert isinstance(op, (Operation, Phi))
         self.curr_operations.append(op)
+        if op.resolved_type is types.Unit():
+            return UnitConstant.UNIT
         return op
 
     def _store(self, result, value):
@@ -511,6 +519,18 @@ class Block(object):
             dotgen.emit_edge(str(id(self)), nextid, label=label)
         return str(id(self))
 
+    def split(self, index, keep_op):
+        startindex = index
+        if not keep_op:
+            startindex += 1
+        newblock = Block()
+        newblock.operations = self.operations[startindex:]
+        del self.operations[index:]
+        newblock.next = self.next
+        for furtherblock in self.next.next_blocks():
+            furtherblock.replace_prev(self, newblock)
+        self.next = Goto(newblock)
+        return newblock
 
 class Graph(object):
     def __init__(self, name, args, startblock, has_loop=False):
@@ -942,6 +962,9 @@ class Raise(Next):
         self.kind = kind
         self.sourcepos = sourcepos
 
+    def getargs(self):
+        return [self.kind]
+
     def _repr(self, print_varnames, blocknames=None):
         return "Raise(%s, %r)" % (self.kind, self.sourcepos)
 
@@ -1266,27 +1289,30 @@ def remove_if_true_false(graph):
         changed = True
     if changed:
         # need to remove Phi arguments
-        reachable_blocks = set(graph.iterblocks())
-        replace_phis = {}
-        for block in reachable_blocks:
-            for index, op in enumerate(block.operations):
-                if not isinstance(op, Phi):
-                    continue
-                prevblocks = []
-                prevvalues = []
-                for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
-                    if prevblock in reachable_blocks:
-                        prevblocks.append(prevblock)
-                        prevvalues.append(replace_phis.get(prevvalue, prevvalue))
-                op.prevblocks = prevblocks
-                op.prevvalues = prevvalues
-                if len(prevblocks) == 1:
-                    replace_phis[op] = op.prevvalues[0]
-                    block.operations[index] = None
-            block.operations = [op for op in block.operations if op]
-        if replace_phis:
-            graph.replace_ops(replace_phis)
+        _remove_unreachable_phi_prevvalues(graph)
     return changed
+
+def _remove_unreachable_phi_prevvalues(graph):
+    reachable_blocks = set(graph.iterblocks())
+    replace_phis = {}
+    for block in reachable_blocks:
+        for index, op in enumerate(block.operations):
+            if not isinstance(op, Phi):
+                continue
+            prevblocks = []
+            prevvalues = []
+            for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
+                if prevblock in reachable_blocks:
+                    prevblocks.append(prevblock)
+                    prevvalues.append(replace_phis.get(prevvalue, prevvalue))
+            op.prevblocks = prevblocks
+            op.prevvalues = prevvalues
+            if len(prevblocks) == 1:
+                replace_phis[op] = op.prevvalues[0]
+                block.operations[index] = None
+        block.operations = [op for op in block.operations if op]
+    if replace_phis:
+        graph.replace_ops(replace_phis)
 
 @repeat
 def remove_if_phi_constant(graph):
@@ -1332,6 +1358,29 @@ def remove_if_phi_constant(graph):
     if res:
         graph.replace_ops(replacements)
     return res
+
+
+@repeat
+def convert_sail_assert_to_exception(graph, codegen):
+    res = False
+    for block in list(graph.iterblocks()):
+        for index, op in enumerate(block.operations):
+            if not isinstance(op, Operation):
+                continue
+            name = op.name
+            name = codegen.builtin_names.get(name, name)
+            if name != 'zsail_assert':
+                continue
+            newblock = block.split(index, keep_op=False)
+            failblock = Block()
+            failblock.next = Raise(op.args[1], None)
+            block.next = ConditionalGoto(op.args[0], newblock, failblock, op.sourcepos)
+            res = True
+            # try with the next blocks, but if there are multiple asserts in
+            # this one we need to repeat
+            break
+    return res
+
 
 class NoMatchException(Exception):
     pass
@@ -2557,20 +2606,15 @@ def inline(graph, codegen):
 def _inline(graph, block, index, subgraph):
     # split current block
     op = block.operations[index]
-    newblock = Block()
-    oldops = block.operations[:]
-    newblock.operations = block.operations[index + 1:]
-    del block.operations[index:]
+    newblock = block.split(index, keep_op=False)
     block.operations.append(Comment("inlined %s" % subgraph.name))
-    newblock.next = block.next
-    for furtherblock in block.next.next_blocks():
-        furtherblock.replace_prev(block, newblock)
     start_block, return_block = copy_blocks(subgraph, op)
     block.next = Goto(start_block)
     res, = return_block.operations
     assert return_block.next is None
     return_block.next = Goto(newblock)
     graph.replace_op(op, return_block.operations[0])
+    _remove_unreachable_phi_prevvalues(graph)
     simplify_phis(graph)
     graph.check()
 
@@ -2615,7 +2659,7 @@ def copy_blocks(graph, op):
                 next.sourcepos,
             )
         elif isinstance(next, Raise):
-            newblock.next = Raise(next.kind, next.sourcepos)
+            newblock.next = Raise(replacements.get(next.kind, next.kind), next.sourcepos)
         else:
             assert 0, "unreachable"
 

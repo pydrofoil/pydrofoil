@@ -1815,6 +1815,25 @@ block0.next = Return(BooleanConstant.TRUE, None)
 graph = Graph('happy_assert', [], block0)
 ''')
 
+def test_sail_assert_to_control_flow():
+    a = Argument('a', Bool())
+    block0 = Block()
+    i1 = block0.emit(Operation, 'zsail_assert', [a, StringConstant('"sad"')], Unit(), None, None)
+    block0.next = Return(a, None)
+    graph = Graph('f', [a], block0)
+    convert_sail_assert_to_exception(graph, fakecodegen)
+    res = "\n".join(print_graph_construction(graph))
+    assert res == """\
+a = Argument('a', Bool())
+block0 = Block()
+block1 = Block()
+block2 = Block()
+block0.next = ConditionalGoto(a, block1, block2, None)
+block1.next = Return(a, None)
+block2.next = Raise("sad", None)
+graph = Graph('f', [a], block0)"""
+
+
 def test_not_bool():
     zp = Argument('zp', Bool())
     zq = Argument('zq', Bool())

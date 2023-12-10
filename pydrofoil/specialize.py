@@ -129,12 +129,13 @@ class Specializer(object):
                     break # only support a single return block for now
                 returnblock = block
         else:
-            res, nameextension = self._find_result(graph, returnblock)
-            if res:
-                returnblock.next.value = res
-                resulttyp = res.resolved_type
-                graph.name += nameextension
-                ir.remove_dead(graph, self.codegen)
+            if returnblock:
+                res, nameextension = self._find_result(graph, returnblock)
+                if res:
+                    returnblock.next.value = res
+                    resulttyp = res.resolved_type
+                    graph.name += nameextension
+                    ir.remove_dead(graph, self.codegen)
         typ = types.Function(types.Tuple(tuple(key)), resulttyp)
         self.codegen.emit_extra_graph(graph, typ)
         self.codegen.specialization_functions[graph.name] = self

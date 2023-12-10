@@ -258,7 +258,8 @@ class CodeEmitter(object):
             self._emit_next_helper(next, "assert 0, 'unreachable'")
 
     def emit_next_Raise(self, next):
-        self._emit_next_helper(next, "assert 0, %r" % (next.kind, ))
+        res = self._get_arg(next.kind)
+        self._emit_next_helper(next, "assert 0, %s" % (res, ))
 
     def emit_next_Goto(self, next):
         self._emit_jump(next.target, next)

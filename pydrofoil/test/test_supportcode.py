@@ -610,6 +610,14 @@ def test_op_int_div_mod():
             assert c1(-2**63).tdiv(c2(-1)).tolong() == 2 ** 63
             assert c1(-2**63).tmod(c2(-1)).tolong() == 0
 
+def test_tdiv_int_i_i():
+    # check rounding towards 0
+    assert supportcode.tdiv_int_i_i(machine, 7, 2) == 3
+    assert supportcode.tdiv_int_i_i(machine, -7, 2) == -3
+    assert supportcode.tdiv_int_i_i(machine, 7, -2) == -3
+    assert supportcode.tdiv_int_i_i(machine, -7, -2) == 3
+
+
 def test_shift_amount():
     for i in range(63):
         assert BigInteger._shift_amount(2 ** i) == i

@@ -2095,3 +2095,19 @@ i1 = block0.emit(Operation, '@ediv_int_i_ipos', [a, MachineIntConstant(2)], Mach
 block0.next = Return(i1, None)
 graph = Graph('f', [a], block0)
 ''')
+
+def test_tdiv_i_i():
+    a = Argument('a', MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Operation, 'zz5i64zDzKz5i', [a], Int(), '`7 11525:11-11525:20', 'zz4199')
+    i2 = block0.emit(Operation, 'tdiv_int', [i1, IntConstant(2)], Int(), '`7 11526:20-11526:32', 'zz4179')
+    i3 = block0.emit(Operation, 'zz5izDzKz5i64', [i2], MachineInt(), '`7 11526:20-11526:32', 'zz43')
+    block0.next = Return(i3, None)
+    graph = Graph('f', [a], block0)
+    check_optimize(graph, '''
+a = Argument('a', MachineInt())
+block0 = Block()
+i1 = block0.emit(Operation, '@tdiv_int_i_i', [a, MachineIntConstant(2)], MachineInt(), '`7 11526:20-11526:32', 'zz4179')
+block0.next = Return(i1, None)
+graph = Graph('f', [a], block0)
+''')

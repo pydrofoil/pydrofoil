@@ -511,6 +511,14 @@ def mult_int(machine, ia, ib):
 def tdiv_int(machine, ia, ib):
     return ia.tdiv(ib)
 
+@purefunction
+def tdiv_int_i_i(machine, a, b):
+    from rpython.rlib.rarithmetic import int_c_div
+    if b == 0:
+        raise ZeroDivisionError
+    assert b != -1
+    return int_c_div(a, b)
+
 @objectmodel.specialize.argtype(1)
 @purefunction
 def tmod_int(machine, ia, ib):

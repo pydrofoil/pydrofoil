@@ -34,9 +34,11 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # get rid of do_double_casts again
 
-# optimize tdiv/ediv: conversion to MachineInt possible sometimes
+# optimize tdiv: conversion to MachineInt possible sometimes
 
 # make anticipated casts deal with phi renaming?
+
+# emod(x, 1) == 0?
 
 # concat(concat(x, const1), const2) -> concat(x, const1+const2)
 # example:
@@ -45,9 +47,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
     # i200 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant('0b000000', SmallFixedBitVector(6)), MachineIntConstant(24), i199], SmallFixedBitVector(30), '`12 828:32-828:66', 'zz414')
     # i201 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant('0b10', SmallFixedBitVector(2)), MachineIntConstant(30), i200], SmallFixedBitVector(32), '`12 828:14-828:66', 'zz410')
 
-# const-fold update_fbits
-
-# cse of UnionCast?
+# vector_update_subrange_o_i_i_o with subrange width == 1 can be turned in vector_update_o_i_o
 
 # combine several steps of phi nodes
 

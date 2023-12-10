@@ -521,6 +521,11 @@ def tmod_int(machine, ia, ib):
 def ediv_int(machine, a, b):
     return a.ediv(b)
 
+@purefunction
+def ediv_int_i_ipos(machine, a, b):
+    assert b >= 2
+    return a // b
+
 @objectmodel.specialize.argtype(1)
 @purefunction
 def emod_int(machine, a, b):

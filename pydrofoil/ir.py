@@ -2376,9 +2376,24 @@ class LocalOptimizer(BaseOptimizer):
         arg1 = self._extract_number(arg1)
         if arg1.number == 1:
             return arg0
-        arg0 = self._extract_number(arg0)
-        if arg0.number >= 0 and arg1.number > 0:
-            return IntConstant(arg0.number // arg1.number)
+        try:
+            arg0 = self._extract_number(arg0)
+        except NoMatchException:
+            pass
+        else:
+            if arg0.number >= 0 and arg1.number > 0:
+                return IntConstant(arg0.number // arg1.number)
+        if arg1.number > 1 and isinstance(arg1.number, int):
+            arg0 = self._extract_machineint(arg0)
+            return self._make_int64_to_int(
+                self.newop(
+                    "@ediv_int_i_ipos",
+                    [arg0, MachineIntConstant(arg1.number)],
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            )
 
     def optimize_tdiv_int(self, op):
         arg0, arg1 = self._args(op)

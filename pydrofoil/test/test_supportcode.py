@@ -739,6 +739,15 @@ def test_emod_ediv_int():
    assert bi(-12345678901234567890).emod(bi(10000000000000000000)).toint() == 7654321098765432110
    assert bi(-12345678901234567890).emod(bi(-10000000000000000000)).toint() == 7654321098765432110
 
+def test_ediv_int_i_ipos():
+    assert supportcode.ediv_int_i_ipos(None, 123875, 13) == 123875 // 13
+    assert supportcode.ediv_int_i_ipos(None, MININT, 2) == -2**62
+    assert supportcode.ediv_int_i_ipos(None, MININT + 1, sys.maxint) == -1
+    assert supportcode.ediv_int_i_ipos(None, 7, 5) == 1
+    assert supportcode.ediv_int_i_ipos(None, -7, 5) == -2
+    assert supportcode.ediv_int_i_ipos(None, 12, 3) == 4
+    assert supportcode.ediv_int_i_ipos(None, -12, 3) == -4
+
 def test_pow2():
     for i in range(1000):
         assert supportcode.pow2_i(None, i).tobigint().tolong() == 2 ** i

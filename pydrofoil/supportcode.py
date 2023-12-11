@@ -752,8 +752,13 @@ def undefined_unit(machine, _):
 # list weirdnesses
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def internal_pick(machine, lst):
     return lst.head
+
+@purefunction
+def cons(machine, a, b):
+    assert 0, "unreachable at runtime, see GlobalVal.makecode"
 
 # vector stuff
 

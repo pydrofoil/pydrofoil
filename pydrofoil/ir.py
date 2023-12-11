@@ -34,7 +34,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # get rid of do_double_casts again
 
-# make anticipated casts deal with phi renaming?
+# make anticipated casts deal with phi renaming? also make it deal with error paths
 
 # emod(x, 1) == 0?
 
@@ -48,6 +48,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # vector_update_subrange_o_i_i_o with subrange width == 1 can be turned in vector_update_o_i_o
 
 # combine several steps of phi nodes
+
+# remove_if_phi_constant should be generalized
 
 
 def construct_ir(functionast, codegen, singleblock=False):

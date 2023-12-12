@@ -333,7 +333,7 @@ class SSABuilder(object):
             if parseval.name in self.codegen.let_values:
                 return self.codegen.let_values[parseval.name]
             if isinstance(parseval.resolved_type, types.Enum):
-                if parseval.name in parseval.resolved_type.ast.names:
+                if parseval.name in parseval.resolved_type.elements:
                     return EnumConstant(parseval.name, parseval.resolved_type)
             register_read = GlobalRead(parseval.name, parseval.resolved_type)
             self._addop(register_read)

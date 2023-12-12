@@ -299,18 +299,20 @@ class __extend__(parse.Declaration):
         raise NotImplementedError("abstract base class")
 
 class __extend__(parse.Enum):
+    def resolve_type(self, codegen):
+        return types.Enum(self.name, tuple(self.names))
+
     def make_code(self, codegen):
         name = "Enum_" + self.name
+        typ = self.resolve_type(codegen)
         self.pyname = name
         with codegen.emit_code_type("declarations"):
             with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
                 for index, name in enumerate(self.names, start=codegen.last_enum):
-                    codegen.add_global(name, "%s.%s" % (self.pyname, name), types.Enum(self), self)
+                    codegen.add_global(name, "%s.%s" % (self.pyname, name), typ, self)
                     codegen.emit("%s = %s" % (name, index))
                 codegen.last_enum += len(self.names) + 1 # gap of 1
-                typ = types.Enum(self)
                 codegen.add_named_type(self.name, self.pyname, typ, self)
-                typ.uninitialized_value = "-1"
 
 class __extend__(parse.Union):
     def make_code(self, codegen):
@@ -347,7 +349,7 @@ class __extend__(parse.Union):
                     codegen.emit("%s.singleton = %s(())" % (pyname, pyname))
                 if type(rtyp) is types.Enum:
                     # for enum union options, we make singletons
-                    for enum_value in rtyp.ast.names:
+                    for enum_value in rtyp.elements:
                         subclassname = "%s_%s" % (pyname, enum_value)
                         with codegen.emit_indent("class %s(%s):" % (subclassname, pyname)):
                             codegen.emit("a = %s" % (codegen.getname(enum_value), ))
@@ -360,7 +362,7 @@ class __extend__(parse.Union):
             codegen.emit("@staticmethod")
             codegen.emit("@objectmodel.specialize.arg_or_var(0)")
             with codegen.emit_indent("def construct(a):"):
-                for enum_value in rtyp.ast.names:
+                for enum_value in rtyp.elements:
                     codegen.emit("if a == %s: return %s_%s.singleton" % (codegen.getname(enum_value), pyname, enum_value))
                 codegen.emit("raise ValueError")
             return

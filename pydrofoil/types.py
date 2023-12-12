@@ -25,11 +25,14 @@ class Union(Type):
 
 @unique
 class Enum(Type):
-    def __init__(self, ast):
-        self.ast = ast
+    uninitialized_value = '-1'
+
+    def __init__(self, name, elements):
+        self.name = name
+        self.elements = elements
 
     def __repr__(self):
-        return "%s(<%s>)" % (type(self).__name__, self.ast.name)
+        return "%s(%r, %r)" % (type(self).__name__, self.name, self.elements)
 
 @unique
 class Struct(Type):

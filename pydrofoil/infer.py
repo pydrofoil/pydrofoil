@@ -74,7 +74,7 @@ class TypeAttachingVisitor(parse.Visitor):
                 self.visit(stmt)
 
     def visit_Enum(self, ast):
-        typ = types.Enum(ast)
+        typ = ast.resolve_type(None)
         for name in ast.names:
             self.context.add_global_name(name, typ)
         self.context.add_named_type(ast.name, typ)

@@ -1359,9 +1359,10 @@ def remove_if_phi_constant(graph):
     res = False
     replacements = {}
     for block in graph.iterblocks():
-        if len(block.operations) != 1:
+        ops = [op for op in block.operations if not isinstance(op, Comment)]
+        if len(ops) != 1:
             continue
-        op, = block.operations
+        op, = ops
         if not isinstance(op, Phi):
             continue
         if op.resolved_type is not types.Bool():
@@ -1393,6 +1394,7 @@ def remove_if_phi_constant(graph):
         res = True
     if res:
         graph.replace_ops(replacements)
+        join_blocks(graph)
     return res
 
 
@@ -2920,7 +2922,13 @@ def find_anticipated_casts(graph):
         # go over the successors and intersect
         assert block not in anticipated_casts
         s = anticipated_casts[block] = set()
-        next_blocks = list(block.next.next_blocks())
+        # we ignore the raise blocks when intersecting - they are internal
+        # errors and would lead to crashes. this can lead to cast errors in
+        # situation where a later Raise would have ended the emulation anyway,
+        # but that's fine
+        next_blocks = [nextblock for nextblock in block.next.next_blocks()
+                       if not isinstance(nextblock.next, Raise)]
+
         if next_blocks and all(next_block in anticipated_casts for next_block in next_blocks):
             s.update(anticipated_casts[next_blocks[0]])
             for next_block in next_blocks[1:]:

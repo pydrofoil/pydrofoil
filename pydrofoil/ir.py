@@ -137,7 +137,7 @@ class SSABuilder(object):
         #if random.random() < 0.01:
         #    self.view = 1
         convert_sail_assert_to_exception(graph, self.codegen)
-        ligth_simplify(graph, self.codegen)
+        light_simplify(graph, self.codegen)
         if self.view:
             graph.view()
         return graph
@@ -1159,7 +1159,7 @@ def repeat(func):
         return ever_changed
     return repeated
 
-def ligth_simplify(graph, codegen):
+def light_simplify(graph, codegen):
     # in particular, don't specialize
     return _optimize(graph, codegen)
 
@@ -1189,6 +1189,7 @@ def _bare_optimize(graph, codegen):
     res = cse(graph, codegen) or res
     res = LocalOptimizer(graph, codegen, do_double_casts=True).optimize() or res
     res = remove_if_phi_constant(graph) or res
+    res = remove_superfluous_enum_cases(graph, codegen) or res
     return res
 
 _optimize = repeat(_bare_optimize)
@@ -1423,6 +1424,55 @@ def convert_sail_assert_to_exception(graph, codegen):
             break
     return res
 
+class defaultdict_with_key_arg(dict):
+    def __init__(self, factory):
+        self.factory = factory
+    def __missing__(self, key):
+        res = self[key] = self.factory(key)
+        return res
+
+
+def remove_superfluous_enum_cases(graph, codegen):
+    if graph.has_loop:
+        return
+
+    def init_enum_set(value):
+        typ = value.resolved_type
+        if isinstance(value, EnumConstant):
+            return {value.variant}
+        else:
+            return set(typ.elements)
+
+    changed = False
+    # maps blocks -> values -> sets of enum names
+    possible_enum_values = defaultdict(lambda : defaultdict_with_key_arg(init_enum_set))
+    entrymap = graph.make_entrymap()
+    for block in topo_order(graph):
+        values_in_block = possible_enum_values[block]
+        if isinstance(block.next, ConditionalGoto):
+            value = block.next.booleanvalue
+            if (isinstance(value, Operation) and value.name == "@eq" and
+                    isinstance(value.args[0].resolved_type, types.Enum)):
+                arg0, arg1 = value.args
+                if not isinstance(arg1, EnumConstant):
+                    arg0, arg1 = arg1, arg0
+                if isinstance(arg1, EnumConstant):
+                    possible_values_arg0 = values_in_block[arg0]
+                    possible_values_arg1 = values_in_block[arg1]
+                    assert len(possible_values_arg1) == 1
+                    if possible_values_arg0 == possible_values_arg1:
+                        changed = True
+                        block.next.booleanvalue = BooleanConstant.TRUE
+                    else:
+                        if len(entrymap[block.next.truetarget]) == 1:
+                            possible_enum_values[block.next.truetarget][arg0] = possible_values_arg1
+                        if len(entrymap[block.next.falsetarget]) == 1:
+                            possible_enum_values[block.next.falsetarget][arg0] = possible_values_arg0 - possible_values_arg1
+    if changed:
+        remove_if_true_false(graph)
+        remove_dead(graph, codegen)
+        return True
+    return False
 
 class NoMatchException(Exception):
     pass

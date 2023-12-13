@@ -2871,7 +2871,7 @@ def should_inline(graph, model_specific_should_inline):
         if isinstance(op, Operation) and op.name == graph.name:
             return False # no recursive inlining
     number_ops = len([op for block in blocks for op in block.operations])
-    return len(blocks) < 4 and number_ops < 25
+    return len(blocks) <= 4 and number_ops < 25
 
 
 def topo_order(graph):

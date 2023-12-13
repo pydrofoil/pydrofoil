@@ -552,7 +552,7 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, codegen)
             return
-        if len(blocks) > 340:
+        if len(blocks) > 340 and codegen.should_inline(self.name) is not True:
             print "splitting", self.name
             try:
                 self._split_function(blocks, codegen)
@@ -571,8 +571,8 @@ class __extend__(parse.Function):
 
         codegen.add_graph(graph, self.emit_regular_function, pyname)
 
-    def emit_regular_function(self, graph, codegen, pyname):
-        with self._scope(codegen, pyname):
+    def emit_regular_function(self, graph, codegen, pyname, extra_args=None):
+        with self._scope(codegen, pyname, extra_args=extra_args):
             emit_function_code(graph, self, codegen)
         codegen.emit()
 
@@ -788,15 +788,13 @@ class __extend__(parse.Function):
             codegen.add_global(next_func_name, next_func_name, types.Function(types.Tuple(tuple(argtyps)), functyp.restype))
 
             graph1 = build_ssa(g1, self, self.args, codegen, startpc, prev_extra_args)
-            with self._scope(codegen, func_name, extra_args=prev_extra_args):
-                emit_function_code(graph1, self, codegen)
+            codegen.add_graph(graph1, self.emit_regular_function, func_name, extra_args=prev_extra_args)
             prev_extra_args = extra_args
             blocks = g2
             startpc = transferpc
             func_name = next_func_name
         graph2 = build_ssa(g2, self, self.args, codegen, transferpc, extra_args)
-        with self._scope(codegen, next_func_name, extra_args=extra_args):
-            emit_function_code(graph2, self, codegen)
+        codegen.add_graph(graph2, self.emit_regular_function, next_func_name, extra_args=extra_args)
 
     def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
         UNUSED

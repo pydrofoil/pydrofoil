@@ -53,8 +53,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # CSE of UnionVariantCheck
 
-# CSE of tuple field reads
-
 
 # cleanups needed
 # ----------------
@@ -3029,12 +3027,17 @@ def find_anticipated_casts(graph):
 
 @repeat
 def cse(graph, codegen):
+    def is_tuplestruct(op):
+        return isinstance(op.args[0].resolved_type, types.Struct) and op.args[0].resolved_type.tuplestruct
+
     def can_replace(op):
         if isinstance(op, Phi):
             return False
         if isinstance(op, Cast):
             return True
         if isinstance(op, UnionCast):
+            return True
+        if isinstance(op, FieldAccess) and is_tuplestruct(op):
             return True
         if op.name == "@not":
             return True
@@ -3064,8 +3067,13 @@ def cse(graph, codegen):
         available[block] = available_in_block
         for index, op in enumerate(block.operations):
             if not can_replace(op):
+                if isinstance(op, FieldWrite) and is_tuplestruct(op):
+                    res = op.args[1]
+                    key = (FieldAccess, op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args[:1]), res.resolved_type)
+                    available_in_block[key] = replacements.get(res, res)
                 continue
-            key = (type(op), op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args), op.resolved_type)
+            else:
+                key = (type(op), op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args), op.resolved_type)
             if key in available_in_block:
                 block.operations[index] = None
                 replacements[op] = available_in_block[key]

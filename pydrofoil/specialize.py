@@ -116,7 +116,7 @@ class Specializer(object):
         block.next = ir.Return(ops[-1])
         graph = ir.Graph(self.graph.name + "_specialized_" + "_".join(sargs), args, block)
         print "MAKING SPECIALIZATION", graph.name
-        ir._inline(graph, block, len(ops) - 1, self.graph)
+        ir._inline(graph, block, len(ops) - 1, self.graph, add_comment=False)
         graph.has_loop = self.graph.has_loop
         ir.optimize(graph, self.codegen)
 

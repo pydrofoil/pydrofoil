@@ -2766,11 +2766,12 @@ def inline(graph, codegen):
             index += 1
     return changed
 
-def _inline(graph, block, index, subgraph):
+def _inline(graph, block, index, subgraph, add_comment=True):
     # split current block
     op = block.operations[index]
     newblock = block.split(index, keep_op=False)
-    block.operations.append(Comment("inlined %s" % subgraph.name))
+    if add_comment:
+        block.operations.append(Comment("inlined %s" % subgraph.name))
     start_block, return_block = copy_blocks(subgraph, op)
     block.next = Goto(start_block)
     res, = return_block.operations

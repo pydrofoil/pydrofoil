@@ -16,15 +16,21 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 
 # zFPDefaultNaN__1_specialized_16_o
 
+# need to switch to full cfg fix point approach eventually
+
+
 def usefully_specializable(graph):
-    if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool)) for arg in graph.args):
-        return False
     numblocks = 0
+    restype = None
     for block in graph.iterblocks():
         if isinstance(block.next, ir.Return):
             if block.next.value is None:
                 return False
+            restype = block.next.value.resolved_type
         numblocks += 1
+    if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool)) for arg in graph.args):
+        if restype is not types.Int() and restype is not types.GenericBitVector():
+            return False
     return numblocks < 100
 
 
@@ -118,7 +124,7 @@ class Specializer(object):
         print "MAKING SPECIALIZATION", graph.name
         ir._inline(graph, block, len(ops) - 1, self.graph, add_comment=False)
         graph.has_loop = self.graph.has_loop
-        ir.optimize(graph, self.codegen)
+        ir.light_simplify(graph, self.codegen)
 
         # check whether we can specialize on the return type
         resulttyp = self.resulttyp
@@ -200,10 +206,11 @@ class Specializer(object):
             key.append((arg.resolved_type, None))
             args.append(arg)
         if not useful:
-            key = None
-        else:
-            key = tuple(key)
-            assert len(key) == len(args) == len(call.args)
+            if self.resulttyp is not types.Int() and self.resulttyp is not types.GenericBitVector():
+                return None, None
+            # for Int and GenericBitVector we might still benefit from result type specialization
+        key = tuple(key)
+        assert len(key) == len(args) == len(call.args)
         return key, args
 
 

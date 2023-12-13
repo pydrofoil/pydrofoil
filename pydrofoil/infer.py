@@ -234,19 +234,28 @@ class TypeAttachingVisitor(parse.Visitor):
         return typ
 
     def visit_String(self, ast):
-        ast.resolved_type = res = ast.gettyp(None)
+        ast.resolved_type = res = types.String()
         return res
 
     def visit_BitVectorConstant(self, ast):
-        ast.resolved_type = res = ast.gettyp(None)
+        if ast.constant.startswith("0b"):
+            size = len(ast.constant) - 2
+        else:
+            assert ast.constant.startswith("0x")
+            size = (len(ast.constant) - 2) * 4
+        if size <= 64:
+            typ = types.SmallFixedBitVector(size)
+        else:
+            typ = types.BigFixedBitVector(size)
+        ast.resolved_type = res = typ
         return res
 
     def visit_Number(self, ast):
-        ast.resolved_type = res = ast.gettyp(None)
+        ast.resolved_type = res = types.MachineInt()
         return res
 
     def visit_Unit(self, ast):
-        ast.resolved_type = res = ast.gettyp(None)
+        ast.resolved_type = res = types.Unit()
         return res
 
     # types

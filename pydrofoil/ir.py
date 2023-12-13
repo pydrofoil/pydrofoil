@@ -1143,8 +1143,8 @@ def print_stats():
 
 def repeat(func):
     def repeated(graph, *args, **kwargs):
-        t = time.time()
-        STACK_START_TIMES.append(t)
+        t1_proper = time.time()
+        STACK_START_TIMES.append(t1_proper)
         ever_changed = False
         for i in range(1000):
             changed = func(graph, *args, **kwargs)
@@ -1161,8 +1161,8 @@ def repeat(func):
         assert t2 - t1 >= 0
         TIMINGS[func.func_name] += t2 - t1
         COUNTS[func.func_name] += 1
-        if STACK_START_TIMES: # parent optimization overcounts, so add t2 - t1 to start time
-            STACK_START_TIMES[-1] += t2 - t1
+        if STACK_START_TIMES: # parent optimization overcounts, so add t2 - t1_proper to start time
+            STACK_START_TIMES[-1] += t2 - t1_proper
         return ever_changed
     return repeated
 

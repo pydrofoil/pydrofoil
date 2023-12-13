@@ -1190,6 +1190,7 @@ def _bare_optimize(graph, codegen):
     res = LocalOptimizer(graph, codegen, do_double_casts=True).optimize() or res
     res = remove_if_phi_constant(graph) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
+    res = remove_useless_switch(graph, codegen) or res
     return res
 
 _optimize = repeat(_bare_optimize)
@@ -1473,6 +1474,23 @@ def remove_superfluous_enum_cases(graph, codegen):
         remove_dead(graph, codegen)
         return True
     return False
+
+def remove_useless_switch(graph, codegen):
+    # if we have a switch where the two target blocks are the same we can
+    # remove the if completely
+    res = False
+    for block in graph.iterblocks():
+        if not isinstance(block.next, ConditionalGoto):
+            continue
+        if block.next.truetarget is block.next.falsetarget:
+            for op in block.next.truetarget.operations:
+                assert not isinstance(op, Phi)
+            block.next = Goto(block.next.truetarget, block.next.sourcepos)
+            res = True
+    if res:
+        remove_dead(graph, codegen)
+    return res
+
 
 class NoMatchException(Exception):
     pass

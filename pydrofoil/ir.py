@@ -51,6 +51,10 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # remove_if_phi_constant should be generalized
 
+# CSE of UnionVariantCheck
+
+# CSE of tuple field reads
+
 
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:

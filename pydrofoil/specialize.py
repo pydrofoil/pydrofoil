@@ -5,7 +5,6 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 
 # focus on: MemSingle_read
 
-# - demand ints of arguments
 # - demanded result casts
 # - make extract* deal with defaultvalue
 

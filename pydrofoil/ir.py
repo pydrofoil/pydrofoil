@@ -49,8 +49,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # combine several steps of phi nodes
 
-# remove_if_phi_constant should be generalized
-
 # CSE of UnionVariantCheck
 
 
@@ -1319,12 +1317,11 @@ def simplify_phis(graph):
             if len(values) == 1 or (len(values) == 2 and op in values):
                 values.discard(op)
                 value, = values
-                block.operations[index] = None
                 replace_phis[op] = value
                 # this is really inefficient, but I don't want to think
-                block.operations = [op for op in block.operations if op is not None]
+                del block.operations[index]
                 graph.replace_ops(replace_phis)
-                return True
+                break # continue with the next block
     return False
 
 @repeat
@@ -1374,7 +1371,6 @@ def remove_if_phi_constant(graph):
         return False
     uses = count_uses(graph)
     res = False
-    replacements = {}
     for block in graph.iterblocks():
         ops = [op for op in block.operations if not isinstance(op, Comment)]
         if len(ops) != 1:
@@ -1388,29 +1384,27 @@ def remove_if_phi_constant(graph):
             continue
         if block.next.booleanvalue is not op:
             continue
-        if len(op.prevvalues) != 2:
-            continue
         if uses[op] != 1:
             continue
-        val0, val1 = op.prevvalues
-        prevblock0, prevblock1 = op.prevblocks
-        if not isinstance(val0, BooleanConstant):
-            val0, val1 = val1, val0
-            prevblock0, prevblock1 = prevblock1, prevblock0
-        if not isinstance(val0, BooleanConstant):
-            continue
-        if val0.value:
-            target0 = block.next.truetarget
-        else:
-            target0 = block.next.falsetarget
-        replacements[op] = val1
-        block.operations = []
-        assert isinstance(prevblock0.next, Goto)
-        assert prevblock0.next.target is block
-        prevblock0.next.target = target0
-        res = True
+        prevblocks = []
+        prevvalues = []
+        for prevblock, val in zip(op.prevblocks, op.prevvalues):
+            if isinstance(val, BooleanConstant):
+                if val.value:
+                    target = block.next.truetarget
+                else:
+                    target = block.next.falsetarget
+                prevblock.next.replace_next(block, target)
+                res = True
+            else:
+                prevblocks.append(prevblock)
+                prevvalues.append(val)
+        if len(prevvalues) < len(op.prevvalues):
+            op.prevvalues = prevvalues
+            op.prevblocks = prevblocks
     if res:
-        graph.replace_ops(replacements)
+        _remove_unreachable_phi_prevvalues(graph)
+        simplify_phis(graph)
         join_blocks(graph)
     return res
 

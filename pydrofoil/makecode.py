@@ -30,6 +30,7 @@ class Codegen(object):
         self.globalnames = {}
         self.builtin_names = {}
         self.namedtypes = {}
+        self.tuplestruct = {}
         self.declarationcache = {}
         self.gensym = {} # prefix -> number
         self.localnames = None
@@ -432,17 +433,17 @@ class __extend__(parse.Struct):
     def make_code(self, codegen):
         name = "Struct_" + self.name
         self.pyname = name
-        structtyp = types.Struct(self)
-        structtyp.fieldtyps = {}
-        uninit_arg = []
+        # predeclare types
+        typs = [typ.resolve_type(codegen) for typ in self.types]
+        tuplestruct = self.name in codegen.tuplestruct
+        structtyp = types.Struct(self.name, tuple(self.names), tuple(typs), tuplestruct)
         codegen.add_named_type(self.name, self.pyname, structtyp, self)
-        for typ in self.types:
-            typ.resolve_type(codegen) # pre-declare the types
+        uninit_arg = []
         with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
             with codegen.emit_indent("def __init__(self, %s):" % ", ".join(self.names)):
                 for arg, typ in zip(self.names, self.types):
                     codegen.emit("self.%s = %s # %s" % (arg, arg, typ))
-                    fieldtyp = structtyp.fieldtyps[arg] = typ.resolve_type(codegen)
+                    fieldtyp = typ.resolve_type(codegen)
                     uninit_arg.append(fieldtyp.uninitialized_value)
             with codegen.emit_indent("def copy_into(self, res=None):"):
                 codegen.emit("if res is None: res = type(self)()")
@@ -853,6 +854,9 @@ class __extend__(parse.Function):
 class __extend__(parse.Pragma):
     def make_code(self, codegen):
         codegen.emit("# %s" % (self, ))
+        if self.name == 'tuplestruct':
+            codegen.tuplestruct[self.content[0]] = self
+
 
 class __extend__(parse.Files):
     def make_code(self, codegen):

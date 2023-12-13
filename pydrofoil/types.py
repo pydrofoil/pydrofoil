@@ -3,8 +3,9 @@ from rpython.tool.pairtype import extendabletype
 def unique(cls):
     instances = {}
     def __new__(cls, *args):
-        if args in instances:
-            return instances[args]
+        res = instances.get(args, None)
+        if res is not None:
+            return res
         res = object.__new__(cls, *args)
         instances[args] = res
         return res
@@ -36,11 +37,22 @@ class Enum(Type):
 
 @unique
 class Struct(Type):
-    def __init__(self, ast):
-        self.ast = ast
+    def __init__(self, name, names, typs, tuplestruct=False):
+        assert isinstance(name, str)
+        self.name = name
+        self.names = names
+        self.typs = typs
+        self.fieldtyps = {}
+        assert len(names) == len(typs)
+        for name, typ in zip(names, typs):
+            self.fieldtyps[name] = typ
+        self.tuplestruct = tuplestruct
 
     def __repr__(self):
-        return "%s(<%s>)" % (type(self).__name__, self.ast.name)
+        extra = ''
+        if self.tuplestruct:
+            extra = ', True'
+        return "%s(%r, %r, %r%s)" % (type(self).__name__, self.name, self.names, self.typs, extra)
 
 @unique
 class Ref(Type):

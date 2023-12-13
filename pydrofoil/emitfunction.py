@@ -200,9 +200,9 @@ class CodeEmitter(object):
         self._op_helper(op, "%s.convert(%s)" % (clsname, self._get_arg(op.args[0])))
 
     def emit_op_StructConstruction(self, op):
-        ast_type = op.resolved_type.ast
+        pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
         args = ", ".join([self._get_arg(arg) for arg in op.args])
-        self._op_helper(op, "%s(%s)" % (ast_type.pyname, args))
+        self._op_helper(op, "%s(%s)" % (pyname, args))
 
     def emit_op_Cast(self, op):
         fromtyp = op.args[0].resolved_type

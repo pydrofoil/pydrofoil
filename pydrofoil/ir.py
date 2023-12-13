@@ -56,6 +56,12 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # CSE of tuple field reads
 
 
+# cleanups needed
+# ----------------
+
+# is there still a tuple type?
+
+
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:
     # a dictionary {label-as-int: [list of operations]}
@@ -343,7 +349,7 @@ class SSABuilder(object):
             self._addop(register_read)
             return register_read
         elif isinstance(parseval, parse.StructConstruction):
-            assert parseval.fieldnames == parseval.resolved_type.ast.names
+            assert parseval.fieldnames == list(parseval.resolved_type.names)
             args = self._get_args(parseval.fieldvalues)
             for index, fieldname in enumerate(parseval.fieldnames):
                 arg = args[index]

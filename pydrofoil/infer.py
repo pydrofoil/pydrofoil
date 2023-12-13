@@ -6,6 +6,7 @@ class TypingContext(object):
     def __init__(self):
         self.globalnames = {}
         self.namedtypes = {}
+        self.tuplestruct = {}
         self.localnames = None
         self.add_global_name("false", types.Bool())
         self.add_global_name("true", types.Bool())
@@ -86,14 +87,13 @@ class TypeAttachingVisitor(parse.Visitor):
             self.context.add_global_name("current_exception", uniontyp)
 
     def visit_Struct(self, ast):
-        structtyp = types.Struct(ast)
-        structtyp.fieldtyps = {}
+        tuplestruct = ast.name in self.context.tuplestruct
+        structtyp = types.Struct(ast.name, tuple(ast.names), tuple(self.visit(typ) for typ in ast.types), tuplestruct)
         self.context.add_named_type(ast.name, structtyp)
-        for arg, typ in zip(ast.names, ast.types):
-            structtyp.fieldtyps[arg] = self.visit(typ)
 
     def visit_Pragma(self, ast):
-        pass
+        if ast.name == 'tuplestruct':
+            self.context.tuplestruct[ast.content[0]] = ast
 
     def visit_Files(self, ast):
         pass
@@ -146,8 +146,7 @@ class TypeAttachingVisitor(parse.Visitor):
         self.visit(ast.value)
         curr = ast.obj.resolved_type
         for field in ast.fields:
-            index = curr.ast.names.index(field)
-            curr = self.visit(curr.ast.types[index])
+            curr = curr.fieldtyps[field]
         ast.resolved_type = curr
 
     def visit_RefAssignment(self, ast):
@@ -172,8 +171,7 @@ class TypeAttachingVisitor(parse.Visitor):
             self.visit(lhs.obj)
             curr = lhs.obj.resolved_type
             for field in lhs.fields:
-                index = curr.ast.names.index(field)
-                curr = self.visit(curr.ast.types[index])
+                curr = curr.fieldtyps[field]
             lhs.resolved_type = curr
         elif isinstance(lhs, parse.RefAssignment):
             typ = self.visit(lhs.ref)

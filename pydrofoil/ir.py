@@ -1123,6 +1123,7 @@ class GraphPage(BaseGraphPage):
 
 TIMINGS = defaultdict(float)
 COUNTS = defaultdict(int)
+STACK_START_TIMES = []
 
 def print_stats():
     print "OPTIMIZATION STATISTICS"
@@ -1139,9 +1140,11 @@ def print_stats():
         total += t
     print "TOTAL", round(total, 2)
 
+
 def repeat(func):
     def repeated(graph, *args, **kwargs):
-        t1 = time.time()
+        t = time.time()
+        STACK_START_TIMES.append(t)
         ever_changed = False
         for i in range(1000):
             changed = func(graph, *args, **kwargs)
@@ -1154,8 +1157,12 @@ def repeat(func):
         if ever_changed:
             graph.check()
         t2 = time.time()
+        t1 = STACK_START_TIMES.pop()
+        assert t2 - t1 >= 0
         TIMINGS[func.func_name] += t2 - t1
         COUNTS[func.func_name] += 1
+        if STACK_START_TIMES: # parent optimization overcounts, so add t2 - t1 to start time
+            STACK_START_TIMES[-1] += t2 - t1
         return ever_changed
     return repeated
 

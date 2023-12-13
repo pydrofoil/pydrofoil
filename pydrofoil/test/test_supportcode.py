@@ -449,7 +449,7 @@ def test_shiftr_bv_i():
     assert supportcode.arith_shiftr_bv_i(machine, 0b10001101, 8, 2) == 0b11100011
     assert supportcode.arith_shiftr_bv_i(machine, 0b10001101, 8, 8) == 0b11111111
     assert supportcode.arith_shiftr_bv_i(machine, 0b00101101, 8, 3) == 0b101
-    assert supportcode.shiftr_bv_i(machine, 0b10001101, 8, 2) == 0b11
+    assert supportcode.shiftr_bv_i(machine, 0b10001101, 8, 2) == 0b100011
     assert supportcode.shiftr_bv_i(machine, 0b10001101, 8, 8) == 0b0
     assert supportcode.shiftr_bv_i(machine, 0b00101101, 8, 3) == 0b101
 

@@ -24,14 +24,9 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # deal with exceptional paths better in the context of inlining (and specialization)
 
-# zsext_slice is a good example of cse not sharing int_to_int64 through two
-# paths that get merged
-
-# why does cse not work for int64_to_int(zsizze) in func_zAArch64_MemSingle_read__1?
-
 # get rid of do_double_casts again
 
-# make anticipated casts deal with phi renaming? also make it deal with error paths
+# make anticipated casts deal with phi renaming?
 
 # emod(x, 1) == 0?
 
@@ -49,6 +44,11 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # CSE of UnionVariantCheck
 
 # filter out units from more places
+
+# make StructConstruction fill the fields in cse
+
+# in a phi(gbv1, ... gbvn) case, if *any* one of the gbvi is a small bv, we
+# know that the others must have the same size
 
 
 # cleanups needed

@@ -506,6 +506,21 @@ def sub_o_i_wrapped_res(machine, a, b):
 def mult_int(machine, ia, ib):
     return ia.mul(ib)
 
+@purefunction
+def mult_o_i_wrapped_res(machine, a, b):
+    return a.int_mul(b)
+
+@purefunction
+def mult_i_i_wrapped_res(machine, a, b):
+    return bitvector.SmallInteger.mul_i_i(a, b)
+
+@purefunction
+def mult_i_i_must_fit(machine, a, b):
+    try:
+        return ovfcheck(a * b)
+    except OverflowError:
+        assert 0, "must not happen"
+
 @objectmodel.specialize.argtype(1)
 @purefunction
 def tdiv_int(machine, ia, ib):
@@ -634,6 +649,10 @@ def hex_str(machine, x):
 @purefunction
 def shl_int(machine, i, shift):
     return i.lshift(shift)
+
+@purefunction
+def shl_int_i_i_wrapped_res(machine, i, shift):
+    return bitvector.SmallInteger.lshift_i_i(i, shift)
 
 @unwrap("o i")
 @purefunction

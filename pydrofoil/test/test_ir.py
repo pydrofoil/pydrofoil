@@ -475,6 +475,23 @@ block0 = Block()
 block0.next = Return(IntConstant(384), None)
 graph = Graph('f', [index], block0)""")
 
+def test_pass_cast_through_mult():
+    a = Argument('a', Int())
+    block0 = Block()
+    i1 = block0.emit(Operation, '@mult_o_i_wrapped_res', [a, MachineIntConstant(9)], Int(), '`33 76:63-76:86', 'zz4131')
+    i2 = block0.emit(Operation, 'zz5izDzKz5i64', [i1], MachineInt(), None, None)
+    block0.next = Return(i2)
+    graph = Graph('f', [a], block0)
+    check_optimize(graph, """\
+a = Argument('a', Int())
+block0 = Block()
+i1 = block0.emit(Operation, 'zz5izDzKz5i64', [a], MachineInt(), None, None)
+i2 = block0.emit(Operation, '@mult_i_i_must_fit', [i1, MachineIntConstant(9)], MachineInt(), '`33 76:63-76:86', 'zz4131')
+block0.next = Return(i2, None)
+graph = Graph('f', [a], block0)
+""")
+
+
 def test_neg_constfold():
     index = Argument('index', Int())
     block0 = Block()

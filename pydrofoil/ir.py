@@ -12,12 +12,9 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 
 # TODOS:
-# - nested operations
-
 # - lt etc one arg machine int
 
 # risc-v:
-# mul_o_i, backwards mul_i_i_must_fit
 # vector_subrange_o_i_i with smallbv argument and unknown bounds (hard). idea:
 # check whether difference between index args is computable
 
@@ -50,6 +47,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # combine several steps of phi nodes
 
 # CSE of UnionVariantCheck
+
+# filter out units from more places
 
 
 # cleanups needed
@@ -2372,16 +2371,15 @@ class LocalOptimizer(BaseOptimizer):
 
     @symmetric
     def optimize_add_i_i_wrapped_res(self, op, arg0, arg1):
-        anticipated = self.anticipated_casts.get(self.current_block, set())
-        if (op, types.MachineInt()) in anticipated:
-            return self._make_int64_to_int(
-                self.newop("@add_i_i_must_fit", op.args, types.MachineInt(),
-                           op.sourcepos, op.varname_hint)
-            )
         try:
             arg1 = self._extract_number(arg1)
         except NoMatchException:
-            pass
+            anticipated = self.anticipated_casts.get(self.current_block, set())
+            if (op, types.MachineInt()) in anticipated:
+                return self._make_int64_to_int(
+                    self.newop("@add_i_i_must_fit", op.args, types.MachineInt(),
+                               op.sourcepos, op.varname_hint)
+                )
         else:
             if arg1.number == 0:
                 return self._make_int64_to_int(arg0, op.sourcepos)
@@ -2433,21 +2431,81 @@ class LocalOptimizer(BaseOptimizer):
 
     @symmetric
     def optimize_mult_int(self, op, arg0, arg1):
-        arg0 = self._extract_number(arg0)
-        if arg0.number == 1:
-            return arg1
-        if arg0.number == 0:
-            return IntConstant(0)
-        if arg0.number & (arg0.number - 1) == 0:
-            # power of two
-            exponent = arg0.number.bit_length() - 1
-            assert 1 << exponent == arg0.number
-            return self.newop(
-                "@shl_int_o_i",
-                [arg1, MachineIntConstant(exponent)],
-                op.resolved_type,
-                op.sourcepos,
-                op.varname_hint,
+        arg1 = self._extract_machineint(arg1)
+        return self.newop(
+            "@mult_o_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_mult_o_i_wrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            arg0 = self._extract_machineint(arg0)
+        else:
+            if arg1.number == 1:
+                return arg0
+            if arg1.number == 0:
+                return IntConstant(0)
+            if arg1.number & (arg1.number - 1) == 0:
+                # power of two
+                exponent = arg1.number.bit_length() - 1
+                assert 1 << exponent == arg1.number
+                return self.newop(
+                    "@shl_int_o_i",
+                    [arg0, MachineIntConstant(exponent)],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            if arg1.number < 0:
+                return None
+            anticipated = self.anticipated_casts.get(self.current_block, set())
+            if (op, types.MachineInt()) in anticipated:
+                # if a * x fits into a machine int, and x > 1, then a also fits
+                # into a machine int
+                arg0 = self._make_int_to_int64(arg0)
+            else:
+                return None
+        return self.newop(
+            "@mult_i_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    @symmetric
+    def optimize_mult_i_i_wrapped_res(self, op, arg0, arg1):
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 1:
+                return self._make_int64_to_int(arg0)
+            if arg1.number == 0:
+                return IntConstant(0)
+            if arg1.number & (arg1.number - 1) == 0:
+                # power of two
+                exponent = arg1.number.bit_length() - 1
+                assert 1 << exponent == arg1.number
+                return self.newop(
+                    "@shl_int_i_i_wrapped_res",
+                    [arg0, MachineIntConstant(exponent)],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+        anticipated = self.anticipated_casts.get(self.current_block, set())
+        if (op, types.MachineInt()) in anticipated:
+            return self._make_int64_to_int(
+                self.newop("@mult_i_i_must_fit", op.args, types.MachineInt(),
+                           op.sourcepos, op.varname_hint)
             )
 
     def optimize_ediv_int(self, op):

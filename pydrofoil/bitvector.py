@@ -892,6 +892,9 @@ class SmallInteger(Integer):
     def int_sub(self, other):
         return SmallInteger.sub_i_i(self.val, other)
 
+    def int_mul(self, other):
+        return SmallInteger.mul_i_i(self.val, other)
+
     def sub(self, other):
         if isinstance(other, SmallInteger):
             return SmallInteger.sub_i_i(self.val, other.val)
@@ -954,12 +957,18 @@ class SmallInteger(Integer):
 
     def lshift(self, i):
         assert i >= 0
+        return self.lshift_i_i(self.val, i)
+
+    @staticmethod
+    def lshift_i_i(a, i):
+        if not a:
+            return SmallInteger(0)
         if i < 64:
             try:
-                return SmallInteger(ovfcheck(self.val << i))
+                return SmallInteger(ovfcheck(a << i))
             except OverflowError:
                 pass
-        return BigInteger(rbigint.fromint(self.val).lshift(i))
+        return BigInteger(rbigint.fromint(a).lshift(i))
 
     @staticmethod
     def add_i_i(a, b):
@@ -974,6 +983,13 @@ class SmallInteger(Integer):
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
             return BigInteger(rbigint.fromint(b).int_sub(a).neg())
+
+    @staticmethod
+    def mul_i_i(a, b):
+        try:
+            return SmallInteger(ovfcheck(a * b))
+        except OverflowError:
+            return BigInteger(rbigint.fromint(a).int_mul(b))
 
     def pack(self):
         return (self.val, None)
@@ -1074,6 +1090,9 @@ class BigInteger(Integer):
 
     def int_sub(self, other):
         return BigInteger(self.rval.int_sub(other))
+
+    def int_mul(self, other):
+        return BigInteger(self.rval.int_mul(other))
 
     def sub(self, other):
         if isinstance(other, SmallInteger):

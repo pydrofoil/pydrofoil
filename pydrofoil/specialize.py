@@ -54,6 +54,8 @@ class Specializer(object):
         self.codegen = codegen
 
     def specialize_call(self, call, optimizer):
+        if self.graph is optimizer.graph:
+            return
         key, args = self._extract_key(call, optimizer)
         if key is None:
             return None

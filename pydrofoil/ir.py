@@ -2010,6 +2010,17 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type,
         )
 
+    def optimize_vector_subrange_o_i_i_unwrapped_res(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        return self.newop(
+             "@vector_subrange_fixed_bv_i_i",
+             [arg0, arg1, arg2],
+             op.resolved_type,
+             op.sourcepos,
+             op.varname_hint,
+        )
+
     def optimize_vector_access_o_i(self, op):
         arg0, arg1 = self._args(op)
         if isinstance(arg0.resolved_type, types.Vec):

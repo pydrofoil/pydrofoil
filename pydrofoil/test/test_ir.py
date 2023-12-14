@@ -221,6 +221,21 @@ i1 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [zargz3, MachineInt
 block0.next = Return(i1, None)
 graph = Graph('f', [zargz3], block0)""")
 
+def test_vector_subrange_optimizations_confluence():
+    target = Argument('target', SmallFixedBitVector(64))
+    block0 = Block()
+    i3 = block0.emit(Cast, '$cast', [target], GenericBitVector(), None, None)
+    i9 = block0.emit(Operation, '@vector_subrange_o_i_i_unwrapped_res', [i3, MachineIntConstant(63), MachineIntConstant(0)], SmallFixedBitVector(64), '`7 2268:60-2268:75', 'zz423')
+    block0.next = Return(i9, None)
+    graph = Graph('subrange', [target], block0)
+    check_optimize(graph, '''
+target = Argument('target', SmallFixedBitVector(64))
+block0 = Block()
+i1 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [target, MachineIntConstant(63), MachineIntConstant(0)], SmallFixedBitVector(64), '`7 2268:60-2268:75', 'zz423')
+block0.next = Return(i1, None)
+graph = Graph('subrange', [target], block0)
+''')
+
 def test_vector_update_subrange():
     zv = Argument('zv', SmallFixedBitVector(64))
     zx = Argument('zx', SmallFixedBitVector(1))

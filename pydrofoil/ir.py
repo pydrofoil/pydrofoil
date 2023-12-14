@@ -39,6 +39,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # vector_update_subrange_o_i_i_o with subrange width == 1 can be turned in vector_update_o_i_o
 
+# vector_subrange_o_i_i_unwrapped_res -> vector_subrange_bv_whatever if the first arg is a small bv later
+
 # combine several steps of phi nodes
 
 # CSE of UnionVariantCheck
@@ -47,6 +49,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # in a phi(gbv1, ... gbvn) case, if *any* one of the gbvi is a small bv, we
 # know that the others must have the same size
+
+# ExceptionClass shows the weird phi duplication bug
 
 
 # cleanups needed

@@ -236,6 +236,38 @@ block0.next = Return(i1, None)
 graph = Graph('subrange', [target], block0)
 ''')
 
+def test_vector_slice_confluence():
+    a = Argument('a', SmallFixedBitVector(64))
+    i = Argument('i', MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Cast, '$cast', [a], GenericBitVector(), None, None)
+    i2 = block0.emit(Operation, '@vector_slice_o_i_i_unwrapped_res', [i1, i, MachineIntConstant(8)], SmallFixedBitVector(8), '`5554', 'zz4174')
+    block0.next = Return(i2, None)
+    graph = Graph('slice', [a, i], block0)
+    check_optimize(graph, '''
+a = Argument('a', SmallFixedBitVector(64))
+i = Argument('i', MachineInt())
+block0 = Block()
+i2 = block0.emit(Operation, '@slice_fixed_bv_i_i', [a, i, MachineIntConstant(8)], SmallFixedBitVector(8), '`5554', 'zz4174')
+block0.next = Return(i2, None)
+graph = Graph('slice', [a, i], block0)
+''')
+
+def test_int_slice_confluence():
+    mi = Argument('mi', MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Operation, 'zz5i64zDzKz5i', [mi], Int(), None, None)
+    i2 = block0.emit(Operation, '@get_slice_int_i_o_i_unwrapped_res', [MachineIntConstant(12), i1, MachineIntConstant(0)], SmallFixedBitVector(12), '`5 176:39-176:72', 'return')
+    block0.next = Return(i2, None)
+    graph = Graph('slice', [mi], block0)
+    check_optimize(graph, '''
+mi = Argument('mi', MachineInt())
+block0 = Block()
+i1 = block0.emit(Operation, '@get_slice_int_i_i_i', [MachineIntConstant(12), mi, MachineIntConstant(0)], SmallFixedBitVector(12), '`5 176:39-176:72', 'return')
+block0.next = Return(i1, None)
+graph = Graph('slice', [mi], block0)
+''')
+
 def test_vector_update_subrange():
     zv = Argument('zv', SmallFixedBitVector(64))
     zx = Argument('zx', SmallFixedBitVector(1))

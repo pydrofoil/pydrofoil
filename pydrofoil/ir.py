@@ -2206,6 +2206,17 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type,
         )
 
+    def optimize_vector_slice_o_i_i_unwrapped_res(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+        return self.newop(
+            "@slice_fixed_bv_i_i",
+            [arg0, arg1, arg2],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
     def optimize_set_slice_i_i_o_i_o(self, op):
         arg0, arg1, arg2, arg3, arg4 = self._args(op)
         start = self._extract_number(arg3)
@@ -2599,6 +2610,17 @@ class LocalOptimizer(BaseOptimizer):
         return self.newcast(
             res,
             op.resolved_type,
+        )
+
+    def optimize_get_slice_int_i_o_i_unwrapped_res(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        arg1 = self._extract_machineint(arg1)
+        return self.newop(
+            "@get_slice_int_i_i_i",
+            [arg0, arg1, arg2],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
         )
 
     def optimize_add_bits_int(self, op):

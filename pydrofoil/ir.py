@@ -39,16 +39,11 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # vector_update_subrange_o_i_i_o with subrange width == 1 can be turned in vector_update_o_i_o
 
-# vector_subrange_o_i_i_unwrapped_res -> vector_subrange_bv_whatever if the first arg is a small bv later
-
 # combine several steps of phi nodes
 
 # CSE of UnionVariantCheck
 
 # filter out units from more places
-
-# in a phi(gbv1, ... gbvn) case, if *any* one of the gbvi is a small bv, we
-# know that the others must have the same size
 
 # ExceptionClass shows the weird phi duplication bug
 
@@ -2866,7 +2861,6 @@ class LocalOptimizer(BaseOptimizer):
         if isinstance(arg1, MachineIntConstant):
             assert arg1.number == typ.width
         assert typ.width in (32, 64)
-        print "REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEAD", self.graph
         return self.newcast(
             self.newop(
                 "@platform_read_mem_o_i_bv_i",

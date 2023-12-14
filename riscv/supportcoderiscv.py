@@ -25,12 +25,15 @@ def write_mem(machine, addr, content): # write a single byte
     return True
 
 @always_inline
+@unwrap("o o o i")
 def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
-    n = n.toint()
     assert n <= 8
     addr = addr.touint()
     res = jit.promote(machine.g).mem.read(addr, n, executable_flag)
     return bitvector.SmallBitVector(n*8, res) # breaking abstracting a bit, but much more efficient
+
+def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
+    return jit.promote(machine.g).mem.read(addr, n)
 
 @always_inline
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):

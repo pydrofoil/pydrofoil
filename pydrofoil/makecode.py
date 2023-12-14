@@ -226,12 +226,20 @@ class Codegen(object):
         t1 = time.time()
         print "============== FINISHING =============="
         index = 0
+        failure_count = 0
         while index < len(self._all_graphs):
             graph, func, args, kwargs = self._all_graphs[index]
             print "\033[1K\rFINISHING %s/%s %s" % (index + 1, len(self._all_graphs), graph.name),
             sys.stdout.flush()
-            res = optimize(graph, self) # can add new graphs
-            func(graph, self, *args, **kwargs)
+            try:
+                res = optimize(graph, self) # can add new graphs
+                func(graph, self, *args, **kwargs)
+            except Exception as e:
+                import pdb; pdb.xpm()
+                print failure_count, "COULDN'T GENERATE CODE FOR", index, getattr(decl, "name", decl)
+                print(traceback.format_exc())
+                failure_count += 1
+                codegen.level = 0
             index += 1
         t2 = time.time()
         print "DONE, took seconds", round(t2 - t1, 2)

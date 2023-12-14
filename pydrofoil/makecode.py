@@ -89,6 +89,7 @@ class Codegen(object):
         self.add_global("@length_unwrapped_res", "supportcode.length_unwrapped_res")
         self.add_global("@truncate_bv_i", "supportcode.truncate_bv_i")
         self.add_global("@replicate_bv_i_i", "supportcode.replicate_bv_i_i")
+        self.add_global("@platform_read_mem_o_i_bv_i", "supportcode.platform_read_mem_o_i_bv_i")
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("UINT64_C", "supportcode.uint64c")
         self.add_global("NULL", "None")

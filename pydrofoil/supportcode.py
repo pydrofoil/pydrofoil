@@ -1126,8 +1126,8 @@ def write_mem(machine, address, data):
     machine.g.mem.write(address, 1, data)
     return ()
 
+@unwrap("o o o i")
 def platform_read_mem(machine, read_kind, addr_size, addr, n):
-    n = n.toint()
     assert addr_size in (64, 32)
     mem = jit.promote(machine.g).mem
     addr = addr.touint()
@@ -1136,6 +1136,10 @@ def platform_read_mem(machine, read_kind, addr_size, addr, n):
         return bitvector.SmallBitVector(n*8, res)
     else:
         return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
+
+def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
+    mem = jit.promote(machine.g).mem
+    return mem.read(addr, n, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
 
 @jit.unroll_safe
 def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):

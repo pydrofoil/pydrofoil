@@ -2824,6 +2824,27 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type
         )
 
+    def optimize_platform_read_mem_o_o_o_i(self, op):
+        arg0, arg1, arg2, arg3 = self._args(op)
+        arg2, typ = self._extract_smallfixedbitvector(arg2)
+        arg3 = self._extract_number(arg3)
+        if arg3.number not in (1, 2, 4, 8):
+            return None
+        if isinstance(arg1, MachineIntConstant):
+            assert arg1.number == typ.width
+        assert typ.width in (32, 64)
+        print "REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEAD", self.graph
+        return self.newcast(
+            self.newop(
+                "@platform_read_mem_o_i_bv_i",
+                [arg0, arg1, arg2, arg3],
+                types.SmallFixedBitVector(arg3.number * 8),
+                op.sourcepos,
+                op.varname_hint,
+            ),
+            op.resolved_type
+        )
+
 
 @repeat
 def inline(graph, codegen):

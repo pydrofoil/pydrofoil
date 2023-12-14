@@ -2335,6 +2335,25 @@ block0.next = Return(a2, None)
 graph = Graph('f', [a1, a2], block0)
 ''')
 
+def test_cse_tuple_fields_struct_construction():
+    a1 = Argument('a1', Int())
+    a2 = Argument('a2', GenericBitVector())
+    block0 = Block()
+    i1 = block0.emit(StructConstruction, 'ttyp', [a1, a2], Struct('ttyp', ('f0', 'f1'), (Int(), GenericBitVector()), True), None, None)
+    i2 = block0.emit(FieldAccess, 'f0', [i1], Int(), None, None)
+    i3 = block0.emit(FieldAccess, 'f1', [i1], GenericBitVector(), None, None)
+    i4 = block0.emit(Cast, '$cast', [i3], SmallFixedBitVector(8), '`7 11482:58-11482:94', None)
+    block0.next = Return(i4)
+    g = Graph('f', [a1, a2], block0)
+    check_optimize(g, '''
+a1 = Argument('a1', Int())
+a2 = Argument('a2', GenericBitVector())
+block0 = Block()
+i2 = block0.emit(Cast, '$cast', [a2], SmallFixedBitVector(8), '`7 11482:58-11482:94', None)
+block0.next = Return(i2, None)
+graph = Graph('f', [a1, a2], block0)
+''')
+
 def test_remove_if_phi_constant3():
     a = Argument('a', Bool())
     b = Argument('b', Bool())

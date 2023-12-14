@@ -45,8 +45,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # filter out units from more places
 
-# make StructConstruction fill the fields in cse
-
 # in a phi(gbv1, ... gbvn) case, if *any* one of the gbvi is a small bv, we
 # know that the others must have the same size
 
@@ -3079,8 +3077,10 @@ def find_anticipated_casts(graph):
 
 @repeat
 def cse(graph, codegen):
+    def is_tuplestruct_typ(typ):
+        return isinstance(typ, types.Struct) and typ.tuplestruct
     def is_tuplestruct(op):
-        return isinstance(op.args[0].resolved_type, types.Struct) and op.args[0].resolved_type.tuplestruct
+        return is_tuplestruct_typ(op.args[0].resolved_type)
 
     def can_replace(op):
         if isinstance(op, Phi):
@@ -3123,9 +3123,12 @@ def cse(graph, codegen):
                     res = op.args[1]
                     key = (FieldAccess, op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args[:1]), res.resolved_type)
                     available_in_block[key] = replacements.get(res, res)
+                if isinstance(op, StructConstruction) and is_tuplestruct_typ(op.resolved_type):
+                    for fieldname, val in zip(op.resolved_type.names, op.args):
+                        key = (FieldAccess, fieldname, (op, ), val.resolved_type)
+                        available_in_block[key] = replacements.get(val, val)
                 continue
-            else:
-                key = (type(op), op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args), op.resolved_type)
+            key = (type(op), op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args), op.resolved_type)
             if key in available_in_block:
                 block.operations[index] = None
                 replacements[op] = available_in_block[key]

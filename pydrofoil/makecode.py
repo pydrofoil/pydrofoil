@@ -31,6 +31,8 @@ class Codegen(object):
         self.builtin_names = {}
         self.namedtypes = {}
         self.tuplestruct = {}
+        # seen typs
+        self.seen_typs = set()
         self.declarationcache = {}
         self.gensym = {} # prefix -> number
         self.localnames = None
@@ -236,7 +238,7 @@ class Codegen(object):
                 func(graph, self, *args, **kwargs)
             except Exception as e:
                 import pdb; pdb.xpm()
-                print failure_count, "COULDN'T GENERATE CODE FOR", index, getattr(decl, "name", decl)
+                print failure_count, "COULDN'T GENERATE CODE FOR", index, graph
                 print(traceback.format_exc())
                 failure_count += 1
                 codegen.level = 0
@@ -244,6 +246,31 @@ class Codegen(object):
         t2 = time.time()
         print "DONE, took seconds", round(t2 - t1, 2)
         print_stats()
+
+    def add_struct_type(self, name, pyname, structtyp, ast=None):
+        if structtyp in self.seen_typs:
+            return
+        self.seen_typs.add(structtyp)
+        self.add_named_type(name, pyname, structtyp, ast)
+        uninit_arg = []
+        with self.emit_code_type("declarations"), self.emit_indent("class %s(supportcode.ObjectBase):" % pyname):
+            with self.emit_indent("def __init__(self, %s):" % ", ".join(structtyp.names)):
+                for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
+                    self.emit("self.%s = %s # %s" % (arg, arg, fieldtyp))
+                    uninit_arg.append(fieldtyp.uninitialized_value)
+            with self.emit_indent("def copy_into(self, res=None):"):
+                self.emit("if res is None: res = type(self)()")
+                for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
+                    self.emit("res.%s = self.%s # %s" % (arg, arg, fieldtyp))
+                self.emit("return res")
+            self.emit("@objectmodel.always_inline")
+            with self.emit_indent("def eq(self, other):"):
+                self.emit("assert isinstance(other, %s)" % (pyname, ))
+                for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
+                    self.emit("if %s: return False # %s" % (
+                        fieldtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (fieldtyp, fieldtyp), types.Bool()), fieldtyp))
+                self.emit("return True")
+        structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
 
 
 def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None):
@@ -444,34 +471,15 @@ class __extend__(parse.Union):
 
 class __extend__(parse.Struct):
     def make_code(self, codegen):
-        name = "Struct_" + self.name
-        self.pyname = name
+        name = self.name
+        pyname = "Struct_" + name
+        self.pyname = pyname
         # predeclare types
         typs = [typ.resolve_type(codegen) for typ in self.types]
-        tuplestruct = self.name in codegen.tuplestruct
-        structtyp = types.Struct(self.name, tuple(self.names), tuple(typs), tuplestruct)
-        codegen.add_named_type(self.name, self.pyname, structtyp, self)
-        uninit_arg = []
-        with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
-            with codegen.emit_indent("def __init__(self, %s):" % ", ".join(self.names)):
-                for arg, typ in zip(self.names, self.types):
-                    codegen.emit("self.%s = %s # %s" % (arg, arg, typ))
-                    fieldtyp = typ.resolve_type(codegen)
-                    uninit_arg.append(fieldtyp.uninitialized_value)
-            with codegen.emit_indent("def copy_into(self, res=None):"):
-                codegen.emit("if res is None: res = type(self)()")
-                for arg, typ in zip(self.names, self.types):
-                    codegen.emit("res.%s = self.%s # %s" % (arg, arg, typ))
-                codegen.emit("return res")
-            codegen.emit("@objectmodel.always_inline")
-            with codegen.emit_indent("def eq(self, other):"):
-                codegen.emit("assert isinstance(other, %s)" % (self.pyname, ))
-                for arg, typ in zip(self.names, self.types):
-                    rtyp = typ.resolve_type(codegen)
-                    codegen.emit("if %s: return False # %s" % (
-                        rtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (rtyp, rtyp), types.Bool()), typ))
-                codegen.emit("return True")
-        structtyp.uninitialized_value = "%s(%s)" % (self.pyname, ", ".join(uninit_arg))
+        tuplestruct = name in codegen.tuplestruct
+        structtyp = types.Struct(name, tuple(self.names), tuple(typs), tuplestruct)
+        codegen.add_struct_type(name, pyname, structtyp, ast=self)
+
 
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):

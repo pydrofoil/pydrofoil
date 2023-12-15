@@ -8,8 +8,6 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 # - demanded result casts
 # - make extract* deal with defaultvalue
 
-# later: need to specialize tuple return types
-
 # allow inlining of small specialized functions
 # specialize phi as constants?
 
@@ -74,14 +72,26 @@ class Specializer(object):
         if call.name == stubgraph.name:
             return None # no change in optimization level
         newcall = optimizer.newop(stubgraph.name, args, restype, call.sourcepos, call.varname_hint)
-        if restype != call.resolved_type:
-            if restype is types.MachineInt():
-                return optimizer._make_int64_to_int(newcall)
-            else:
-                assert isinstance(restype, types.SmallFixedBitVector)
-                assert call.resolved_type is types.GenericBitVector()
-                return optimizer.newcast(newcall, types.GenericBitVector())
-        return newcall
+        return self._reconstruct_result(restype, call.resolved_type, newcall, optimizer)
+
+    def _reconstruct_result(self, restype, original_restype, newcall, optimizer):
+        if restype is original_restype:
+            return newcall
+        if restype is types.MachineInt():
+            return optimizer._make_int64_to_int(newcall)
+        if isinstance(restype, types.SmallFixedBitVector):
+            assert original_restype is types.GenericBitVector()
+            return optimizer.newcast(newcall, types.GenericBitVector())
+        if isinstance(restype, types.Struct):
+            fields = []
+            for fieldtyp, fieldtyp_orig, name in zip(restype.typs, original_restype.typs, restype.names):
+                field = ir.FieldAccess(name, [newcall], fieldtyp)
+                optimizer.newoperations.append(field)
+                converted_field = self._reconstruct_result(fieldtyp, fieldtyp_orig, field, optimizer)
+                fields.append(converted_field)
+            result = ir.StructConstruction(original_restype.name, fields, original_restype)
+            optimizer.newoperations.append(result)
+            return result
 
     def _make_stub(self, key):
         args = []
@@ -137,32 +147,57 @@ class Specializer(object):
                 returnblock = block
         else:
             if returnblock:
-                res, nameextension = self._find_result(graph, returnblock)
+                res, nameextension = self._find_result(graph, returnblock, returnblock.next.value)
                 if res:
                     returnblock.next.value = res
                     resulttyp = res.resolved_type
-                    graph.name += nameextension
+                    graph.name += "__" + nameextension
                     ir.remove_dead(graph, self.codegen)
         typ = types.Function(types.Tuple(tuple(key)), resulttyp)
         self.codegen.emit_extra_graph(graph, typ)
         self.codegen.specialization_functions[graph.name] = self
         return graph, resulttyp
 
-    def _find_result(self, graph, returnblock):
-        optimizer = ir.BaseOptimizer(graph, self.codegen)
-        returnvalue = returnblock.next.value
-        if self.resulttyp is types.Int():
+    def _find_result(self, graph, returnblock, returnvalue, optimizer=None):
+        if optimizer is None:
+            optimizer = ir.BaseOptimizer(graph, self.codegen)
+        if returnvalue.resolved_type is types.Int():
             try:
-                return optimizer._extract_machineint(returnvalue), "__i"
+                return optimizer._extract_machineint(returnvalue), "i"
             except ir.NoMatchException:
                 pass
-        elif self.resulttyp is types.GenericBitVector():
+        elif returnvalue.resolved_type is types.GenericBitVector():
             try:
                 res, resulttyp = optimizer._extract_smallfixedbitvector(returnvalue)
             except ir.NoMatchException:
                 pass
             else:
-                return res, "__bv%s" % resulttyp.width
+                return res, "bv%s" % resulttyp.width
+        elif isinstance(returnvalue.resolved_type, types.Struct) and returnvalue.resolved_type.tuplestruct and isinstance(returnvalue, ir.StructConstruction):
+            fields = []
+            extensions = []
+            fieldtyps = []
+            useful = False
+            for value in returnvalue.args:
+                res, nameextension = self._find_result(graph, returnblock, value, optimizer)
+                if res is not None:
+                    useful = True
+                    fields.append(res)
+                    extensions.append(nameextension)
+                else:
+                    fields.append(value)
+                    extensions.append('o')
+                fieldtyps.append(fields[-1].resolved_type)
+            if useful:
+                names = tuple(['%s_%s' % (name, index) for index, name in enumerate(extensions)])
+                fieldtyps = tuple(fieldtyps)
+                origname = returnvalue.resolved_type.name
+                name = "tup_%s_%s" % (origname, '_'.join(extensions))
+                newtyp = types.Struct(name, names, fieldtyps, True)
+                self.codegen.add_struct_type(newtyp.name, "TupSpec_" + newtyp.name, newtyp)
+                newres = ir.StructConstruction(newtyp.name, fields, newtyp)
+                returnblock.operations.append(newres)
+                return newres, "_".join(['tup'] + extensions + ['put'])
         return None, None
 
     def _extract_key(self, call, optimizer):

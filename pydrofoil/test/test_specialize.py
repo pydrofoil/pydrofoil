@@ -12,6 +12,9 @@ class FakeCodeGen:
     def emit_extra_graph(self, graph, typ):
         pass
 
+    def add_struct_type(self, *args):
+        pass
+
 def test_specialize():
     fakecodegen = FakeCodeGen()
     zxs = Argument('zxs', GenericBitVector())
@@ -267,3 +270,38 @@ def test_AddrTop_bug():
 
     optimize(calling_graph, fakecodegen)
     assert calling_graph.startblock.operations[0].name == 'zAddrTop_specialized_o_True_o__i'
+
+def test_specialize_on_result_tuple():
+    tupletyp = Struct('tup', ('bv', 'i', 'b'), (types.GenericBitVector(), types.Int(), types.Bool()), True)
+    bv = Argument('bv', GenericBitVector())
+    i = Argument('i', Int())
+    b = Argument('b', Bool())
+    block0 = Block()
+    i1 = block0.emit(StructConstruction, 'tup', [bv, i, b], tupletyp, None)
+    block0.next = Return(i1, None)
+    graph = Graph('tuplify', [bv, i, b], block0)
+
+    fakecodegen = FakeCodeGen()
+    spec = Specializer(graph, fakecodegen)
+    fakecodegen.specialization_functions['tuplify'] = spec
+
+    b = Argument('b', Bool())
+    zx = Argument('zx', SmallFixedBitVector(32))
+    block0 = Block()
+    i0 = block0.emit(Cast, '$cast', [zx], GenericBitVector(), None, None)
+    i1 = block0.emit(Operation, 'tuplify', [i0, IntConstant(2), b], tupletyp, '`7 456:19-456:28', 'zz419')
+    i2 = block0.emit(FieldAccess, 'bv', [i1], GenericBitVector(), None)
+    i3 = block0.emit(Cast, '$cast', [i2], SmallFixedBitVector(32), '`7 456:19-456:28', 'zz419')
+    block0.next = Return(i3, None)
+    calling_graph = Graph('f', [b, zx], block0)
+    opt = SpecializingOptimizer(calling_graph, fakecodegen)
+    opt.optimize()
+    optimize(calling_graph, fakecodegen)
+    assert "\n".join(print_graph_construction(calling_graph)) == '''\
+b = Argument('b', Bool())
+zx = Argument('zx', SmallFixedBitVector(32))
+block0 = Block()
+i2 = block0.emit(Operation, 'tuplify_specialized_bv32_2_o__tup_bv32_i_o_put', [zx, MachineIntConstant(2), b], Struct('tup_tup_bv32_i_o', ('bv32_0', 'i_1', 'o_2'), (SmallFixedBitVector(32), MachineInt(), Bool()), True), '`7 456:19-456:28', 'zz419')
+i3 = block0.emit(FieldAccess, 'bv32_0', [i2], SmallFixedBitVector(32), None, None)
+block0.next = Return(i3, None)
+graph = Graph('f', [b, zx], block0)'''

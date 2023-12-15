@@ -1191,18 +1191,22 @@ def _bare_optimize(graph, codegen):
     res = remove_dead(graph, codegen) or res
     res = simplify_phis(graph) or res
     res = inline(graph, codegen) or res
-    res = LocalOptimizer(graph, codegen, do_double_casts=False).optimize() or res
+    res = localopt(graph, codegen, do_double_casts=False) or res
     res = remove_if_true_false(graph) or res
     res = remove_empty_blocks(graph) or res
     res = swap_not(graph, codegen) or res
     res = cse(graph, codegen) or res
-    res = LocalOptimizer(graph, codegen, do_double_casts=True).optimize() or res
+    res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
     return res
 
 _optimize = repeat(_bare_optimize)
+
+@repeat
+def localopt(graph, codegen, do_double_casts=True):
+    return LocalOptimizer(graph, codegen, do_double_casts).optimize()
 
 # def find_double_computation(graph):
 #     # nonsense

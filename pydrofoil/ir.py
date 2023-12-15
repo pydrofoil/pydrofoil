@@ -47,6 +47,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # ExceptionClass shows the weird phi duplication bug
 
+# cse can share phi nodes?!
+
 
 # cleanups needed
 # ----------------
@@ -437,7 +439,7 @@ class Block(object):
     def __getitem__(self, index):
         return self.operations[index]
 
-    def emit(self, cls, opname, args, resolved_type, sourcepos, varname_hint=None):
+    def emit(self, cls, opname, args, resolved_type, sourcepos=None, varname_hint=None):
         op = Operation(opname, args, resolved_type, sourcepos, varname_hint)
         op.__class__ = cls
         self.operations.append(op)

@@ -3,7 +3,7 @@ import time
 from contextlib import contextmanager
 from rpython.tool.pairtype import pair
 
-from pydrofoil import parse, types, binaryop, operations, supportcode
+from pydrofoil import parse, types, binaryop, operations, supportcode, specialize
 from pydrofoil.emitfunction import emit_function_code
 
 
@@ -20,8 +20,9 @@ class NameInfo(object):
         return "NameInfo(%r, %r, %r, %r)" % (self.pyname, self.typ, self.ast, self.write_pyname)
 
 
-class Codegen(object):
+class Codegen(specialize.FixpointSpecializer):
     def __init__(self, promoted_registers=frozenset(), should_inline=None):
+        specialize.FixpointSpecializer.__init__(self)
         self.declarations = []
         self.runtimeinit = []
         self.code = []
@@ -103,8 +104,7 @@ class Codegen(object):
         # a function that returns True, False or None
         self.should_inline = should_inline if should_inline is not None else lambda name: None
         self.let_values = {}
-        self.specialization_functions = {}
-        # (graphs, funcs) to emit at the end
+        # (graphs, funcs, args, kwargs) to emit at the end
         self._all_graphs = []
 
     def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
@@ -221,28 +221,20 @@ class Codegen(object):
         self.add_graph(graph, emit_extra)
 
     def add_graph(self, graph, emit_function, *args, **kwargs):
+        self.schedule_graph_specialization(graph)
         self._all_graphs.append((graph, emit_function, args, kwargs))
 
     def finish_graphs(self):
-        from pydrofoil.ir import optimize, print_stats
-        t1 = time.time()
         print "============== FINISHING =============="
-        index = 0
-        failure_count = 0
-        while index < len(self._all_graphs):
-            graph, func, args, kwargs = self._all_graphs[index]
-            print "\033[1K\rFINISHING %s/%s %s" % (index + 1, len(self._all_graphs), graph.name),
-            sys.stdout.flush()
-            try:
-                res = optimize(graph, self) # can add new graphs
-                func(graph, self, *args, **kwargs)
-            except Exception as e:
-                import pdb; pdb.xpm()
-                print failure_count, "COULDN'T GENERATE CODE FOR", index, graph
-                print(traceback.format_exc())
-                failure_count += 1
-                codegen.level = 0
-            index += 1
+        from pydrofoil.ir import print_stats
+        t1 = time.time()
+        self.specialize_all()
+        unspecialized_graphs = []
+        extra_graphs = self.extract_needed_extra_graphs([g for g, _, _, _ in self._all_graphs])
+        for graph, typ in extra_graphs:
+            self.emit_extra_graph(graph, typ)
+        for graph, func, args, kwargs in self._all_graphs:
+            func(graph, self, *args, **kwargs)
         t2 = time.time()
         print "DONE, took seconds", round(t2 - t1, 2)
         print_stats()

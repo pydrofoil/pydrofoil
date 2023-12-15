@@ -1,16 +1,13 @@
 from pydrofoil.types import *
 from pydrofoil.ir import *
 from pydrofoil.specialize import usefully_specializable, Specializer
-from pydrofoil.specialize import SpecializingOptimizer
+from pydrofoil.specialize import SpecializingOptimizer, FixpointSpecializer
 
-class FakeCodeGen:
+class FakeCodeGen(FixpointSpecializer):
     def __init__(self):
+        FixpointSpecializer.__init__(self)
         self.builtin_names = {"zz5izDzKz5i64": "int_to_int64", "zz5i64zDzKz5i": "int64_to_int"}
-        self.inlinable_functions = {}
-        self.specialization_functions = {}
-
-    def emit_extra_graph(self, graph, typ):
-        pass
+        self._all_graphs = []
 
     def add_struct_type(self, *args):
         pass
@@ -305,3 +302,39 @@ i2 = block0.emit(Operation, 'tuplify_specialized_bv32_2_o__tup_bv32_i_o_put', [z
 i3 = block0.emit(FieldAccess, 'bv32_0', [i2], SmallFixedBitVector(32), None, None)
 block0.next = Return(i3, None)
 graph = Graph('f', [b, zx], block0)'''
+
+def test_results_bubble_up_problem():
+    # f -> g(32) -> h(32) returns bv32
+    fa = Argument('fa', SmallFixedBitVector(32))
+    block0 = Block()
+    i0 = block0.emit(Cast, '$cast', [fa], GenericBitVector())
+    i1 = block0.emit(Operation, 'g', [i0], GenericBitVector())
+    i2 = block0.emit(Cast, '$cast', [i1], SmallFixedBitVector(32))
+    block0.next = Return(i2, None)
+    fgraph = Graph('f', [fa], block0)
+
+    ga = Argument('ga', GenericBitVector())
+    block0 = Block()
+    i0 = block0.emit(Operation, 'h', [ga], GenericBitVector())
+    block0.next = Return(i0, None)
+    ggraph = Graph('g', [ga], block0)
+
+    ha = Argument('ha', GenericBitVector())
+    block0 = Block()
+    block0.next = Return(ha, None)
+    hgraph = Graph('h', [ha], block0)
+    codegen = FakeCodeGen()
+    gspec = Specializer(ggraph, codegen)
+    codegen.specialization_functions['g'] = gspec
+    hspec = Specializer(hgraph, codegen)
+    codegen.specialization_functions['h'] = hspec
+    codegen.schedule_graph_specialization(fgraph)
+    codegen.schedule_graph_specialization(ggraph)
+    codegen.schedule_graph_specialization(hgraph)
+    codegen.specialize_all()
+    fgraph.view()
+    op, = fgraph.startblock.operations
+    assert op.name == 'g_specialized_bv32__bv32'
+    graphs = codegen.extract_needed_extra_graphs([fgraph, ggraph, hgraph])
+    assert {g.name for g, _ in graphs} == {'h_specialized_o', 'g_specialized_bv32__bv32', 'h_specialized_bv32__bv32'}
+

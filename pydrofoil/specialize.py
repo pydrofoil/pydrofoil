@@ -50,6 +50,8 @@ class Specializer(object):
                     self.demanded_argtyps[index] = types.MachineInt()
         self.cache = {}
         self.codegen = codegen
+        self.dependencies = set()
+        self.name_to_typ = {}
 
     def specialize_call(self, call, optimizer):
         if self.graph is optimizer.graph:
@@ -72,6 +74,7 @@ class Specializer(object):
         if call.name == stubgraph.name:
             return None # no change in optimization level
         newcall = optimizer.newop(stubgraph.name, args, restype, call.sourcepos, call.varname_hint)
+        self.dependencies.add(optimizer.graph)
         return self._reconstruct_result(restype, call.resolved_type, newcall, optimizer)
 
     def _reconstruct_result(self, restype, original_restype, newcall, optimizer):
@@ -136,27 +139,62 @@ class Specializer(object):
         ir._inline(graph, block, len(ops) - 1, self.graph, add_comment=False)
         graph.has_loop = self.graph.has_loop
         ir.light_simplify(graph, self.codegen)
-
         # check whether we can specialize on the return type
+        resulttyp, nameextension = self.find_result_type(graph)
+        if nameextension is not None:
+            graph.name += "__" + nameextension
+            ir.remove_dead(graph, self.codegen)
+        self.codegen.schedule_graph_specialization(graph)
+        self.codegen.specialization_functions[graph.name] = self
+        self.name_to_typ[graph.name] = resulttyp
+        return graph, resulttyp
+
+    def find_result_type(self, graph):
         resulttyp = self.resulttyp
+        # only support a single return block for now
+        returnblock = self._extract_single_return_block(graph)
+        if returnblock:
+            res, nameextension = self._find_result(graph, returnblock, returnblock.next.value)
+            if res:
+                returnblock.next.value = res
+                resulttyp = res.resolved_type
+                return resulttyp, nameextension
+        return resulttyp, None
+
+    def _extract_single_return_block(self, graph):
         returnblock = None
         for block in graph.iterblocks():
             if isinstance(block.next, ir.Return):
                 if returnblock is not None:
-                    break # only support a single return block for now
+                    return None
                 returnblock = block
-        else:
-            if returnblock:
-                res, nameextension = self._find_result(graph, returnblock, returnblock.next.value)
-                if res:
-                    returnblock.next.value = res
-                    resulttyp = res.resolved_type
-                    graph.name += "__" + nameextension
-                    ir.remove_dead(graph, self.codegen)
-        typ = types.Function(types.Tuple(tuple(key)), resulttyp)
-        self.codegen.emit_extra_graph(graph, typ)
-        self.codegen.specialization_functions[graph.name] = self
-        return graph, resulttyp
+        return returnblock
+
+    def check_return_type_change(self, graph):
+        returnblock = self._extract_single_return_block(graph)
+        if returnblock is None:
+            return False
+        old_resulttyp = returnblock.next.value.resolved_type
+        resulttyp, nameextension = self.find_result_type(graph)
+        if nameextension and resulttyp is not old_resulttyp and resulttyp is not self.resulttyp:
+            # bit annoying name manipulation
+            name = graph.name
+            if old_resulttyp is not self.resulttyp:
+                graph.name = graph.name.rsplit("__", 1)[0]
+                ir.remove_dead(graph, self.codegen)
+            graph.name += "__" + nameextension
+            self.codegen.graph_changed_name(name, graph)
+            del self.name_to_typ[name]
+            self.name_to_typ[graph.name] = resulttyp
+            for key, (g, typ) in self.cache.iteritems():
+                if g is graph:
+                    assert typ is old_resulttyp
+                    self.cache[key] = (g, resulttyp)
+                    break
+            else:
+                assert 0
+            return True
+        return False
 
     def _find_result(self, graph, returnblock, returnvalue, optimizer=None):
         if optimizer is None:
@@ -259,3 +297,67 @@ class SpecializingOptimizer(ir.BaseOptimizer):
             if newop:
                 return newop
         self.newoperations.append(op)
+
+
+class FixpointSpecializer(object):
+    def __init__(self):
+        import collections
+        self.specialization_todo = collections.deque()
+        self.specialization_todo_set = set()
+        self.inlinable_functions = {}
+        self.specialization_functions = {}
+        self.all_graph_by_name = {}
+
+    def schedule_graph_specialization(self, graph):
+        self.all_graph_by_name[graph.name] = graph
+        self.specialization_todo.append(graph)
+        self.specialization_todo_set.add(graph)
+
+    def graph_changed_name(self, oldname, graph):
+        assert self.all_graph_by_name[oldname] is graph
+        assert oldname != graph.name
+        del self.all_graph_by_name[oldname]
+        self.all_graph_by_name[graph.name] = graph
+        self.specialization_functions[graph.name] = self.specialization_functions[oldname]
+
+    def specialize_all(self):
+        import sys
+        todo = self.specialization_todo
+        while todo:
+            graph = todo.popleft()
+            print "\033[1K\rSPECIALIZING %s (todo: %s)" % (graph.name, len(todo)),
+            sys.stdout.flush()
+            self.specialization_todo_set.remove(graph)
+            changed = ir.optimize(graph, self)
+            if changed and graph.name in self.specialization_functions:
+                spec = self.specialization_functions[graph.name]
+                if spec.graph is not graph and spec.check_return_type_change(graph):
+                    for graph in spec.dependencies:
+                        if graph not in self.specialization_todo_set:
+                            todo.append(graph)
+                            self.specialization_todo_set.add(graph)
+
+    def extract_needed_extra_graphs(self, starting_graphs):
+        result = set()
+        starting_graphs_set = set(starting_graphs)
+        todo = list(starting_graphs)
+        while todo:
+            graph = todo.pop()
+            for op, block in graph.iterblockops():
+                if not isinstance(op, ir.Operation):
+                    continue
+                if op.name not in self.all_graph_by_name:
+                    continue
+                called_graph = self.all_graph_by_name[op.name]
+                if called_graph in starting_graphs_set:
+                    continue
+                if called_graph not in result:
+                    todo.append(called_graph)
+                    result.add(called_graph)
+        l = []
+        for graph in result:
+            restyp = self.specialization_functions[graph.name].name_to_typ[graph.name]
+            typ = types.Function(types.Tuple(tuple(a.resolved_type for a in graph.args)), restyp)
+            l.append((graph, typ))
+        return l
+

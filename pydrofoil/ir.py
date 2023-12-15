@@ -1855,6 +1855,26 @@ class LocalOptimizer(BaseOptimizer):
                     machineints,
                     types.MachineInt())
             )
+        if isinstance(op.resolved_type, types.Struct) and op.resolved_type.tuplestruct:
+            if not all(isinstance(arg, (StructConstruction, DefaultValue)) for arg in op.prevvalues):
+                return
+            fields = []
+            for index, name in enumerate(op.resolved_type.names):
+                values = []
+                fieldtyp = op.resolved_type.fieldtyps[name]
+                for arg in op.prevvalues:
+                    if isinstance(arg, DefaultValue):
+                        values.append(DefaultValue(fieldtyp))
+                    else:
+                        values.append(arg.args[index])
+                fields.append(self.newphi(
+                    op.prevblocks,
+                    values,
+                    fieldtyp
+                ))
+            res = StructConstruction(op.resolved_type.name, fields, op.resolved_type)
+            self.newoperations.append(res)
+            return res
 
     def _optimize_NonSSAAssignment(self, op, block, index):
         return REMOVE
@@ -3172,6 +3192,7 @@ def cse(graph, codegen):
         for index, op in enumerate(block.operations):
             if not can_replace(op):
                 if isinstance(op, FieldWrite) and is_tuplestruct(op):
+                    assert not isinstance(op.args[0], StructConstruction)
                     res = op.args[1]
                     key = (FieldAccess, op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args[:1]), res.resolved_type)
                     available_in_block[key] = replacements.get(res, res)

@@ -1636,7 +1636,7 @@ class BaseOptimizer(object):
             raise NoMatchException
         return expr, typ
 
-    def _extract_machineint(self, arg, want_constant=True):
+    def _extract_machineint(self, arg, want_constant=True, can_recurse=True):
         if arg.resolved_type is types.MachineInt():
             return arg
         if isinstance(arg, IntConstant):
@@ -1656,14 +1656,14 @@ class BaseOptimizer(object):
         anticipated = self.anticipated_casts.get(self.current_block, set())
         if (arg, types.MachineInt()) in anticipated:
             return self._make_int_to_int64(arg)
-        if isinstance(arg, Phi):
-            if self.graph.has_loop:
-                raise NoMatchException # can be solved
+        if isinstance(arg, Phi) and can_recurse:
+            # XXX can do even better with loops
             prevvalues = []
             for prevvalue in arg.prevvalues:
                 prevvalues.append(self._extract_machineint(
                     self._get_op_replacement(prevvalue),
-                    want_constant=want_constant))
+                    want_constant=want_constant,
+                    can_recurse=not self.graph.has_loop))
             newres = Phi(arg.prevblocks, prevvalues, types.MachineInt())
             # this is quite delicate, need to insert the Phi into the right block
             if arg in self.current_block.operations:

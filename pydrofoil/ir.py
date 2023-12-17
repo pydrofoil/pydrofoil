@@ -1256,6 +1256,8 @@ def remove_dead(graph, codegen):
             return True
         if op.name == "@not":
             return True
+        if op.name == "@eq":
+            return True
         name = codegen.builtin_names.get(op.name, op.name)
         return type(op) is Operation and name in supportcode.purefunctions
 

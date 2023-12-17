@@ -65,7 +65,7 @@ class Specializer(object):
                 return None # recursive graph building, will be fixed later
             stubgraph, restype = value
         else:
-            if len(self.cache) > 64:
+            if len(self.cache) > 32:
                 print "TOO MANY VARIANTS!", self.graph.name
                 return None
             self.cache[key] = None # meaning "in progress"

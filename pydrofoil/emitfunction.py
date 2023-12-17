@@ -108,7 +108,13 @@ class CodeEmitter(object):
                     self.codegen.emit("%s = bitvector.BigInteger(rbigint.fromlong(%s))" % (pyname, s))
             return pyname
         if isinstance(value, ir.SmallBitVectorConstant):
-            return "r_uint(%s)" % (value.value, )
+            size = value.resolved_type.width
+            val = value.value
+            if size % 4 == 0:
+                value = '0x' + hex(val)[2:].rjust(size // 4, '0')
+            else:
+                value = '0b' + bin(val)[2:].rjust(size, '0')
+            return "r_uint(%s)" % (value, )
         if isinstance(value, ir.DefaultValue):
             return value.resolved_type.uninitialized_value
         if isinstance(value, ir.EnumConstant):

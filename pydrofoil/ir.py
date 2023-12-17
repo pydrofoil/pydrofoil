@@ -316,7 +316,7 @@ class SSABuilder(object):
                 assert index + 2 == len(block)
                 break
             elif isinstance(op, parse.Exit):
-                ssablock.next = Raise(StringConstant(repr(op.kind)), op.sourcepos)
+                ssablock.next = Raise(StringConstant(op.kind), op.sourcepos)
             elif isinstance(op, parse.Arbitrary):
                 restyp = self.functionast.resolved_type.restype
                 res = DefaultValue(restyp)
@@ -379,9 +379,9 @@ class SSABuilder(object):
         elif isinstance(parseval, parse.Number):
             return MachineIntConstant(parseval.number)
         elif isinstance(parseval, parse.BitVectorConstant):
-            return SmallBitVectorConstant(parseval.constant, parseval.resolved_type)
+            return SmallBitVectorConstant(r_uint(eval(parseval.constant)), parseval.resolved_type)
         elif isinstance(parseval, parse.String):
-            return StringConstant(parseval.string)
+            return StringConstant(eval(parseval.string))
         else:
             assert isinstance(parseval, parse.Unit)
             return UnitConstant.UNIT
@@ -901,16 +901,16 @@ class IntConstant(Constant):
 
 class SmallBitVectorConstant(Constant):
     def __init__(self, value, resolved_type):
+        if isinstance(value, int):
+            value = r_uint(value)
+        assert isinstance(value, r_uint)
+        assert isinstance(resolved_type, types.SmallFixedBitVector)
         self.value = value
         self.resolved_type = resolved_type
 
     @staticmethod
     def from_ruint(size, val):
-        if size % 4 == 0:
-            value = '0x' + hex(val)[2:].rjust(size // 4, '0')
-        else:
-            value = '0b' + bin(val)[2:].rjust(size, '0')
-        return SmallBitVectorConstant(value, types.SmallFixedBitVector(size))
+        return SmallBitVectorConstant(val, types.SmallFixedBitVector(size))
 
     def comparison_key(self):
         return (SmallBitVectorConstant, self.value, self.resolved_type)
@@ -919,7 +919,13 @@ class SmallBitVectorConstant(Constant):
         return repr(self)
 
     def __repr__(self):
-        return "SmallBitVectorConstant(%r, %s)" % (self.value, self.resolved_type)
+        size = self.resolved_type.width
+        val = self.value
+        if size % 4 == 0:
+            value = hex(int(val))
+        else:
+            value = bin(int(val))
+        return "SmallBitVectorConstant(%s, %s)" % (value, self.resolved_type)
 
 
 class DefaultValue(Constant):
@@ -1435,7 +1441,7 @@ def convert_sail_assert_to_exception(graph, codegen):
             failblock.next = Raise(op.args[1], None)
             if isinstance(op.args[1], StringConstant):
                 assert_str = 'sail_assert'
-                assert_str += ' ' + eval(op.args[1].string)
+                assert_str += ' ' + op.args[1].string
                 block.operations.append(Comment(assert_str))
             block.next = ConditionalGoto(op.args[0], newblock, failblock, op.sourcepos)
             res = True
@@ -1770,13 +1776,13 @@ class LocalOptimizer(BaseOptimizer):
             elif isinstance(arg, MachineIntConstant):
                 runtimeargs.append(arg.number)
             elif isinstance(arg, SmallBitVectorConstant):
-                runtimeargs.append(r_uint(eval(arg.value)))
+                runtimeargs.append(arg.value)
             elif arg.resolved_type is types.Real():
                 return # later
             elif arg.resolved_type is types.Unit():
                 runtimeargs.append(())
             elif arg.resolved_type is types.String():
-                runtimeargs.append(eval(arg.string))
+                runtimeargs.append(arg.string)
             else:
                 return None
         try:

@@ -145,7 +145,6 @@ class Specializer(object):
             graph.name += "__" + nameextension
             ir.remove_dead(graph, self.codegen)
         if ir.should_inline(graph):
-            import pdb;pdb.set_trace()
             self.codegen.inlinable_functions[graph.name] = graph
         self.codegen.schedule_graph_specialization(graph)
         self.codegen.specialization_functions[graph.name] = self

@@ -60,9 +60,14 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # cleanups needed
 # ----------------
-
 # is there still a tuple type?
 
+
+# ideas for speedups
+# ---------------------
+# - iterblocks and topo_order_best_attempt are most costly functions
+# - check also super expensive
+# - _optimize_Operation, cse, replace_ops, set.union
 
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:
@@ -608,10 +613,16 @@ class Graph(object):
                 yield op, block
 
     def make_entrymap(self):
+        todo = [self.startblock]
+        seen = set()
         entry = defaultdict(list)
-        for block in self.iterblocks():
+        while todo:
+            block = todo.pop()
+            seen.add(block)
             for next in block.next.next_blocks():
                 entry[next].append(block)
+                if next not in seen:
+                    todo.append(next)
         entry[self.startblock] = []
         return entry
 
@@ -620,16 +631,16 @@ class Graph(object):
         entrymap = self.make_entrymap()
         # check that phi.prevvalues only contains predecessors of a block
         defined_vars = set(self.args)
-        for block in self.iterblocks():
+        for block, entry in entrymap.iteritems():
             for op in block:
                 defined_vars.add(op)
                 if not isinstance(op, Phi):
                     continue
                 for prevblock in op.prevblocks:
                     assert prevblock in entrymap
-                    assert prevblock in entrymap[block]
+                    assert prevblock in entry
         # check that all the used values are defined somewhere
-        for block in self.iterblocks():
+        for block in entrymap:
             assert len(set(block.operations)) == len(block.operations)
             for op in block:
                 for value in op.getargs():
@@ -1253,14 +1264,15 @@ def remove_dead(graph, codegen):
     needed = set()
     # in theory we need a proper fix point but too annoying (Sail has very few
     # loops)
-    for block in graph.iterblocks():
+    blocks = list(graph.iterblocks())
+    for block in blocks:
         for op in block.operations:
             args = op.getargs()[:]
             if isinstance(op, Phi) and op in args:
                 args.remove(op)
             needed.update(args)
         needed.update(block.next.getargs())
-    for block in graph.iterblocks():
+    for block in blocks:
         operations = [op for op in block.operations if op in needed or not can_remove_op(op)]
         if len(operations) != len(block.operations):
             changed = True
@@ -2315,7 +2327,7 @@ class LocalOptimizer(BaseOptimizer):
         arg0 = self._extract_number(arg0)
         if arg0.number > 64 or arg0.number < 1:
             return
-        resconst = SmallBitVectorConstant("0b" + "0" * arg0.number, types.SmallFixedBitVector(arg0.number))
+        resconst = SmallBitVectorConstant(0, types.SmallFixedBitVector(arg0.number))
         res = self.newcast(
             resconst,
             op.resolved_type,
@@ -2829,7 +2841,7 @@ class LocalOptimizer(BaseOptimizer):
         if num.number > 64:
             return
         return self.newcast(
-            SmallBitVectorConstant("0b" + "0" * num.number, types.SmallFixedBitVector(num.number)),
+            SmallBitVectorConstant(0 * num.number, types.SmallFixedBitVector(num.number)),
             op.resolved_type,
             op.sourcepos,
             op.varname_hint,
@@ -3004,7 +3016,7 @@ def _inline(graph, block, index, subgraph, add_comment=True):
     graph.check()
 
 def copy_ops(op, subgraph):
-    assert len(list(subgraph.iterblocks())) == 1
+    assert isinstance(subgraph.startblock.next, Return)
     replacements = {arg: argexpr for arg, argexpr in zip(subgraph.args, op.args)}
     ops = subgraph.startblock.copy_operations(replacements)
     res = subgraph.startblock.next.value

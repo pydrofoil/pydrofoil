@@ -56,7 +56,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # why is the result of func_zHighestSetBit_specialized_o not machine int?
 
-# const folding with phis
 
 
 # cleanups needed
@@ -1753,12 +1752,15 @@ class LocalOptimizer(BaseOptimizer):
         if op.resolved_type is types.Real():
             return # later
         args = self._args(op)
-        if not all(isinstance(arg, Constant) for arg in args):
-            return
         if name not in supportcode.purefunctions:
             return
         if "undefined" in name:
             return
+        if not all(isinstance(arg, Constant) for arg in args):
+            return self._try_fold_phi(name, func, args, op.resolved_type, op)
+        return self._try_fold(name, func, args, op.resolved_type, op)
+
+    def _try_fold(self, name, func, args, resolved_type, op):
         runtimeargs = []
         for arg in args:
             if isinstance(arg, IntConstant):
@@ -1782,15 +1784,51 @@ class LocalOptimizer(BaseOptimizer):
         except (Exception, AssertionError) as e:
             print "generict const-folding failed", name, op, "with error", e, "arguments", args
             return None
-        if op.resolved_type is types.MachineInt():
+        if resolved_type is types.MachineInt():
             return MachineIntConstant(res)
-        if op.resolved_type is types.Int():
+        if resolved_type is types.Int():
             return IntConstant(int(res.tolong()))
-        if isinstance(op.resolved_type, types.SmallFixedBitVector):
-            return SmallBitVectorConstant.from_ruint(op.resolved_type.width, res)
-        if op.resolved_type is types.Bool():
+        if isinstance(resolved_type, types.SmallFixedBitVector):
+            return SmallBitVectorConstant.from_ruint(resolved_type.width, res)
+        if resolved_type is types.Bool():
             return BooleanConstant.frombool(res)
             # XXX other types? import pdb;pdb.set_trace()
+
+    def _try_fold_phi(self, name, func, args, resolved_type, op):
+        phi_index = -1
+        for index, arg in enumerate(args):
+            if isinstance(arg, Constant):
+                pass
+            elif isinstance(arg, Phi):
+                if phi_index != -1:
+                    return # only one phi possible
+                phi_index = index
+                if not all(isinstance(value, Constant) for value in arg.prevvalues):
+                    return
+            else:
+                return
+        phi = args[phi_index]
+        if phi not in self.current_block.operations:
+            return
+        results = []
+        first_comparison_key = None
+        all_same = True
+        for value in phi.prevvalues:
+            newargs = args[:]
+            newargs[phi_index] = value
+            res = self._try_fold(name, func, newargs, resolved_type, op)
+            if res is None:
+                return
+            if not results:
+                first_comparison_key = res.comparison_key()
+            else:
+                all_same = all_same and res.comparison_key() == results[0].comparison_key()
+            results.append(res)
+        if len(results) == 1 or all_same:
+            return results[0]
+        phi = Phi(phi.prevblocks, results, resolved_type)
+        self.newoperations.insert(0, phi)
+        return phi
 
     def _optimize_GlobalWrite(self, op, block, index):
         arg, = self._args(op)

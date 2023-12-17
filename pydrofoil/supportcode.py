@@ -445,21 +445,33 @@ def eq_bit(machine, a, b):
 @objectmodel.specialize.argtype(1)
 @purefunction
 def lteq(machine, ia, ib):
+    if not objectmodel.we_are_translated():
+        if isinstance(ia, int) and isinstance(ib, int):
+            return ia <= ib # const folding only
     return ia.le(ib)
 
 @objectmodel.specialize.argtype(1)
 @purefunction
 def lt(machine, ia, ib):
+    if not objectmodel.we_are_translated():
+        if isinstance(ia, int) and isinstance(ib, int):
+            return ia < ib # const folding only
     return ia.lt(ib)
 
 @objectmodel.specialize.argtype(1)
 @purefunction
 def gt(machine, ia, ib):
+    if not objectmodel.we_are_translated():
+        if isinstance(ia, int) and isinstance(ib, int):
+            return ia > ib # const folding only
     return ia.gt(ib)
 
 @objectmodel.specialize.argtype(1)
 @purefunction
 def gteq(machine, ia, ib):
+    if not objectmodel.we_are_translated():
+        if isinstance(ia, int) and isinstance(ib, int):
+            return ia >= ib # const folding only
     return ia.ge(ib)
 
 @objectmodel.specialize.argtype(1)

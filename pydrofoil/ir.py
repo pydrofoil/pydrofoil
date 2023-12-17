@@ -49,6 +49,15 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # cse can share phi nodes?!
 
+# result of unsigned is positive
+
+# need a solution for the whole "add(sub(a, const1), const1)" with the various
+# variants of addition and subtraction
+
+# why is the result of func_zHighestSetBit_specialized_o not machine int?
+
+# const folding with phis
+
 
 # cleanups needed
 # ----------------

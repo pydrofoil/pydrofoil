@@ -71,10 +71,10 @@ class Specializer(object):
             self.cache[key] = None # meaning "in progress"
             stubgraph, restype = self._make_stub(key)
             self.cache[key] = stubgraph, restype
+        self.dependencies.add(optimizer.graph)
         if call.name == stubgraph.name:
             return None # no change in optimization level
         newcall = optimizer.newop(stubgraph.name, args, restype, call.sourcepos, call.varname_hint)
-        self.dependencies.add(optimizer.graph)
         return self._reconstruct_result(restype, call.resolved_type, newcall, optimizer)
 
     def _reconstruct_result(self, restype, original_restype, newcall, optimizer):
@@ -144,6 +144,9 @@ class Specializer(object):
         if nameextension is not None:
             graph.name += "__" + nameextension
             ir.remove_dead(graph, self.codegen)
+        if ir.should_inline(graph):
+            import pdb;pdb.set_trace()
+            self.codegen.inlinable_functions[graph.name] = graph
         self.codegen.schedule_graph_specialization(graph)
         self.codegen.specialization_functions[graph.name] = self
         self.name_to_typ[graph.name] = resulttyp
@@ -331,7 +334,16 @@ class FixpointSpecializer(object):
             changed = ir.optimize(graph, self)
             if changed and graph.name in self.specialization_functions:
                 spec = self.specialization_functions[graph.name]
-                if spec.graph is not graph and spec.check_return_type_change(graph):
+                if spec.graph is graph:
+                    continue
+                schedule_deps = False
+                if ir.should_inline(graph, self.should_inline):
+                    import pdb;pdb.set_trace()
+                    self.inlinable_functions[graph.name] = graph
+                    schedule_deps = True
+                elif spec.check_return_type_change(graph):
+                    schedule_deps = True
+                if schedule_deps:
                     for graph in spec.dependencies:
                         if graph not in self.specialization_todo_set:
                             todo.append(graph)

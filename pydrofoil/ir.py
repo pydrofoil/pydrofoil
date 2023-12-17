@@ -2990,10 +2990,11 @@ def copy_blocks(graph, op):
 
     return blocks[graph.startblock], returnblock
 
-def should_inline(graph, model_specific_should_inline):
-    res = model_specific_should_inline(graph.name)
-    if res is not None:
-        return res
+def should_inline(graph, model_specific_should_inline=None):
+    if model_specific_should_inline:
+        res = model_specific_should_inline(graph.name)
+        if res is not None:
+            return res
     if graph.has_loop:
         return False
     blocks = list(graph.iterblocks())

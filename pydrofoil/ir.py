@@ -1219,7 +1219,6 @@ def _bare_optimize(graph, codegen):
     res = simplify_phis(graph) or res
     res = inline(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=False) or res
-    res = remove_if_true_false(graph) or res
     res = remove_empty_blocks(graph) or res
     res = swap_not(graph, codegen) or res
     res = cse(graph, codegen) or res
@@ -1555,6 +1554,7 @@ class BaseOptimizer(object):
         self.anticipated_casts = find_anticipated_casts(graph)
         self.do_double_casts = do_double_casts
         self.current_block = self.graph.startblock
+        self._dead_blocks = False
         self.replacements = {}
 
     def view(self):
@@ -1571,9 +1571,11 @@ class BaseOptimizer(object):
                 changed = self.graph.replace_ops(self.replacements)
                 if not changed:
                     break
-            self.graph.check()
             self.replacements.clear()
-            return True
+            self.changed = True
+        if self._dead_blocks:
+            _remove_unreachable_phi_prevvalues(self.graph)
+            self.changed = True
         return self.changed
 
     def optimize_block(self, block):
@@ -1585,6 +1587,16 @@ class BaseOptimizer(object):
             elif newop is not None:
                 assert op.resolved_type is newop.resolved_type
                 self.replacements[op] = newop
+        if isinstance(block.next, ConditionalGoto):
+            cond = block.next
+            condition = self._get_op_replacement(block.next.booleanvalue)
+            if isinstance(condition, BooleanConstant):
+                if condition.value:
+                    takenblock = cond.truetarget
+                else:
+                    takenblock = cond.falsetarget
+                block.next = Goto(takenblock)
+                self._dead_blocks = True
         block.operations = self.newoperations
 
     def _optimize_op(self, block, index, op):
@@ -3013,7 +3025,6 @@ def _inline(graph, block, index, subgraph, add_comment=True):
     graph.replace_op(op, return_block.operations[0])
     _remove_unreachable_phi_prevvalues(graph)
     simplify_phis(graph)
-    graph.check()
 
 def copy_ops(op, subgraph):
     assert isinstance(subgraph.startblock.next, Return)

@@ -33,9 +33,9 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # concat(concat(x, const1), const2) -> concat(x, const1+const2)
 # example:
     # i198 = block110.emit(Operation, 'zget_16_random_bits', [UnitConstant.UNIT], SmallFixedBitVector(16), '`12 827:24-827:44', 'zz42')
-    # i199 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant('0x00', SmallFixedBitVector(8)), MachineIntConstant(16), i198], SmallFixedBitVector(24), '`12 828:48-828:66', 'zz417')
-    # i200 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant('0b000000', SmallFixedBitVector(6)), MachineIntConstant(24), i199], SmallFixedBitVector(30), '`12 828:32-828:66', 'zz414')
-    # i201 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant('0b10', SmallFixedBitVector(2)), MachineIntConstant(30), i200], SmallFixedBitVector(32), '`12 828:14-828:66', 'zz410')
+    # i199 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(0x0, SmallFixedBitVector(8)), MachineIntConstant(16), i198], SmallFixedBitVector(24), '`12 828:48-828:66', 'zz417')
+    # i200 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(0, SmallFixedBitVector(6)), MachineIntConstant(24), i199], SmallFixedBitVector(30), '`12 828:32-828:66', 'zz414')
+    # i201 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(0b10, SmallFixedBitVector(2)), MachineIntConstant(30), i200], SmallFixedBitVector(32), '`12 828:14-828:66', 'zz410')
 
 # vector_update_subrange_o_i_i_o with subrange width == 1 can be turned in vector_update_o_i_o
 
@@ -339,9 +339,9 @@ class SSABuilder(object):
             elif parseval.name == 'false':
                 return BooleanConstant.FALSE
             if parseval.name == 'bitzero':
-                return SmallBitVectorConstant('0b0', types.Bit())
+                return SmallBitVectorConstant(0, types.Bit())
             elif parseval.name == 'bitone':
-                return SmallBitVectorConstant('0b1', types.Bit())
+                return SmallBitVectorConstant(1, types.Bit())
             if parseval.name in self.codegen.let_values:
                 return self.codegen.let_values[parseval.name]
             if isinstance(parseval.resolved_type, types.Enum):

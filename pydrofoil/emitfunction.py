@@ -123,7 +123,7 @@ class CodeEmitter(object):
         if isinstance(value, ir.UnitConstant):
             return "()"
         if isinstance(value, ir.StringConstant):
-            return value.string
+            return repr(value.string)
         import pdb; pdb.set_trace()
 
     def _get_args(self, args):

@@ -65,7 +65,7 @@ class Specializer(object):
                 return None # recursive graph building, will be fixed later
             stubgraph, restype = value
         else:
-            if len(self.cache) > 32:
+            if len(self.cache) > 64:
                 print "TOO MANY VARIANTS!", self.graph.name
                 return None
             self.cache[key] = None # meaning "in progress"
@@ -337,7 +337,6 @@ class FixpointSpecializer(object):
                     continue
                 schedule_deps = False
                 if ir.should_inline(graph, self.should_inline):
-                    import pdb;pdb.set_trace()
                     self.inlinable_functions[graph.name] = graph
                     schedule_deps = True
                 elif spec.check_return_type_change(graph):

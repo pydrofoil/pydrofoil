@@ -1045,7 +1045,7 @@ class Goto(Next):
 
 
 class ConditionalGoto(Next):
-    def __init__(self, booleanvalue, truetarget, falsetarget, sourcepos):
+    def __init__(self, booleanvalue, truetarget, falsetarget, sourcepos=None):
         assert isinstance(truetarget, Block)
         assert isinstance(falsetarget, Block)
         assert isinstance(booleanvalue, Value)
@@ -1965,6 +1965,13 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_lt(self, op):
         arg0, arg1 = self._args(op)
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 0 and isinstance(arg0, Operation) and arg0.name in ("@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res"):
+                return BooleanConstant.FALSE
         if arg0.resolved_type is not types.Int():
             arg0 = self._extract_number(arg0)
             arg1 = self._extract_number(arg1)

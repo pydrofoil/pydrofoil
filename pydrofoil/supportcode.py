@@ -96,6 +96,7 @@ def raise_type_error(msg=''):
 
 # bit vectors
 
+@purefunction
 def signed_bv(machine, op, n):
     if n == 64:
         return intmask(op)

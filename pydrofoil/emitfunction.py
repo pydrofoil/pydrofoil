@@ -42,6 +42,11 @@ class CodeEmitter(object):
         if len(self.blocks) == 1:
             self.emit_block_ops(self.blocks[0])
             return
+        # first give out variable names
+        for block in self.blocks:
+            for index, op in enumerate(block.operations):
+                unique_suffix = "_%s_%s" % (block._pc, index)
+                self._get_print_varname(op, unique_suffix)
         codegen.emit("pc = 0")
         with codegen.emit_indent("while 1:"):
             for block in self.blocks:
@@ -62,14 +67,18 @@ class CodeEmitter(object):
     # ________________________________________________
     # operations
 
-    def _get_print_varname(self, op):
+    def _get_print_varname(self, op, unique_suffix=None):
         if isinstance(op, ir.Argument):
             return op.name
         if op in self.print_varnames:
             return self.print_varnames[op]
         name = getattr(op, "varname_hint", None) or "i"
-        res = self.print_varnames[op] = "%s_%s" % (name, len(self.print_varnames))
-        return res
+        if unique_suffix is not None:
+            varname = name + unique_suffix
+        else:
+            varname = "%s_%s" % (name, len(self.print_varnames))
+        self.print_varnames[op] = varname
+        return varname
 
     def _can_print_op_anywhere(self, op):
         if isinstance(op, ir.Cast):

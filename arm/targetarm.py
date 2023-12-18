@@ -37,6 +37,12 @@ def should_inline(name):
         return True
     if "TGxGranuleBits" in name:
         return True
+    if "fdiv_int" in name:
+        return True
+    if "Align__1" in name:
+        return True
+    if name == "zAlign":
+        return True
 
 
 def _make_code(regen=True):

@@ -1767,7 +1767,8 @@ class LocalOptimizer(BaseOptimizer):
                 op.sourcepos,
                 op.varname_hint,
             )
-        meth = getattr(self, "optimize_%s" % name.lstrip("$@"), None)
+        name = name.lstrip("$@")
+        meth = getattr(self, "optimize_%s" % name, None)
         if meth:
             try:
                 newop = meth(op)
@@ -1778,7 +1779,6 @@ class LocalOptimizer(BaseOptimizer):
                     return newop
 
         # try generic constant folding
-        name = name.lstrip("@$")
         func = getattr(supportcode, name, None)
         if not func:
             return

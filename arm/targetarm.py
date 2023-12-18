@@ -35,6 +35,8 @@ def should_inline(name):
         return True
     if "undefined" in name:
         return True
+    if "TGxGranuleBits" in name:
+        return True
 
 
 def _make_code(regen=True):

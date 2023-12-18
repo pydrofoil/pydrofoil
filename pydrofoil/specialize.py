@@ -1,3 +1,4 @@
+from collections import defaultdict
 from pydrofoil import types, ir, parse, supportcode, bitvector
 
 # type specialization: func_zAArch64_AddrTop should return MachineInt
@@ -302,6 +303,8 @@ class SpecializingOptimizer(ir.BaseOptimizer):
 
 
 class FixpointSpecializer(object):
+    should_inline = None
+
     def __init__(self):
         import collections
         self.specialization_todo = collections.deque()
@@ -309,6 +312,7 @@ class FixpointSpecializer(object):
         self.inlinable_functions = {}
         self.specialization_functions = {}
         self.all_graph_by_name = {}
+        self.inline_dependencies = defaultdict(set) # graph -> {graphs}
 
     def schedule_graph_specialization(self, graph):
         self.all_graph_by_name[graph.name] = graph
@@ -327,25 +331,31 @@ class FixpointSpecializer(object):
         todo = self.specialization_todo
         while todo:
             graph = todo.popleft()
-            print "\033[1K\rSPECIALIZING %s (todo: %s)" % (graph.name, len(todo)),
+            print "\033[1K\rOPTIMIZING %s (todo: %s)" % (graph.name, len(todo)),
             sys.stdout.flush()
             self.specialization_todo_set.remove(graph)
             changed = ir.optimize(graph, self)
+            schedule_deps = None
             if changed and graph.name in self.specialization_functions:
                 spec = self.specialization_functions[graph.name]
                 if spec.graph is graph:
                     continue
-                schedule_deps = False
                 if ir.should_inline(graph, self.should_inline):
                     self.inlinable_functions[graph.name] = graph
-                    schedule_deps = True
+                    schedule_deps = spec.dependencies
                 elif spec.check_return_type_change(graph):
-                    schedule_deps = True
-                if schedule_deps:
-                    for graph in spec.dependencies:
-                        if graph not in self.specialization_todo_set:
-                            todo.append(graph)
-                            self.specialization_todo_set.add(graph)
+                    schedule_deps = spec.dependencies
+            elif changed and graph.name not in self.inlinable_functions:
+                if ir.should_inline(graph, self.should_inline):
+                    import pdb;pdb.set_trace()
+                    self.inlinable_functions[graph.name] = graph
+                    schedule_deps = self.inline_dependencies[graph.name]
+            if schedule_deps:
+                for othergraph in schedule_deps:
+                    if othergraph not in self.specialization_todo_set:
+                        todo.append(othergraph)
+                        self.specialization_todo_set.add(othergraph)
+
 
     def extract_needed_extra_graphs(self, starting_graphs):
         result = set()

@@ -3011,6 +3011,8 @@ def inline(graph, codegen):
                     join_blocks(graph)
                     remove_double_exception_check(graph, codegen)
                     return True
+            elif isinstance(op, Operation):
+                codegen.inline_dependencies[op.name].add(graph)
             index += 1
     return changed
 

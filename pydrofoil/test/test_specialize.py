@@ -332,9 +332,44 @@ def test_results_bubble_up_problem():
     codegen.schedule_graph_specialization(ggraph)
     codegen.schedule_graph_specialization(hgraph)
     codegen.specialize_all()
-    fgraph.view()
     op, = fgraph.startblock.operations
     assert op.name == 'g_specialized_bv32__bv32'
     graphs = codegen.extract_needed_extra_graphs([fgraph, ggraph, hgraph])
     assert {g.name for g, _ in graphs} == {'h_specialized_o', 'g_specialized_bv32__bv32', 'h_specialized_bv32__bv32'}
 
+def test_inlinability_changes():
+    ha = Argument('ha', Int())
+    block0 = Block()
+    i0 = block0.emit(Operation, 'f', [ha], Int())
+    block0.next = Return(i0, None)
+    hgraph = Graph('h', [ha], block0)
+
+    fa = Argument('a', Int())
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    i0 = block0.emit(Operation, 'g', [], Bool())
+    block0.next = ConditionalGoto(i0, block1, block2)
+    curr = fa
+    for i in range(100):
+        curr = block2.emit(Operation, '@add_int', [curr, curr], Int())
+    block2.next = Return(curr)
+    block1.next = Return(IntConstant(12), None)
+    fgraph = Graph('f', [fa], block0)
+
+    block0 = Block()
+    block0.next = Return(BooleanConstant.TRUE, None)
+    ggraph = Graph('g', [], block0)
+
+    codegen = FakeCodeGen()
+    light_simplify(hgraph, codegen)
+    codegen.inlinable_functions[hgraph.name] = hgraph
+    light_simplify(fgraph, codegen)
+    light_simplify(ggraph, codegen)
+    codegen.inlinable_functions[ggraph.name] = ggraph
+    codegen.schedule_graph_specialization(hgraph)
+    codegen.schedule_graph_specialization(fgraph)
+    codegen.schedule_graph_specialization(ggraph)
+    codegen.specialize_all()
+    # check that f got inlined into h
+    assert hgraph.startblock.next.value.number == 12

@@ -6,6 +6,7 @@ class FakeCodeGen:
     builtin_names = {"zz5izDzKz5i64": "int_to_int64", "zz5i64zDzKz5i": "int64_to_int"}
     inlinable_functions = {}
     specialization_functions = {}
+    inline_dependencies = defaultdict(set)
 
 fakecodegen = FakeCodeGen()
 

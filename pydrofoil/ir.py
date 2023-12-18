@@ -1816,7 +1816,7 @@ class LocalOptimizer(BaseOptimizer):
             else:
                 return None
         try:
-            res = func(None, *runtimeargs)
+            res = func("constfolding", *runtimeargs)
         except (Exception, AssertionError) as e:
             print "generict const-folding failed", name, op, "with error", e, "arguments", args
             return None
@@ -3318,8 +3318,6 @@ def cse(graph, codegen):
         return is_tuplestruct_typ(op.args[0].resolved_type)
 
     def can_replace(op):
-        if isinstance(op, Phi):
-            return False
         if isinstance(op, Cast):
             return True
         if isinstance(op, UnionCast):
@@ -3333,6 +3331,9 @@ def cse(graph, codegen):
         name = codegen.builtin_names.get(op.name, op.name)
         name = name.lstrip('@')
         return type(op) is Operation and name in supportcode.purefunctions
+
+    def comparison_tuple(valuelist):
+        return tuple(replacements.get(arg, arg).comparison_key() for arg in valuelist)
 
     # very simple forward CSE pass
     replacements = {}
@@ -3355,18 +3356,21 @@ def cse(graph, codegen):
                     available_in_block[key] = prev_op
         available[block] = available_in_block
         for index, op in enumerate(block.operations):
-            if not can_replace(op):
+            if isinstance(op, Phi):
+                key = (Phi, comparison_tuple(op.prevvalues), tuple(op.prevblocks), op.resolved_type)
+            elif not can_replace(op):
                 if isinstance(op, FieldWrite) and is_tuplestruct(op):
                     assert not isinstance(op.args[0], StructConstruction)
                     res = op.args[1]
-                    key = (FieldAccess, op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args[:1]), res.resolved_type)
+                    key = (FieldAccess, op.name, comparison_tuple(op.args[:1]), res.resolved_type)
                     available_in_block[key] = replacements.get(res, res)
                 if isinstance(op, StructConstruction) and is_tuplestruct_typ(op.resolved_type):
                     for fieldname, val in zip(op.resolved_type.names, op.args):
                         key = (FieldAccess, fieldname, (op, ), val.resolved_type)
                         available_in_block[key] = replacements.get(val, val)
                 continue
-            key = (type(op), op.name, tuple(replacements.get(arg, arg).comparison_key() for arg in op.args), op.resolved_type)
+            else:
+                key = (type(op), op.name, comparison_tuple(op.args), op.resolved_type)
             if key in available_in_block:
                 block.operations[index] = None
                 replacements[op] = available_in_block[key]

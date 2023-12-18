@@ -452,6 +452,7 @@ def eq_bit(machine, a, b):
 @purefunction
 def lteq(machine, ia, ib):
     if not objectmodel.we_are_translated():
+        assert machine == "constfolding"
         if isinstance(ia, int) and isinstance(ib, int):
             return ia <= ib # const folding only
     return ia.le(ib)
@@ -460,6 +461,7 @@ def lteq(machine, ia, ib):
 @purefunction
 def lt(machine, ia, ib):
     if not objectmodel.we_are_translated():
+        assert machine == "constfolding"
         if isinstance(ia, int) and isinstance(ib, int):
             return ia < ib # const folding only
     return ia.lt(ib)
@@ -468,6 +470,7 @@ def lt(machine, ia, ib):
 @purefunction
 def gt(machine, ia, ib):
     if not objectmodel.we_are_translated():
+        assert machine == "constfolding"
         if isinstance(ia, int) and isinstance(ib, int):
             return ia > ib # const folding only
     return ia.gt(ib)
@@ -476,9 +479,19 @@ def gt(machine, ia, ib):
 @purefunction
 def gteq(machine, ia, ib):
     if not objectmodel.we_are_translated():
+        assert machine == "constfolding"
         if isinstance(ia, int) and isinstance(ib, int):
             return ia >= ib # const folding only
     return ia.ge(ib)
+
+@objectmodel.not_rpython
+@purefunction
+def eq(machine, ia, ib):
+    assert not objectmodel.we_are_translated()
+    assert machine == "constfolding"
+    if type(ia) is int:
+        assert type(ib) is int
+        return ia == ib
 
 @objectmodel.specialize.argtype(1)
 @purefunction

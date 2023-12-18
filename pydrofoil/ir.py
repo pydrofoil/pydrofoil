@@ -3157,6 +3157,7 @@ def topo_order_best_attempt(graph):
     assert len(set(result)) == len(result)
     return result
 
+@repeat
 def remove_double_exception_check(graph, codegen):
     def is_exception_check(block, index):
         op = block.operations[index]
@@ -3182,15 +3183,19 @@ def remove_double_exception_check(graph, codegen):
                 return None, None
             block = block.next.target
         for i, op in enumerate(block.operations):
-            if not isinstance(op, Phi):
+            if not isinstance(op, (Phi, Comment)):
                 return block, i
         return None, None
 
+    exception_checks = []
     for block in graph.iterblocks():
         if not block.operations:
             continue
         if not is_exception_check(block, -1):
             continue
+        exception_checks.append(block)
+
+    for block in exception_checks:
         nextblock, index = find_next_op(block.next.truetarget)
         if nextblock is None:
             continue
@@ -3202,6 +3207,23 @@ def remove_double_exception_check(graph, codegen):
         if not is_exceptional_return(exceptional_return):
             continue
         block.next.truetarget = exceptional_return
+        nextblock.next.booleanvalue = BooleanConstant.FALSE
+        remove_if_true_false(graph)
+        remove_empty_blocks(graph)
+        join_blocks(graph)
+        remove_dead(graph, codegen)
+        return True
+    for block in exception_checks:
+        nextblock, index = find_next_op(block.next.falsetarget)
+        if nextblock is None:
+            continue
+        if not is_exception_check(nextblock, index):
+            continue
+        if len(nextblock.operations) - 1 != index:
+            continue
+        if not isinstance(block.next.truetarget.next, Return):
+            continue
+        import pdb;pdb.set_trace()
         nextblock.next.booleanvalue = BooleanConstant.FALSE
         remove_if_true_false(graph)
         remove_empty_blocks(graph)

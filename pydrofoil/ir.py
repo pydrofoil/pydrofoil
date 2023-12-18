@@ -1165,7 +1165,7 @@ def print_stats():
         total += t
         maxnamesize = max(maxnamesize, len(name))
     for name, t in timings:
-        print name.rjust(maxnamesize), "time:", round(t, 2), "number of times called:", COUNTS[name], "time/call:", round(t / COUNTS[name], 4), "percentage:", round(t / total * 100, 1)
+        print name.rjust(maxnamesize), "time:", round(t, 2), "number of times called:", COUNTS[name], "time[ms]/call:", round(t / COUNTS[name] * 1000, 4), "percentage:", round(t / total * 100, 1)
         total += t
     print "TOTAL", round(total, 2)
 
@@ -1189,7 +1189,7 @@ def repeat(func):
         t1 = STACK_START_TIMES.pop()
         assert t2 - t1 >= 0
         TIMINGS[func.func_name] += t2 - t1
-        COUNTS[func.func_name] += 1
+        COUNTS[func.func_name] += i + 1
         if STACK_START_TIMES: # parent optimization overcounts, so add t2 - t1_proper to start time
             STACK_START_TIMES[-1] += t2 - t1_proper
         return ever_changed

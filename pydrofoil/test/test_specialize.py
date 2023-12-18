@@ -71,6 +71,7 @@ def test_specialize():
     i27.prevvalues[0] = i32
     block9.next = Goto(block8, None)
     graph = Graph('zis_zzero_subrange', [zxs, zi, zj], block0)
+    fakecodegen.should_inline = lambda x: False
     assert usefully_specializable(graph)
 
     spec = Specializer(graph, fakecodegen)
@@ -164,6 +165,7 @@ def test_specialize_on_result():
     graph = Graph('zROR', [zx, zshift], block0)
 
     fakecodegen = FakeCodeGen()
+    fakecodegen.should_inline = lambda x: False
     spec = Specializer(graph, fakecodegen)
     fakecodegen.specialization_functions['zROR'] = spec
 
@@ -204,6 +206,7 @@ def test_argument_demand_casts():
     graph = Graph('mask', [zlen, zv], block0)
 
     fakecodegen = FakeCodeGen()
+    fakecodegen.should_inline = lambda x: False
     spec = Specializer(graph, fakecodegen)
     fakecodegen.specialization_functions['mask'] = spec
 
@@ -279,6 +282,7 @@ def test_specialize_on_result_tuple():
     graph = Graph('tuplify', [bv, i, b], block0)
 
     fakecodegen = FakeCodeGen()
+    fakecodegen.should_inline = lambda x: False
     spec = Specializer(graph, fakecodegen)
     fakecodegen.specialization_functions['tuplify'] = spec
 
@@ -324,6 +328,7 @@ def test_results_bubble_up_problem():
     block0.next = Return(ha, None)
     hgraph = Graph('h', [ha], block0)
     codegen = FakeCodeGen()
+    codegen.should_inline = lambda x: False
     gspec = Specializer(ggraph, codegen)
     codegen.specialization_functions['g'] = gspec
     hspec = Specializer(hgraph, codegen)

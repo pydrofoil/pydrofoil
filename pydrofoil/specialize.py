@@ -145,7 +145,7 @@ class Specializer(object):
         if nameextension is not None:
             graph.name += "__" + nameextension
             ir.remove_dead(graph, self.codegen)
-        if ir.should_inline(graph):
+        if ir.should_inline(graph, self.codegen.should_inline):
             self.codegen.inlinable_functions[graph.name] = graph
         self.codegen.schedule_graph_specialization(graph)
         self.codegen.specialization_functions[graph.name] = self
@@ -347,7 +347,6 @@ class FixpointSpecializer(object):
                     schedule_deps = spec.dependencies
             elif changed and graph.name not in self.inlinable_functions:
                 if ir.should_inline(graph, self.should_inline):
-                    import pdb;pdb.set_trace()
                     self.inlinable_functions[graph.name] = graph
                     schedule_deps = self.inline_dependencies[graph.name]
             if schedule_deps:

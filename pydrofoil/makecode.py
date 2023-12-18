@@ -711,8 +711,13 @@ class __extend__(parse.Function):
                 del b[block.index(cond)]
             copyblock.extend(b)
             local_blocks = self._find_reachable(copyblock, oldpc, blocks, known_cls)
-            graph = build_ssa(local_blocks, self, self.args, codegen, startpc=oldpc)
-            pyname = self.name + "_" + (cond.condition.variant if cond else "default")
+            propername = self.name
+            try:
+                self.name += "_" + (cond.condition.variant if cond else "default")
+                graph = build_ssa(local_blocks, self, self.args, codegen, startpc=oldpc)
+                pyname = self.name
+            finally:
+                self.name = propername
             codegen.add_graph(graph, self.emit_method, pyname, clsname)
 
     def emit_method(self, graph, codegen, pyname, clsname):

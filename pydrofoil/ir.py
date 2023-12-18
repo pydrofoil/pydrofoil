@@ -709,7 +709,7 @@ class Operation(Value):
         self.varname_hint = varname_hint
 
     def __repr__(self):
-        return "Operation(%r, %r, %r)" % (self.name, self.args, self.sourcepos)
+        return "%s(%r, %r, %r)" % (self.__class__.__name__, self.name, self.args, self.sourcepos)
 
     def _repr(self, print_varnames):
         return self._get_print_name(print_varnames)

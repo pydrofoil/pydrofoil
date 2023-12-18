@@ -23,6 +23,7 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - sub_i_o_wrapped_res
 
 # deal with exceptional paths better in the context of inlining (and specialization)
+# zAArch64_SystemAccessTrap_specialized_o_7 is an example
 
 # get rid of do_double_casts again
 
@@ -1394,8 +1395,6 @@ def _remove_unreachable_phi_prevvalues(graph):
 @repeat
 def remove_if_phi_constant(graph):
     from pydrofoil.emitfunction import count_uses
-    if graph.has_loop:
-        return False
     uses = count_uses(graph)
     res = False
     for block in graph.iterblocks():
@@ -3223,7 +3222,6 @@ def remove_double_exception_check(graph, codegen):
             continue
         if not isinstance(block.next.truetarget.next, Return):
             continue
-        import pdb;pdb.set_trace()
         nextblock.next.booleanvalue = BooleanConstant.FALSE
         remove_if_true_false(graph)
         remove_empty_blocks(graph)

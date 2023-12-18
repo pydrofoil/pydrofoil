@@ -113,6 +113,12 @@ def unsigned_bv_wrapped_res(machine, op, n):
 
 @objectmodel.always_inline
 @purefunction
+def unsigned_bv64_rshift_int_result(machine, op, n):
+    assert 0 < n < 64
+    return intmask(op >> n)
+
+@objectmodel.always_inline
+@purefunction
 def unsigned_bv(machine, op, n):
     if n == 64 and (op & (r_uint(1) << 63)):
         raise ValueError
@@ -514,6 +520,13 @@ def sub_i_i_must_fit(machine, a, b):
 def sub_o_i_wrapped_res(machine, a, b):
     return a.int_sub(b)
 
+@objectmodel.always_inline
+@purefunction
+def sub_i_o_wrapped_res(machine, a, b):
+    if isinstance(b, bitvector.SmallInteger):
+        return bitvector.SmallInteger.sub_i_i(a, b.val)
+    return bitvector.Integer.fromint(a).sub(b)
+
 @objectmodel.specialize.argtype(1)
 @purefunction
 def mult_int(machine, ia, ib):
@@ -650,7 +663,7 @@ def pow2(machine, x):
 
 @purefunction
 def neg_int(machine, x):
-    return Integer.fromint(0).sub(x)
+    return sub_i_o_wrapped_res(machine, 0, x)
 
 def dec_str(machine, x):
     return x.str()

@@ -2,8 +2,7 @@ import random
 import time
 from collections import defaultdict
 
-from pydrofoil import parse, types, binaryop, operations, supportcode
-from pydrofoil.bitvector import Integer
+from pydrofoil import parse, types, binaryop, operations, supportcode, bitvector
 
 from rpython.tool.udir import udir
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
@@ -1714,6 +1713,15 @@ class BaseOptimizer(object):
             raise NoMatchException
         return num
 
+    def _must_be_non_negative(self, arg):
+         return isinstance(arg, Operation) and arg.name in (
+                "@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res")
+
+def is_pow_2(num):
+    return num & (num - 1) == 0
+
+def shift_amount(num):
+    return bitvector.BigInteger._shift_amount(num)
 
 class LocalOptimizer(BaseOptimizer):
 
@@ -1795,7 +1803,7 @@ class LocalOptimizer(BaseOptimizer):
             if isinstance(arg, IntConstant):
                 if not isinstance(arg.number, int):
                     return None # XXX can be improved
-                runtimeargs.append(Integer.fromint(arg.number))
+                runtimeargs.append(bitvector.Integer.fromint(arg.number))
             elif isinstance(arg, MachineIntConstant):
                 runtimeargs.append(arg.number)
             elif isinstance(arg, SmallBitVectorConstant):
@@ -2037,7 +2045,7 @@ class LocalOptimizer(BaseOptimizer):
         except NoMatchException:
             pass
         else:
-            if arg1.number == 0 and isinstance(arg0, Operation) and arg0.name in ("@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res"):
+            if arg1.number == 0 and self._must_be_non_negative(arg0):
                 return BooleanConstant.FALSE
         if arg0.resolved_type is not types.Int():
             arg0 = self._extract_number(arg0)
@@ -2514,13 +2522,25 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_sub_int(self, op):
         arg0, arg1 = self._args(op)
-        arg1 = self._extract_machineint(arg1)
+        try:
+            arg1 = self._extract_machineint(arg1)
+        except NoMatchException:
+            pass
+        else:
+            return self.newop(
+                "@sub_o_i_wrapped_res",
+                [arg0, arg1],
+                op.resolved_type,
+                op.sourcepos,
+                op.varname_hint,
+            )
+        arg0 = self._extract_machineint(arg0)
         return self.newop(
-            "@sub_o_i_wrapped_res",
+            "@sub_i_o_wrapped_res",
             [arg0, arg1],
             op.resolved_type,
             op.sourcepos,
-            op.varname_hint,
+            op.varname_hint
         )
 
     def optimize_sub_o_i_wrapped_res(self, op):
@@ -2533,6 +2553,17 @@ class LocalOptimizer(BaseOptimizer):
             if arg1.number == 0:
                 return arg0
         arg0 = self._extract_machineint(arg0)
+        return self.newop(
+            "@sub_i_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_sub_i_o_wrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        arg1 = self._extract_machineint(arg1)
         return self.newop(
             "@sub_i_i_wrapped_res",
             [arg0, arg1],
@@ -2607,6 +2638,17 @@ class LocalOptimizer(BaseOptimizer):
             op.varname_hint,
         )
 
+    def optimize_shl_int_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        return self.newop(
+            "@shl_int_i_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
     @symmetric
     def optimize_mult_i_i_wrapped_res(self, op, arg0, arg1):
         try:
@@ -2618,9 +2660,9 @@ class LocalOptimizer(BaseOptimizer):
                 return self._make_int64_to_int(arg0)
             if arg1.number == 0:
                 return IntConstant(0)
-            if arg1.number & (arg1.number - 1) == 0:
+            if is_pow_2(arg1.number):
                 # power of two
-                exponent = arg1.number.bit_length() - 1
+                exponent = shift_amount(arg1.number)
                 assert 1 << exponent == arg1.number
                 return self.newop(
                     "@shl_int_i_i_wrapped_res",
@@ -2672,6 +2714,16 @@ class LocalOptimizer(BaseOptimizer):
         else:
             if arg0.number >= 0 and arg1.number > 0:
                 return IntConstant(arg0.number // arg1.number)
+        if isinstance(arg0, Operation) and arg0.name == "@unsigned_bv_wrapped_res":
+            if arg1.number >= 2 and is_pow_2(arg1.number):
+                shift = shift_amount(arg1.number)
+                return self._make_int64_to_int(
+                    self.newop(
+                        "@unsigned_bv64_rshift_int_result",
+                        [self._get_op_replacement(arg0.args[0]), MachineIntConstant(shift)],
+                        types.MachineInt()
+                    )
+                )
         if arg1.number not in (0, -1) and isinstance(arg1.number, int):
             arg0 = self._extract_machineint(arg0)
             return self._make_int64_to_int(

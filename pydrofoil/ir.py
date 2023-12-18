@@ -41,8 +41,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # combine several steps of phi nodes
 
-# CSE of UnionVariantCheck
-
 # filter out units from more places
 
 # ExceptionClass shows the weird phi duplication bug
@@ -3325,6 +3323,8 @@ def cse(graph, codegen):
         if isinstance(op, Cast):
             return True
         if isinstance(op, UnionCast):
+            return True
+        if isinstance(op, UnionVariantCheck):
             return True
         if isinstance(op, FieldAccess) and is_tuplestruct(op):
             return True

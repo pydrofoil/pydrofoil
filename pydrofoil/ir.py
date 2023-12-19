@@ -1821,14 +1821,20 @@ class LocalOptimizer(BaseOptimizer):
             print "generict const-folding failed", name, op, "with error", e, "arguments", args
             return None
         if resolved_type is types.MachineInt():
+            assert isinstance(res, int)
             return MachineIntConstant(res)
         if resolved_type is types.Int():
             return IntConstant(int(res.tolong()))
         if isinstance(resolved_type, types.SmallFixedBitVector):
+            assert isinstance(res, r_uint)
             return SmallBitVectorConstant.from_ruint(resolved_type.width, res)
         if resolved_type is types.Bool():
+            assert isinstance(res, bool)
             return BooleanConstant.frombool(res)
-            # XXX other types? import pdb;pdb.set_trace()
+        if resolved_type is types.String():
+            assert isinstance(res, str)
+            return StringConstant(res)
+        # XXX other types? import pdb;pdb.set_trace()
 
     def _try_fold_phi(self, name, func, args, resolved_type, op):
         phi_index = -1

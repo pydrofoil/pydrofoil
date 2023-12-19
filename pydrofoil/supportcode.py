@@ -461,8 +461,8 @@ def lteq(machine, ia, ib):
 @purefunction
 def lt(machine, ia, ib):
     if not objectmodel.we_are_translated():
-        assert machine == "constfolding"
         if isinstance(ia, int) and isinstance(ib, int):
+            assert machine == "constfolding"
             return ia < ib # const folding only
     return ia.lt(ib)
 
@@ -470,8 +470,8 @@ def lt(machine, ia, ib):
 @purefunction
 def gt(machine, ia, ib):
     if not objectmodel.we_are_translated():
-        assert machine == "constfolding"
         if isinstance(ia, int) and isinstance(ib, int):
+            assert machine == "constfolding"
             return ia > ib # const folding only
     return ia.gt(ib)
 
@@ -479,8 +479,8 @@ def gt(machine, ia, ib):
 @purefunction
 def gteq(machine, ia, ib):
     if not objectmodel.we_are_translated():
-        assert machine == "constfolding"
         if isinstance(ia, int) and isinstance(ib, int):
+            assert machine == "constfolding"
             return ia >= ib # const folding only
     return ia.ge(ib)
 

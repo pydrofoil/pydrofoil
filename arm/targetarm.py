@@ -43,6 +43,8 @@ def should_inline(name):
         return True
     if name == "zAlign":
         return True
+    #if name == "z__SetThisInstr":
+    #    return False # hook for the JIT
 
 
 def _make_code(regen=True):

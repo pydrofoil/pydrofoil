@@ -196,7 +196,7 @@ def get_main(outarm):
 
 
 class Globals(BaseGlobals):
-    _immutable_fields_ = ['max_cycle_count?', 'verbosity?']
+    _immutable_fields_ = ['max_cycle_count?', 'sail_verbosity?']
     def __init__(self):
         BaseGlobals.__init__(self)
         self.cycle_count = 0

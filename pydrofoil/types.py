@@ -12,6 +12,15 @@ def unique(cls):
     cls.__new__ = staticmethod(__new__)
     return cls
 
+def singleton(cls):
+    cls._INSTANCE = cls()
+
+    def __new__(cls):
+        return cls._INSTANCE
+    cls.__new__ = staticmethod(__new__)
+
+    return cls
+
 class Type(object):
     __metaclass__ = extendabletype
     uninitialized_value = '"uninitialized_value"' # often fine for rpython!
@@ -116,7 +125,7 @@ class List(Type):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.typ)
 
-@unique
+@singleton
 class NullType(Type):
     uninitialized_value = "None"
 
@@ -154,40 +163,35 @@ class BigFixedBitVector(Type):
         return "BigFixedBitVector(%s)" % (self.width, )
 
 
-@unique
+@singleton
 class GenericBitVector(Type):
     uninitialized_value = "bitvector.UNITIALIZED_BV"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
+@singleton
 class MachineInt(Type):
     uninitialized_value = "-0xfefe"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
+@singleton
 class Int(Type):
     uninitialized_value = "UninitInt"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
-class Real(Type):
-    def __repr__(self):
-        return "%s()" % (type(self).__name__, )
-
-@unique
+@singleton
 class Bool(Type):
     uninitialized_value = "False"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
+@singleton
 class Unit(Type):
     uninitialized_value = "()"
 
@@ -196,14 +200,14 @@ class Unit(Type):
 
 Bit = lambda : SmallFixedBitVector(1)
 
-@unique
+@singleton
 class String(Type):
     uninitialized_value = "None"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
+@singleton
 class Real(Type):
     uninitialized_value = "None"
 

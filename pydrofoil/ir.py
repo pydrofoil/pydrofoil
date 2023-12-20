@@ -3400,8 +3400,11 @@ def cse(graph, codegen):
         graph.replace_ops(replacements)
         return True
     return False
+
+
 @repeat
 def partial_allocation_removal(graph):
+    # local removal only so far
     def escape(value):
         if value not in virtuals_in_block:
             return value

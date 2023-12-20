@@ -54,9 +54,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # start functions with a check that have_exception is not set?
 
-# constfolding of phis: if all the results are the same (bool) we can do the
-# folding everywhere, not just in the same block
-
 # sub/add_i_i_wrapped_res: need a little bit of reasoning about whether the
 # result can fit in a machine int
 

@@ -3421,7 +3421,7 @@ def partial_allocation_removal(graph):
                 else:
                     fieldvalue = DefaultValue(typ.fieldtyps[name])
                 fieldvalues.append(fieldvalue)
-            op = StructConstruction(typ.name, [escape(fields[name]) for name in typ.names], typ, value.sourcepos)
+            op = StructConstruction(typ.name, fieldvalues, typ, value.sourcepos)
             newoperations.append(op)
         else:
             op = Allocate(typ, value.sourcepos)

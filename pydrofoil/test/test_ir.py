@@ -3043,7 +3043,6 @@ def test_partial_allocation_removal_merge_same_virtual():
     i7 = block3.emit(Operation, '@add', [i5, i6], Int(), None, None)
     block3.next = Return(i7, None)
     g = Graph('merge', [zb, zi], block0)
-    g.view()
     partial_allocation_removal(g)
     compare(g, '''
 zb = Argument('zb', Bool())

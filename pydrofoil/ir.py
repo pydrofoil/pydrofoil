@@ -752,8 +752,13 @@ class FieldAccess(Operation):
         return "FieldAccess(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
 class FieldWrite(Operation):
+    def __init__(self, name, args, resolved_type=None, sourcepos=None, varname_hint=None):
+        if resolved_type is None:
+            resolved_type = types.Unit()
+        Operation.__init__(self, name, args, resolved_type, sourcepos, varname_hint)
+
     def __repr__(self):
-        return "FieldWrite(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
+        return "FieldWrite(%r, %r, %r)" % (self.name, self.args)
 
 class UnionVariantCheck(Operation):
     can_have_side_effects = False
@@ -1222,6 +1227,7 @@ def _bare_optimize(graph, codegen):
     res = remove_if_phi_constant(graph) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
+    partial_allocation_removal(graph)
     return res
 
 _optimize = repeat(_bare_optimize)
@@ -3388,3 +3394,76 @@ def cse(graph, codegen):
         graph.replace_ops(replacements)
         return True
     return False
+@repeat
+def partial_allocation_removal(graph):
+    def escape(value):
+        if value not in virtuals_in_block:
+            return value
+        fields = virtuals_in_block.pop(value)
+        fieldvalues = []
+        typ = value.resolved_type
+        if isinstance(value, StructConstruction) or not typ.tuplestruct:
+            for name in typ.names:
+                if name in fields:
+                    fieldvalue = escape(fields[name])
+                else:
+                    fieldvalue = DefaultValue(typ.fieldtyps[name])
+                fieldvalues.append(fieldvalue)
+            op = StructConstruction(typ.name, [escape(fields[name]) for name in typ.names], typ, value.sourcepos)
+            newoperations.append(op)
+        else:
+            op = Allocate(typ, value.sourcepos)
+            newoperations.append(op)
+            for name in typ.names:
+                if name in fields:
+                    newoperations.append(FieldWrite(name, [op, escape(fields[name])]))
+        replacements[value] = op
+        return op
+    def get_repr(value):
+        while value in replacements:
+            value = replacements[value]
+        return value
+
+    replacements = {}
+    changes = False
+    for block in graph.iterblocks():
+        virtuals_in_block = {}
+        newoperations = []
+        for index, op in enumerate(block.operations):
+            if isinstance(op, Allocate):
+                virtuals_in_block[op] = {}
+                continue
+            if isinstance(op, StructConstruction):
+                fields = {}
+                for fieldname, value in zip(op.resolved_type.names, op.args):
+                    fields[fieldname] = value
+                virtuals_in_block[op] = fields
+                continue
+            if isinstance(op, FieldWrite):
+                obj = get_repr(op.args[0])
+                if obj in virtuals_in_block:
+                    virtuals_in_block[obj][op.name] = op.args[1]
+                    continue
+            if isinstance(op, FieldAccess):
+                obj = get_repr(op.args[0])
+                if obj in virtuals_in_block:
+                    replacements[op] = virtuals_in_block[obj][op.name]
+                    continue
+            for arg in op.getargs():
+                escape(arg)
+            newoperations.append(op)
+        if isinstance(block.next, Return):
+            escape(block.next.value)
+        else:
+            while virtuals_in_block:
+                value = next(virtuals_in_block.iterkeys())
+                escape(value)
+
+        changes = changes or len(newoperations) != len(block.operations)
+        block.operations = newoperations
+    if replacements:
+        while 1:
+            res = graph.replace_ops(replacements)
+            if not res:
+                break
+    return changes

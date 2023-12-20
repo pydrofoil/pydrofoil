@@ -452,8 +452,8 @@ def eq_bit(machine, a, b):
 @purefunction
 def lteq(machine, ia, ib):
     if not objectmodel.we_are_translated():
-        assert machine == "constfolding"
         if isinstance(ia, int) and isinstance(ib, int):
+            assert machine == "constfolding"
             return ia <= ib # const folding only
     return ia.le(ib)
 

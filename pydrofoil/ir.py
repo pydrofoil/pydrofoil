@@ -465,7 +465,7 @@ class Block(object):
     def replace_prev(self, block, otherblock):
         for op in self.operations:
             if not isinstance(op, Phi):
-                return
+                continue
             assert otherblock not in op.prevblocks
             for index, oldblock in enumerate(op.prevblocks):
                 if oldblock is block:
@@ -556,6 +556,8 @@ class Block(object):
             startindex += 1
         newblock = Block()
         newblock.operations = self.operations[startindex:]
+        for op in newblock.operations:
+            assert not isinstance(op, Phi)
         del self.operations[index:]
         newblock.next = self.next
         for furtherblock in self.next.next_blocks():
@@ -1852,6 +1854,8 @@ class LocalOptimizer(BaseOptimizer):
                 pass
             elif isinstance(arg, Phi):
                 if phi_index != -1:
+                    #if arg in self.current_block.operations and args[phi_index] in self.current_block.operations:
+                    #    import pdb;pdb.set_trace()
                     return # only one phi possible
                 phi_index = index
                 if not all(isinstance(value, Constant) for value in arg.prevvalues):
@@ -2741,6 +2745,7 @@ class LocalOptimizer(BaseOptimizer):
                         types.MachineInt()
                     )
                 )
+            import pdb;pdb.set_trace()
         if arg1.number not in (0, -1) and isinstance(arg1.number, int):
             arg0 = self._extract_machineint(arg0)
             return self._make_int64_to_int(

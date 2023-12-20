@@ -258,10 +258,12 @@ class Specializer(object):
                     if isinstance(arg, ir.MachineIntConstant) and 0 <= arg.number <= 64:
                         value = arg.number
                     else:
+                        #if isinstance(arg, ir.Phi) and all(isinstance(prev, ir.Constant) for prev in arg.prevvalues):
+                        #    import pdb;pdb.set_trace()
                         value = None
                     key.append((types.MachineInt(), value))
                     args.append(arg)
-                    useful = argtyp is types.Int() or value is not None
+                    useful = argtyp is types.Int() or value is not None or useful
                     continue
             elif isinstance(argtyp, types.GenericBitVector):
                 try:
@@ -295,6 +297,10 @@ class Specializer(object):
 
 
 class SpecializingOptimizer(ir.BaseOptimizer):
+    def __init__(self, graph, codegen, *args, **kwargs):
+        split_for_arg_constness(graph, codegen)
+        ir.BaseOptimizer.__init__(self, graph, codegen, *args, **kwargs)
+
     def _optimize_op(self, block, index, op):
         if (isinstance(op, ir.Operation) and
                 op.name in self.codegen.specialization_functions):
@@ -303,6 +309,48 @@ class SpecializingOptimizer(ir.BaseOptimizer):
             if newop:
                 return newop
         self.newoperations.append(op)
+
+
+@ir.repeat
+def split_for_arg_constness(graph, codegen):
+    for block in graph.iterblocks():
+        for index, op in enumerate(block.operations):
+            if not isinstance(op, ir.Operation):
+                continue
+            if op.name not in codegen.specialization_functions:
+                continue
+            for argindex, arg in enumerate(op.args):
+                if not isinstance(arg, ir.Phi):
+                    continue
+                if arg.resolved_type is not types.MachineInt():
+                    continue
+                if all(isinstance(prev, ir.Constant) and 0 <= prev.number <= 64 for prev in arg.prevvalues):
+                    break
+            else:
+                continue
+            newblock = block.split(index, keep_op=False)
+            callvalues = []
+            prevblocks = []
+            for valueindex, value in enumerate(arg.prevvalues):
+                newargs = op.args[:]
+                newargs[argindex] = value
+                last = valueindex == len(arg.prevvalues) - 1
+                if not last:
+                    callblock = ir.Block()
+                    nextblock = ir.Block()
+                    cond = block.emit(ir.Operation, "@eq", [arg, value], types.Bool())
+                    block.next = ir.ConditionalGoto(cond, callblock, nextblock)
+                    block = nextblock
+                else:
+                    callblock = block
+                callvalues.append(callblock.emit(ir.Operation, op.name, newargs, op.resolved_type, op.sourcepos, op.varname_hint))
+                prevblocks.append(callblock)
+                callblock.next = ir.Goto(newblock)
+            phi = ir.Phi(prevblocks, callvalues, op.resolved_type)
+            newblock.operations.insert(0, phi)
+            graph.replace_op(op, phi)
+            return True
+    return False
 
 
 class FixpointSpecializer(object):

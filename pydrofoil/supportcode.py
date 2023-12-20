@@ -492,6 +492,7 @@ def eq(machine, ia, ib):
     if type(ia) is int:
         assert type(ib) is int
         return ia == ib
+    import pdb;pdb.set_trace()
 
 @objectmodel.specialize.argtype(1)
 @purefunction

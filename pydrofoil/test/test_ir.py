@@ -2377,7 +2377,8 @@ def test_cse_tuple_fields():
     i5 = block0.emit(FieldAccess, 'ztuplez3z5i_z5bv321', [i2], SmallFixedBitVector(32), None, None)
     block0.next = Return(i5)
     g = Graph('f', [a1, a2], block0)
-    check_optimize(g, '''
+    cse(g, fakecodegen)
+    compare(g, '''
 a1 = Argument('a1', Int())
 a2 = Argument('a2', SmallFixedBitVector(32))
 block0 = Block()

@@ -16,6 +16,9 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 
 # need to switch to full cfg fix point approach eventually
 
+# add a runtime check if one of the variants we have fits the data we have, for
+# unspecialized functions (particularly with loops)
+
 
 def usefully_specializable(graph):
     numblocks = 0

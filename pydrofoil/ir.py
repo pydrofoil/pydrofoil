@@ -1862,8 +1862,6 @@ class LocalOptimizer(BaseOptimizer):
             else:
                 return
         phi = args[phi_index]
-        if phi not in self.current_block.operations:
-            return
         results = []
         first_comparison_key = None
         all_same = True
@@ -1876,13 +1874,18 @@ class LocalOptimizer(BaseOptimizer):
             if not results:
                 first_comparison_key = res.comparison_key()
             else:
-                all_same = all_same and res.comparison_key() == results[0].comparison_key()
+                all_same = all_same and res.comparison_key() == first_comparison_key
             results.append(res)
         if len(results) == 1 or all_same:
             return results[0]
-        phi = Phi(phi.prevblocks, results, resolved_type)
-        self.newoperations.insert(0, phi)
-        return phi
+        newphi = Phi(phi.prevblocks, results, resolved_type)
+        if phi in self.current_block.operations or phi in self.newoperations:
+            self.newoperations.insert(0, newphi)
+        else:
+            # find correct to insert
+            correct_block = phi.prevblocks[0].next.target
+            correct_block.operations.insert(0, newphi)
+        return newphi
 
     def _optimize_GlobalWrite(self, op, block, index):
         arg, = self._args(op)

@@ -45,6 +45,9 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # ExceptionClass shows the weird phi duplication bug
 
+# maybe turn Operations into "OperationWithExceptionalReturn" to get rid of the
+# useless control flow
+
 # cse can share phi nodes?!
 
 # result of unsigned is positive (partly done)

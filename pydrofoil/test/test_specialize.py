@@ -407,13 +407,11 @@ def test_split_for_phi_arguments():
     codegen = FakeCodeGen()
     fspec = Specializer(fgraph, codegen)
     codegen.specialization_functions['f'] = fspec
-    #split_for_arg_constness(graph, codegen)
 
     codegen.schedule_graph_specialization(graph)
     codegen.schedule_graph_specialization(fgraph)
     codegen.specialize_all()
     assert len(fspec.cache) == 2
-
 
 def test_bug():
     zM = Argument('zM', MachineInt())
@@ -656,3 +654,46 @@ def test_bug():
     spec = Specializer(graph, codegen)
     key = ((MachineInt(), 32), (SmallFixedBitVector(1), None), (SmallFixedBitVector(6), None), (SmallFixedBitVector(6), None), (Bool(), False))
     spec._make_stub(key) # used to crash
+
+def test_split_several():
+    zb = Argument('zb', Bool())
+    zi = Argument('zi', MachineInt())
+    block0 = Block()
+    block1 = Block()
+    block3 = Block()
+    block4 = Block()
+    block0.next = ConditionalGoto(zb, block1, block4, '`1 13:27-16:1')
+    block1.next = Goto(block3, None)
+    i4 = block3.emit_phi([block1, block4], [MachineIntConstant(64), MachineIntConstant(32)], MachineInt())
+    i8 = block3.emit(Operation, "f", [i4], GenericBitVector())
+    i9 = block3.emit(Operation, "h", [i8], MachineInt())
+    block3.next = Return(i9, None)
+    block4.next = Goto(block3, None)
+    graph = Graph('g', [zb, zi], block0)
+
+    fa = Argument('a', MachineInt())
+    block0 = Block()
+    i0 = block0.emit(Operation, '@zeros_i', [fa], GenericBitVector())
+    block0.next = Return(i0)
+    fgraph = Graph('f', [fa], block0)
+
+    ha = Argument('a', GenericBitVector())
+    block0 = Block()
+    i0 = block0.emit(Operation, "@length_unwrapped_res", [ha], MachineInt())
+    block0.next = Return(i0)
+    hgraph = Graph('h', [ha], block0)
+
+    codegen = FakeCodeGen()
+    fspec = Specializer(fgraph, codegen)
+    codegen.specialization_functions['f'] = fspec
+    hspec = Specializer(hgraph, codegen)
+    codegen.specialization_functions['h'] = hspec
+
+    codegen.schedule_graph_specialization(graph)
+    codegen.schedule_graph_specialization(fgraph)
+    codegen.schedule_graph_specialization(hgraph)
+    codegen.specialize_all()
+    for block in graph.iterblocks():
+        if isinstance(block.next, Return):
+            assert isinstance(block.next.value, Phi)
+            assert [isinstance(prev, MachineIntConstant) for prev in block.next.value.prevvalues]

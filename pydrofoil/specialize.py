@@ -328,27 +328,43 @@ def split_for_arg_constness(graph, codegen):
                     break
             else:
                 continue
-            newblock = block.split(index, keep_op=False)
-            callvalues = []
+            newblock = block.split(index, keep_op=True)
+            switchblock = newblock.split(len(newblock.operations), keep_op=True)
+            replacements = {}
+            ops_from_newblock = set(newblock.operations)
+            callvalues = {copied_op: [] for copied_op in newblock.operations}
             prevblocks = []
-            for valueindex, value in enumerate(arg.prevvalues):
-                newargs = op.args[:]
-                newargs[argindex] = value
+            for valueindex, constvalue in enumerate(arg.prevvalues):
                 last = valueindex == len(arg.prevvalues) - 1
                 if not last:
                     callblock = ir.Block()
                     nextblock = ir.Block()
-                    cond = block.emit(ir.Operation, "@eq", [arg, value], types.Bool())
+                    cond = block.emit(ir.Operation, "@eq", [arg, constvalue], types.Bool())
                     block.next = ir.ConditionalGoto(cond, callblock, nextblock)
                     block = nextblock
                 else:
                     callblock = block
-                callvalues.append(callblock.emit(ir.Operation, op.name, newargs, op.resolved_type, op.sourcepos, op.varname_hint))
+
+                # copy the operations
+                for to_copy_op in newblock.operations:
+                    for value in to_copy_op.getargs():
+                        if value not in ops_from_newblock:
+                            replacements[value] = value
+                replacements[arg] = constvalue
+                copy = newblock.copy_operations(replacements)
+                for copied_op in newblock.operations:
+                    callvalues[copied_op].append(replacements[copied_op])
+                callblock.operations.extend(copy)
                 prevblocks.append(callblock)
-                callblock.next = ir.Goto(newblock)
-            phi = ir.Phi(prevblocks, callvalues, op.resolved_type)
-            newblock.operations.insert(0, phi)
-            graph.replace_op(op, phi)
+                callblock.next = ir.Goto(switchblock)
+            replacements = {}
+            for copied_op in newblock.operations:
+                if copied_op.resolved_type is types.Unit():
+                    continue
+                phi = ir.Phi(prevblocks, callvalues[copied_op], copied_op.resolved_type)
+                switchblock.operations.insert(0, phi)
+                replacements[copied_op] = phi
+            graph.replace_ops(replacements)
             return True
     return False
 
@@ -430,4 +446,3 @@ class FixpointSpecializer(object):
             typ = types.Function(types.Tuple(tuple(a.resolved_type for a in graph.args)), restyp)
             l.append((graph, typ))
         return l
-

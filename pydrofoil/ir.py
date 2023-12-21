@@ -2281,20 +2281,23 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_vector_update_subrange_o_i_i_o(self, op):
         arg0, arg1, arg2, arg3 = self._args(op)
-
-        arg1 = self._extract_number(arg1)
-        arg2 = self._extract_number(arg2)
-        width = arg1.number - arg2.number + 1
-        if width > 64:
-            return
-
         assert op.resolved_type is types.GenericBitVector()
-        arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg3, typ3 = self._extract_smallfixedbitvector(arg3)
-        if not 0 <= arg2.number <= arg2.number < typ0.width:
-            return
-        if not typ3.width == width:
-            return
+
+        # super specific for arm
+        typ0 = None
+        if (self.graph.has_loop and isinstance(arg0, Phi) and
+                len(arg0.prevvalues) == 2 and op in arg0.prevvalues):
+            index = 1 - arg0.prevvalues.index(op)
+            init = arg0.prevvalues[index]
+            try:
+                _, typ0 = self._extract_smallfixedbitvector(init)
+            except NoMatchException:
+                pass
+            else:
+                arg0 = self.newcast(arg0, typ0)
+        if typ0 is None:
+            arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         res = self.newop(
             "@vector_update_subrange_fixed_bv_i_i_bv",
             [arg0, arg1, arg2, arg3],

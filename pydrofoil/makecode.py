@@ -21,8 +21,8 @@ class NameInfo(object):
 
 
 class Codegen(specialize.FixpointSpecializer):
-    def __init__(self, promoted_registers=frozenset(), should_inline=None):
-        specialize.FixpointSpecializer.__init__(self)
+    def __init__(self, promoted_registers=frozenset(), should_inline=None, entrypoints=None):
+        specialize.FixpointSpecializer.__init__(self, entrypoints=entrypoints)
         self.declarations = []
         self.runtimeinit = []
         self.code = []
@@ -232,11 +232,20 @@ class Codegen(specialize.FixpointSpecializer):
         t1 = time.time()
         self.specialize_all()
         unspecialized_graphs = []
-        extra_graphs = self.extract_needed_extra_graphs([g for g, _, _, _ in self._all_graphs])
+        if self.program_entrypoints is None:
+            program_entrypoints = [g for g, _, _, _ in self._all_graphs]
+        else:
+            program_entrypoints = self.program_entrypoints + ["zinitializze_registers"]
+            program_entrypoints = [self.all_graph_by_name[name] for name in program_entrypoints]
+        extra_graphs = self.extract_needed_extra_graphs(program_entrypoints)
+        graphs_to_emit = set(program_entrypoints)
         for graph, typ in extra_graphs:
-            self.emit_extra_graph(graph, typ)
+            if typ is not None:
+                self.emit_extra_graph(graph, typ)
+            graphs_to_emit.add(graph)
         for graph, func, args, kwargs in self._all_graphs:
-            func(graph, self, *args, **kwargs)
+            if graph in graphs_to_emit:
+                func(graph, self, *args, **kwargs)
         t2 = time.time()
         print "DONE, took seconds", round(t2 - t1, 2)
         print_stats()
@@ -267,7 +276,7 @@ class Codegen(specialize.FixpointSpecializer):
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
 
 
-def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None):
+def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
     from pydrofoil.infer import infer
     t1 = time.time()
     ast = parse.parser.parse(parse.lexer.lex(s))
@@ -276,7 +285,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline
     context = infer(ast)
     t3 = time.time()
     print "infer took", round(t3 - t2, 2)
-    c = Codegen(promoted_registers, should_inline=should_inline)
+    c = Codegen(promoted_registers, should_inline=should_inline, entrypoints=entrypoints)
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib import jit")
         c.emit("from rpython.rlib.rbigint import rbigint")
@@ -715,6 +724,8 @@ class __extend__(parse.Function):
             finally:
                 self.name = propername
             codegen.add_graph(graph, self.emit_method, pyname, clsname)
+            if codegen.program_entrypoints:
+                codegen.program_entrypoints.append(graph.name)
 
     def emit_method(self, graph, codegen, pyname, clsname):
         with self._scope(codegen, pyname, method=True):
@@ -804,14 +815,24 @@ class __extend__(parse.Function):
                 argtyps.append(typ)
             codegen.add_global(next_func_name, next_func_name, types.Function(types.Tuple(tuple(argtyps)), functyp.restype))
 
+            origname = self.name
+            self.name += "_%s" % (startpc, )
             graph1 = build_ssa(g1, self, self.args, codegen, startpc, prev_extra_args)
+            self.name = origname
             codegen.add_graph(graph1, self.emit_regular_function, func_name, extra_args=prev_extra_args)
+            if codegen.program_entrypoints:
+                codegen.program_entrypoints.append(graph1.name)
             prev_extra_args = extra_args
             blocks = g2
             startpc = transferpc
             func_name = next_func_name
+        origname = self.name
+        self.name += "_%s" % (transferpc, )
         graph2 = build_ssa(g2, self, self.args, codegen, transferpc, extra_args)
+        self.name = origname
         codegen.add_graph(graph2, self.emit_regular_function, next_func_name, extra_args=extra_args)
+        if codegen.program_entrypoints:
+            codegen.program_entrypoints.append(graph2.name)
 
     def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
         UNUSED

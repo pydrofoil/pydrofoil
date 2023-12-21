@@ -53,9 +53,11 @@ def _make_code(regen=True):
     if regen:
         with open(armir, "rb") as f:
             s = f.read()
+        entrypoints = "zstep_model z__SetThisInstr zmain".split()
         support_code = "from arm import supportcodearm as supportcode"
         res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS,
-                                  should_inline=should_inline)
+                                  should_inline=should_inline,
+                                  entrypoints=entrypoints)
         with open(outarm, "w") as f:
             f.write(res)
         print "written file", outarm, "importing now"

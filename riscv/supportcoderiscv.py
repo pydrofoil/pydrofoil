@@ -744,9 +744,10 @@ def get_main(outriscv, rv64):
     bound_main._machinecls = Machine
 
     # a bit of micro-optimization
-    always_inline(outriscv.func_zread_ram)
-    always_inline(outriscv.func_zphys_mem_read)
-    always_inline(outriscv.func_zwrite_ram)
-    always_inline(outriscv.func_zphys_mem_write)
-    always_inline(outriscv.func_zwithin_phys_mem)
+    # XXX add back later
+    #always_inline(outriscv.func_zread_ram)
+    #always_inline(outriscv.func_zphys_mem_read)
+    #always_inline(outriscv.func_zwrite_ram)
+    #always_inline(outriscv.func_zphys_mem_write)
+    #always_inline(outriscv.func_zwithin_phys_mem)
     return bound_main

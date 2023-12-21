@@ -55,7 +55,7 @@ class Specializer(object):
         self.cache = {}
         self.codegen = codegen
         self.dependencies = set()
-        self.name_to_typ = {}
+        self.name_to_restyp = {}
 
     def specialize_call(self, call, optimizer):
         if self.graph is optimizer.graph:
@@ -152,7 +152,7 @@ class Specializer(object):
             self.codegen.inlinable_functions[graph.name] = graph
         self.codegen.schedule_graph_specialization(graph)
         self.codegen.specialization_functions[graph.name] = self
-        self.name_to_typ[graph.name] = resulttyp
+        self.name_to_restyp[graph.name] = resulttyp
         return graph, resulttyp
 
     def find_result_type(self, graph):
@@ -190,8 +190,8 @@ class Specializer(object):
                 ir.remove_dead(graph, self.codegen)
             graph.name += "__" + nameextension
             self.codegen.graph_changed_name(name, graph)
-            del self.name_to_typ[name]
-            self.name_to_typ[graph.name] = resulttyp
+            del self.name_to_restyp[name]
+            self.name_to_restyp[graph.name] = resulttyp
             for key, (g, typ) in self.cache.iteritems():
                 if g is graph:
                     assert typ is old_resulttyp
@@ -372,7 +372,7 @@ def split_for_arg_constness(graph, codegen):
 class FixpointSpecializer(object):
     should_inline = None
 
-    def __init__(self):
+    def __init__(self, entrypoints=None):
         import collections
         self.specialization_todo = collections.deque()
         self.specialization_todo_set = set()
@@ -380,6 +380,7 @@ class FixpointSpecializer(object):
         self.specialization_functions = {}
         self.all_graph_by_name = {}
         self.inline_dependencies = defaultdict(set) # graph -> {graphs}
+        self.program_entrypoints = entrypoints
 
     def schedule_graph_specialization(self, graph):
         self.all_graph_by_name[graph.name] = graph
@@ -430,7 +431,7 @@ class FixpointSpecializer(object):
         while todo:
             graph = todo.pop()
             for op, block in graph.iterblockops():
-                if not isinstance(op, ir.Operation):
+                if type(op) is not ir.Operation:
                     continue
                 if op.name not in self.all_graph_by_name:
                     continue
@@ -442,7 +443,11 @@ class FixpointSpecializer(object):
                     result.add(called_graph)
         l = []
         for graph in result:
-            restyp = self.specialization_functions[graph.name].name_to_typ[graph.name]
-            typ = types.Function(types.Tuple(tuple(a.resolved_type for a in graph.args)), restyp)
+            typ = None
+            if graph.name in self.specialization_functions:
+                spec = self.specialization_functions[graph.name]
+                if graph.name in spec.name_to_restyp:
+                    restyp = spec.name_to_restyp[graph.name]
+                    typ = types.Function(types.Tuple(tuple(a.resolved_type for a in graph.args)), restyp)
             l.append((graph, typ))
         return l

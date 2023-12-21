@@ -340,8 +340,8 @@ def test_results_bubble_up_problem():
     codegen.specialize_all()
     op, = fgraph.startblock.operations
     assert op.name == 'g_specialized_bv32__bv32'
-    graphs = codegen.extract_needed_extra_graphs([fgraph, ggraph, hgraph])
-    assert {g.name for g, _ in graphs} == {'h_specialized_o', 'g_specialized_bv32__bv32', 'h_specialized_bv32__bv32'}
+    graphs = codegen.extract_needed_extra_graphs([fgraph])
+    assert {g.name for g, _ in graphs} == {'g_specialized_bv32__bv32', 'h_specialized_bv32__bv32'}
 
 def test_inlinability_changes():
     ha = Argument('ha', Int())

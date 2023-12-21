@@ -1186,10 +1186,10 @@ def repeat(func):
         ever_changed = False
         for i in range(1000):
             if repeat.debug_list is not None:
-                repeat.debug_list.append((func.name, "before", i, print_graph_construction(graph), ever_changed))
+                repeat.debug_list.append((func.func_name, "before", i, print_graph_construction(graph), ever_changed))
             changed = func(graph, *args, **kwargs)
             if repeat.debug_list is not None:
-                repeat.debug_list.append((func.name, "after", i, print_graph_construction(graph), changed))
+                repeat.debug_list.append((func.func_name, "after", i, print_graph_construction(graph), changed))
             assert isinstance(changed, (bool, str, type(None)))
             if not changed:
                 break
@@ -1197,11 +1197,19 @@ def repeat(func):
         else:
             print "LIMIT REACHED!", graph, func.func_name
             l_before = print_graph_construction(graph)
-            repeat.debug_list = [(func.name, "debug start", 0, print_graph_construction(graph), '')]
-            changed = func(graph, *args, **kwargs)
-            repeat.debug_list.append((func.name, "debug end", 0, print_graph_construction(graph), ''))
-            if changed:
+            added_debug_list = False
+            if repeat.debug_list is None:
+                repeat.debug_list = []
+                added_debug_list = True
+            try:
+                repeat.debug_list.append((func.func_name, "debug start", 0, print_graph_construction(graph), ''))
+                changed = func(graph, *args, **kwargs)
+                repeat.debug_list.append((func.func_name, "debug end", 0, print_graph_construction(graph), ''))
                 print "CHANGES", changed
+                print "#" * 60
+                print "\n".join(repeat.debug_list[0][3])
+                print "#" * 60
+
                 import difflib, sys
                 prev = None
                 for curr in repeat.debug_list:
@@ -1213,11 +1221,11 @@ def repeat(func):
                     print curr[0], curr[1], curr[2], curr[4]
                     l_before = [line + "\n" for line in prev[3]]
                     l_after = [line + "\n" for line in curr[3]]
-                    sys.stdout.writelines(unified_diff(l_before, l_after, fromfile='before', tofile='after'))
+                    sys.stdout.writelines(difflib.unified_diff(l_before, l_after, fromfile='before', tofile='after'))
                     prev = curr
-                repeat.debug_list = None
-            else:
-                print "just stopped changing now!"
+            finally:
+                if added_debug_list:
+                    repeat.debug_list = None
         if ever_changed:
             graph.check()
         t2 = time.time()
@@ -1595,6 +1603,7 @@ class BaseOptimizer(object):
         self.do_double_casts = do_double_casts
         self.current_block = self.graph.startblock
         self._dead_blocks = False
+        self._need_dead_code_removal = False
         self.replacements = {}
 
     def view(self):
@@ -1616,6 +1625,8 @@ class BaseOptimizer(object):
         if self._dead_blocks:
             _remove_unreachable_phi_prevvalues(self.graph)
             self.changed = True
+        if self._need_dead_code_removal:
+            remove_dead(self.graph, self.codegen)
         return self.changed
 
     def optimize_block(self, block):
@@ -1735,6 +1746,7 @@ class BaseOptimizer(object):
                     want_constant=want_constant,
                     can_recurse=not self.graph.has_loop))
             newres = Phi(arg.prevblocks, prevvalues, types.MachineInt())
+            self._need_dead_code_removal = True
             # this is quite delicate, need to insert the Phi into the right block
             if arg in self.current_block.operations:
                 self.newoperations.insert(0, newres)

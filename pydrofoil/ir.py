@@ -1185,13 +1185,39 @@ def repeat(func):
         STACK_START_TIMES.append(t1_proper)
         ever_changed = False
         for i in range(1000):
+            if repeat.debug_list is not None:
+                repeat.debug_list.append((func.name, "before", i, print_graph_construction(graph), ever_changed))
             changed = func(graph, *args, **kwargs)
-            assert isinstance(changed, bool)
+            if repeat.debug_list is not None:
+                repeat.debug_list.append((func.name, "after", i, print_graph_construction(graph), changed))
+            assert isinstance(changed, (bool, str, type(None)))
             if not changed:
                 break
             ever_changed = True
         else:
             print "LIMIT REACHED!", graph, func.func_name
+            l_before = print_graph_construction(graph)
+            repeat.debug_list = [(func.name, "debug start", 0, print_graph_construction(graph), '')]
+            changed = func(graph, *args, **kwargs)
+            repeat.debug_list.append((func.name, "debug end", 0, print_graph_construction(graph), ''))
+            if changed:
+                print "CHANGES", changed
+                import difflib, sys
+                prev = None
+                for curr in repeat.debug_list:
+                    if prev is None:
+                        prev = curr
+                        continue
+                    print "_" * 60
+                    print prev[0], prev[1], prev[2], prev[4]
+                    print curr[0], curr[1], curr[2], curr[4]
+                    l_before = [line + "\n" for line in prev[3]]
+                    l_after = [line + "\n" for line in curr[3]]
+                    sys.stdout.writelines(unified_diff(l_before, l_after, fromfile='before', tofile='after'))
+                    prev = curr
+                repeat.debug_list = None
+            else:
+                print "just stopped changing now!"
         if ever_changed:
             graph.check()
         t2 = time.time()
@@ -1201,8 +1227,11 @@ def repeat(func):
         COUNTS[func.func_name] += i + 1
         if STACK_START_TIMES: # parent optimization overcounts, so add t2 - t1_proper to start time
             STACK_START_TIMES[-1] += t2 - t1_proper
+        if ever_changed:
+            ever_changed = func.func_name
         return ever_changed
     return repeated
+repeat.debug_list = None
 
 def light_simplify(graph, codegen):
     # in particular, don't specialize

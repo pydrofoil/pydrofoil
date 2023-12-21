@@ -294,11 +294,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline
         c.emit("        self.l  = Machine.l; func_zinitializze_registers(self, ())")
         c.emit("        self.g = supportcode.Globals()")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
-    try:
-        ast.make_code(c)
-    except Exception:
-        print c.getcode()[:1024*1024*1024]
-        raise
+    ast.make_code(c)
     return c.getcode()
 
 

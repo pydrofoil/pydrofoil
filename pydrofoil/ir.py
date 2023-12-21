@@ -1178,6 +1178,7 @@ def print_stats():
         total += t
     print "TOTAL", round(total, 2)
 
+DEBUG_REPEAT = False
 
 def repeat(func):
     def repeated(graph, *args, **kwargs):
@@ -1185,10 +1186,10 @@ def repeat(func):
         STACK_START_TIMES.append(t1_proper)
         ever_changed = False
         for i in range(1000):
-            if repeat.debug_list is not None:
+            if DEBUG_REPEAT and repeat.debug_list is not None:
                 repeat.debug_list.append((func.func_name, "before", i, print_graph_construction(graph), ever_changed))
             changed = func(graph, *args, **kwargs)
-            if repeat.debug_list is not None:
+            if DEBUG_REPEAT and repeat.debug_list is not None:
                 repeat.debug_list.append((func.func_name, "after", i, print_graph_construction(graph), changed))
             assert isinstance(changed, (bool, str, type(None)))
             if not changed:
@@ -1196,36 +1197,36 @@ def repeat(func):
             ever_changed = True
         else:
             print "LIMIT REACHED!", graph, func.func_name
-            l_before = print_graph_construction(graph)
             added_debug_list = False
-            if repeat.debug_list is None:
-                repeat.debug_list = []
-                added_debug_list = True
-            try:
-                repeat.debug_list.append((func.func_name, "debug start", 0, print_graph_construction(graph), ''))
-                changed = func(graph, *args, **kwargs)
-                repeat.debug_list.append((func.func_name, "debug end", 0, print_graph_construction(graph), ''))
-                print "CHANGES", changed
-                print "#" * 60
-                print "\n".join(repeat.debug_list[0][3])
-                print "#" * 60
+            if DEBUG_REPEAT:
+                if repeat.debug_list is None:
+                    repeat.debug_list = []
+                    added_debug_list = True
+                try:
+                    repeat.debug_list.append((func.func_name, "debug start", 0, print_graph_construction(graph), ''))
+                    changed = func(graph, *args, **kwargs)
+                    repeat.debug_list.append((func.func_name, "debug end", 0, print_graph_construction(graph), ''))
+                    print "CHANGES", changed
+                    print "#" * 60
+                    print "\n".join(repeat.debug_list[0][3])
+                    print "#" * 60
 
-                import difflib, sys
-                prev = None
-                for curr in repeat.debug_list:
-                    if prev is None:
+                    import difflib, sys
+                    prev = None
+                    for curr in repeat.debug_list:
+                        if prev is None:
+                            prev = curr
+                            continue
+                        print "_" * 60
+                        print prev[0], prev[1], prev[2], prev[4]
+                        print curr[0], curr[1], curr[2], curr[4]
+                        l_before = [line + "\n" for line in prev[3]]
+                        l_after = [line + "\n" for line in curr[3]]
+                        sys.stdout.writelines(difflib.unified_diff(l_before, l_after, fromfile='before', tofile='after'))
                         prev = curr
-                        continue
-                    print "_" * 60
-                    print prev[0], prev[1], prev[2], prev[4]
-                    print curr[0], curr[1], curr[2], curr[4]
-                    l_before = [line + "\n" for line in prev[3]]
-                    l_after = [line + "\n" for line in curr[3]]
-                    sys.stdout.writelines(difflib.unified_diff(l_before, l_after, fromfile='before', tofile='after'))
-                    prev = curr
-            finally:
-                if added_debug_list:
-                    repeat.debug_list = None
+                finally:
+                    if added_debug_list:
+                        repeat.debug_list = None
         if ever_changed:
             graph.check()
         t2 = time.time()

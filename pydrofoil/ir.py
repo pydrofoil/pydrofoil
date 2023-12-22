@@ -1259,6 +1259,7 @@ def optimize(graph, codegen):
 
 def _bare_optimize(graph, codegen):
     res = False
+    res = propagate_equality(graph) or res
     res = join_blocks(graph) or res
     res = remove_dead(graph, codegen) or res
     res = simplify_phis(graph) or res
@@ -1272,7 +1273,6 @@ def _bare_optimize(graph, codegen):
     res = remove_superfluous_enum_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
     partial_allocation_removal(graph)
-    propagate_equality(graph)
     return res
 
 _optimize = repeat(_bare_optimize)
@@ -3596,17 +3596,14 @@ def dominatees(G):
     return dict(res)
 
 def propagate_equality(graph):
-    # this is a very localized hacky approach, instead of the proper dominator
-    # based solution. func_zRestoreTransactionCheckpointParameterised is a good example
-    if graph.has_loop:
-        return # can be generalized
-
     changed = False
     # maps blocks -> values -> [(intconst, prevblock)]
     int_constants_and_sources = defaultdict(lambda : defaultdict(list))
 
-    entrymap = graph.make_entrymap()
-    for block in topo_order(graph):
+    entrymap = None
+    dom = None
+    view = False
+    for block in topo_order_best_attempt(graph):
         if not isinstance(block.next, ConditionalGoto):
             continue
         value = block.next.booleanvalue
@@ -3620,21 +3617,27 @@ def propagate_equality(graph):
             targetblock = block.next.truetarget
             targetvalues = int_constants_and_sources[targetblock]
             targetvalues[intarg].append((intconst, block))
+            if entrymap is None:
+                entrymap = graph.make_entrymap()
             if len(targetvalues[intarg]) != len(entrymap[targetblock]):
                 continue
             # try to see whether we use the int in the target block
+            if dom is None:
+                dom = dominatees(graph)
             ops = []
-            for op in targetblock.operations:
-                if intarg in op.getargs():
-                    ops.append(op)
+            for furtherblock in dom[targetblock]:
+                for op in furtherblock.operations:
+                    if intarg in op.getargs():
+                        if furtherblock is not targetblock:
+                            view = op
+                        ops.append(op)
             if not ops:
                 continue
             prevvalues, prevblocks = zip(*targetvalues[intarg])
-            import pdb;pdb.set_trace()
             if len(prevvalues) == 1:
                 newvalue = prevvalues[0]
             else:
-                newvalue = Phi(prevblocks, prevvalues, types.MachineInt())
+                newvalue = Phi(list(prevblocks), list(prevvalues), types.MachineInt())
                 targetblock.operations.insert(0, newvalue)
             d = {intarg: newvalue}
             for op in ops:

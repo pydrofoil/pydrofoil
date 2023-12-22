@@ -467,10 +467,11 @@ class Block(object):
         for op in self.operations:
             if not isinstance(op, Phi):
                 continue
-            assert otherblock not in op.prevblocks
+            #assert otherblock not in op.prevblocks
             for index, oldblock in enumerate(op.prevblocks):
                 if oldblock is block:
                     op.prevblocks[index] = otherblock
+            assert len(op.prevblocks) == len(set(op.prevblocks))
 
     def prevblocks_from_phis(self):
         res = []
@@ -1670,7 +1671,7 @@ class BaseOptimizer(object):
         return newop
 
     def newphi(self, prevblocks, prevvalues, resolved_type):
-        newop = Phi(prevblocks, prevvalues, resolved_type)
+        newop = Phi(prevblocks[:], prevvalues, resolved_type)
         self.newoperations.append(newop)
         return newop
 
@@ -1926,7 +1927,7 @@ class LocalOptimizer(BaseOptimizer):
             results.append(res)
         if len(results) == 1 or all_same:
             return results[0]
-        newphi = Phi(phi.prevblocks, results, resolved_type)
+        newphi = Phi(phi.prevblocks[:], results, resolved_type)
         if phi in self.current_block.operations or phi in self.newoperations:
             self.newoperations.insert(0, newphi)
             return newphi

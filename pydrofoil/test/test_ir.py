@@ -3194,3 +3194,52 @@ def test_graph_rewriting_in_circles():
         assert len(repeat.debug_list) < 1000
     finally:
         repeat.debug_list = None
+
+
+def test_compute_dominators():
+    i = Argument('i', MachineInt())
+    block1 = Block()
+    block2 = Block()
+    block4 = Block()
+    block5 = Block()
+    i34 = block1.emit(Operation, '@eq', [i, MachineIntConstant(32)], Bool(), '`94009', 'zz424')
+    block1.next = ConditionalGoto(i34, block2, block4, '`10 150234:22-150234:43')
+    i35 = block2.emit(Operation, 'usetheint', [i], Bool(), '`10 150235:4-150235:142', 'zz417')
+    block2.next = Return(i35)
+    i38 = block4.emit(Operation, '@eq', [i, MachineIntConstant(64)], Bool(), '`94020', 'zz425')
+    block4.next = ConditionalGoto(i38, block2, block5, '`10 150217:4-150235:142')
+    block5.next = Raise(StringConstant('src/instrs64.sail:150234.44-150234.45'), None)
+    g = Graph("g", [i], block1)
+    doms = compute_dominators(g)
+    assert doms[block5] == {block1, block4, block5}
+    assert doms[block2] == {block1, block2}
+    assert doms[block4] == {block1, block4}
+    assert doms[block1] == {block1}
+
+    idoms = immediate_dominators(g)
+    assert idoms[block5] == block4
+    assert idoms[block2] == block1
+    assert idoms[block4] == block1
+    assert block1 not in idoms
+
+    invdoms = dominatees(g)
+    assert invdoms[block5] == {block5}
+    assert invdoms[block2] == {block2}
+    assert invdoms[block4] == {block5, block4}
+    assert invdoms[block1] == {block1, block2, block4, block5}
+
+def test_use_equality_information():
+    i = Argument('i', MachineInt())
+    block1 = Block()
+    block2 = Block()
+    block4 = Block()
+    block5 = Block()
+    i34 = block1.emit(Operation, '@eq', [i, MachineIntConstant(32)], Bool(), '`94009', 'zz424')
+    block1.next = ConditionalGoto(i34, block2, block4, '`10 150234:22-150234:43')
+    i35 = block2.emit(Operation, 'usetheint', [i], Bool(), '`10 150235:4-150235:142', 'zz417')
+    block2.next = Return(i35)
+    i38 = block4.emit(Operation, '@eq', [i, MachineIntConstant(64)], Bool(), '`94020', 'zz425')
+    block4.next = ConditionalGoto(i38, block2, block5, '`10 150217:4-150235:142')
+    block5.next = Raise(StringConstant('src/instrs64.sail:150234.44-150234.45'), None)
+    g = Graph("g", [i], block1)
+    propagate_equality(g)

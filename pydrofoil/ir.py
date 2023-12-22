@@ -48,8 +48,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # maybe turn Operations into "OperationWithExceptionalReturn" to get rid of the
 # useless control flow
 
-# cse can share phi nodes?!
-
 # result of unsigned is positive (partly done)
 
 # need a solution for the whole "add(sub(a, const1), const1)" with the various
@@ -1274,6 +1272,7 @@ def _bare_optimize(graph, codegen):
     res = remove_superfluous_enum_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
     partial_allocation_removal(graph)
+    propagate_equality(graph)
     return res
 
 _optimize = repeat(_bare_optimize)
@@ -3529,3 +3528,110 @@ def partial_allocation_removal(graph):
             if not res:
                 break
     return changes
+
+
+# ____________________________________________________________
+# dominator-tree based algorithms
+
+def compute_dominators(G):
+    return _compute_dominators(G)[0]
+
+def _compute_dominators(G):
+    preds = G.make_entrymap()
+    start = G.startblock
+    # initialize
+    dominators = {}
+    for node in preds:
+        dominators[node] = set(preds)
+    dominators[start] = {start}
+
+    # fixpoint
+    changed = True
+    while changed:
+        changed = False
+        for node in preds:
+            if node == start:
+                continue
+            dom = set(preds).intersection(*[dominators[x] for x in preds[node]])
+            dom.add(node)
+            if dom != dominators[node]:
+                changed = True
+                dominators[node] = dom
+    return dominators, preds
+
+def immediate_dominators(G):
+    start = G.startblock
+    res = {}
+    dominators, preds = _compute_dominators(G)
+    for node in preds:
+        if node == start:
+            continue
+        doms = dominators[node]
+        for candidate in doms:
+            if candidate == node:
+                continue
+            for otherdom in doms:
+                if otherdom == node or otherdom == candidate:
+                    continue
+                if candidate in dominators[otherdom]:
+                    break
+            else:
+                break
+        res[node] = candidate
+    return res
+
+def dominatees(G):
+    dom, pred = _compute_dominators(G)
+    res = defaultdict(set)
+    for block, doms in dom.iteritems():
+        for dominator_block in doms:
+            res[dominator_block].add(block)
+    return dict(res)
+
+def propagate_equality(graph):
+    # this is a very localized hacky approach, instead of the proper dominator
+    # based solution. func_zRestoreTransactionCheckpointParameterised is a good example
+    if graph.has_loop:
+        return # can be generalized
+
+    changed = False
+    # maps blocks -> values -> [(intconst, prevblock)]
+    int_constants_and_sources = defaultdict(lambda : defaultdict(list))
+
+    entrymap = graph.make_entrymap()
+    for block in topo_order(graph):
+        if not isinstance(block.next, ConditionalGoto):
+            continue
+        value = block.next.booleanvalue
+        if (isinstance(value, Operation) and value.name == "@eq" and
+                value.args[0].resolved_type is types.MachineInt()):
+            intarg, intconst = value.args
+            if not isinstance(intconst, MachineIntConstant):
+                intarg, intconst = intconst, intarg
+            if not isinstance(intconst, MachineIntConstant):
+                continue
+            targetblock = block.next.truetarget
+            targetvalues = int_constants_and_sources[targetblock]
+            targetvalues[intarg].append((intconst, block))
+            if len(targetvalues[intarg]) != len(entrymap[targetblock]):
+                continue
+            # try to see whether we use the int in the target block
+            ops = []
+            for op in targetblock.operations:
+                if intarg in op.getargs():
+                    ops.append(op)
+            if not ops:
+                continue
+            prevvalues, prevblocks = zip(*targetvalues[intarg])
+            import pdb;pdb.set_trace()
+            if len(prevvalues) == 1:
+                newvalue = prevvalues[0]
+            else:
+                newvalue = Phi(prevblocks, prevvalues, types.MachineInt())
+                targetblock.operations.insert(0, newvalue)
+            d = {intarg: newvalue}
+            for op in ops:
+                res = op.replace_ops(d)
+                assert res
+            changed = True
+    return changed

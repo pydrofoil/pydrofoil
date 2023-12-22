@@ -634,11 +634,15 @@ class Graph(object):
         entrymap = self.make_entrymap()
         # check that phi.prevvalues only contains predecessors of a block
         defined_vars = set(self.args)
+        #all_phi_prevblocks_ids = {}
         for block, entry in entrymap.iteritems():
             for op in block:
                 defined_vars.add(op)
                 if not isinstance(op, Phi):
                     continue
+                #pid = id(op.prevblocks)
+                #assert pid not in all_phi_prevblocks_ids
+                #all_phi_prevblocks_ids[pid] = op
                 for prevblock in op.prevblocks:
                     assert prevblock in entrymap
                     assert prevblock in entry
@@ -1933,11 +1937,12 @@ class LocalOptimizer(BaseOptimizer):
             return newphi
         else:
             # try to find correct block to insert
+            # XXX this shows the need for phis to point to their "home" block
             for prevblock in phi.prevblocks:
-                if isinstance(prevblock.next, Goto):
-                    correct_block = prevblock.next.target
-                    correct_block.operations.insert(0, newphi)
-                    return newphi
+                for correct_block in prevblock.next.next_blocks():
+                    if phi in correct_block.operations:
+                        correct_block.operations.insert(0, newphi)
+                        return newphi
             return None
 
     def _optimize_GlobalWrite(self, op, block, index):

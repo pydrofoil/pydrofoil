@@ -1420,16 +1420,17 @@ def remove_if_true_false(graph):
     return changed
 
 def _remove_unreachable_phi_prevvalues(graph):
-    reachable_blocks = set(graph.iterblocks())
     replace_phis = {}
-    for block in reachable_blocks:
+    entrymap = graph.make_entrymap()
+    for block, entry in entrymap.iteritems():
+        block_changed = False
         for index, op in enumerate(block.operations):
             if not isinstance(op, Phi):
                 continue
             prevblocks = []
             prevvalues = []
             for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
-                if prevblock in reachable_blocks:
+                if prevblock in entry:
                     prevblocks.append(prevblock)
                     prevvalues.append(replace_phis.get(prevvalue, prevvalue))
             op.prevblocks = prevblocks
@@ -1437,7 +1438,9 @@ def _remove_unreachable_phi_prevvalues(graph):
             if len(prevblocks) == 1:
                 replace_phis[op] = op.prevvalues[0]
                 block.operations[index] = None
-        block.operations = [op for op in block.operations if op]
+                block_changed = True
+        if block_changed:
+            block.operations = [op for op in block.operations if op]
     if replace_phis:
         graph.replace_ops(replace_phis)
 
@@ -1926,11 +1929,15 @@ class LocalOptimizer(BaseOptimizer):
         newphi = Phi(phi.prevblocks, results, resolved_type)
         if phi in self.current_block.operations or phi in self.newoperations:
             self.newoperations.insert(0, newphi)
+            return newphi
         else:
-            # find correct to insert
-            correct_block = phi.prevblocks[0].next.target
-            correct_block.operations.insert(0, newphi)
-        return newphi
+            # try to find correct block to insert
+            for prevblock in phi.prevblocks:
+                if isinstance(prevblock.next, Goto):
+                    correct_block = prevblock.next.target
+                    correct_block.operations.insert(0, newphi)
+                    return newphi
+            return None
 
     def _optimize_GlobalWrite(self, op, block, index):
         arg, = self._args(op)

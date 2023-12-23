@@ -1,6 +1,6 @@
 import sys
 
-from pydrofoil.absinterp import Range, UNBOUNDED, TRUE, FALSE, BOOL
+from pydrofoil.absinterp import Range, UNBOUNDED, TRUE, FALSE, BOOL, int_c_div
 
 from rpython.rlib.rarithmetic import LONG_BIT
 
@@ -203,4 +203,26 @@ def test_ge_hypothesis_enum(ra, rb):
     for a in range(ra.low, ra.high + 1):
         for b in range(rb.low, rb.high + 1):
             assert r.contains(a >= b)
+
+def test_tdiv_example():
+    assert Range(10, 100).tdiv(Range(1, None)) == Range(0, 100)
+    assert Range(10, None).tdiv(Range(1, None)) == Range(0, None)
+    assert Range(-15, 0).tdiv(Range(1, None)) == Range(-15, 0)
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_tdiv_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.tdiv(rb)
+    if b != 0:
+        assert r.contains(int_c_div(a, b))
+
+@given(smallbounds, smallbounds)
+def test_tdiv_hypothesis_enum(ra, rb):
+    r = ra.tdiv(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            if b == 0:
+                continue
+            assert r.contains(int_c_div(a, b))
 

@@ -6,6 +6,11 @@ from pydrofoil import ir, types
 MININT = -sys.maxint-1
 MAXINT = sys.maxint
 
+def int_c_div(x, y):
+    r = x // y
+    if x ^ y < 0 and x % y != 0:
+        r += 1
+    return r
 
 class Range(object):
     def __init__(self, low=None, high=None):
@@ -64,6 +69,16 @@ class Range(object):
     def sub(self, other):
         return self.add(other.neg())
 
+    def tdiv(self, other):
+        # very minimal for now
+        if other.low is not None and other.low >= 1:
+            # division by positive number cannot change the sign
+            if self.low is not None and self.low >= 0:
+                return Range(0, self.high)
+            if self.high is not None and self.high <= 0:
+                return Range(self.low, 0)
+        return UNBOUNDED
+
     def union(self, other):
         low = high = None
         if self.low is not None and other.low is not None:
@@ -93,8 +108,14 @@ class Range(object):
     def make_le_const(self, const):
         return Range(self.low, const)
 
+    def make_lt_const(self, const):
+        return Range(self.low, const - 1)
+
     def make_ge_const(self, const):
         return Range(const, self.high)
+
+    def make_gt_const(self, const):
+        return Range(const + 1, self.high)
 
 UNBOUNDED = Range(None, None)
 MACHINEINT = Range(MININT, MAXINT)
@@ -227,6 +248,17 @@ class AbstractInterpreter(object):
         meth = getattr(self, "analyze_" + name, self.analyze_default)
         return meth(op)
 
+    def analyze_Phi(self, op):
+        res = None
+        for value in op.prevvalues:
+            #if isinstance(value, (ir.Phi, ir.Operation)) and value not in self.current_values:
+            b = self._bounds(value)
+            if res is None:
+                res = b
+            else:
+                res = res.union(b)
+        return res
+
     def _bounds(self, op):
         if isinstance(op, ir.BooleanConstant):
             if op.value:
@@ -261,6 +293,8 @@ class AbstractInterpreter(object):
         return arg0.sub(arg1)
     analyze_sub_i_i_must_fit = analyze_sub
     analyze_sub_i_i_wrapped_res = analyze_sub
+    analyze_sub_o_i_wrapped_res = analyze_sub
+    analyze_sub_i_o_wrapped_res = analyze_sub
 
     def analyze_int_to_int64(self, op):
         return self._bounds(op.args[0])
@@ -278,6 +312,12 @@ class AbstractInterpreter(object):
         exponent = arg1.low - 1
         return Range(-(2 ** exponent), 2 ** exponent - 1)
 
+    def analyze_tdiv_int(self, op):
+        arg0, arg1 = self._argbounds(op)
+        return arg0.tdiv(arg1)
+    analyze_tdiv_int_i_ipos = analyze_tdiv_int
+
+
     # conditions
 
     def analyze_condition(self, op):
@@ -289,6 +329,14 @@ class AbstractInterpreter(object):
                 truevalues[op.args[1]] = arg1.make_ge_const(arg0.low)
             if arg1.isconstant():
                 truevalues[op.args[0]] = arg0.make_le_const(arg1.low)
+        if op.name == "@lt":
+            arg0, arg1 = self._argbounds(op)
+            if arg0.isconstant():
+                truevalues[op.args[1]] = arg1.make_gt_const(arg0.low)
+                falsevalues[op.args[1]] = arg1.make_le_const(arg0.low)
+            if arg1.isconstant():
+                truevalues[op.args[0]] = arg0.make_lt_const(arg1.low)
+                falsevalues[op.args[0]] = arg0.make_ge_const(arg1.low)
         else:
             print "UNKNOWN CONDITION", op
         return truevalues, falsevalues
@@ -339,6 +387,22 @@ class IntOpOptimizer(ir.LocalOptimizer):
             if value is not None and value.fits_machineint():
                 return self._make_int_to_int64(arg)
         return ir.LocalOptimizer._extract_machineint(self, arg, *args, **kwargs)
+
+    def optimize_tdiv_int(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        if self.current_values:
+            value = self.current_values.get(arg1, None)
+            if value.fits_machineint() and value.low >= 1:
+                return self._make_int64_to_int(
+                    self.newop(
+                        "@tdiv_int_i_ipos",
+                        [arg0, self._make_int_to_int64(arg1)],
+                        types.MachineInt(),
+                        op.sourcepos,
+                        op.varname_hint,
+                    )
+                )
 
 def optimize_with_range_info(graph, codegen):
     values = analyze(graph)

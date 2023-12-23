@@ -19,8 +19,6 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # read_kind_of_flags has weird diamond patterns, needs dominance
 
-# - sub_i_o_wrapped_res
-
 # deal with exceptional paths better in the context of inlining (and specialization)
 # zAArch64_SystemAccessTrap_specialized_o_7 is an example
 
@@ -68,6 +66,15 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # - iterblocks and topo_order_best_attempt are most costly functions
 # - check also super expensive
 # - _optimize_Operation, cse, replace_ops, set.union
+
+# big tasks
+# ------------
+#
+# - range analysis for unboxing more integers
+# - splitting for bitvector functions
+# - more global static analysis
+# - scheduling
+
 
 def construct_ir(functionast, codegen, singleblock=False):
     # bring operations into a block format:

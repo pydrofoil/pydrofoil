@@ -96,12 +96,30 @@ class Range(object):
                 return FALSE
         return BOOL
 
+    def lt(self, other):
+        if self.high is not None and other.low is not None:
+            if self.high < other.low:
+                return TRUE
+        if self.low is not None and other.high is not None:
+            if other.high <= self.low:
+                return FALSE
+        return BOOL
+
     def ge(self, other):
         if self.low is not None and other.high is not None:
             if self.low >= other.high:
                 return TRUE
         if self.high is not None and other.low is not None:
             if other.low > self.high:
+                return FALSE
+        return BOOL
+
+    def gt(self, other):
+        if self.low is not None and other.high is not None:
+            if self.low > other.high:
+                return TRUE
+        if self.high is not None and other.low is not None:
+            if other.low >= self.high:
                 return FALSE
         return BOOL
 
@@ -132,9 +150,13 @@ def analyze(graph, view=False):
     return res
 
 class AbstractInterpreter(object):
+    _view = False
     def __init__(self, graph):
         self.graph = graph
         self.values = {} # block -> value -> Range
+
+    def __repr__(self):
+        return "<%s %s>" % (self.__class__.__name__, self.graph)
 
     def view(self):
         from rpython.translator.tool.make_dot import DotGen
@@ -195,6 +217,9 @@ class AbstractInterpreter(object):
             self.current_values = self.values[block]
             self.analyze_block(block)
             self.analyze_link(block)
+        if self._view:
+            import pdb;pdb.set_trace()
+
         return self.values
 
     def analyze_link(self, block):
@@ -205,14 +230,15 @@ class AbstractInterpreter(object):
             cond = self._bounds(block.next.booleanvalue)
             if cond == TRUE:
                 import pdb;pdb.set_trace()
-                xxx
+                self._merge_values(self.current_values, block.next.truetarget)
+                return
             elif cond == FALSE:
                 self._merge_values(self.current_values, block.next.falsetarget)
                 return
             truevalues, falsevalues = self.analyze_condition(block.next.booleanvalue)
             self._merge_values(truevalues, block.next.truetarget)
             self._merge_values(falsevalues, block.next.falsetarget)
-        elif isinstance(block.next, (ir.Return, ir.Raise)):
+        elif isinstance(block.next, (ir.Return, ir.Raise, ir.JustStop)):
             pass
         else:
             assert 0, "unreachable"
@@ -268,6 +294,8 @@ class AbstractInterpreter(object):
             return Range.fromconst(op.number)
         if op.resolved_type not in (types.Int(), types.MachineInt(), types.Bool()):
             return None
+        if isinstance(op, ir.DefaultValue):
+            return self.analyze_default(op)
         return self.current_values[op]
 
     def _argbounds(self, op):
@@ -280,6 +308,14 @@ class AbstractInterpreter(object):
     def analyze_gteq(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.ge(arg1)
+
+    def analyze_lt(self, op):
+        arg0, arg1 = self._argbounds(op)
+        return arg0.lt(arg1)
+
+    def analyze_gt(self, op):
+        arg0, arg1 = self._argbounds(op)
+        return arg0.gt(arg1)
 
     def analyze_add(self, op):
         arg0, arg1 = self._argbounds(op)
@@ -323,22 +359,24 @@ class AbstractInterpreter(object):
     def analyze_condition(self, op):
         truevalues = self.current_values.copy()
         falsevalues = self.current_values.copy()
-        if op.name == "@lteq":
-            arg0, arg1 = self._argbounds(op)
-            if arg0.isconstant():
-                truevalues[op.args[1]] = arg1.make_ge_const(arg0.low)
-            if arg1.isconstant():
-                truevalues[op.args[0]] = arg0.make_le_const(arg1.low)
-        if op.name == "@lt":
-            arg0, arg1 = self._argbounds(op)
-            if arg0.isconstant():
-                truevalues[op.args[1]] = arg1.make_gt_const(arg0.low)
-                falsevalues[op.args[1]] = arg1.make_le_const(arg0.low)
-            if arg1.isconstant():
-                truevalues[op.args[0]] = arg0.make_lt_const(arg1.low)
-                falsevalues[op.args[0]] = arg0.make_ge_const(arg1.low)
-        else:
-            print "UNKNOWN CONDITION", op
+        if isinstance(op, ir.Operation):
+            if op.name == "@lteq":
+                arg0, arg1 = self._argbounds(op)
+                if arg0.isconstant():
+                    truevalues[op.args[1]] = arg1.make_ge_const(arg0.low)
+                if arg1.isconstant():
+                    truevalues[op.args[0]] = arg0.make_le_const(arg1.low)
+            elif op.name == "@lt":
+                arg0, arg1 = self._argbounds(op)
+                if arg0.isconstant():
+                    truevalues[op.args[1]] = arg1.make_gt_const(arg0.low)
+                    falsevalues[op.args[1]] = arg1.make_le_const(arg0.low)
+                if arg1.isconstant():
+                    truevalues[op.args[0]] = arg0.make_lt_const(arg1.low)
+                    falsevalues[op.args[0]] = arg0.make_ge_const(arg1.low)
+            else:
+                if any(isinstance(arg.resolved_type, (types.Int, types.MachineInt)) for arg in op.args):
+                    print "UNKNOWN CONDITION", op
         return truevalues, falsevalues
 
 
@@ -405,6 +443,8 @@ class IntOpOptimizer(ir.LocalOptimizer):
                 )
 
 def optimize_with_range_info(graph, codegen):
+    if graph.has_loop:
+        return False
     values = analyze(graph)
     opt = IntOpOptimizer(graph, codegen, values)
     return opt.optimize()

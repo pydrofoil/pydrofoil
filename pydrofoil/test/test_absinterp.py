@@ -308,7 +308,6 @@ def test_startlevel():
     assert res
     res = optimize_with_range_info(graph, fakecodegen)
     light_simplify(graph, fakecodegen)
-    assert res
     compare(graph, """
 zwalkparams = Argument('zwalkparams', Struct('zS1TTWParams', ('zcmow', 'zdc', 'zdct', 'zds', 'ze0pd', 'zee', 'zepan', 'zha', 'zhd', 'zhpd', 'zirgn', 'zmair', 'znfd', 'zntlsmd', 'znv1', 'zorgn', 'zps', 'zsh', 'zsif', 'zt0szz', 'zt1szz', 'ztbi', 'ztbid', 'ztgx', 'ztxszz', 'zuwxn', 'zwxn'), (SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(2), SmallFixedBitVector(64), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(2), SmallFixedBitVector(3), SmallFixedBitVector(2), SmallFixedBitVector(1), SmallFixedBitVector(3), SmallFixedBitVector(3), SmallFixedBitVector(1), SmallFixedBitVector(1), Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB')), SmallFixedBitVector(6), SmallFixedBitVector(1), SmallFixedBitVector(1))))
 block0 = Block()

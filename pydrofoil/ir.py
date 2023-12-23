@@ -776,7 +776,7 @@ class FieldWrite(Operation):
         Operation.__init__(self, name, args, resolved_type, sourcepos, varname_hint)
 
     def __repr__(self):
-        return "FieldWrite(%r, %r, %r)" % (self.name, self.args)
+        return "FieldWrite(%r, %r)" % (self.name, self.args)
 
 class UnionVariantCheck(Operation):
     can_have_side_effects = False
@@ -1270,6 +1270,7 @@ def optimize(graph, codegen):
     return res
 
 def _bare_optimize(graph, codegen):
+    from pydrofoil.absinterp import optimize_with_range_info
     res = False
     res = propagate_equality(graph) or res
     res = join_blocks(graph) or res
@@ -1284,6 +1285,7 @@ def _bare_optimize(graph, codegen):
     res = remove_if_phi_constant(graph) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
+    res = optimize_with_range_info(graph, codegen) or res
     partial_allocation_removal(graph)
     return res
 
@@ -1620,6 +1622,9 @@ class BaseOptimizer(object):
         self._dead_blocks = False
         self._need_dead_code_removal = False
         self.replacements = {}
+
+    def __repr__(self):
+        return "<%s %s>" % (self.__class__.__name__, self.graph)
 
     def view(self):
         self.graph.view()

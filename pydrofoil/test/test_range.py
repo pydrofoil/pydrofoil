@@ -190,6 +190,20 @@ def test_le_hypothesis_enum(ra, rb):
         for b in range(rb.low, rb.high + 1):
             assert r.contains(a <= b)
 
+def test_ge_example():
+    assert Range(1, None).ge(Range(None, None)) == BOOL
+    assert Range(1, None).ge(Range(5, None)) == BOOL
+    assert Range(5, None).ge(Range(None, 1)) == TRUE
+    assert Range(None, 1).ge(Range(5, None)) == FALSE
+    assert Range(None, 4).ge(Range(5, None)) == FALSE
+    assert Range(None, 5).ge(Range(5, None)) == BOOL
+    assert Range(-100, 1).ge(Range(5, 100)) == FALSE
+    assert Range(1, None).ge(Range(-11, None)) == BOOL
+    assert Range(1, None).ge(Range(None, -12)) == TRUE
+    assert Range(1, 1).ge(Range(-12, 0)) == TRUE
+    assert Range(1, 10).ge(Range(None, 0)) == TRUE
+    assert Range(99, 10000).ge(Range(10, 100)) == BOOL
+
 @given(bound_with_contained_number, bound_with_contained_number)
 def test_ge_hypothesis(ta, tb):
     ra, a = ta
@@ -203,6 +217,49 @@ def test_ge_hypothesis_enum(ra, rb):
     for a in range(ra.low, ra.high + 1):
         for b in range(rb.low, rb.high + 1):
             assert r.contains(a >= b)
+
+def test_lt_example():
+    assert Range(None, None).lt(Range(1, None)) == BOOL
+    assert Range(5, None).lt(Range(1, None)) == BOOL
+    assert Range(None, 1).lt(Range(5, None)) == TRUE
+    assert Range(None, 1).lt(Range(1, None)) == BOOL
+    assert Range(5, None).lt(Range(None, 1)) == FALSE
+    assert Range(5, None).lt(Range(None, 4)) == FALSE
+    assert Range(5, None).lt(Range(None, 5)) == FALSE
+    assert Range(5, 100).lt(Range(-100, 1)) == FALSE
+    assert Range(-12, None).lt(Range(1, None)) == BOOL
+    assert Range(None, -12).lt(Range(1, None)) == TRUE
+    assert Range(-12, 0).lt(Range(1, 1)) == TRUE
+    assert Range(None, 0).lt(Range(1, 10)) == TRUE
+    assert Range(10, 100).lt(Range(99, 10000)) == BOOL
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_lt_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.lt(rb)
+    assert r.contains(a < b)
+
+@given(smallbounds, smallbounds)
+def test_lt_hypothesis_enum(ra, rb):
+    r = ra.lt(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            assert r.contains(a < b)
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_gt_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.gt(rb)
+    assert r.contains(a > b)
+
+@given(smallbounds, smallbounds)
+def test_gt_hypothesis_enum(ra, rb):
+    r = ra.gt(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            assert r.contains(a > b)
 
 def test_tdiv_example():
     assert Range(10, 100).tdiv(Range(1, None)) == Range(0, 100)

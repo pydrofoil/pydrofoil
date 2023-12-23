@@ -310,6 +310,10 @@ class SpecializingOptimizer(ir.BaseOptimizer):
                 return newop
         self.newoperations.append(op)
 
+SPECIALIZABLE_BUILTINS = frozenset("""
+@zero_extend_o_i @undefined_bitvector_i
+@zeros_i
+""".split())
 
 @ir.repeat
 def split_for_arg_constness(graph, codegen):
@@ -317,7 +321,7 @@ def split_for_arg_constness(graph, codegen):
         for index, op in enumerate(block.operations):
             if not isinstance(op, ir.Operation):
                 continue
-            if op.name not in codegen.specialization_functions:
+            if op.name not in codegen.specialization_functions and op.name not in SPECIALIZABLE_BUILTINS:
                 continue
             for argindex, arg in enumerate(op.args):
                 if not isinstance(arg, ir.Phi):

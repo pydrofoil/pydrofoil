@@ -103,8 +103,12 @@ TRUE = Range(1, 1)
 FALSE = Range(0, 0)
 
 
-def analyze(graph):
-    return AbstractInterpreter(graph).analyze()
+def analyze(graph, view=False):
+    absinterp = AbstractInterpreter(graph)
+    res = absinterp.analyze()
+    if view:
+        absinterp.view()
+    return res
 
 class AbstractInterpreter(object):
     def __init__(self, graph):
@@ -230,6 +234,8 @@ class AbstractInterpreter(object):
             return FALSE
         if isinstance(op, (ir.MachineIntConstant, ir.IntConstant)):
             return Range.fromconst(op.number)
+        if op.resolved_type not in (types.Int(), types.MachineInt(), types.Bool()):
+            return None
         return self.current_values[op]
 
     def _argbounds(self, op):
@@ -258,6 +264,19 @@ class AbstractInterpreter(object):
 
     def analyze_int_to_int64(self, op):
         return self._bounds(op.args[0])
+
+    def analyze_unsigned_bv(self, op):
+        _, arg1 = self._argbounds(op)
+        if not arg1.isconstant():
+            return
+        return Range(0, 2**arg1.low - 1)
+
+    def analyze_signed_bv(self, op):
+        _, arg1 = self._argbounds(op)
+        if not arg1.isconstant():
+            return
+        exponent = arg1.low - 1
+        return Range(-(2 ** exponent), 2 ** exponent - 1)
 
     # conditions
 

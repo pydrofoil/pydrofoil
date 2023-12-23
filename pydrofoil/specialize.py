@@ -19,6 +19,9 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 # add a runtime check if one of the variants we have fits the data we have, for
 # unspecialized functions (particularly with loops)
 
+# should analyze whether booleans are actually switched on in the body of the
+# function?
+
 
 def usefully_specializable(graph):
     numblocks = 0

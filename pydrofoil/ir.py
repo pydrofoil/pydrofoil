@@ -1794,6 +1794,10 @@ def shift_amount(num):
 
 class LocalOptimizer(BaseOptimizer):
 
+    def _should_fit_machine_int(self, op):
+        anticipated = self.anticipated_casts.get(self.current_block, set())
+        return (op, types.MachineInt()) in anticipated
+
     def _optimize_op(self, block, index, op):
         meth = getattr(self, "_optimize_" + type(op).__name__, None)
         if meth:
@@ -2598,8 +2602,7 @@ class LocalOptimizer(BaseOptimizer):
         try:
             arg1 = self._extract_number(arg1)
         except NoMatchException:
-            anticipated = self.anticipated_casts.get(self.current_block, set())
-            if (op, types.MachineInt()) in anticipated:
+            if self._should_fit_machine_int(op):
                 return self._make_int64_to_int(
                     self.newop("@add_i_i_must_fit", op.args, types.MachineInt(),
                                op.sourcepos, op.varname_hint)
@@ -2661,8 +2664,7 @@ class LocalOptimizer(BaseOptimizer):
         )
 
     def optimize_sub_i_i_wrapped_res(self, op):
-        anticipated = self.anticipated_casts.get(self.current_block, set())
-        if (op, types.MachineInt()) in anticipated:
+        if self._should_fit_machine_int(op):
             return self._make_int64_to_int(
                 self.newop("@sub_i_i_must_fit", op.args, types.MachineInt(),
                            op.sourcepos, op.varname_hint)
@@ -2711,8 +2713,7 @@ class LocalOptimizer(BaseOptimizer):
                 )
             if arg1.number < 0:
                 return None
-            anticipated = self.anticipated_casts.get(self.current_block, set())
-            if (op, types.MachineInt()) in anticipated:
+            if self._should_fit_machine_int(op):
                 # if a * x fits into a machine int, and x > 1, then a also fits
                 # into a machine int
                 arg0 = self._make_int_to_int64(arg0)
@@ -2759,8 +2760,7 @@ class LocalOptimizer(BaseOptimizer):
                     op.sourcepos,
                     op.varname_hint,
                 )
-        anticipated = self.anticipated_casts.get(self.current_block, set())
-        if (op, types.MachineInt()) in anticipated:
+        if self._should_fit_machine_int(op):
             return self._make_int64_to_int(
                 self.newop("@mult_i_i_must_fit", op.args, types.MachineInt(),
                            op.sourcepos, op.varname_hint)

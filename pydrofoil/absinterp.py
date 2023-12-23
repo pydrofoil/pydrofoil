@@ -229,7 +229,6 @@ class AbstractInterpreter(object):
             # first, check if one of the paths is dead
             cond = self._bounds(block.next.booleanvalue)
             if cond == TRUE:
-                import pdb;pdb.set_trace()
                 self._merge_values(self.current_values, block.next.truetarget)
                 return
             elif cond == FALSE:
@@ -277,15 +276,14 @@ class AbstractInterpreter(object):
     def analyze_Phi(self, op):
         res = None
         for value in op.prevvalues:
-            #if isinstance(value, (ir.Phi, ir.Operation)) and value not in self.current_values:
-            b = self._bounds(value)
+            b = self._bounds(value, must_exist=False)
             if res is None:
                 res = b
             else:
                 res = res.union(b)
         return res
 
-    def _bounds(self, op):
+    def _bounds(self, op, must_exist=True):
         if isinstance(op, ir.BooleanConstant):
             if op.value:
                 return TRUE
@@ -296,6 +294,8 @@ class AbstractInterpreter(object):
             return None
         if isinstance(op, ir.DefaultValue):
             return self.analyze_default(op)
+        if not must_exist:
+            return self.current_values.get(op, None)
         return self.current_values[op]
 
     def _argbounds(self, op):
@@ -417,6 +417,14 @@ class IntOpOptimizer(ir.LocalOptimizer):
             res = self._known_boolean_value(op)
             if res is not None:
                 return res
+        elif op.resolved_type is types.Int():
+            b = self.current_values.get(op, None)
+            if b and b.isconstant():
+                return ir.IntConstant(b.low)
+        elif op.resolved_type is types.MachineInt():
+            b = self.current_values.get(op, None)
+            if b and b.isconstant():
+                return ir.MachineIntConstant(b.low)
         return ir.LocalOptimizer._optimize_op(self, block, index, op)
 
     def _extract_machineint(self, arg, *args, **kwargs):

@@ -296,15 +296,22 @@ class IntOpOptimizer(ir.LocalOptimizer):
         return ir.LocalOptimizer.optimize_block(self, block)
 
     def _get_op_replacement(self, arg):
+        # bit of a hack, but allows the optimizer to still find the analysis
+        # results
         return arg
+
+    def _known_boolean_value(self, op):
+        value = self.current_values.get(op, None)
+        if value == TRUE:
+            return ir.BooleanConstant.TRUE
+        if value == FALSE:
+            return ir.BooleanConstant.FALSE
 
     def _optimize_op(self, block, index, op):
         if op.resolved_type is types.Bool():
-            value = self.current_values[op]
-            if value == TRUE:
-                return ir.BooleanConstant.TRUE
-            if value == FALSE:
-                return ir.BooleanConstant.FALSE
+            res = self._known_boolean_value(op)
+            if res is not None:
+                return res
         return ir.LocalOptimizer._optimize_op(self, block, index, op)
 
     def _extract_machineint(self, arg, *args, **kwargs):

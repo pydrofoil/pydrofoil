@@ -1655,8 +1655,8 @@ class BaseOptimizer(object):
                 self.replacements[op] = newop
         if isinstance(block.next, ConditionalGoto):
             cond = block.next
-            condition = self._get_op_replacement(block.next.booleanvalue)
-            if isinstance(condition, BooleanConstant):
+            condition = self._known_boolean_value(block.next.booleanvalue)
+            if condition is not None:
                 if condition.value:
                     takenblock = cond.truetarget
                 else:
@@ -1664,6 +1664,11 @@ class BaseOptimizer(object):
                 block.next = Goto(takenblock)
                 self._dead_blocks = True
         block.operations = self.newoperations
+
+    def _known_boolean_value(self, op):
+        op = self._get_op_replacement(op)
+        if isinstance(op, BooleanConstant):
+            return op
 
     def _optimize_op(self, block, index, op):
         # base implementation, does nothing

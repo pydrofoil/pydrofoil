@@ -407,15 +407,16 @@ class AbstractInterpreter(object):
         falsevalues = self.current_values.copy()
         if isinstance(op, ir.Operation):
             name = self._builtinname(op.name)
+            name = name.lstrip("@")
             args = op.args
-            if name == "@gteq":
+            if name == "gteq":
                 args = [args[1], args[0]]
-                name = "@lteq"
-            if name == "@gt":
+                name = "lteq"
+            if name == "gt":
                 args = [args[1], args[0]]
-                name = "@lt"
+                name = "lt"
 
-            if name == "@lteq":
+            if name == "lteq":
                 arg0, arg1 = self._argbounds(args)
                 if arg0.isconstant():
                     truevalues[args[1]] = arg1.make_ge_const(arg0.low)
@@ -423,7 +424,7 @@ class AbstractInterpreter(object):
                 if arg1.isconstant():
                     truevalues[args[0]] = arg0.make_le_const(arg1.low)
                     falsevalues[args[0]] = arg0.make_gt_const(arg1.low)
-            elif name == "@lt":
+            elif name == "lt":
                 arg0, arg1 = self._argbounds(args)
                 if arg0.isconstant():
                     truevalues[args[1]] = arg1.make_gt_const(arg0.low)
@@ -431,8 +432,16 @@ class AbstractInterpreter(object):
                 if arg1.isconstant():
                     truevalues[args[0]] = arg0.make_lt_const(arg1.low)
                     falsevalues[args[0]] = arg0.make_ge_const(arg1.low)
+            elif name in ("eq", "eq_int_o_i", "eq_int_i_i") and args[0].resolved_type in INT_TYPES:
+                arg0, arg1 = self._argbounds(args)
+                if arg0.isconstant():
+                    truevalues[args[1]] = arg0
+                if arg1.isconstant():
+                    truevalues[args[0]] = arg1
             else:
                 if any(arg.resolved_type in INT_TYPES for arg in op.args):
+                    if "zclint_load" in self.graph.name:
+                        self._view = 1
                     print "UNKNOWN CONDITION", name, op
         return truevalues, falsevalues
 

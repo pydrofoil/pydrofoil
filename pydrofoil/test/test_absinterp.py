@@ -64,7 +64,7 @@ def test_analyze_stageoa():
     block12.next = Raise(StringConstant('src/v8_base.sail:9344.39-9344.40'), None)
     block13.next = Raise(StringConstant('src/v8_base.sail:9343.53-9343.54'), None)
     graph = Graph('zStageOA', [zia, zaddress, mi], block2)
-    values = analyze(graph)
+    values = analyze(graph, fakecodegen)
     assert values[block2][i24] == BOOL
     assert values[block3][mi] == Range(0, None)
     assert values[block4][mi] == Range(0, 51)
@@ -183,7 +183,7 @@ def test_add_with_carry32():
     block9.next = Goto(block2, None)
     graph = Graph('zAddWithCarry_specialized_bv32_bv32_o__tup_bv32_o_put', [zx, zy, zcarry_in], block0)
 
-    values = analyze(graph)
+    values = analyze(graph, fakecodegen)
     assert values[block0][i3] == Range(0, 2**32-1)
     assert values[block0][i6] == Range(0, 1)
     assert values[block0][i5] == Range(0, (2**32-1) * 2)
@@ -291,7 +291,7 @@ def test_startlevel():
     block7.next = Goto(block2, None)
     block8.next = Goto(block2, None)
     graph = Graph('zAArch64_S1StartLevel_specialized_o', [zwalkparams], block0)
-    values = analyze(graph)
+    values = analyze(graph, fakecodegen)
     assert values[block2][i8] == Range(9, 13)
     assert values[block2][i9] == Range(12, 16)
     assert values[block2][i11] == Range(-16, 51)
@@ -369,7 +369,7 @@ def test_phi_node_dead_prevvalue():
     block3.next = Return(i3)
     graph = Graph('g', [], block0)
 
-    values = analyze(graph)
+    values = analyze(graph, fakecodegen)
     res = optimize_with_range_info(graph, fakecodegen)
     compare(graph, """
 block0 = Block()
@@ -441,7 +441,7 @@ def test_decode():
     block13.next = Goto(block7, None)
     block14.next = Goto(block2, None)
     graph = Graph('zdecode_rev16_advsimd_aarch64_instrs_vector_arithmetic_unary_rev', [zRd, zRn, zo0, zsizze, zU, zQ], block0)
-    values = analyze(graph)
+    values = analyze(graph, fakecodegen)
     assert values[block0][i9] == Range(8, 64)
     assert values[block2][i15] == Range(0, 6)
     assert values[block3][i15] == Range(3, 6)

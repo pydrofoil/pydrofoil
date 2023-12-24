@@ -160,9 +160,11 @@ BOOL = Range(0, 1)
 TRUE = Range(1, 1)
 FALSE = Range(0, 0)
 
+RELEVANT_TYPES = (types.MachineInt(), types.Int(), types.Bool())
+INT_TYPES = (types.MachineInt(), types.Int())
 
-def analyze(graph, view=False):
-    absinterp = AbstractInterpreter(graph)
+def analyze(graph, codegen, view=False):
+    absinterp = AbstractInterpreter(graph, codegen)
     res = absinterp.analyze()
     if view:
         absinterp.view()
@@ -170,9 +172,13 @@ def analyze(graph, view=False):
 
 class AbstractInterpreter(object):
     _view = False
-    def __init__(self, graph):
+    def __init__(self, graph, codegen):
         self.graph = graph
+        self.codegen = codegen
         self.values = {} # block -> value -> Range
+
+    def _builtinname(self, name):
+        return self.codegen.builtin_names.get(name, name)
 
     def __repr__(self):
         return "<%s %s>" % (self.__class__.__name__, self.graph)
@@ -274,7 +280,7 @@ class AbstractInterpreter(object):
 
     def analyze_block(self, block):
         for op in block.operations:
-            if op.resolved_type in (types.MachineInt(), types.Int(), types.Bool()):
+            if op.resolved_type in RELEVANT_TYPES:
                 meth = getattr(self, "analyze_" + op.__class__.__name__, self.analyze_default)
                 res = meth(op)
                 assert res is not None
@@ -289,6 +295,7 @@ class AbstractInterpreter(object):
 
     def analyze_Operation(self, op):
         name = op.name.lstrip("@$")
+        name = self._builtinname(name)
         meth = getattr(self, "analyze_" + name, self.analyze_default)
         return meth(op)
 
@@ -309,7 +316,7 @@ class AbstractInterpreter(object):
             return FALSE
         if isinstance(op, (ir.MachineIntConstant, ir.IntConstant)):
             return Range.fromconst(op.number)
-        if op.resolved_type not in (types.Int(), types.MachineInt(), types.Bool()):
+        if op.resolved_type not in RELEVANT_TYPES:
             return None
         if isinstance(op, ir.DefaultValue):
             return self.analyze_default(op)
@@ -422,7 +429,7 @@ class AbstractInterpreter(object):
                     truevalues[args[0]] = arg0.make_lt_const(arg1.low)
                     falsevalues[args[0]] = arg0.make_ge_const(arg1.low)
             else:
-                if any(isinstance(arg.resolved_type, (types.Int, types.MachineInt)) for arg in op.args):
+                if any(arg.resolved_type in INT_TYPES for arg in op.args):
                     print "UNKNOWN CONDITION", op
         return truevalues, falsevalues
 
@@ -503,7 +510,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
 def optimize_with_range_info(graph, codegen):
     if graph.has_loop:
         return False
-    absinterp = AbstractInterpreter(graph)
+    absinterp = AbstractInterpreter(graph, codegen)
     absinterp.analyze()
     opt = IntOpOptimizer(graph, codegen, absinterp)
     return opt.optimize()

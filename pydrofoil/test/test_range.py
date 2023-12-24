@@ -283,3 +283,47 @@ def test_tdiv_hypothesis_enum(ra, rb):
                 continue
             assert r.contains(int_c_div(a, b))
 
+def test_lshift_example():
+    assert Range(8, 8).lshift(Range(0, 3)) == Range(8, 64)
+    assert Range(8, 16).lshift(Range(0, 3)) == Range(8, 128)
+    assert Range(-1, 16).lshift(Range(0, 3)) == Range(-8, 128)
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_lshift_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.lshift(rb)
+    if 0 <= b <= 64:
+        assert r.contains(a << b)
+
+@given(smallbounds, smallbounds)
+def test_lshift_hypothesis_enum(ra, rb):
+    r = ra.lshift(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            if 0 <= b <= 64:
+                assert r.contains(a << b)
+
+def test_ediv_example():
+    assert Range(10, 100).ediv(Range(1, None)) == Range(0, 100)
+    assert Range(10, None).ediv(Range(1, None)) == Range(0, None)
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_ediv_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.ediv(rb)
+    if a >= 0 and b > 0:
+        assert r.contains(a // b)
+
+@given(smallbounds, smallbounds)
+def test_ediv_hypothesis_enum(ra, rb):
+    r = ra.ediv(rb)
+    for a in range(ra.low, ra.high + 1):
+        if a < 0:
+            continue
+        for b in range(rb.low, rb.high + 1):
+            if b == 0:
+                continue
+            assert r.contains(a // b)
+

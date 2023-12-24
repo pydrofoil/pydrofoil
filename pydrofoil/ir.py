@@ -1281,11 +1281,11 @@ def _bare_optimize(graph, codegen):
     res = remove_empty_blocks(graph) or res
     res = swap_not(graph, codegen) or res
     res = cse(graph, codegen) or res
+    res = optimize_with_range_info(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
-    res = optimize_with_range_info(graph, codegen) or res
     partial_allocation_removal(graph)
     return res
 
@@ -1621,6 +1621,7 @@ class BaseOptimizer(object):
         self.current_block = self.graph.startblock
         self._dead_blocks = False
         self._need_dead_code_removal = False
+        self.newoperations = None
         self.replacements = {}
 
     def __repr__(self):
@@ -1669,6 +1670,7 @@ class BaseOptimizer(object):
                 block.next = Goto(takenblock)
                 self._dead_blocks = True
         block.operations = self.newoperations
+        self.newoperations = None
 
     def _known_boolean_value(self, op):
         op = self._get_op_replacement(op)
@@ -1724,14 +1726,15 @@ class BaseOptimizer(object):
         if isinstance(arg.resolved_type, types.SmallFixedBitVector):
             return arg, arg.resolved_type
         if not isinstance(arg, Cast):
-            # xxx, wrong complexity
-            anticipated = self.anticipated_casts.get(self.current_block, set())
-            casts = {typ for (op, typ) in anticipated if self.replacements.get(op, op) is arg}
-            if not casts:
-                raise NoMatchException
-            if len(casts) == 1:
-                typ, = casts
-                return self.newcast(arg, typ), typ
+            if self.newoperations is not None:
+                # xxx, wrong complexity
+                anticipated = self.anticipated_casts.get(self.current_block, set())
+                casts = {typ for (op, typ) in anticipated if self.replacements.get(op, op) is arg}
+                if not casts:
+                    raise NoMatchException
+                if len(casts) == 1:
+                    typ, = casts
+                    return self.newcast(arg, typ), typ
             raise NoMatchException
         expr = arg.args[0]
         typ = expr.resolved_type
@@ -1759,9 +1762,10 @@ class BaseOptimizer(object):
             return arg.args[0]
         if isinstance(arg, Cast):
             import pdb;pdb.set_trace()
-        anticipated = self.anticipated_casts.get(self.current_block, set())
-        if (arg, types.MachineInt()) in anticipated:
-            return self._make_int_to_int64(arg)
+        if self.newoperations is not None:
+            anticipated = self.anticipated_casts.get(self.current_block, set())
+            if (arg, types.MachineInt()) in anticipated:
+                return self._make_int_to_int64(arg)
         if isinstance(arg, Phi) and can_recurse:
             # XXX can do even better with loops
             prevvalues = []

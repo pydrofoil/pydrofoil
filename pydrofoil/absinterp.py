@@ -79,6 +79,25 @@ class Range(object):
                 return Range(self.low, 0)
         return UNBOUNDED
 
+    def ediv(self, other):
+        # very minimal for now
+        if other.low is not None and other.low >= 1:
+            # division by positive number cannot change the sign
+            if self.low is not None and self.low >= 0:
+                return Range(0, self.high)
+        return UNBOUNDED
+
+    def lshift(self, other):
+        if self.low is None or self.high is None or other.low is None or other.high is None:
+            return UNBOUNDED
+        if 0 <= other.low and other.high <= 64:
+            values = [self.low << other.low,
+                      self.high << other.low,
+                      self.low << other.high,
+                      self.high << other.high]
+            return Range(min(values), max(values))
+        return UNBOUNDED
+
     def union(self, other):
         low = high = None
         if self.low is not None and other.low is not None:
@@ -299,7 +318,14 @@ class AbstractInterpreter(object):
         return self.current_values[op]
 
     def _argbounds(self, op):
-        return [self._bounds(arg) for arg in op.args]
+        if isinstance(op, ir.Operation):
+            l = op.args
+        elif isinstance(op, ir.Phi):
+            l = op.prevvalues
+        else:
+            assert isinstance(op, list)
+            l = op
+        return [self._bounds(arg) for arg in l]
 
     def analyze_lteq(self, op):
         arg0, arg1 = self._argbounds(op)
@@ -335,6 +361,9 @@ class AbstractInterpreter(object):
     def analyze_int_to_int64(self, op):
         return self._bounds(op.args[0])
 
+    def analyze_int64_to_int(self, op):
+        return self._bounds(op.args[0])
+
     def analyze_unsigned_bv(self, op):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():
@@ -351,7 +380,17 @@ class AbstractInterpreter(object):
     def analyze_tdiv_int(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.tdiv(arg1)
-    analyze_tdiv_int_i_ipos = analyze_tdiv_int
+    analyze_tdiv_int_i_i = analyze_tdiv_int
+
+    def analyze_ediv_int(self, op):
+        arg0, arg1 = self._argbounds(op)
+        return arg0.ediv(arg1)
+    analyze_ediv_int_i_ipos = analyze_ediv_int
+
+    def analyze_lshift(self, op):
+        arg0, arg1 = self._argbounds(op)
+        return arg0.lshift(arg1)
+    analyze_shl_mach_int = analyze_lshift
 
 
     # conditions
@@ -360,20 +399,28 @@ class AbstractInterpreter(object):
         truevalues = self.current_values.copy()
         falsevalues = self.current_values.copy()
         if isinstance(op, ir.Operation):
-            if op.name == "@lteq":
-                arg0, arg1 = self._argbounds(op)
+            name = op.name
+            args = op.args
+            if name == "@gteq":
+                args = [args[1], args[0]]
+                name = "@lteq"
+
+            if name == "@lteq":
+                arg0, arg1 = self._argbounds(args)
                 if arg0.isconstant():
-                    truevalues[op.args[1]] = arg1.make_ge_const(arg0.low)
+                    truevalues[args[1]] = arg1.make_ge_const(arg0.low)
+                    falsevalues[args[1]] = arg1.make_lt_const(arg0.low)
                 if arg1.isconstant():
-                    truevalues[op.args[0]] = arg0.make_le_const(arg1.low)
-            elif op.name == "@lt":
-                arg0, arg1 = self._argbounds(op)
+                    truevalues[args[0]] = arg0.make_le_const(arg1.low)
+                    falsevalues[args[0]] = arg0.make_gt_const(arg1.low)
+            elif name == "@lt":
+                arg0, arg1 = self._argbounds(args)
                 if arg0.isconstant():
-                    truevalues[op.args[1]] = arg1.make_gt_const(arg0.low)
-                    falsevalues[op.args[1]] = arg1.make_le_const(arg0.low)
+                    truevalues[args[1]] = arg1.make_gt_const(arg0.low)
+                    falsevalues[args[1]] = arg1.make_le_const(arg0.low)
                 if arg1.isconstant():
-                    truevalues[op.args[0]] = arg0.make_lt_const(arg1.low)
-                    falsevalues[op.args[0]] = arg0.make_ge_const(arg1.low)
+                    truevalues[args[0]] = arg0.make_lt_const(arg1.low)
+                    falsevalues[args[0]] = arg0.make_ge_const(arg1.low)
             else:
                 if any(isinstance(arg.resolved_type, (types.Int, types.MachineInt)) for arg in op.args):
                     print "UNKNOWN CONDITION", op
@@ -381,9 +428,10 @@ class AbstractInterpreter(object):
 
 
 class IntOpOptimizer(ir.LocalOptimizer):
-    def __init__(self, graph, codegen, values, *args, **kwargs):
+    def __init__(self, graph, codegen, absinterp, *args, **kwargs):
         ir.LocalOptimizer.__init__(self, graph, codegen, *args, **kwargs)
-        self.values = values
+        self.absinterp = absinterp
+        self.values = absinterp.values
         self.current_values = None
 
     def _should_fit_machine_int(self, op):
@@ -407,6 +455,8 @@ class IntOpOptimizer(ir.LocalOptimizer):
 
     def _known_boolean_value(self, op):
         value = self.current_values.get(op, None)
+        if value is None:
+            return None
         if value == TRUE:
             return ir.BooleanConstant.TRUE
         if value == FALSE:
@@ -442,7 +492,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
             if value.fits_machineint() and value.low >= 1:
                 return self._make_int64_to_int(
                     self.newop(
-                        "@tdiv_int_i_ipos",
+                        "@tdiv_int_i_i",
                         [arg0, self._make_int_to_int64(arg1)],
                         types.MachineInt(),
                         op.sourcepos,
@@ -453,6 +503,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
 def optimize_with_range_info(graph, codegen):
     if graph.has_loop:
         return False
-    values = analyze(graph)
-    opt = IntOpOptimizer(graph, codegen, values)
+    absinterp = AbstractInterpreter(graph)
+    absinterp.analyze()
+    opt = IntOpOptimizer(graph, codegen, absinterp)
     return opt.optimize()

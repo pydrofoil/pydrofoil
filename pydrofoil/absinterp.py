@@ -411,6 +411,9 @@ class AbstractInterpreter(object):
             if name == "@gteq":
                 args = [args[1], args[0]]
                 name = "@lteq"
+            if name == "@gt":
+                args = [args[1], args[0]]
+                name = "@lt"
 
             if name == "@lteq":
                 arg0, arg1 = self._argbounds(args)

@@ -12,7 +12,7 @@ class CodeEmitter(object):
         self.graph = graph
         self.functionast = functionast
         self.codegen = codegen
-        self.graph_construction_code = ir.print_graph_construction(self.graph)
+        self.graph_construction_code = ir.print_graph_construction(self.graph, codegen)
         remove_critical_edges(graph)
 
         self.use_count_ops = count_uses(graph)

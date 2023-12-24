@@ -1116,9 +1116,14 @@ class ConditionalGoto(Next):
 
 # printing
 
-def print_graph_construction(graph):
+def print_graph_construction(graph, codegen=None):
     res = []
     blocks = list(graph.iterblocks())
+    if codegen is not None:
+        builtin_names = codegen.builtin_names
+    else:
+        builtin_names = {}
+
 
     blocknames = {block: "block%s" % i for i, block in enumerate(blocks)}
     print_varnames = {}
@@ -1135,7 +1140,7 @@ def print_graph_construction(graph):
             name = op._get_print_name(print_varnames)
             if isinstance(op, Operation):
                 args = ", ".join([a._repr(print_varnames) for a in op.args])
-                res.append("%s = %s.emit(%s, %r, [%s], %r, %r, %r)"  % (name, blockname, op.__class__.__name__, op.name, args, op.resolved_type, op.sourcepos, op.varname_hint))
+                res.append("%s = %s.emit(%s, %r, [%s], %r, %r, %r)"  % (name, blockname, op.__class__.__name__, builtin_names.get(op.name, op.name), args, op.resolved_type, op.sourcepos, op.varname_hint))
             else:
                 assert isinstance(op, Phi)
                 blockargs = ", ".join([blocknames[b] for b in op.prevblocks])

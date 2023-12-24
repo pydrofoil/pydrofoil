@@ -188,7 +188,7 @@ class AbstractInterpreter(object):
         from dotviewer import graphclient
         import pytest
         dotgen = DotGen('G')
-        print_varnames = self.graph._dot(dotgen)
+        print_varnames = self.graph._dot(dotgen, self.codegen)
         for block in self.graph.iterblocks():
             extrainfoid = "info" + str(id(block))
             if block not in self.values:
@@ -406,7 +406,7 @@ class AbstractInterpreter(object):
         truevalues = self.current_values.copy()
         falsevalues = self.current_values.copy()
         if isinstance(op, ir.Operation):
-            name = op.name
+            name = self._builtinname(op.name)
             args = op.args
             if name == "@gteq":
                 args = [args[1], args[0]]
@@ -430,7 +430,7 @@ class AbstractInterpreter(object):
                     falsevalues[args[0]] = arg0.make_ge_const(arg1.low)
             else:
                 if any(arg.resolved_type in INT_TYPES for arg in op.args):
-                    print "UNKNOWN CONDITION", op
+                    print "UNKNOWN CONDITION", name, op
         return truevalues, falsevalues
 
 

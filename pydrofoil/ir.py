@@ -519,7 +519,11 @@ class Block(object):
             res.append(newop)
         return res
 
-    def _dot(self, dotgen, seen, print_varnames):
+    def _dot(self, dotgen, seen, print_varnames, codegen):
+        if codegen is None:
+            builtin_names = {}
+        else:
+            builtin_names = codegen.builtin_names
         if self in seen:
             return str(id(self))
         seen.add(self)
@@ -531,7 +535,7 @@ class Block(object):
             name = op._get_print_name(print_varnames) if op is not None else 'None'
             if isinstance(op, Operation):
                 oprepr = "%s(%s) [%s]" % (
-                    op.name,
+                    builtin_names.get(op.name, op.name),
                     ", ".join([a._repr(print_varnames) for a in op.args]),
                     op.__class__.__name__
                 )
@@ -554,7 +558,7 @@ class Block(object):
             fillcolor=fillcolor,
         )
         for index, nextblock in enumerate(nextblocks):
-            nextid = nextblock._dot(dotgen, seen, print_varnames)
+            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen)
             label = ''
             if len(nextblocks) > 1:
                 label = str(bool(index))
@@ -586,15 +590,15 @@ class Graph(object):
     def __repr__(self):
         return "<Graph %s %s>" % (self.name, self.args)
 
-    def view(self):
+    def view(self, codegen=None):
         from rpython.translator.tool.make_dot import DotGen
         from dotviewer import graphclient
         import pytest
         dotgen = DotGen('G')
-        print_varnames = self._dot(dotgen)
+        print_varnames = self._dot(dotgen, codegen)
         GraphPage(dotgen.generate(target=None), print_varnames, self.args).display()
 
-    def _dot(self, dotgen):
+    def _dot(self, dotgen, codegen):
         name = "graph" + self.name
         dotgen.emit_node(
             name,
@@ -604,7 +608,7 @@ class Graph(object):
         )
         seen = set()
         print_varnames = {}
-        firstid = self.startblock._dot(dotgen, seen, print_varnames)
+        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen)
         dotgen.emit_edge(name, firstid)
         return print_varnames
 
@@ -1635,7 +1639,7 @@ class BaseOptimizer(object):
         return "<%s %s>" % (self.__class__.__name__, self.graph)
 
     def view(self):
-        self.graph.view()
+        self.graph.view(self.codegen)
 
     def optimize(self):
         self.replacements = {}

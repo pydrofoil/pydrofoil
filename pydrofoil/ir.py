@@ -59,6 +59,8 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # cleanups needed
 # ----------------
 # is there still a tuple type?
+# make phi nodes point to merge blocks, and the merge blocks have prevblocks
+# make the ir construction introduce the correct supportcode names immediately
 
 
 # ideas for speedups

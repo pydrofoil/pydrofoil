@@ -434,16 +434,14 @@ class AbstractInterpreter(object):
                 if arg1.isconstant():
                     truevalues[args[0]] = arg0.make_lt_const(arg1.low)
                     falsevalues[args[0]] = arg0.make_ge_const(arg1.low)
-            elif name in ("eq", "eq_int_o_i", "eq_int_i_i") and args[0].resolved_type in INT_TYPES:
+            elif name in ("eq", "eq_int", "eq_int_o_i", "eq_int_i_i") and args[0].resolved_type in INT_TYPES:
                 arg0, arg1 = self._argbounds(args)
                 if arg0.isconstant():
                     truevalues[args[1]] = arg0
                 if arg1.isconstant():
                     truevalues[args[0]] = arg1
             else:
-                if any(arg.resolved_type in INT_TYPES for arg in op.args):
-                    if "zclint_load" in self.graph.name:
-                        self._view = 1
+                if name != op.name and any(arg.resolved_type in INT_TYPES for arg in op.args):
                     print "UNKNOWN CONDITION", name, op
         return truevalues, falsevalues
 
@@ -454,6 +452,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
         self.absinterp = absinterp
         self.values = absinterp.values
         self.current_values = None
+        self.idom = ir.immediate_dominators(graph)
 
     def _should_fit_machine_int(self, op):
         if self.current_values:
@@ -498,13 +497,50 @@ class IntOpOptimizer(ir.LocalOptimizer):
                 return ir.MachineIntConstant(b.low)
         return ir.LocalOptimizer._optimize_op(self, block, index, op)
 
+    def _insert_int_to_int64_into_right_block(self, arg, targetblock):
+        # carefully place the cast into the earliest block, following
+        # the immediate domtree
+        conversion = ir.Operation("zz5izDzKz5i64", [arg], types.MachineInt())
+        while 1:
+            if targetblock not in self.idom:
+                break
+            prevblock = self.idom[targetblock]
+            if not self.values.get(prevblock, {}).get(arg, UNBOUNDED).fits_machineint():
+                break
+            targetblock = prevblock
+        self._need_dead_code_removal = True
+        if targetblock is self.current_block:
+            self.newoperations.append(conversion)
+        else:
+            targetblock.operations.append(conversion)
+        return conversion
+
     def _extract_machineint(self, arg, *args, **kwargs):
         if arg.resolved_type is types.Int():
             value = self.current_values.get(arg, None)
             if value is not None and value.fits_machineint():
-                self._need_dead_code_removal = True
-                return self._make_int_to_int64(arg)
+                return self._insert_int_to_int64_into_right_block(arg, self.current_block)
         return ir.LocalOptimizer._extract_machineint(self, arg, *args, **kwargs)
+
+    def _optimize_Phi(self, op, block, index):
+        if op.resolved_type is types.Int():
+            if all(isinstance(arg, ir.Constant) for arg in op.prevvalues):
+                return
+            machineints = []
+            for prevblock, arg in zip(op.prevblocks, op.prevvalues):
+                value = self.values.get(prevblock, {}).get(arg, None)
+                if value is not None and value.fits_machineint():
+                    arg = self._insert_int_to_int64_into_right_block(arg, prevblock)
+                else:
+                    return None
+                machineints.append(arg)
+            return self._make_int64_to_int(
+                self.newphi(
+                    op.prevblocks,
+                    machineints,
+                    types.MachineInt())
+            )
+        return ir.LocalOptimizer._optimize_Phi(self, op, block, index)
 
     def optimize_tdiv_int(self, op):
         arg0, arg1 = self._args(op)

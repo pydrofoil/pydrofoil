@@ -365,7 +365,7 @@ def test_phi_node_dead_prevvalue():
     i2 = block1.emit(Operation, "@pow_i", [MachineIntConstant(10)], types.MachineInt())
     block1.next = Goto(block3)
     block2.next = Goto(block3)
-    i3 = block3.emit_phi([block1, block2], [i2, MachineIntConstant(2)], types.MachineInt())
+    i3 = block3.emit_phi([block2, block1], [MachineIntConstant(2), i2], types.MachineInt())
     block3.next = Return(i3)
     graph = Graph('g', [], block0)
 
@@ -430,8 +430,7 @@ def test_eq_condition():
     graph = Graph('g', [bv], block0)
 
     values = analyze(graph, fakecodegen)
-    assert values[block3][i3] == Range(6, 7)
-
+    assert values[block3][i1] == Range(6, 7)
 
 def test_decode():
     zRd = Argument('zRd', SmallFixedBitVector(5))
@@ -500,3 +499,32 @@ def test_decode():
     assert values[block5][i15] == Range(0, 2)
     assert values[block7][i23] == Range(0, 128)
     assert values[block7][i25] == Range(0, 64)
+
+def test_same_condition_twice():
+    bv = Argument("bv", types.SmallFixedBitVector(6))
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    block7 = Block()
+    block8 = Block()
+    i1 = block0.emit(Operation, "unsigned_bv", [bv, MachineIntConstant(6)], types.MachineInt())
+    i2 = block0.emit(Operation, "@gt", [i1, MachineIntConstant(6)], types.MachineInt())
+    block0.next = ConditionalGoto(i2, block2, block1)
+    i3 = block1.emit(Operation, "@add_i_i_must_fit", [i1, MachineIntConstant(10)], types.MachineInt())
+    block1.next = ConditionalGoto(i2, block2, block3)
+    block2.next = Raise(StringConstant("abc"), None)
+    block3.next = Return(i3)
+    graph = Graph('g', [bv], block0)
+
+    values = analyze(graph, fakecodegen, view=1)
+    assert values[block0][i1] == Range(0, 63)
+    assert values[block2][i1] == Range(7, 63)
+    assert values[block1][i1] == Range(0, 6)
+    assert values[block1][i2] == Range(0, 0)
+    assert values[block3][i1] == Range(0, 6)
+    assert values[block3][i3] == Range(10, 16)
+

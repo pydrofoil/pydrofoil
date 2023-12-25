@@ -260,6 +260,8 @@ class AbstractInterpreter(object):
                 self._merge_values(self.current_values, block.next.falsetarget)
                 return
             truevalues, falsevalues = self.analyze_condition(block.next.booleanvalue)
+            truevalues[block.next.booleanvalue] = TRUE
+            falsevalues[block.next.booleanvalue] = FALSE
             self._merge_values(truevalues, block.next.truetarget)
             self._merge_values(falsevalues, block.next.falsetarget)
         elif isinstance(block.next, (ir.Return, ir.Raise, ir.JustStop)):
@@ -305,7 +307,7 @@ class AbstractInterpreter(object):
             b = self._bounds(value, must_exist=False)
             if res is None:
                 res = b
-            else:
+            elif b is not None:
                 res = res.union(b)
         return res
 
@@ -500,6 +502,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
         if arg.resolved_type is types.Int():
             value = self.current_values.get(arg, None)
             if value is not None and value.fits_machineint():
+                self._need_dead_code_removal = True
                 return self._make_int_to_int64(arg)
         return ir.LocalOptimizer._extract_machineint(self, arg, *args, **kwargs)
 

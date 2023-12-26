@@ -1323,7 +1323,7 @@ def _bare_optimize(graph, codegen):
     res = localopt(graph, codegen, do_double_casts=False) or res
     res = remove_empty_blocks(graph) or res
     res = swap_not(graph, codegen) or res
-    #res = optimize_with_range_info(graph, codegen) or res
+    res = optimize_with_range_info(graph, codegen) or res
     res = cse(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph) or res
@@ -2854,7 +2854,7 @@ class LocalOptimizer(BaseOptimizer):
                         types.MachineInt()
                     )
                 )
-            import pdb;pdb.set_trace()
+            #import pdb;pdb.set_trace()
         if arg1.number not in (0, -1) and isinstance(arg1.number, int):
             arg0 = self._extract_machineint(arg0)
             return self._make_int64_to_int(

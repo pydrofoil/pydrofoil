@@ -452,7 +452,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
         self.absinterp = absinterp
         self.values = absinterp.values
         self.current_values = None
-        self.idom = ir.immediate_dominators(graph)
+        self.idom = graph.immediate_dominators()
 
     def _should_fit_machine_int(self, op):
         if self.current_values:
@@ -502,7 +502,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
         # the immediate domtree
         conversion = ir.Operation("zz5izDzKz5i64", [arg], types.MachineInt())
         while 1:
-            if targetblock not in self.idom:
+            if targetblock is self.graph.startblock:
                 break
             prevblock = self.idom[targetblock]
             if not self.values.get(prevblock, {}).get(arg, UNBOUNDED).fits_machineint():

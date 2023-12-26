@@ -157,7 +157,7 @@ def immediate_dominators(G, start, pred):
         The start node of dominance computation.
     pred : dict keyed by nodes
         The predecessor relationship of the graph
-        
+
 
     Returns
     -------

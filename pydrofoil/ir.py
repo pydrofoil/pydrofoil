@@ -590,6 +590,10 @@ class Graph(object):
     def __repr__(self):
         return "<Graph %s %s>" % (self.name, self.args)
 
+    def __getitem__(self, node): # compatibility with the networkx algos
+        assert isinstance(node, Block)
+        return node.next.next_blocks()
+
     def view(self, codegen=None):
         from rpython.translator.tool.make_dot import DotGen
         from dotviewer import graphclient
@@ -623,6 +627,9 @@ class Graph(object):
             seen.add(block)
             todo.extend(block.next.next_blocks())
 
+    def __iter__(self):
+        return self.iterblocks()
+
     def iterblockops(self):
         for block in self.iterblocks():
             for op in block.operations:
@@ -642,9 +649,18 @@ class Graph(object):
         entry[self.startblock] = []
         return entry
 
+    def idoms_and_entrymap(self, startblock=None):
+        from pydrofoil import graphalgorithms
+        startblock = self.startblock
+        entrymap = self.make_entrymap()
+        return graphalgorithms.immediate_dominators(self, startblock, entrymap), entrymap
+
+    def immediate_dominators(self):
+        return self.idoms_and_entrymap()[0]
+
     def check(self):
         # minimal consistency check, will add things later
-        idom, entrymap = _immediate_dominators(self)
+        idom, entrymap = self.idoms_and_entrymap()
         defined_vars_per_block = {} # block -> set of values
         # first compute vars defined directly in all blocks
         #all_phi_prevblocks_ids = {}
@@ -3618,31 +3634,6 @@ def _compute_dominators(G):
                 dominators[node] = dom
     return dominators, preds
 
-def _immediate_dominators(graph):
-    preds = graph.compute_dominators
-    start = G.startblock
-    res = {}
-    dominators, preds = _compute_dominators(G)
-    for node in preds:
-        if node == start:
-            continue
-        doms = dominators[node]
-        for candidate in doms:
-            if candidate == node:
-                continue
-            for otherdom in doms:
-                if otherdom == node or otherdom == candidate:
-                    continue
-                if candidate in dominators[otherdom]:
-                    break
-            else:
-                break
-        res[node] = candidate
-    return res, preds
-
-def immediate_dominators(G):
-    return _immediate_dominators(G)[0]
-
 def dominatees(G):
     dom, pred = _compute_dominators(G)
     res = defaultdict(set)
@@ -3658,7 +3649,6 @@ def propagate_equality(graph):
 
     entrymap = None
     dom = None
-    view = False
     for block in topo_order_best_attempt(graph):
         if not isinstance(block.next, ConditionalGoto):
             continue
@@ -3684,8 +3674,6 @@ def propagate_equality(graph):
             for furtherblock in dom[targetblock]:
                 for op in furtherblock.operations:
                     if intarg in op.getargs():
-                        if furtherblock is not targetblock:
-                            view = op
                         ops.append(op)
             if not ops:
                 continue

@@ -403,6 +403,9 @@ class AbstractInterpreter(object):
         arg0, arg1 = self._argbounds(op)
         return arg0.lshift(arg1)
     analyze_shl_mach_int = analyze_lshift
+    analyze_shl_int_o_i = analyze_lshift
+    analyze_shl_int_i_i_wrapped_res = analyze_lshift
+    analyze_shl_int_i_i_must_fit = analyze_lshift
 
 
     # conditions
@@ -549,7 +552,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
         arg0, arg1 = self._args(op)
         arg0 = self._extract_machineint(arg0)
         if self.current_values:
-            value = self.current_values.get(arg1, None)
+            value = self.current_values.get(arg1, UNBOUNDED)
             if value.fits_machineint() and value.low >= 1:
                 return self._make_int64_to_int(
                     self.newop(

@@ -2235,3 +2235,23 @@ def test_sparse_arith_shiftr_hypothesis(data):
     res = v.arith_rshift(shift)
     intres = v.signed().tobigint().tolong() >> shift
     assert res.tobigint().tolong() == intres & ((1 << size) - 1)
+
+@given(strategies.data())
+def test_lshift_rshift_equivalent_to_mask(data):
+    numbits = data.draw(strategies.integers(1, 20))
+    value = data.draw(strategies.integers(0, 2**64))
+    address = r_uint(value)
+    machine = None
+    proper_result = supportcode.get_slice_int_i_o_i_unwrapped_res(
+        machine,
+        64,
+        supportcode.shl_int_i_i_wrapped_res(
+            machine,
+            supportcode.unsigned_bv64_rshift_int_result(machine, address, numbits),
+            numbits,
+        ),
+        0,
+    )
+    mask = ~((r_uint(1) << numbits) - 1)
+    fast_result = address & mask
+    assert proper_result == fast_result

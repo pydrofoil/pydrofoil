@@ -2911,10 +2911,42 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_get_slice_int_i_o_i_unwrapped_res(self, op):
         arg0, arg1, arg2 = self._args(op)
-        arg1 = self._extract_machineint(arg1)
+        try:
+            arg1 = self._extract_machineint(arg1)
+        except NoMatchException:
+            pass
+        else:
+            return self.newop(
+                "@get_slice_int_i_i_i",
+                [arg0, arg1, arg2],
+                op.resolved_type,
+                op.sourcepos,
+                op.varname_hint,
+            )
+        # rather arm specific
+        arg0 = self._extract_number(arg0)
+        if arg0.number != 64:
+            return
+        arg2 = self._extract_number(arg2)
+        if arg2.number != 0:
+            return
+        if not isinstance(arg1, Operation) or arg1.name != "@shl_int_i_i_wrapped_res":
+            return
+        lshift_arg0, lshift_arg1 = self._args(arg1)
+        lshift_arg1 = self._extract_number(lshift_arg1)
+        if lshift_arg1.number <= 0:
+            return
+        if not isinstance(lshift_arg0, Operation) or lshift_arg0.name != "@unsigned_bv64_rshift_int_result":
+            return
+        address, shift = self._args(lshift_arg0)
+        shift = self._extract_number(shift)
+        if shift.number != lshift_arg1.number or lshift_arg1.number > 32:
+            return
+        mask = ~((r_uint(1) << lshift_arg1.number) - 1)
+        assert op.resolved_type is types.SmallFixedBitVector(64)
         return self.newop(
-            "@get_slice_int_i_i_i",
-            [arg0, arg1, arg2],
+            "@and_vec_bv_bv",
+            [address, SmallBitVectorConstant(mask, types.SmallFixedBitVector(64))],
             op.resolved_type,
             op.sourcepos,
             op.varname_hint,

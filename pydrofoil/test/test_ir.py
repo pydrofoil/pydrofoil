@@ -3339,3 +3339,19 @@ def test_check_finds_wrong_use_of_idoms():
     g = Graph("g", [i, j], block1)
     with pytest.raises(AssertionError):
         g.check()
+
+def test_rshift_lshift_to_mask():
+    bv = Argument('bv', SmallFixedBitVector(64))
+    block0 = Block()
+    i24 = block0.emit(Operation, '@unsigned_bv64_rshift_int_result', [bv, MachineIntConstant(4)], MachineInt(), None, None)
+    i25 = block0.emit(Operation, '@shl_int_i_i_wrapped_res', [i24, MachineIntConstant(4)], Int(), '`7 2885:11-2885:24', 'zz40')
+    i27 = block0.emit(Operation, '@get_slice_int_i_o_i_unwrapped_res', [MachineIntConstant(64), i25, MachineIntConstant(0)], SmallFixedBitVector(64), '`5 176:39-176:72', 'return')
+    block0.next = Return(i27)
+    g = Graph("g", [bv], block0)
+    check_optimize(g, '''
+bv = Argument('bv', SmallFixedBitVector(64))
+block0 = Block()
+i1 = block0.emit(Operation, '@and_vec_bv_bv', [bv, SmallBitVectorConstant(0xfffffffffffffff0L, SmallFixedBitVector(64))], SmallFixedBitVector(64), '`5 176:39-176:72', 'return')
+block0.next = Return(i1, None)
+graph = Graph('g', [bv], block0)
+''')

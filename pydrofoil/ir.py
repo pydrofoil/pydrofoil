@@ -1850,8 +1850,7 @@ class LocalOptimizer(BaseOptimizer):
             else:
                 if res is not None:
                     return res
-        self.newoperations.append(op)
-        return
+        return BaseOptimizer._optimize_op(self, block, index, op)
 
     def _optimize_Cast(self, op, block, index):
         arg, = self._args(op)
@@ -2769,17 +2768,6 @@ class LocalOptimizer(BaseOptimizer):
             op.varname_hint,
         )
 
-    def optimize_shl_int_o_i(self, op):
-        arg0, arg1 = self._args(op)
-        arg0 = self._extract_machineint(arg0)
-        return self.newop(
-            "@shl_int_i_i_wrapped_res",
-            [arg0, arg1],
-            op.resolved_type,
-            op.sourcepos,
-            op.varname_hint,
-        )
-
     @symmetric
     def optimize_mult_i_i_wrapped_res(self, op, arg0, arg1):
         try:
@@ -2831,6 +2819,28 @@ class LocalOptimizer(BaseOptimizer):
                     op.varname_hint,
                 )
             )
+
+    def optimize_shl_int_o_i(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        return self.newop(
+            "@shl_int_i_i_wrapped_res",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_shl_int_i_i_wrapped_res(self, op):
+        if self._should_fit_machine_int(op):
+            arg0, arg1 = self._args(op)
+            return self._make_int64_to_int(self.newop(
+                "@shl_int_i_i_must_fit",
+                [arg0, arg1],
+                types.MachineInt(),
+                op.sourcepos,
+                op.varname_hint,
+            ))
 
     def optimize_tdiv_int(self, op):
         arg0, arg1 = self._args(op)

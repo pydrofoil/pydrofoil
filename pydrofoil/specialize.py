@@ -311,7 +311,7 @@ class SpecializingOptimizer(ir.BaseOptimizer):
             newop = specializer.specialize_call(op, self)
             if newop:
                 return newop
-        self.newoperations.append(op)
+        return ir.BaseOptimizer._optimize_op(self, block, index, op)
 
 SPECIALIZABLE_BUILTINS = frozenset("""
 @zero_extend_o_i @undefined_bitvector_i

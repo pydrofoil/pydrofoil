@@ -694,6 +694,13 @@ def shl_int(machine, i, shift):
 def shl_int_i_i_wrapped_res(machine, i, shift):
     return bitvector.SmallInteger.lshift_i_i(i, shift)
 
+@purefunction
+def shl_int_i_i_must_fit(machine, i, shift):
+    try:
+        return ovfcheck(i << shift)
+    except OverflowError:
+        assert 0, "must not happen"
+
 @unwrap("o i")
 @purefunction
 def shr_int(machine, i, shift):

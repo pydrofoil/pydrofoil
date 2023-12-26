@@ -69,6 +69,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@tdiv_int_i_i", "supportcode.tdiv_int_i_i")
         self.add_global("@unsigned_bv64_rshift_int_result", "supportcode.unsigned_bv64_rshift_int_result")
         self.add_global("@shl_int_i_i_wrapped_res", "supportcode.shl_int_i_i_wrapped_res")
+        self.add_global("@shl_int_i_i_must_fit", "supportcode.shl_int_i_i_must_fit")
         self.add_global("@get_slice_int_i_o_i_unwrapped_res", "supportcode.get_slice_int_i_o_i_unwrapped_res")
         self.add_global("@get_slice_int_i_i_i", "supportcode.get_slice_int_i_i_i")
         self.add_global("@xor_vec_bv_bv", "supportcode.xor_vec_bv_bv")

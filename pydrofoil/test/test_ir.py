@@ -1412,6 +1412,23 @@ block0.next = Return(i7, None)
 graph = Graph('zrotater', [zv, zn], block0)
 ''')
 
+def test_lshift_must_fit():
+    bv = Argument('bv', SmallFixedBitVector(3))
+    block0 = Block()
+    i73 = block0.emit(Operation, '@unsigned_bv', [bv, MachineIntConstant(3)], MachineInt(), '`7 9787:34-9787:48', 'zz433')
+    i76 = block0.emit(Operation, '@shl_int_i_i_wrapped_res', [i73, MachineIntConstant(3)], Int(), '`7 9573:21-9573:30', 'zz40')
+    i78 = block0.emit(Operation, 'zz5izDzKz5i64', [i76], MachineInt(), None, None)
+    block0.next = Return(i78, None)
+    graph = Graph('g', [bv], block0)
+    check_optimize(graph, '''
+bv = Argument('bv', SmallFixedBitVector(3))
+block0 = Block()
+i1 = block0.emit(Operation, '@unsigned_bv', [bv, MachineIntConstant(3)], MachineInt(), '`7 9787:34-9787:48', 'zz433')
+i2 = block0.emit(Operation, '@shl_int_i_i_must_fit', [i1, MachineIntConstant(3)], MachineInt(), '`7 9573:21-9573:30', 'zz40')
+block0.next = Return(i2, None)
+graph = Graph('g', [bv], block0)
+''')
+
 def test_is_ones_subrange():
     zxs = Argument('zxs', GenericBitVector())
     zi = Argument('zi', Int())

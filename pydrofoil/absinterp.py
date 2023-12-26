@@ -6,6 +6,9 @@ from pydrofoil import ir, types
 MININT = -sys.maxint-1
 MAXINT = sys.maxint
 
+# todos:
+# pow2_i
+
 def int_c_div(x, y):
     r = x // y
     if x ^ y < 0 and x % y != 0:

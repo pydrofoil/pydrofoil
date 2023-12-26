@@ -327,3 +327,24 @@ def test_ediv_hypothesis_enum(ra, rb):
                 continue
             assert r.contains(a // b)
 
+def test_mul_example():
+    assert Range(10, 100).mul(Range(1, 10)) == Range(10, 1000)
+    assert Range(-2, 3).mul(Range(-3, 7)) == Range(-14, 21)
+    assert Range(2, None).mul(Range(3, None)) == Range(6, None)
+    assert Range(None, -2).mul(Range(None, -6)) == Range(12, None)
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_mul_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.mul(rb)
+    assert r.contains(a * b)
+
+@given(smallbounds, smallbounds)
+def test_mul_hypothesis_enum(ra, rb):
+    r = ra.mul(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            assert r.contains(a * b)
+
+

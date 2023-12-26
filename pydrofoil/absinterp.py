@@ -72,6 +72,21 @@ class Range(object):
     def sub(self, other):
         return self.add(other.neg())
 
+    def mul(self, other):
+        if self.low is not None and other.low is not None:
+            if self.high is not None and other.high is not None:
+                values = [self.low * other.low,
+                          self.high * other.low,
+                          self.low * other.high,
+                          self.high * other.high]
+                return Range(min(values), max(values))
+            if self.low >= 0 and other.low >= 0:
+                return Range(self.low * other.low, None)
+        if self.high is not None and other.high is not None:
+            if self.high < 0 and other.high < 0:
+                return Range(self.high * other.high, None)
+        return UNBOUNDED
+
     def tdiv(self, other):
         # very minimal for now
         if other.low is not None and other.low >= 1:
@@ -388,6 +403,12 @@ class AbstractInterpreter(object):
             return
         exponent = arg1.low - 1
         return Range(-(2 ** exponent), 2 ** exponent - 1)
+
+    def analyze_mult_int(self, op):
+        arg0, arg1 = self._argbounds(op)
+        return arg0.mul(arg1)
+    analyze_mult_i_i_wrapped_res = analyze_mult_int
+    analyze_mult_i_i_must_fit = analyze_mult_int
 
     def analyze_tdiv_int(self, op):
         arg0, arg1 = self._argbounds(op)

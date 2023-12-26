@@ -681,7 +681,7 @@ class Graph(object):
         # check that all the used values are defined somewhere
         for block in entrymap:
             defined_vars = defined_vars_per_block[block]
-            if block in idom:
+            if block is not self.startblock:
                 defined_vars.update(defined_vars_per_block[idom[block]])
         for block in entrymap:
             defined_vars = defined_vars_per_block[block]

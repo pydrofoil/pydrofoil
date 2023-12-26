@@ -1303,8 +1303,8 @@ def _bare_optimize(graph, codegen):
     res = localopt(graph, codegen, do_double_casts=False) or res
     res = remove_empty_blocks(graph) or res
     res = swap_not(graph, codegen) or res
+    #res = optimize_with_range_info(graph, codegen) or res
     res = cse(graph, codegen) or res
-    res = optimize_with_range_info(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res

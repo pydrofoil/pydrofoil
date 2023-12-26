@@ -3188,6 +3188,8 @@ def inline(graph, codegen):
             elif isinstance(op, Operation):
                 codegen.inline_dependencies[op.name].add(graph)
             index += 1
+    if changed:
+        remove_double_exception_check(graph, codegen)
     return changed
 
 def _inline(graph, block, index, subgraph, add_comment=True):

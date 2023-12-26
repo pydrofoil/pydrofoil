@@ -1,3 +1,5 @@
+import pytest
+
 from pydrofoil import parse
 from pydrofoil.types import *
 from pydrofoil.ir import *
@@ -3300,3 +3302,29 @@ block3.next = ConditionalGoto(i5, block1, block4, '`10 150217:4-150235:142')
 block4.next = Raise(StringConstant('src/instrs64.sail:150234.44-150234.45'), None)
 graph = Graph('g', [i], block0)
 """)
+
+def test_check_finds_wrong_use_of_idoms():
+    i = Argument('i', Int())
+    j = Argument('j', Int())
+    block1 = Block()
+    block2 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    i1 = block1.emit(Operation, '@eq', [i, IntConstant(32)], Bool(), '`94009', 'zz424')
+    i10 = block1.emit(Operation, '@add', [i, j], Bool(), '`94009', 'zz424')
+
+    block1.next = ConditionalGoto(i1, block2, block4, '`10 150234:22-150234:43')
+    i20 = block2.emit_phi([block1, block4], [i10, None], Int())
+    i2 = block2.emit(Operation, 'usetheint', [i20], Bool(), '`10 150235:4-150235:142', 'zz417')
+    block2.next = Goto(block6)
+    i3 = block4.emit(Operation, '@eq', [i, IntConstant(64)], Bool(), '`94020', 'zz425')
+    i30 = block4.emit(Operation, '@add', [i, j], Bool(), '`94009', 'zz424')
+    i20.prevvalues[1] = i30
+    block4.next = ConditionalGoto(i3, block2, block5, '`10 150217:4-150235:142')
+    block5.next = Raise(StringConstant('src/instrs64.sail:150234.44-150234.45'), None)
+    i4 = block6.emit(Operation, 'usetheint_again', [i10, i30], Bool(), '`10 150235:4-150235:142', 'zz417')
+    block6.next = Return(i4)
+    g = Graph("g", [i, j], block1)
+    with pytest.raises(AssertionError):
+        g.check()

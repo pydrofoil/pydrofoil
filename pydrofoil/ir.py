@@ -644,11 +644,14 @@ class Graph(object):
 
     def check(self):
         # minimal consistency check, will add things later
-        entrymap = self.make_entrymap()
-        # check that phi.prevvalues only contains predecessors of a block
-        defined_vars = set(self.args)
+        idom, entrymap = _immediate_dominators(self)
+        defined_vars_per_block = {} # block -> set of values
+        # first compute vars defined directly in all blocks
         #all_phi_prevblocks_ids = {}
         for block, entry in entrymap.iteritems():
+            defined_vars = defined_vars_per_block[block] = set()
+            if block is self.startblock:
+                defined_vars.update(self.args)
             for op in block:
                 defined_vars.add(op)
                 if not isinstance(op, Phi):
@@ -661,10 +664,19 @@ class Graph(object):
                     assert prevblock in entry
         # check that all the used values are defined somewhere
         for block in entrymap:
+            defined_vars = defined_vars_per_block[block]
+            if block in idom:
+                defined_vars.update(defined_vars_per_block[idom[block]])
+        for block in entrymap:
+            defined_vars = defined_vars_per_block[block]
             assert len(set(block.operations)) == len(block.operations)
             for op in block:
-                for value in op.getargs():
-                    assert value in defined_vars or isinstance(value, Constant)
+                if isinstance(op, Phi):
+                    for prevvalue, prevblock in zip(op.prevvalues, op.prevblocks):
+                        assert isinstance(prevvalue, Constant) or prevvalue in defined_vars_per_block[prevblock]
+                else:
+                    for value in op.getargs():
+                        assert value in defined_vars or isinstance(value, Constant)
             for value in block.next.getargs():
                 assert value in defined_vars or isinstance(value, Constant)
 
@@ -3604,7 +3616,8 @@ def _compute_dominators(G):
                 dominators[node] = dom
     return dominators, preds
 
-def immediate_dominators(G):
+def _immediate_dominators(graph):
+    preds = graph.compute_dominators
     start = G.startblock
     res = {}
     dominators, preds = _compute_dominators(G)
@@ -3623,7 +3636,10 @@ def immediate_dominators(G):
             else:
                 break
         res[node] = candidate
-    return res
+    return res, preds
+
+def immediate_dominators(G):
+    return _immediate_dominators(G)[0]
 
 def dominatees(G):
     dom, pred = _compute_dominators(G)

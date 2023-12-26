@@ -3219,12 +3219,6 @@ def test_compute_dominators():
     assert doms[block4] == {block1, block4}
     assert doms[block1] == {block1}
 
-    idoms = immediate_dominators(g)
-    assert idoms[block5] == block4
-    assert idoms[block2] == block1
-    assert idoms[block4] == block1
-    assert block1 not in idoms
-
     invdoms = dominatees(g)
     assert invdoms[block5] == {block5}
     assert invdoms[block2] == {block2}

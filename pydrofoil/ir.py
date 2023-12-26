@@ -1276,8 +1276,6 @@ def repeat(func):
                 finally:
                     if added_debug_list:
                         repeat.debug_list = None
-        if ever_changed:
-            graph.check()
         t2 = time.time()
         t1 = STACK_START_TIMES.pop()
         assert t2 - t1 >= 0
@@ -1293,7 +1291,11 @@ repeat.debug_list = None
 
 def light_simplify(graph, codegen):
     # in particular, don't specialize
-    return _optimize(graph, codegen)
+    res = _optimize(graph, codegen)
+    if res:
+        graph.check()
+    return res
+
 
 def optimize(graph, codegen):
     from pydrofoil.specialize import SpecializingOptimizer
@@ -1306,6 +1308,8 @@ def optimize(graph, codegen):
             else:
                 break
         res = _optimize(graph, codegen) or res
+    if res:
+        graph.check()
     return res
 
 def _bare_optimize(graph, codegen):
@@ -1333,21 +1337,6 @@ _optimize = repeat(_bare_optimize)
 @repeat
 def localopt(graph, codegen, do_double_casts=True):
     return LocalOptimizer(graph, codegen, do_double_casts).optimize()
-
-# def find_double_computation(graph):
-#     # nonsense
-#     if graph.has_loop:
-#         return
-#     seen = set()
-#     for block in topo_order(graph):
-#         for op in block:
-#             if type(op) not in [Cast, Operation]:
-#                 continue # phi, later
-#             key = (op.name, tuple(op.args), op.resolved_type)
-#             if key in seen:
-#                 import pdb;pdb.set_trace()
-#             else:
-#                 seen.add(key)
 
 @repeat
 def remove_dead(graph, codegen):

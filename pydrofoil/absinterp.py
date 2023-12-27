@@ -326,16 +326,18 @@ class AbstractInterpreter(object):
         return meth(op)
 
     def analyze_Phi(self, op):
+        if op.resolved_type not in RELEVANT_TYPES:
+            return
         res = None
-        for value in op.prevvalues:
-            b = self._bounds(value, must_exist=False)
+        for prevblock, value in zip(op.prevblocks, op.prevvalues):
+            b = self._bounds(value, must_exist=False, block=prevblock)
             if res is None:
                 res = b
             elif b is not None:
                 res = res.union(b)
         return res
 
-    def _bounds(self, op, must_exist=True):
+    def _bounds(self, op, must_exist=True, block=None):
         if isinstance(op, ir.BooleanConstant):
             if op.value:
                 return TRUE
@@ -346,9 +348,14 @@ class AbstractInterpreter(object):
             return None
         if isinstance(op, ir.DefaultValue):
             return self.analyze_default(op)
+        block_values = self.current_values
+        if block is not None:
+            block_values = self.values.get(block, None)
+            if not block_values:
+                return None
         if not must_exist:
-            return self.current_values.get(op, None)
-        return self.current_values[op]
+            return block_values.get(op, None)
+        return block_values[op]
 
     def _argbounds(self, op):
         if isinstance(op, ir.Operation):

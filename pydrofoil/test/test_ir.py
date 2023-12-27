@@ -3365,3 +3365,19 @@ i1 = block0.emit(Operation, '@shl_int_i_i_must_fit', [mi, MachineIntConstant(4)]
 block0.next = Return(i1, None)
 graph = Graph('g', [mi], block0)
 ''')
+
+def test_lower_neg_int():
+    mi = Argument('mi', MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Operation, 'int64_to_int', [mi], Int(), None, None)
+    i2 = block0.emit(Operation, 'neg_int', [i1], Int())
+    i3 = block0.emit(Operation, 'int_to_int64', [i2], MachineInt(), None, None)
+    block0.next = Return(i3)
+    g = Graph("g", [mi], block0)
+    check_optimize(g, '''
+mi = Argument('mi', MachineInt())
+block0 = Block()
+i1 = block0.emit(Operation, '@sub_i_i_must_fit', [MachineIntConstant(0), mi], MachineInt(), None, None)
+block0.next = Return(i1, None)
+graph = Graph('g', [mi], block0)
+''')

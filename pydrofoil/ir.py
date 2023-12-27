@@ -2719,6 +2719,17 @@ class LocalOptimizer(BaseOptimizer):
             if arg1.number == 0:
                 return self._make_int64_to_int(arg0, op.sourcepos)
 
+    def optimize_neg_int(self, op):
+        arg0, = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        return self.newop(
+            "@sub_i_i_wrapped_res",
+            [MachineIntConstant(0), arg0],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint
+        )
+
     @symmetric
     def optimize_mult_int(self, op, arg0, arg1):
         arg1 = self._extract_machineint(arg1)

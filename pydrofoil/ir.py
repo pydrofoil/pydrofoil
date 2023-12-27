@@ -2796,6 +2796,29 @@ class LocalOptimizer(BaseOptimizer):
                            op.sourcepos, op.varname_hint)
             )
 
+    def optimize_mult_i_i_must_fit(self, op):
+        arg0, arg1 = self._args(op)
+        try:
+            arg1 = self._extract_number(arg1)
+        except NoMatchException:
+            pass
+        else:
+            if arg1.number == 1:
+                return arg0
+            if arg1.number == 0:
+                return MachineIntConstant(0)
+            if is_pow_2(arg1.number):
+                # power of two
+                exponent = shift_amount(arg1.number)
+                assert 1 << exponent == arg1.number
+                return self.newop(
+                    "@shl_int_i_i_must_fit",
+                    [arg0, MachineIntConstant(exponent)],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+
     def optimize_ediv_int(self, op):
         arg0, arg1 = self._args(op)
         arg1 = self._extract_number(arg1)

@@ -3351,3 +3351,17 @@ i1 = block0.emit(Operation, '@and_vec_bv_bv', [bv, SmallBitVectorConstant(0xffff
 block0.next = Return(i1, None)
 graph = Graph('g', [bv], block0)
 ''')
+
+def test_mult_i_i_must_fit_to_shift():
+    mi = Argument('mi', MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Operation, '@mult_i_i_must_fit', [mi, MachineIntConstant(16)], MachineInt(), None, None)
+    block0.next = Return(i1)
+    g = Graph("g", [mi], block0)
+    check_optimize(g, '''
+mi = Argument('mi', MachineInt())
+block0 = Block()
+i1 = block0.emit(Operation, '@shl_int_i_i_must_fit', [mi, MachineIntConstant(4)], MachineInt(), None, None)
+block0.next = Return(i1, None)
+graph = Graph('g', [mi], block0)
+''')

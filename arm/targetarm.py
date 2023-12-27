@@ -43,6 +43,16 @@ def should_inline(name):
         return True
     if name == "zAlign":
         return True
+    if "TTBaseAddress" in name:
+        return True
+    if "zAArch64_S1StartLevel" in name:
+        return True
+    if "zAArch64_S2StartLevel" in name:
+        return True # risky, several callers
+    if "zAArch64_PhysicalAddressSizze" in name:
+        return True
+    if "zAArch64_PAMax" in name:
+        return True # risky, several callers
     #if name == "z__SetThisInstr":
     #    return False # hook for the JIT
 

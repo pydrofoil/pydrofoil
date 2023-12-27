@@ -122,6 +122,20 @@ class Range(object):
                       self.low << other.high,
                       self.high << other.high]
             return Range(min(values), max(values))
+        if self.low is not None and self.low >= 0 and other.low is not None:
+            if 0 <= other.low <= 64:
+                return Range(self.low << other.low, None)
+            return Range(self.low, None)
+        return UNBOUNDED
+
+    def rshift(self, other):
+        if (self.is_bounded() and other.is_bounded() and
+                0 <= other.low and other.high <= sys.maxint):
+            values = [self.low >> other.low,
+                      self.high >> other.low,
+                      self.low >> other.high,
+                      self.high >> other.high]
+            return Range(min(values), max(values))
         return UNBOUNDED
 
     def union(self, other):
@@ -455,6 +469,18 @@ class AbstractInterpreter(object):
     analyze_shl_int_o_i = analyze_lshift
     analyze_shl_int_i_i_wrapped_res = analyze_lshift
     analyze_shl_int_i_i_must_fit = analyze_lshift
+
+    def analyze_rshift(self, op):
+        arg0, arg1 = self._argbounds(op)
+        return arg0.rshift(arg1)
+    analyze_shr_mach_int = analyze_rshift
+    analyze_shr_int_o_i = analyze_rshift
+
+    def analyze_assert_in_range(self, op): # tests only for now
+        arg0, arg1, arg2 = self._argbounds(op)
+        assert arg1.isconstant() and arg2.isconstant()
+        res = self.current_values[op.args[0]] = Range(arg1.low, arg2.high)
+        return res
 
 
     # conditions

@@ -675,3 +675,15 @@ def test_max():
     values = analyze(g, fakecodegen)
     assert values[block4][i2] == Range(6, None)
 
+def test_shr_int():
+    i = Argument("i", MachineInt())
+    block1 = Block()
+    i1 = block1.emit(Operation, "@assert_in_range", [i, MachineIntConstant(0), MachineIntConstant(10)], MachineInt())
+    i2 = block1.emit(Operation, "int64_to_int", [i1], Int())
+    i3 = block1.emit(Operation, "@shr_int_o_i", [i2, MachineIntConstant(1)], Int())
+    i4 = block1.emit(Operation, "int_to_int64", [i3], MachineInt())
+    block1.next = Return(i4)
+    g = Graph('g', [i], block1)
+    values = analyze(g, fakecodegen)
+    assert values[block1][i4] == Range(0, 5)
+

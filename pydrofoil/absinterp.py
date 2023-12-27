@@ -373,6 +373,7 @@ class AbstractInterpreter(object):
     def analyze_add(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.add(arg1)
+    analyze_add_int = analyze_add
     analyze_add_i_i_must_fit = analyze_add
     analyze_add_i_i_wrapped_res = analyze_add
     analyze_add_o_i_wrapped_res = analyze_add
@@ -380,19 +381,24 @@ class AbstractInterpreter(object):
     def analyze_sub(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.sub(arg1)
+    analyze_sub_int = analyze_sub
     analyze_sub_i_i_must_fit = analyze_sub
     analyze_sub_i_i_wrapped_res = analyze_sub
     analyze_sub_o_i_wrapped_res = analyze_sub
     analyze_sub_i_o_wrapped_res = analyze_sub
 
     def analyze_int_to_int64(self, op):
+        # this is a weird op, it raises if the argument doesn't fit in a
+        # machine int. that means afterwards know we that the *argument*
+        # has to fit (because otherwise int_to_int64 would have raised)
         res = self._bounds(op.args[0])
-        if res == UNBOUNDED:
-            # this is a weird op, it raises if the argument doesn't fit in a
-            # machine int. that means afterwards we that the *argument* has to
-            # fit
-            # XXX should clamp instead
-            res = self.current_values[op.args[0]] = MACHINEINT
+        low = res.low
+        if low is None or low < MACHINEINT.low:
+            low = MACHINEINT.low
+        high = res.high
+        if high is None or high > MACHINEINT.high:
+            high = MACHINEINT.high
+        res = self.current_values[op.args[0]] = Range(low, high)
         return res
 
     def analyze_int64_to_int(self, op):

@@ -1,4 +1,4 @@
-from pydrofoil.absinterp import analyze, BOOL, UNBOUNDED, TRUE, FALSE, Range
+from pydrofoil.absinterp import analyze, BOOL, UNBOUNDED, TRUE, FALSE, MACHINEINT, Range
 from pydrofoil.absinterp import optimize_with_range_info
 from pydrofoil.test.test_ir import compare, FakeCodeGen
 
@@ -636,3 +636,26 @@ def test_with_mul():
     values = analyze(graph, fakecodegen)
     assert values[block2][i12] == Range(9, 52)
     assert values[block2][i16] == Range(34, 85)
+
+def test_int_to_int64():
+    i = Argument("i", Int())
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    i1 = block1.emit(Operation, '@lteq', [IntConstant(0), i], Bool(), '`7 9343:23-9343:35', 'zz435')
+    block1.next = ConditionalGoto(i1, block2, block3, '`7 9343:23-9343:51')
+    block3.next = Raise(StringConstant('negative!'), None)
+    i2 = block2.emit(Operation, "int_to_int64", [i], MachineInt())
+    i3 = block2.emit(Operation, "sub_i_i_wrapped_res", [i2, MachineIntConstant(1)], Int())
+    i4 = block2.emit(Operation, "add_o_i_wrapped_res", [i, MachineIntConstant(1)], Int())
+    i5 = block2.emit(Operation, "add_int", [i3, i4], Int())
+    i6 = block2.emit(Operation, "int_to_int64", [i5], Int())
+    block2.next = Return(i6)
+    g = Graph('g', [i], block1)
+    values = analyze(g, fakecodegen, view=1)
+    assert values[block2][i] == Range(0, MACHINEINT.high)
+    assert values[block2][i3] == Range(-1, MACHINEINT.high - 1)
+    assert values[block2][i4] == Range(1, MACHINEINT.high + 1)
+    assert values[block2][i5] == Range(0, MACHINEINT.high)
+    assert values[block2][i6] == Range(0, MACHINEINT.high)
+

@@ -265,6 +265,9 @@ def test_tdiv_example():
     assert Range(10, 100).tdiv(Range(1, None)) == Range(0, 100)
     assert Range(10, None).tdiv(Range(1, None)) == Range(0, None)
     assert Range(-15, 0).tdiv(Range(1, None)) == Range(-15, 0)
+    assert Range(0, 51).tdiv(Range(9, 13)) == Range(0, 5)
+    assert Range(0, 51).tdiv(Range(9, 13)) == Range(0, 5)
+    assert Range(-15, 0).tdiv(Range(9, 13)) == Range(-1, 0)
 
 @given(bound_with_contained_number, bound_with_contained_number)
 def test_tdiv_hypothesis(ta, tb):

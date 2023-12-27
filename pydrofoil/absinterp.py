@@ -90,6 +90,12 @@ class Range(object):
     def tdiv(self, other):
         # very minimal for now
         if other.low is not None and other.low >= 1:
+            if other.high is not None and self.low is not None and self.high is not None:
+                values = [int_c_div(self.low, other.low),
+                          int_c_div(self.high, other.low),
+                          int_c_div(self.low, other.high),
+                          int_c_div(self.high, other.high)]
+                return Range(min(values), max(values))
             # division by positive number cannot change the sign
             if self.low is not None and self.low >= 0:
                 return Range(0, self.high)

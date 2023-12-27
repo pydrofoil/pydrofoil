@@ -386,7 +386,14 @@ class AbstractInterpreter(object):
     analyze_sub_i_o_wrapped_res = analyze_sub
 
     def analyze_int_to_int64(self, op):
-        return self._bounds(op.args[0])
+        res = self._bounds(op.args[0])
+        if res == UNBOUNDED:
+            # this is a weird op, it raises if the argument doesn't fit in a
+            # machine int. that means afterwards we that the *argument* has to
+            # fit
+            # XXX should clamp instead
+            res = self.current_values[op.args[0]] = MACHINEINT
+        return res
 
     def analyze_int64_to_int(self, op):
         return self._bounds(op.args[0])

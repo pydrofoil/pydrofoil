@@ -27,6 +27,9 @@ class Range(object):
     def fromconst(value):
         return Range(value, value)
 
+    def is_bounded(self):
+        return self.low is not None and self.high is not None
+
     def __repr__(self):
         return "Range(%r, %r)" % (self.low, self.high)
 
@@ -50,7 +53,7 @@ class Range(object):
         return self.low is not None and self.low == self.high
 
     def fits_machineint(self):
-        return (self.low is not None and self.high is not None and
+        return (self.is_bounded() and
                 self.low >= MININT and self.high <= MAXINT)
 
     def add(self, other):
@@ -73,13 +76,13 @@ class Range(object):
         return self.add(other.neg())
 
     def mul(self, other):
+        if self.is_bounded() and other.is_bounded():
+            values = [self.low * other.low,
+                      self.high * other.low,
+                      self.low * other.high,
+                      self.high * other.high]
+            return Range(min(values), max(values))
         if self.low is not None and other.low is not None:
-            if self.high is not None and other.high is not None:
-                values = [self.low * other.low,
-                          self.high * other.low,
-                          self.low * other.high,
-                          self.high * other.high]
-                return Range(min(values), max(values))
             if self.low >= 0 and other.low >= 0:
                 return Range(self.low * other.low, None)
         if self.high is not None and other.high is not None:
@@ -90,7 +93,7 @@ class Range(object):
     def tdiv(self, other):
         # very minimal for now
         if other.low is not None and other.low >= 1:
-            if other.high is not None and self.low is not None and self.high is not None:
+            if other.high is not None and self.is_bounded():
                 values = [int_c_div(self.low, other.low),
                           int_c_div(self.high, other.low),
                           int_c_div(self.low, other.high),
@@ -112,9 +115,8 @@ class Range(object):
         return UNBOUNDED
 
     def lshift(self, other):
-        if self.low is None or self.high is None or other.low is None or other.high is None:
-            return UNBOUNDED
-        if 0 <= other.low and other.high <= 64:
+        if (self.is_bounded() and other.is_bounded() and
+                0 <= other.low and other.high <= 64):
             values = [self.low << other.low,
                       self.high << other.low,
                       self.low << other.high,

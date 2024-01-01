@@ -515,17 +515,17 @@ class AbstractInterpreter(object):
                 arg0, arg1 = self._argbounds(args)
                 if arg0.isconstant():
                     truevalues[args[1]] = arg1.make_ge_const(arg0.low)
-                    falsevalues[args[1]] = arg1.make_lt_const(arg0.low)
+                falsevalues[args[1]] = arg1.make_lt(arg0)
+                truevalues[args[0]] = arg0.make_le(arg1)
                 if arg1.isconstant():
-                    truevalues[args[0]] = arg0.make_le_const(arg1.low)
                     falsevalues[args[0]] = arg0.make_gt_const(arg1.low)
             elif name == "lt":
                 arg0, arg1 = self._argbounds(args)
                 if arg0.isconstant():
                     truevalues[args[1]] = arg1.make_gt_const(arg0.low)
-                    falsevalues[args[1]] = arg1.make_le_const(arg0.low)
+                falsevalues[args[1]] = arg1.make_le(arg0)
+                truevalues[args[0]] = arg0.make_lt(arg1)
                 if arg1.isconstant():
-                    truevalues[args[0]] = arg0.make_lt_const(arg1.low)
                     falsevalues[args[0]] = arg0.make_ge_const(arg1.low)
             elif name in ("eq", "eq_int", "eq_int_o_i", "eq_int_i_i") and args[0].resolved_type in INT_TYPES:
                 arg0, arg1 = self._argbounds(args)

@@ -182,11 +182,23 @@ class Range(object):
                 return FALSE
         return BOOL
 
+    def make_le(self, other):
+        if other.high is not None:
+            return self.make_le_const(other.high)
+        return self
+
     def make_le_const(self, const):
-        return Range(self.low, const)
+        if self.high is None or const < self.high:
+            return Range(self.low, const)
+        return self
+
+    def make_lt(self, other):
+        if other.high is not None:
+            return self.make_lt_const(other.high)
+        return self
 
     def make_lt_const(self, const):
-        return Range(self.low, const - 1)
+        return self.make_le_const(const - 1)
 
     def make_ge_const(self, const):
         return Range(const, self.high)

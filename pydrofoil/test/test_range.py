@@ -4,7 +4,7 @@ from pydrofoil.absinterp import Range, UNBOUNDED, TRUE, FALSE, BOOL, int_c_div
 
 from rpython.rlib.rarithmetic import LONG_BIT
 
-from hypothesis import given, strategies
+from hypothesis import given, strategies, assume
 
 
 special_values = (
@@ -374,3 +374,58 @@ def test_mul_hypothesis_enum(ra, rb):
             assert r.contains(a * b)
 
 
+def test_make_le_example():
+    assert Range(None, 100).make_le(Range(None, 10)) == Range(None, 10)
+    assert Range(None, None).make_le(Range(None, 10)) == Range(None, 10)
+    assert Range(None, None).make_le(Range(None, -10)) == Range(None, -10)
+    assert Range(100, 1000).make_le(Range(None, 900)) == Range(100, 900)
+    assert Range(100, 100).make_le(Range(None, 900)) == Range(100, 100)
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_make_le_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    if a > b:
+        ra, a, rb, b = rb, b, ra, a
+    assume(ra.le(rb) != FALSE)
+    r = ra.make_le(rb)
+    assert r.le(rb) != FALSE
+    assume(a <= b)
+    assert r.contains(a)
+
+@given(smallbounds, smallbounds)
+def test_make_le_hypothesis_enum(ra, rb):
+    assume(ra.le(rb) != FALSE)
+    r = ra.make_le(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            if a <= b:
+                assert r.contains(a)
+
+def test_make_lt_example():
+    assert Range(None, 100).make_lt(Range(None, 10)) == Range(None, 9)
+    assert Range(None, None).make_lt(Range(None, 10)) == Range(None, 9)
+    assert Range(None, None).make_lt(Range(None, -10)) == Range(None, -11)
+    assert Range(100, 1000).make_lt(Range(None, 900)) == Range(100, 899)
+    assert Range(100, 100).make_lt(Range(None, 900)) == Range(100, 100)
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_make_lt_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    if a >= b:
+        ra, a, rb, b = rb, b, ra, a
+    assume(ra.lt(rb) != FALSE)
+    r = ra.make_lt(rb)
+    assert r.lt(rb) != FALSE
+    assume(a < b)
+    assert r.contains(a)
+
+@given(smallbounds, smallbounds)
+def test_make_lt_hypothesis_enum(ra, rb):
+    assume(ra.lt(rb) != FALSE)
+    r = ra.make_lt(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            if a < b:
+                assert r.contains(a)

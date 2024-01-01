@@ -200,11 +200,23 @@ class Range(object):
     def make_lt_const(self, const):
         return self.make_le_const(const - 1)
 
+    def make_ge(self, other):
+        if other.low is not None:
+            return self.make_ge_const(other.low)
+        return self
+
     def make_ge_const(self, const):
-        return Range(const, self.high)
+        if self.low is None or const > self.low:
+            return Range(const, self.high)
+        return self
+
+    def make_gt(self, other):
+        if other.low is not None:
+            return self.make_gt_const(other.low)
+        return self
 
     def make_gt_const(self, const):
-        return Range(const + 1, self.high)
+        return self.make_ge_const(const + 1)
 
 UNBOUNDED = Range(None, None)
 MACHINEINT = Range(MININT, MAXINT)

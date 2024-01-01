@@ -429,3 +429,59 @@ def test_make_lt_hypothesis_enum(ra, rb):
         for b in range(rb.low, rb.high + 1):
             if a < b:
                 assert r.contains(a)
+
+def test_make_ge_example():
+    assert Range(0, None).make_ge(Range(10, None)) == Range(10, None)
+    assert Range(None, None).make_ge(Range(10, None)) == Range(10, None)
+    assert Range(None, None).make_ge(Range(-10, None)) == Range(-10, None)
+    assert Range(100, 1000).make_ge(Range(900, None)) == Range(900, 1000)
+    assert Range(100, 100).make_ge(Range(None, 90)) == Range(100, 100)
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_make_ge_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    if a < b:
+        ra, a, rb, b = rb, b, ra, a
+    assume(ra.ge(rb) != FALSE)
+    r = ra.make_ge(rb)
+    assert r.ge(rb) != FALSE
+    assume(a >= b)
+    assert r.contains(a)
+
+@given(smallbounds, smallbounds)
+def test_make_ge_hypothesis_enum(ra, rb):
+    assume(ra.ge(rb) != FALSE)
+    r = ra.make_ge(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            if a >= b:
+                assert r.contains(a)
+
+def test_make_gt_example():
+    assert Range(0, None).make_gt(Range(10, None)) == Range(11, None)
+    assert Range(None, None).make_gt(Range(10, None)) == Range(11, None)
+    assert Range(None, None).make_gt(Range(-10, None)) == Range(-9, None)
+    assert Range(100, 1000).make_gt(Range(900, None)) == Range(901, 1000)
+    assert Range(100, 100).make_gt(Range(None, 90)) == Range(100, 100)
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_make_gt_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    if a <= b:
+        ra, a, rb, b = rb, b, ra, a
+    assume(ra.gt(rb) != FALSE)
+    r = ra.make_gt(rb)
+    assert r.ge(rb) != FALSE
+    assume(a > b)
+    assert r.contains(a)
+
+@given(smallbounds, smallbounds)
+def test_make_gt_hypothesis_enum(ra, rb):
+    assume(ra.gt(rb) != FALSE)
+    r = ra.make_gt(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            if a > b:
+                assert r.contains(a)

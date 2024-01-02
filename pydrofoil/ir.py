@@ -519,7 +519,7 @@ class Block(object):
             res.append(newop)
         return res
 
-    def _dot(self, dotgen, seen, print_varnames, codegen):
+    def _dot(self, dotgen, seen, print_varnames, codegen, backedges):
         if codegen is None:
             builtin_names = {}
         else:
@@ -558,11 +558,15 @@ class Block(object):
             fillcolor=fillcolor,
         )
         for index, nextblock in enumerate(nextblocks):
-            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen)
+            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges)
             label = ''
             if len(nextblocks) > 1:
                 label = str(bool(index))
-            dotgen.emit_edge(str(id(self)), nextid, label=label)
+            if (self, nextblock) in backedges:
+                color = "blue"
+            else:
+                color = "black"
+            dotgen.emit_edge(str(id(self)), nextid, label=label, color=color)
         return str(id(self))
 
     def split(self, index, keep_op):
@@ -612,7 +616,11 @@ class Graph(object):
         )
         seen = set()
         print_varnames = {}
-        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen)
+        if self.has_loop:
+            backedges = set(find_backedges(self))
+        else:
+            backedges = set()
+        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges)
         dotgen.emit_edge(name, firstid)
         return print_varnames
 
@@ -626,6 +634,19 @@ class Graph(object):
             yield block
             seen.add(block)
             todo.extend(block.next.next_blocks())
+
+    def iteredges(self):
+        todo = [self.startblock]
+        seen = set()
+        while todo:
+            block = todo.pop()
+            if block in seen:
+                continue
+            seen.add(block)
+            for next in block.next.next_blocks():
+                yield block, next
+                if next not in seen:
+                    todo.append(next)
 
     def __iter__(self):
         return self.iterblocks()
@@ -3775,6 +3796,14 @@ def dominatees(G):
         for dominator_block in doms:
             res[dominator_block].add(block)
     return dict(res)
+
+def find_backedges(G):
+    # a backedge is an edge where the target node dominates the source node
+    assert G.has_loop
+    dom = compute_dominators(G)
+    for source, target in G.iteredges():
+        if target in dom[source]:
+            yield source, target
 
 def propagate_equality(graph):
     changed = False

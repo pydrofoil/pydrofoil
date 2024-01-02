@@ -1666,12 +1666,16 @@ class BaseOptimizer(object):
         self.codegen = codegen
         self.changed = False
         self.anticipated_casts = find_anticipated_casts(graph)
+        self.entrymap = graph.make_entrymap()
         self.do_double_casts = do_double_casts
         self.current_block = self.graph.startblock
         self._dead_blocks = False
         self._need_dead_code_removal = False
         self.newoperations = None
         self.replacements = {}
+        # cse attributes
+        self.cse_op_available = {} # block -> block -> prev_op
+        self.cse_op_available_in_block = None
 
     def __repr__(self):
         return "<%s %s>" % (self.__class__.__name__, self.graph)
@@ -1681,7 +1685,7 @@ class BaseOptimizer(object):
 
     def optimize(self):
         self.replacements = {}
-        for block in self.graph.iterblocks():
+        for block in topo_order_best_attempt(self.graph):
             self.current_block = block
             self.optimize_block(block)
         if self.replacements:
@@ -1700,6 +1704,22 @@ class BaseOptimizer(object):
         return self.changed
 
     def optimize_block(self, block):
+        # prepare CSE
+        available_in_block = {}
+        prev_blocks = self.entrymap[block]
+        if prev_blocks:
+            if len(prev_blocks) == 1:
+                available_in_block = self.cse_op_available[prev_blocks[0]].copy()
+            else:
+                # intersection of what's available in the previous blocks
+                for key, prev_op in self.cse_op_available.get(prev_blocks[0], {}).iteritems():
+                    if not all(self.cse_op_available.get(prev_block, {}).get(key, None) == prev_op
+                               for prev_block in prev_blocks):
+                        continue
+                    available_in_block[key] = prev_op
+        self.cse_op_available[block] = available_in_block
+        self.cse_op_available_in_block = available_in_block
+
         self.newoperations = []
         for i, op in enumerate(block.operations):
             newop = self._optimize_op(block, i, op)
@@ -1720,6 +1740,7 @@ class BaseOptimizer(object):
                 self._dead_blocks = True
         block.operations = self.newoperations
         self.newoperations = None
+        self.cse_op_available_in_block = None
 
     def _known_boolean_value(self, op):
         op = self._get_op_replacement(op)
@@ -1727,9 +1748,58 @@ class BaseOptimizer(object):
             return op
 
     def _optimize_op(self, block, index, op):
-        # base implementation, does nothing
+        # base implementation, do CSE
+        key = None
+        if isinstance(op, Phi):
+            key = (Phi, self._cse_comparison_tuple(op.prevvalues), tuple(op.prevblocks), op.resolved_type)
+        elif not self._cse_can_replace(op):
+            if isinstance(op, FieldWrite) and self._cse_is_tuplestruct(op):
+                assert not isinstance(op.args[0], StructConstruction)
+                res = op.args[1]
+                writekey = (FieldAccess, op.name, self._cse_comparison_tuple(op.args[:1]), res.resolved_type)
+                self.cse_op_available_in_block[writekey] = self.replacements.get(res, res)
+            if isinstance(op, StructConstruction) and self._cse_is_tuplestruct_typ(op.resolved_type):
+                for fieldname, val in zip(op.resolved_type.names, op.args):
+                    writekey = (FieldAccess, fieldname, (op, ), val.resolved_type)
+                    self.cse_op_available_in_block[writekey] = self.replacements.get(val, val)
+        else:
+            key = (type(op), op.name, self._cse_comparison_tuple(op.args), op.resolved_type)
+        if key is not None:
+            if key in self.cse_op_available_in_block:
+                block.operations[index] = None
+                self._need_dead_code_removal = True
+                return self.cse_op_available_in_block[key]
+            else:
+                self.cse_op_available_in_block[key] = op
         self.newoperations.append(op)
 
+    # some cse helpers
+
+    def _cse_is_tuplestruct_typ(self, typ):
+        return isinstance(typ, types.Struct) and typ.tuplestruct
+
+    def _cse_is_tuplestruct(self, op):
+        return self._cse_is_tuplestruct_typ(op.args[0].resolved_type)
+
+    def _cse_can_replace(self, op):
+        if isinstance(op, Cast):
+            return True
+        if isinstance(op, UnionCast):
+            return True
+        if isinstance(op, UnionVariantCheck):
+            return True
+        if isinstance(op, FieldAccess) and self._cse_is_tuplestruct(op):
+            return True
+        if op.name == "@not":
+            return True
+        name = self.codegen.builtin_names.get(op.name, op.name)
+        name = name.lstrip('@')
+        return type(op) is Operation and name in supportcode.purefunctions
+
+    def _cse_comparison_tuple(self, valuelist):
+        return tuple(self.replacements.get(arg, arg).comparison_key() for arg in valuelist)
+
+    # end cse helpers
     def newop(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
         newop = Operation(
             name, args, resolved_type, sourcepos,
@@ -1811,6 +1881,10 @@ class BaseOptimizer(object):
             return arg.args[0]
         if isinstance(arg, Cast):
             import pdb;pdb.set_trace()
+        # check whether we have a cast as an available expression (ie "above" us)
+        key = (Operation, 'zz5izDzKz5i64', self._cse_comparison_tuple([arg]), types.MachineInt())
+        if self.cse_op_available_in_block and key in self.cse_op_available_in_block:
+            return self.cse_op_available_in_block[key]
         if self.newoperations is not None:
             anticipated = self.anticipated_casts.get(self.current_block, set())
             if (arg, types.MachineInt()) in anticipated:
@@ -3282,9 +3356,9 @@ def inline(graph, codegen):
                         continue
                 elif not subgraph.has_loop:
                     # complicated case
-                    _inline(graph, block, index, subgraph)
-                    remove_empty_blocks(graph)
-                    join_blocks(graph)
+                    _inline(graph, codegen, block, index, subgraph)
+                    remove_empty_blocks(graph, codegen)
+                    join_blocks(graph, codegen)
                     remove_double_exception_check(graph, codegen)
                     return True
             elif isinstance(op, Operation):
@@ -3294,7 +3368,7 @@ def inline(graph, codegen):
         remove_double_exception_check(graph, codegen)
     return changed
 
-def _inline(graph, block, index, subgraph, add_comment=True):
+def _inline(graph, codegen, block, index, subgraph, add_comment=True):
     # split current block
     op = block.operations[index]
     newblock = block.split(index, keep_op=False)
@@ -3307,7 +3381,7 @@ def _inline(graph, block, index, subgraph, add_comment=True):
     return_block.next = Goto(newblock)
     graph.replace_op(op, return_block.operations[0])
     _remove_unreachable_phi_prevvalues(graph)
-    simplify_phis(graph)
+    simplify_phis(graph, codegen)
 
 def copy_ops(op, subgraph):
     assert isinstance(subgraph.startblock.next, Return)
@@ -3489,9 +3563,9 @@ def remove_double_exception_check(graph, codegen):
             continue
         block.next.truetarget = exceptional_return
         nextblock.next.booleanvalue = BooleanConstant.FALSE
-        remove_if_true_false(graph)
-        remove_empty_blocks(graph)
-        join_blocks(graph)
+        remove_if_true_false(graph, codegen)
+        remove_empty_blocks(graph, codegen)
+        join_blocks(graph, codegen)
         remove_dead(graph, codegen)
         return True
     for block in exception_checks:
@@ -3540,79 +3614,6 @@ def find_anticipated_casts(graph):
             if isinstance(op, Operation) and op.name == 'zz5izDzKz5i64':
                 s.add((op.args[0], op.resolved_type))
     return anticipated_casts
-
-@repeat
-def cse(graph, codegen):
-    def is_tuplestruct_typ(typ):
-        return isinstance(typ, types.Struct) and typ.tuplestruct
-    def is_tuplestruct(op):
-        return is_tuplestruct_typ(op.args[0].resolved_type)
-
-    def can_replace(op):
-        if isinstance(op, Cast):
-            return True
-        if isinstance(op, UnionCast):
-            return True
-        if isinstance(op, UnionVariantCheck):
-            return True
-        if isinstance(op, FieldAccess) and is_tuplestruct(op):
-            return True
-        if op.name == "@not":
-            return True
-        name = codegen.builtin_names.get(op.name, op.name)
-        name = name.lstrip('@')
-        return type(op) is Operation and name in supportcode.purefunctions
-
-    def comparison_tuple(valuelist):
-        return tuple(replacements.get(arg, arg).comparison_key() for arg in valuelist)
-
-    # very simple forward CSE pass
-    replacements = {}
-    available = {} # block -> block -> prev_op
-
-    entrymap = graph.make_entrymap()
-    blocks = topo_order_best_attempt(graph)
-    for block in blocks:
-        available_in_block = {}
-        prev_blocks = entrymap[block]
-        if prev_blocks:
-            if len(prev_blocks) == 1:
-                available_in_block = available[prev_blocks[0]].copy()
-            else:
-                # intersection of what's available in the previous blocks
-                for key, prev_op in available[prev_blocks[0]].iteritems():
-                    if not all(available.get(prev_block, {}).get(key, None) == prev_op
-                               for prev_block in prev_blocks):
-                        continue
-                    available_in_block[key] = prev_op
-        available[block] = available_in_block
-        for index, op in enumerate(block.operations):
-            if isinstance(op, Phi):
-                key = (Phi, comparison_tuple(op.prevvalues), tuple(op.prevblocks), op.resolved_type)
-            elif not can_replace(op):
-                if isinstance(op, FieldWrite) and is_tuplestruct(op):
-                    assert not isinstance(op.args[0], StructConstruction)
-                    res = op.args[1]
-                    key = (FieldAccess, op.name, comparison_tuple(op.args[:1]), res.resolved_type)
-                    available_in_block[key] = replacements.get(res, res)
-                if isinstance(op, StructConstruction) and is_tuplestruct_typ(op.resolved_type):
-                    for fieldname, val in zip(op.resolved_type.names, op.args):
-                        key = (FieldAccess, fieldname, (op, ), val.resolved_type)
-                        available_in_block[key] = replacements.get(val, val)
-                continue
-            else:
-                key = (type(op), op.name, comparison_tuple(op.args), op.resolved_type)
-            if key in available_in_block:
-                block.operations[index] = None
-                replacements[op] = available_in_block[key]
-            else:
-                available_in_block[key] = op
-    if replacements:
-        for block in blocks:
-            block.operations = [op for op in block.operations if op is not None]
-        graph.replace_ops(replacements)
-        return True
-    return False
 
 
 @repeat

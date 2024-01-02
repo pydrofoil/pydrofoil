@@ -1325,6 +1325,7 @@ def _bare_optimize(graph, codegen):
     res = swap_not(graph, codegen) or res
     res = optimize_with_range_info(graph, codegen) or res
     res = cse(graph, codegen) or res
+    res = cse_global_reads(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
@@ -2065,7 +2066,7 @@ class LocalOptimizer(BaseOptimizer):
         if op.resolved_type is types.Int():
             machineints = []
             for arg in op.prevvalues:
-                arg = self._extract_machineint(self._get_op_replacement(arg), want_constant=False)
+                arg = self._extract_machineint(self._get_op_replacement(arg))
                 machineints.append(arg)
             if all(isinstance(arg, Constant) for arg in machineints):
                 return
@@ -3593,6 +3594,74 @@ def cse(graph, codegen):
         return True
     return False
 
+
+@repeat
+def cse_global_reads(graph, codegen):
+    # very simple forward load-after-load pass
+    def leaves_globals_alone(op):
+        if not op.can_have_side_effects:
+            return True
+        if isinstance(op, Comment):
+            return True
+        if op.name == "@not":
+            return True
+        if op.name == "@eq":
+            return True
+        name = op.name.lstrip("@$")
+        name = codegen.builtin_names.get(name, name)
+        return type(op) is Operation and name in supportcode.purefunctions
+
+    replacements = {}
+    available = {} # block -> block -> prev_op
+
+    entrymap = graph.make_entrymap()
+    blocks = topo_order_best_attempt(graph)
+    for block in blocks:
+        available_in_block = {}
+        prev_blocks = entrymap[block]
+        if prev_blocks:
+            if len(prev_blocks) == 1:
+                available_in_block = available[prev_blocks[0]].copy()
+            else:
+                # intersection of what's available in the previous blocks
+                for key, prev_op in available[prev_blocks[0]].iteritems():
+                    if not all(available.get(prev_block, {}).get(key, None) == prev_op
+                               for prev_block in prev_blocks):
+                        continue
+                    available_in_block[key] = prev_op
+        available[block] = available_in_block
+        for index, op in enumerate(block.operations):
+            if isinstance(op, GlobalRead):
+                key = (op.name, op.resolved_type)
+            elif isinstance(op, GlobalWrite):
+                key = (op.name, op.resolved_type)
+                available_in_block[key] = op.args[0]
+                continue
+            elif not leaves_globals_alone(op):
+                available_in_block.clear()
+                continue
+            else:
+                continue
+            if key in available_in_block:
+                #if not isinstance(available_in_block[key], GlobalRead):
+                #    import pdb;pdb.set_trace()
+                block.operations[index] = None
+                replacements[op] = available_in_block[key]
+            else:
+                available_in_block[key] = op
+    #if graph.name == 'zexecute_aarch32_instrs_SADD16_Op_A_txt':
+    #    import pdb;pdb.set_trace()
+    if replacements:
+        for block in blocks:
+            block.operations = [op for op in block.operations if op is not None]
+        while 1:
+            # XXX do them in one go somehow
+            changed = graph.replace_ops(replacements)
+            if not changed:
+                break
+        graph.check()
+        return True
+    return False
 
 @repeat
 def partial_allocation_removal(graph):

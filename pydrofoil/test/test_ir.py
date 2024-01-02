@@ -79,7 +79,7 @@ graph = Graph('zbits1_to_bool', [zb], block0)"""
 
 def test_remove_empty_blocks():
     graph = make_bits_to_bool()
-    remove_empty_blocks(graph)
+    remove_empty_blocks(graph, fakecodegen)
     res = print_graph_construction(graph)
     assert "\n".join(res) == """\
 zb = Argument('zb', SmallFixedBitVector(1))
@@ -111,7 +111,7 @@ def test_remove_empty_blocks_2():
     block2.next = Return(i1, None)
     block3.next = Goto(block2, None)
     graph = Graph('zbool_to_bits', [zx], block0)
-    assert not remove_empty_blocks(graph)
+    assert not remove_empty_blocks(graph, fakecodegen)
 
 def test_if_true_false():
     zargz3 = Argument('zargz3', SmallFixedBitVector(32))
@@ -127,7 +127,7 @@ def test_if_true_false():
     block4.next = Return(v0, '')
 
     g = Graph("execute", [zargz3], block1)
-    res = remove_if_true_false(g)
+    res = remove_if_true_false(g, fakecodegen)
     res = print_graph_construction(g)
     assert "\n".join(res) == """\
 zargz3 = Argument('zargz3', SmallFixedBitVector(32))
@@ -1877,7 +1877,7 @@ def test_inline_loop():
     graph = Graph('zvalidDoubleRegs_specialized_4_o', [zn, zregs], block0)
     graph.check()
 
-    _inline(graph, block0, 1, subgraph)
+    _inline(graph, fakecodegen, block0, 1, subgraph)
 
 
 def test_sail_assert_true():
@@ -2979,7 +2979,7 @@ def test_partial_allocation_removal():
     i4 = block0.emit(FieldWrite, 'f2', [i2, a2], Unit(), None, None)
     block0.next = Return(i2)
     g = Graph('f', [a1, a2], block0)
-    partial_allocation_removal(g)
+    partial_allocation_removal(g, fakecodegen)
     compare(g, '''
 a1 = Argument('a1', Int())
 a2 = Argument('a2', SmallFixedBitVector(32))
@@ -3000,7 +3000,7 @@ def test_partial_allocation_removal_escape():
     i5 = block0.emit(Operation, "escape", [i2], Int())
     block0.next = Return(i5)
     g = Graph('f', [a1, a2], block0)
-    partial_allocation_removal(g)
+    partial_allocation_removal(g, fakecodegen)
     compare(g, '''
 a1 = Argument('a1', Int())
 a2 = Argument('a2', SmallFixedBitVector(32))
@@ -3024,7 +3024,7 @@ def test_partial_allocation_removal_escape_recursive():
     i8 = block0.emit(Operation, "escape", [i3], Int())
     block0.next = Return(i8)
     g = Graph('f', [a1, a2], block0)
-    partial_allocation_removal(g)
+    partial_allocation_removal(g, fakecodegen)
     compare(g, '''
 a1 = Argument('a1', Int())
 a2 = Argument('a2', SmallFixedBitVector(32))
@@ -3055,7 +3055,7 @@ def test_partial_allocation_removal_merge_same_virtual():
     i7 = block3.emit(Operation, '@add', [i5, i6], Int(), None, None)
     block3.next = Return(i7, None)
     g = Graph('merge', [zb, zi], block0)
-    partial_allocation_removal(g)
+    partial_allocation_removal(g, fakecodegen)
     compare(g, '''
 zb = Argument('zb', Bool())
 zi = Argument('zi', Int())
@@ -3085,7 +3085,7 @@ def test_partial_allocation_removal_starting_from_struct_construction():
     i3 = block0.emit(FieldAccess, 'f1', [i2], Unit(), None, None)
     block0.next = Return(i3)
     g = Graph('f', [a1, a2], block0)
-    partial_allocation_removal(g)
+    partial_allocation_removal(g, fakecodegen)
     compare(g, '''
 a1 = Argument('a1', Int())
 a2 = Argument('a2', SmallFixedBitVector(32))
@@ -3108,7 +3108,7 @@ def test_partial_allocation_aliasing():
     i9 = block0.emit(FieldWrite, 'f1', [i8, IntConstant(12)], Unit(), None, None)
     block0.next = Return(i3)
     g = Graph('f', [a1, a2], block0)
-    partial_allocation_removal(g)
+    partial_allocation_removal(g, fakecodegen)
     compare(g, '''
 a1 = Argument('a1', Int())
 a2 = Argument('a2', SmallFixedBitVector(32))
@@ -3252,7 +3252,7 @@ def test_use_equality_information():
     block4.next = ConditionalGoto(i38, block2, block5, '`10 150217:4-150235:142')
     block5.next = Raise(StringConstant('src/instrs64.sail:150234.44-150234.45'), None)
     g = Graph("g", [i], block1)
-    res = propagate_equality(g)
+    res = propagate_equality(g, fakecodegen)
     assert res
     compare(g, """
 i = Argument('i', MachineInt())
@@ -3288,7 +3288,7 @@ def test_use_equality_information_dominatees():
     i40 = block6.emit(Operation, 'usetheint_again', [i, i35], Bool(), '`10 150235:4-150235:142', 'zz417')
     block6.next = Return(i40)
     g = Graph("g", [i], block1)
-    res = propagate_equality(g)
+    res = propagate_equality(g, fakecodegen)
     assert res
     compare(g, """
 i = Argument('i', MachineInt())

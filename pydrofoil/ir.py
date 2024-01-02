@@ -1251,14 +1251,14 @@ def print_stats():
 DEBUG_REPEAT = False
 
 def repeat(func):
-    def repeated(graph, *args, **kwargs):
+    def repeated(graph, codegen, *args, **kwargs):
         t1_proper = time.time()
         STACK_START_TIMES.append(t1_proper)
         ever_changed = False
         for i in range(1000):
             if DEBUG_REPEAT and repeat.debug_list is not None:
                 repeat.debug_list.append((func.func_name, "before", i, print_graph_construction(graph), ever_changed))
-            changed = func(graph, *args, **kwargs)
+            changed = func(graph, codegen, *args, **kwargs)
             if DEBUG_REPEAT and repeat.debug_list is not None:
                 repeat.debug_list.append((func.func_name, "after", i, print_graph_construction(graph), changed))
             assert isinstance(changed, (bool, str, type(None)))
@@ -1266,7 +1266,7 @@ def repeat(func):
                 break
             ever_changed = True
         else:
-            print "LIMIT REACHED!", graph, func.func_name
+            codegen.print_debug_msg("LIMIT REACHED!", graph, func.func_name)
             added_debug_list = False
             if DEBUG_REPEAT:
                 if repeat.debug_list is None:
@@ -1274,7 +1274,7 @@ def repeat(func):
                     added_debug_list = True
                 try:
                     repeat.debug_list.append((func.func_name, "debug start", 0, print_graph_construction(graph), ''))
-                    changed = func(graph, *args, **kwargs)
+                    changed = func(graph, codegen, *args, **kwargs)
                     repeat.debug_list.append((func.func_name, "debug end", 0, print_graph_construction(graph), ''))
                     print "CHANGES", changed
                     print "#" * 60
@@ -1336,22 +1336,21 @@ def optimize(graph, codegen):
 def _bare_optimize(graph, codegen):
     from pydrofoil.absinterp import optimize_with_range_info
     res = False
-    res = propagate_equality(graph) or res
-    res = join_blocks(graph) or res
+    res = propagate_equality(graph, codegen) or res
+    res = join_blocks(graph, codegen) or res
     res = remove_dead(graph, codegen) or res
-    res = simplify_phis(graph) or res
+    res = simplify_phis(graph, codegen) or res
     res = inline(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=False) or res
-    res = remove_empty_blocks(graph) or res
+    res = remove_empty_blocks(graph, codegen) or res
     res = swap_not(graph, codegen) or res
     res = optimize_with_range_info(graph, codegen) or res
-    res = cse(graph, codegen) or res
     res = cse_global_reads(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
-    res = remove_if_phi_constant(graph) or res
+    res = remove_if_phi_constant(graph, codegen) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
-    partial_allocation_removal(graph)
+    partial_allocation_removal(graph, codegen)
     return res
 
 _optimize = repeat(_bare_optimize)
@@ -1393,7 +1392,7 @@ def remove_dead(graph, codegen):
     return changed
 
 @repeat
-def remove_empty_blocks(graph):
+def remove_empty_blocks(graph, codegen):
     changed = False
     for block in graph.iterblocks():
         for nextblock in block.next.next_blocks():
@@ -1409,7 +1408,7 @@ def remove_empty_blocks(graph):
     return changed
 
 @repeat
-def join_blocks(graph):
+def join_blocks(graph, codegen):
     entrymap = graph.make_entrymap()
     changed = False
     for block in entrymap:
@@ -1448,7 +1447,7 @@ def swap_not(graph, codegen):
     return changed
 
 @repeat
-def simplify_phis(graph):
+def simplify_phis(graph, codegen):
     replace_phis = {}
     for block in graph.iterblocks():
         for index, op in enumerate(block.operations):
@@ -1466,7 +1465,7 @@ def simplify_phis(graph):
     return False
 
 @repeat
-def remove_if_true_false(graph):
+def remove_if_true_false(graph, codegen):
     changed = False
     for block in graph.iterblocks():
         cond = block.next
@@ -1509,7 +1508,7 @@ def _remove_unreachable_phi_prevvalues(graph):
         graph.replace_ops(replace_phis)
 
 @repeat
-def remove_if_phi_constant(graph):
+def remove_if_phi_constant(graph, codegen):
     from pydrofoil.emitfunction import count_uses
     uses = count_uses(graph)
     res = False
@@ -1546,8 +1545,8 @@ def remove_if_phi_constant(graph):
             op.prevblocks = prevblocks
     if res:
         _remove_unreachable_phi_prevvalues(graph)
-        simplify_phis(graph)
-        join_blocks(graph)
+        simplify_phis(graph, codegen)
+        join_blocks(graph, codegen)
     return res
 
 
@@ -1621,7 +1620,7 @@ def remove_superfluous_enum_cases(graph, codegen):
                         if len(entrymap[block.next.falsetarget]) == 1:
                             possible_enum_values[block.next.falsetarget][arg0] = possible_values_arg0 - possible_values_arg1
     if changed:
-        remove_if_true_false(graph)
+        remove_if_true_false(graph, codegen)
         remove_dead(graph, codegen)
         return True
     return False
@@ -3506,9 +3505,9 @@ def remove_double_exception_check(graph, codegen):
         if not isinstance(block.next.truetarget.next, Return):
             continue
         nextblock.next.booleanvalue = BooleanConstant.FALSE
-        remove_if_true_false(graph)
-        remove_empty_blocks(graph)
-        join_blocks(graph)
+        remove_if_true_false(graph, codegen)
+        remove_empty_blocks(graph, codegen)
+        join_blocks(graph, codegen)
         remove_dead(graph, codegen)
         return True
     return False
@@ -3685,7 +3684,7 @@ def cse_global_reads(graph, codegen):
     return False
 
 @repeat
-def partial_allocation_removal(graph):
+def partial_allocation_removal(graph, codegen):
     # local removal only so far
     def escape(value):
         if value not in virtuals_in_block:
@@ -3805,7 +3804,7 @@ def find_backedges(G):
         if target in dom[source]:
             yield source, target
 
-def propagate_equality(graph):
+def propagate_equality(graph, codegen):
     changed = False
     # maps blocks -> values -> [(intconst, prevblock)]
     int_constants_and_sources = defaultdict(lambda : defaultdict(list))

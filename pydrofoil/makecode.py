@@ -228,7 +228,7 @@ class Codegen(specialize.FixpointSpecializer):
         self._all_graphs.append((graph, emit_function, args, kwargs))
 
     def finish_graphs(self):
-        print "============== FINISHING =============="
+        self.print_persistent_msg("============== FINISHING ==============")
         from pydrofoil.ir import print_stats
         t1 = time.time()
         self.specialize_all()
@@ -248,7 +248,7 @@ class Codegen(specialize.FixpointSpecializer):
             if graph in graphs_to_emit:
                 func(graph, self, *args, **kwargs)
         t2 = time.time()
-        print "DONE, took seconds", round(t2 - t1, 2)
+        self.print_persistent_msg("DONE, took seconds", round(t2 - t1, 2))
         print_stats()
 
     def add_struct_type(self, name, pyname, structtyp, ast=None):
@@ -321,8 +321,7 @@ class __extend__(parse.File):
         failure_count = 0
         t1 = time.time()
         for index, decl in enumerate(self.declarations):
-            print "\033[1K\rMAKING IR FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl),
-            sys.stdout.flush()
+            codegen.print_highlevel_task("MAKING IR FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl))
             try:
                 decl.make_code(codegen)
             except Exception as e:
@@ -333,7 +332,7 @@ class __extend__(parse.File):
                 codegen.level = 0
             codegen.emit()
         t2 = time.time()
-        print "AST WALKING DONE, took seconds:", round(t2 - t1, 2)
+        codegen.print_persistent_msg("AST WALKING DONE, took seconds:", round(t2 - t1, 2))
 
 class __extend__(parse.Declaration):
     def make_code(self, codegen):
@@ -569,19 +568,19 @@ class __extend__(parse.Function):
         typ = codegen.globalnames[self.name].ast.typ
         blocks = self._prepare_blocks()
         if self.detect_union_switch(blocks[0]):
-            print "making method!", self.name
+            codegen.print_debug_msg("making method!", self.name)
             with self._scope(codegen, pyname):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, codegen)
             return
         if len(blocks) > 340 and codegen.should_inline(self.name) is not True:
-            print "splitting", self.name
+            codegen.print_debug_msg("splitting", self.name)
             try:
                 self._split_function(blocks, codegen)
                 codegen.emit()
                 return
             except optimize.CantSplitError:
-                print "didn't manage"
+                codegen.print_debug_msg("didn't manage to split", self.name)
 
         graph = construct_ir(self, codegen)
         inlinable = should_inline(graph, codegen.should_inline)
@@ -777,7 +776,7 @@ class __extend__(parse.Function):
         startpc = 0
         while len(blocks) > 150: # 150 / 120
             g1, g2, transferpc = optimize.split_graph(blocks, 120, start_node=startpc)
-            print "previous size", len(blocks), "afterwards:", len(g1), len(g2)
+            codegen.print_debug_msg("previous size", len(blocks), "afterwards:", len(g1), len(g2))
             # compute the local variables that are declared in g1 and used in g2,
             # they become extra arguments
             declared_variables_g1 = {}

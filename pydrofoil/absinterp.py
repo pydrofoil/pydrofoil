@@ -543,7 +543,7 @@ class AbstractInterpreter(object):
                     truevalues[args[0]] = arg1
             else:
                 if name != op.name and any(arg.resolved_type in INT_TYPES for arg in op.args):
-                    print "UNKNOWN CONDITION", name, op
+                    self.codegen.print_debug_msg("UNKNOWN CONDITION", name, op)
         return truevalues, falsevalues
 
 

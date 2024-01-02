@@ -1,3 +1,4 @@
+import sys
 from collections import defaultdict
 from pydrofoil import types, ir, parse, supportcode, bitvector
 
@@ -73,7 +74,7 @@ class Specializer(object):
             stubgraph, restype = value
         else:
             if len(self.cache) > 64:
-                print "TOO MANY VARIANTS!", self.graph.name
+                self.codegen.print_debug_msg("TOO MANY VARIANTS!", self.graph.name)
                 return None
             self.cache[key] = None # meaning "in progress"
             stubgraph, restype = self._make_stub(key)
@@ -142,8 +143,8 @@ class Specializer(object):
         block = ir.Block(ops)
         block.next = ir.Return(ops[-1])
         graph = ir.Graph(self.graph.name + "_specialized_" + "_".join(sargs), args, block)
-        print "MAKING SPECIALIZATION", graph.name
-        ir._inline(graph, block, len(ops) - 1, self.graph, add_comment=False)
+        self.codegen.print_debug_msg("MAKING SPECIALIZATION", graph.name)
+        ir._inline(graph, self.codegen, block, len(ops) - 1, self.graph, add_comment=False)
         graph.has_loop = self.graph.has_loop
         ir.light_simplify(graph, self.codegen)
         # check whether we can specialize on the return type
@@ -388,6 +389,7 @@ class FixpointSpecializer(object):
         self.all_graph_by_name = {}
         self.inline_dependencies = defaultdict(set) # graph -> {graphs}
         self.program_entrypoints = entrypoints
+        self._highlevel_task_msg = ''
 
     def schedule_graph_specialization(self, graph):
         self.all_graph_by_name[graph.name] = graph
@@ -406,8 +408,7 @@ class FixpointSpecializer(object):
         todo = self.specialization_todo
         while todo:
             graph = todo.popleft()
-            print "\033[1K\rOPTIMIZING %s (todo: %s)" % (graph.name, len(todo)),
-            sys.stdout.flush()
+            self.print_highlevel_task("(todo: %s) OPTIMIZING %s" % (len(todo), graph.name))
             self.specialization_todo_set.remove(graph)
             changed = ir.optimize(graph, self)
             schedule_deps = None
@@ -458,3 +459,17 @@ class FixpointSpecializer(object):
                     typ = types.Function(types.Tuple(tuple(a.resolved_type for a in graph.args)), restyp)
             l.append((graph, typ))
         return l
+
+    def print_highlevel_task(self, *args):
+        msg = " ".join(str(x) for x in args)
+        self._highlevel_task_msg = "\033[1K\r%s" % msg
+        print self._highlevel_task_msg,
+        sys.stdout.flush()
+
+    def print_debug_msg(self, *args):
+        print self._highlevel_task_msg + " " + " ".join(str(x) for x in args),
+        sys.stdout.flush()
+
+    def print_persistent_msg(self, *args):
+        print
+        print " ".join(str(x) for x in args)

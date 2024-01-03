@@ -3606,3 +3606,56 @@ i2 = block0.emit(Operation, '@sub_i_i_must_fit', [MachineIntConstant(4), j], Mac
 block0.next = Return(i2, None)
 graph = Graph('f', [i, j], block0)
 """)
+
+def test_add_sub_consts_keep_must_fit():
+    # result has additions and subtractions, but we can only simplify at the end
+    # make sure we use _must_fit variants!
+    i = Argument("i", MachineInt())
+    j = Argument("j", MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Operation, '@add_i_i_must_fit', [i, j], MachineInt(), '`1 231:32-231:43', 'zz40')
+    i2 = block0.emit(Operation, '@add_i_i_must_fit', [j, MachineIntConstant(5)], MachineInt(), None, None)
+    i3 = block0.emit(Operation, '@add_i_i_must_fit', [i2, MachineIntConstant(0)], MachineInt(), None, None)
+    i4 = block0.emit(Operation, '@add_i_i_must_fit', [i3, i1], MachineInt(), None, None)
+    block0.next = Return(i4, None)
+    graph = Graph('f', [i, j], block0)
+    check_optimize(graph, """
+i = Argument('i', MachineInt())
+j = Argument('j', MachineInt())
+block0 = Block()
+i2 = block0.emit(Operation, '@add_i_i_must_fit', [i, j], MachineInt(), '`1 231:32-231:43', 'zz40')
+i3 = block0.emit(Operation, '@add_i_i_must_fit', [j, MachineIntConstant(5)], MachineInt(), None, None)
+i4 = block0.emit(Operation, '@add_i_i_must_fit', [i3, i2], MachineInt(), None, None)
+block0.next = Return(i4, None)
+graph = Graph('f', [i, j], block0)
+""")
+
+    i = Argument("i", MachineInt())
+    j = Argument("j", MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Operation, '@add_i_i_must_fit', [i, j], MachineInt(), '`1 231:32-231:43', 'zz40')
+    i2 = block0.emit(Operation, '@add_i_i_must_fit', [j, MachineIntConstant(5)], MachineInt(), None, None)
+    i3 = block0.emit(Operation, '@add_i_i_must_fit', [i2, MachineIntConstant(2)], MachineInt(), None, None)
+    i4 = block0.emit(Operation, '@add_i_i_must_fit', [i3, i1], MachineInt(), None, None)
+    block0.next = Return(i4, None)
+    graph = Graph('f', [i, j], block0)
+    check_optimize(graph, """
+i = Argument('i', MachineInt())
+j = Argument('j', MachineInt())
+block0 = Block()
+i2 = block0.emit(Operation, '@add_i_i_must_fit', [i, j], MachineInt(), '`1 231:32-231:43', 'zz40')
+i3 = block0.emit(Operation, '@add_i_i_must_fit', [j, MachineIntConstant(7)], MachineInt(), None, None)
+i4 = block0.emit(Operation, '@add_i_i_must_fit', [i3, i2], MachineInt(), None, None)
+block0.next = Return(i4, None)
+graph = Graph('f', [i, j], block0)
+""")
+
+def test_add_sub_consts_keep_must_fit():
+    # result has additions and subtractions, but we can only simplify at the end
+    # make sure we use _must_fit variants!
+    i = Argument("i", MachineInt())
+    j = Argument("j", MachineInt())
+    block0 = Block()
+    i1 = block0.emit(Operation, '@add_i_i_must_fit', [i, j], MachineInt(), '`1 231:32-231:43', 'zz40')
+    i2 = block0.emit(Operation, '@add_i_i_must_fit', [j, MachineIntConstant(5)], MachineInt(), None, None)
+    i3 = block0.emit(Operation, '@add_i_i_must_fit', [i2, MachineIntConstant(0)], MachineInt(), None, None)

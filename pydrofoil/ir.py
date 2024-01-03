@@ -2732,10 +2732,11 @@ class LocalOptimizer(BaseOptimizer):
                     constant += val.number * polarity
                     useful += 1
             elif type(val) is Operation and (val.name in self.ADD_OPS or val.name in self.SUB_OPS):
-                todo.append((val.args[0], polarity))
+                arg0, arg1 = self._args(val)
+                todo.append((arg0, polarity))
                 if val.name in self.SUB_OPS:
                     polarity = -polarity
-                todo.append((val.args[1], polarity))
+                todo.append((arg1, polarity))
             else:
                 if polarity == 1:
                     add_components.append(val)
@@ -2785,6 +2786,20 @@ class LocalOptimizer(BaseOptimizer):
             if res.resolved_type is types.MachineInt():
                 return self._make_int64_to_int(res)
             else:
+                if res.name == "@add_i_i_wrapped_res":
+                    self._need_dead_code_removal = True
+                    return self.newop(
+                        "@add_i_i_must_fit",
+                        res.args[:],
+                        op.resolved_type
+                    )
+                elif res.name == "@sub_i_i_wrapped_res":
+                    self._need_dead_code_removal = True
+                    return self.newop(
+                        "@sub_i_i_must_fit",
+                        res.args[:],
+                        op.resolved_type
+                    )
                 return self._make_int_to_int64(res)
         return res
 

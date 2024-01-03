@@ -506,6 +506,9 @@ class AbstractInterpreter(object):
         res = self.current_values[op.args[0]] = Range(arg1.low, arg2.high)
         return res
 
+    def analyze_length_unwrapped_res(self, op):
+        return Range(0, None)
+
 
     # conditions
 

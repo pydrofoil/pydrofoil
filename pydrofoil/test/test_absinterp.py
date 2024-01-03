@@ -704,3 +704,13 @@ def test_le():
     g = Graph('g', [i, j], block1)
     values = analyze(g, fakecodegen)
     assert values[block4][i2] == Range(None, 9)
+
+def test_length():
+    v = Argument("v", GenericBitVector())
+    block1 = Block()
+    i1 = block1.emit(Operation, "@length_unwrapped_res", [v], MachineInt())
+    block1.next = Return(i1)
+    g = Graph('g', [v], block1)
+    values = analyze(g, fakecodegen)
+    assert values[block1][i1] == Range(0, None)
+

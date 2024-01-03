@@ -10,18 +10,15 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 # - demanded result casts
 # - make extract* deal with defaultvalue
 
-# allow inlining of small specialized functions
-# specialize phi as constants?
-
 # zFPDefaultNaN__1_specialized_16_o
-
-# need to switch to full cfg fix point approach eventually
 
 # add a runtime check if one of the variants we have fits the data we have, for
 # unspecialized functions (particularly with loops)
 
 # should analyze whether booleans are actually switched on in the body of the
 # function?
+
+# "demanded" casts of results
 
 
 def usefully_specializable(graph):

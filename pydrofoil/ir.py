@@ -46,15 +46,11 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # maybe turn Operations into "OperationWithExceptionalReturn" to get rid of the
 # useless control flow
 
-# result of unsigned is positive (partly done)
-
 # need a solution for the whole "add(sub(a, const1), const1)" with the various
 # variants of addition and subtraction
 
 # start functions with a check that have_exception is not set?
 
-# sub/add_i_i_wrapped_res: need a little bit of reasoning about whether the
-# result can fit in a machine int
 
 # cleanups needed
 # ----------------
@@ -66,14 +62,11 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 # ideas for speedups
 # ---------------------
 # - iterblocks and topo_order_best_attempt are most costly functions
-# - check also super expensive
 # - _optimize_Operation, cse, replace_ops, set.union
 
 # big tasks
 # ------------
 #
-# - range analysis for unboxing more integers
-# - splitting for bitvector functions
 # - more global static analysis
 # - scheduling
 

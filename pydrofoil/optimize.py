@@ -2,9 +2,6 @@ from pydrofoil import parse, makecode, types, supportcode
 from collections import defaultdict
 
 
-# optimize operation ASTs before generating code
-
-
 
 class CollectSourceVisitor(parse.Visitor):
     def __init__(self):

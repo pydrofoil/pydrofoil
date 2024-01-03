@@ -2747,6 +2747,13 @@ class LocalOptimizer(BaseOptimizer):
             if arg1.number == 0:
                 return self._make_int64_to_int(arg0, op.sourcepos)
 
+    @symmetric
+    def optimize_add_i_i_must_fit(self, op, arg0, arg1):
+        assert arg0.resolved_type is types.MachineInt()
+        arg1 = self._extract_number(arg1)
+        if arg1.number == 0:
+            return arg0
+
     def optimize_sub_int(self, op):
         arg0, arg1 = self._args(op)
         try:
@@ -2813,6 +2820,12 @@ class LocalOptimizer(BaseOptimizer):
         else:
             if arg1.number == 0:
                 return self._make_int64_to_int(arg0, op.sourcepos)
+
+    def optimize_sub_i_i_must_fit(self, op):
+        arg0, arg1 = self._args(op)
+        arg1 = self._extract_number(arg1)
+        if arg1.number == 0:
+            return arg0
 
     def optimize_neg_int(self, op):
         arg0, = self._args(op)
@@ -2902,8 +2915,8 @@ class LocalOptimizer(BaseOptimizer):
                            op.sourcepos, op.varname_hint)
             )
 
-    def optimize_mult_i_i_must_fit(self, op):
-        arg0, arg1 = self._args(op)
+    @symmetric
+    def optimize_mult_i_i_must_fit(self, op, arg0, arg1):
         try:
             arg1 = self._extract_number(arg1)
         except NoMatchException:

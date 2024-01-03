@@ -2986,6 +2986,17 @@ class LocalOptimizer(BaseOptimizer):
                 op.varname_hint,
             ))
 
+    def optimize_pow2_i(self, op):
+        if self._should_fit_machine_int(op):
+            arg0, = self._args(op)
+            return self._make_int64_to_int(self.newop(
+                "@shl_int_i_i_must_fit",
+                [MachineIntConstant(1), arg0],
+                types.MachineInt(),
+                op.sourcepos,
+                op.varname_hint,
+            ))
+
     def optimize_tdiv_int(self, op):
         arg0, arg1 = self._args(op)
         arg1 = self._extract_number(arg1)

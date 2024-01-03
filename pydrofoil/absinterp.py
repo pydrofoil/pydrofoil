@@ -6,9 +6,6 @@ from pydrofoil import ir, types
 MININT = -sys.maxint-1
 MAXINT = sys.maxint
 
-# todos:
-# pow2_i
-
 def int_c_div(x, y):
     r = x // y
     if x ^ y < 0 and x % y != 0:
@@ -493,6 +490,10 @@ class AbstractInterpreter(object):
     analyze_shl_int_o_i = analyze_lshift
     analyze_shl_int_i_i_wrapped_res = analyze_lshift
     analyze_shl_int_i_i_must_fit = analyze_lshift
+
+    def analyze_pow2_i(self, op):
+        arg0, = self._argbounds(op)
+        return Range(1, 1).lshift(arg0)
 
     def analyze_rshift(self, op):
         arg0, arg1 = self._argbounds(op)

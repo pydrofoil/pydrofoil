@@ -2290,31 +2290,83 @@ class LocalOptimizer(BaseOptimizer):
         return self.newop("@gt", [arg0, arg1], op.resolved_type, op.sourcepos,
                           op.varname_hint)
 
+    def _cmp_generic_optimization(self, op, arg0, arg1):
+        add_components, sub_components, constant, useful = self._add_sub_extract_components(arg0, arg1)
+        if useful:
+            if len(add_components) + len(sub_components) <= 1 and isinstance(constant, int):
+                if sub_components:
+                    assert not add_components
+                    rhs, = sub_components
+                    if rhs.resolved_type is types.MachineInt():
+                        lhs = MachineIntConstant(constant)
+                    else:
+                        assert rhs.resolved_type is types.Int()
+                        lhs = IntConstant(constant)
+                elif add_components:
+                    assert not sub_components
+                    lhs, = add_components
+                    if lhs.resolved_type is types.MachineInt():
+                        rhs = MachineIntConstant(-constant)
+                    else:
+                        assert lhs.resolved_type is types.Int()
+                        rhs = IntConstant(-constant)
+                else:
+                    lhs = MachineIntConstant(constant)
+                    rhs = MachineIntConstant(0)
+                assert rhs.resolved_type is lhs.resolved_type
+                return self.newop(
+                    op.name,
+                    [lhs, rhs],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint
+                )
+
     def optimize_lteq(self, op):
         arg0, arg1 = self._args(op)
         if arg0 is arg1:
             return BooleanConstant.TRUE
         if arg0.resolved_type is not types.Int():
-            arg0 = self._extract_number(arg0)
-            arg1 = self._extract_number(arg1)
-            return BooleanConstant.frombool(arg0.number <= arg1.number)
-        arg0 = self._extract_machineint(arg0)
-        arg1 = self._extract_machineint(arg1)
-        return self.newop("@lteq", [arg0, arg1], op.resolved_type, op.sourcepos,
-                          op.varname_hint)
+            try:
+                arg0 = self._extract_number(arg0)
+                arg1 = self._extract_number(arg1)
+            except NoMatchException:
+                pass
+            else:
+                return BooleanConstant.frombool(arg0.number <= arg1.number)
+        else:
+            try:
+                arg0 = self._extract_machineint(arg0)
+                arg1 = self._extract_machineint(arg1)
+            except NoMatchException:
+                pass
+            else:
+                return self.newop("@lteq", [arg0, arg1], op.resolved_type, op.sourcepos,
+                                  op.varname_hint)
+        return self._cmp_generic_optimization(op, arg0, arg1)
 
     def optimize_gteq(self, op):
         arg0, arg1 = self._args(op)
         if arg0 is arg1:
             return BooleanConstant.TRUE
         if arg0.resolved_type is not types.Int():
-            arg0 = self._extract_number(arg0)
-            arg1 = self._extract_number(arg1)
-            return BooleanConstant.frombool(arg0.number >= arg1.number)
-        arg0 = self._extract_machineint(arg0)
-        arg1 = self._extract_machineint(arg1)
-        return self.newop("@gteq", [arg0, arg1], op.resolved_type, op.sourcepos,
-                          op.varname_hint)
+            try:
+                arg0 = self._extract_number(arg0)
+                arg1 = self._extract_number(arg1)
+            except NoMatchException:
+                pass
+            else:
+                return BooleanConstant.frombool(arg0.number >= arg1.number)
+        else:
+            try:
+                arg0 = self._extract_machineint(arg0)
+                arg1 = self._extract_machineint(arg1)
+            except NoMatchException:
+                pass
+            else:
+                return self.newop("@gteq", [arg0, arg1], op.resolved_type, op.sourcepos,
+                                  op.varname_hint)
+        return self._cmp_generic_optimization(op, arg0, arg1)
 
     def optimize_vector_subrange_o_i_i(self, op):
         arg0, arg1, arg2 = self._args(op)
@@ -2715,10 +2767,10 @@ class LocalOptimizer(BaseOptimizer):
             newop = self.newop(opname, [arg0, arg1], types.Int())
             components.append(newop)
 
-    def _general_add_sub_opt(self, op):
-        name = self._builtinname(op.name)
-        assert name in self.ADD_OPS or name in self.SUB_OPS
-        todo = [(op, 1)]
+    def _add_sub_extract_components(self, addop, subopt=None):
+        todo = [(addop, 1)]
+        if subopt:
+            todo.append((subopt, -1))
         add_components = []
         sub_components = []
         constant = None
@@ -2751,6 +2803,12 @@ class LocalOptimizer(BaseOptimizer):
                 useful += 1
                 continue
             index += 1
+        return add_components, sub_components, int(constant) if constant is not None else None, useful
+
+    def _general_add_sub_opt(self, op):
+        name = self._builtinname(op.name)
+        assert name in self.ADD_OPS or name in self.SUB_OPS
+        add_components, sub_components, constant, useful = self._add_sub_extract_components(op)
         if not useful:
             return None
         if useful > 2:

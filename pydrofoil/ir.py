@@ -1793,6 +1793,7 @@ class BaseOptimizer(object):
         return tuple(self.replacements.get(arg, arg).comparison_key() for arg in valuelist)
 
     # end cse helpers
+
     def newop(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
         newop = Operation(
             name, args, resolved_type, sourcepos,
@@ -2258,6 +2259,8 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_lt(self, op):
         arg0, arg1 = self._args(op)
+        if arg0 is arg1:
+            return BooleanConstant.FALSE
         try:
             arg1 = self._extract_number(arg1)
         except NoMatchException:
@@ -2276,6 +2279,8 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_gt(self, op):
         arg0, arg1 = self._args(op)
+        if arg0 is arg1:
+            return BooleanConstant.FALSE
         if arg0.resolved_type is not types.Int():
             arg0 = self._extract_number(arg0)
             arg1 = self._extract_number(arg1)
@@ -2287,6 +2292,8 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_lteq(self, op):
         arg0, arg1 = self._args(op)
+        if arg0 is arg1:
+            return BooleanConstant.TRUE
         if arg0.resolved_type is not types.Int():
             arg0 = self._extract_number(arg0)
             arg1 = self._extract_number(arg1)
@@ -2298,6 +2305,8 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_gteq(self, op):
         arg0, arg1 = self._args(op)
+        if arg0 is arg1:
+            return BooleanConstant.TRUE
         if arg0.resolved_type is not types.Int():
             arg0 = self._extract_number(arg0)
             arg1 = self._extract_number(arg1)
@@ -3253,6 +3262,8 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_eq(self, op):
         arg0, arg1 = self._args(op)
+        if arg0 is arg1:
+            return BooleanConstant.TRUE
         if isinstance(arg0, MachineIntConstant) and isinstance(arg1, MachineIntConstant):
             return BooleanConstant.frombool(arg0.number == arg1.number)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):

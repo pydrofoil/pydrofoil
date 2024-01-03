@@ -3517,3 +3517,30 @@ block16.next = Goto(block4, None)
 block17.next = ConditionalGoto(zsecure, block14, block10, '`7 198:53-198:170')
 graph = Graph('zELStateUsingAArch32K', [zel, zsecure], block0)
 ''')
+
+
+def test_eq_self():
+    template = '''
+i = Argument('i', MachineInt())
+block0 = Block()
+block0.next = Return(BooleanConstant.%s, None)
+graph = Graph('g', [i], block0)
+'''
+    true_res = template % "TRUE"
+    false_res = template % "FALSE"
+
+    for op in ("@lteq", "@gteq", "@eq"):
+        i = Argument("i", MachineInt())
+        block1 = Block()
+        i1 = block1.emit(Operation, op, [i, i], Bool())
+        block1.next = Return(i1)
+        g = Graph('g', [i], block1)
+        check_optimize(g, true_res)
+
+    for op in ("@lt", "@gt"):
+        i = Argument("i", MachineInt())
+        block1 = Block()
+        i1 = block1.emit(Operation, op, [i, i], Bool())
+        block1.next = Return(i1)
+        g = Graph('g', [i], block1)
+        check_optimize(g, false_res)

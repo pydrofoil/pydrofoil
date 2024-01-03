@@ -2696,8 +2696,103 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type,
         )
 
+    ADD_OPS = {"add_int", "@add_o_i_wrapped_res", "@add_i_i_wrapped_res", "@add_i_i_must_fit"}
+    SUB_OPS = {"sub_int", "@sub_o_i_wrapped_res", "@sub_i_o_wrapped_res", "@sub_i_i_wrapped_res", "@sub_i_i_must_fit"}
+
+    def _add_sub_opt_reduce_additions(self, components):
+        while len(components) > 1:
+            arg1, arg0 = components.pop(), components.pop()
+            if arg0.resolved_type is types.MachineInt() and arg1.resolved_type is types.MachineInt():
+                opname = "@add_i_i_wrapped_res"
+            elif arg0.resolved_type is types.MachineInt() and arg1.resolved_type is types.Int():
+                opname = "@add_o_i_wrapped_res"
+                arg0, arg1 = arg1, arg0
+            elif arg0.resolved_type is types.Int() and arg1.resolved_type is types.MachineInt():
+                opname = "@add_o_i_wrapped_res"
+            else:
+                assert arg0.resolved_type is types.Int() and arg1.resolved_type is types.Int()
+                name = "@add_int"
+            newop = self.newop(opname, [arg0, arg1], types.Int())
+            components.append(newop)
+
+    def _general_add_sub_opt(self, op):
+        name = self._builtinname(op.name)
+        assert name in self.ADD_OPS or name in self.SUB_OPS
+        todo = [(op, 1)]
+        add_components = []
+        sub_components = []
+        constant = None
+        useful = 0
+        while todo:
+            val, polarity = todo.pop()
+            if isinstance(val, (MachineIntConstant, IntConstant)):
+                if constant is None:
+                    constant = val.number * polarity
+                else:
+                    constant += val.number * polarity
+                    useful += 1
+            elif type(val) is Operation and (val.name in self.ADD_OPS or val.name in self.SUB_OPS):
+                todo.append((val.args[0], polarity))
+                if val.name in self.SUB_OPS:
+                    polarity = -polarity
+                todo.append((val.args[1], polarity))
+            else:
+                if polarity == 1:
+                    add_components.append(val)
+                else:
+                    sub_components.append(val)
+        index = 0
+        while index < len(add_components):
+            val = add_components[index]
+            if val in sub_components:
+                sub_components.remove(val)
+                del add_components[index]
+                useful += 1
+                continue
+            index += 1
+        if not useful:
+            return None
+        if useful > 2:
+            import pdb;pdb.set_trace()
+
+        # now we need to reconstruct the result
+        if constant:
+            constant = int(constant)
+            if isinstance(constant, int):
+                add_components.append(MachineIntConstant(constant))
+            else:
+                add_components.append(IntConstant(constant))
+        self._add_sub_opt_reduce_additions(add_components)
+        self._add_sub_opt_reduce_additions(sub_components)
+        if not add_components:
+            res = MachineIntConstant(0)
+        else:
+            res, = add_components
+        if sub_components:
+            arg0 = res
+            arg1, = sub_components
+            if arg0.resolved_type is types.MachineInt() and arg1.resolved_type is types.MachineInt():
+                opname = "@sub_i_i_wrapped_res"
+            elif arg0.resolved_type is types.MachineInt() and arg1.resolved_type is types.Int():
+                opname = "@sub_i_o_wrapped_res"
+            elif arg0.resolved_type is types.Int() and arg1.resolved_type is types.MachineInt():
+                opname = "@sub_o_i_wrapped_res"
+            else:
+                assert arg0.resolved_type is types.Int() and arg1.resolved_type is types.Int()
+                name = "@sub_int"
+            res = self.newop(opname, [arg0, arg1], types.Int())
+        if res.resolved_type != op.resolved_type:
+            if res.resolved_type is types.MachineInt():
+                return self._make_int64_to_int(res)
+            else:
+                return self._make_int_to_int64(res)
+        return res
+
     @symmetric
     def optimize_add_int(self, op, arg0, arg1):
+        res = self._general_add_sub_opt(op)
+        if res is not None:
+            return res
         arg1 = self._extract_machineint(arg1)
         return self.newop(
             "@add_o_i_wrapped_res",
@@ -2708,6 +2803,9 @@ class LocalOptimizer(BaseOptimizer):
         )
 
     def optimize_add_o_i_wrapped_res(self, op):
+        res = self._general_add_sub_opt(op)
+        if res is not None:
+            return res
         arg0, arg1 = self._args(op)
         num0 = num1 = None
         try:
@@ -2737,6 +2835,9 @@ class LocalOptimizer(BaseOptimizer):
 
     @symmetric
     def optimize_add_i_i_wrapped_res(self, op, arg0, arg1):
+        res = self._general_add_sub_opt(op)
+        if res is not None:
+            return res
         try:
             arg1 = self._extract_number(arg1)
         except NoMatchException:
@@ -2751,12 +2852,18 @@ class LocalOptimizer(BaseOptimizer):
 
     @symmetric
     def optimize_add_i_i_must_fit(self, op, arg0, arg1):
+        res = self._general_add_sub_opt(op)
+        if res is not None:
+            return res
         assert arg0.resolved_type is types.MachineInt()
         arg1 = self._extract_number(arg1)
         if arg1.number == 0:
             return arg0
 
     def optimize_sub_int(self, op):
+        res = self._general_add_sub_opt(op)
+        if res is not None:
+            return res
         arg0, arg1 = self._args(op)
         try:
             arg1 = self._extract_machineint(arg1)
@@ -2780,6 +2887,9 @@ class LocalOptimizer(BaseOptimizer):
         )
 
     def optimize_sub_o_i_wrapped_res(self, op):
+        res = self._general_add_sub_opt(op)
+        if res is not None:
+            return res
         arg0, arg1 = self._args(op)
         try:
             arg1 = self._extract_number(arg1)
@@ -2798,6 +2908,9 @@ class LocalOptimizer(BaseOptimizer):
         )
 
     def optimize_sub_i_o_wrapped_res(self, op):
+        res = self._general_add_sub_opt(op)
+        if res is not None:
+            return res
         arg0, arg1 = self._args(op)
         arg1 = self._extract_machineint(arg1)
         return self.newop(
@@ -2809,6 +2922,9 @@ class LocalOptimizer(BaseOptimizer):
         )
 
     def optimize_sub_i_i_wrapped_res(self, op):
+        res = self._general_add_sub_opt(op)
+        if res is not None:
+            return res
         if self._should_fit_machine_int(op):
             return self._make_int64_to_int(
                 self.newop("@sub_i_i_must_fit", op.args, types.MachineInt(),
@@ -2824,6 +2940,9 @@ class LocalOptimizer(BaseOptimizer):
                 return self._make_int64_to_int(arg0, op.sourcepos)
 
     def optimize_sub_i_i_must_fit(self, op):
+        res = self._general_add_sub_opt(op)
+        if res is not None:
+            return res
         arg0, arg1 = self._args(op)
         arg1 = self._extract_number(arg1)
         if arg1.number == 0:

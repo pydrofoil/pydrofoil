@@ -175,8 +175,8 @@ class Codegen(object):
 
     def getcode(self):
         res = ["\n".join(self.declarations)]
-        self.runtimeinit.append("func_zinitializze_registers(machine, ())")
-        res.append("def model_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
+        res.append("def let_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
+        res.append("let_init(Machine)")
         res.append("\n".join(self.code))
         return "\n\n".join(res)
 
@@ -198,8 +198,9 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit("class Lets(supportcode.LetsBase): pass")
         c.emit("class Machine(supportcode.RegistersBase):")
         c.emit("    _immutable_fields_ = ['g']")
+        c.emit("    l = Lets()")
         c.emit("    def __init__(self):")
-        c.emit("        self.l = Lets(); model_init(self)")
+        c.emit("        self.l  = Machine.l; func_zinitializze_registers(self, ())")
         c.emit("        self.g = supportcode.Globals()")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     try:

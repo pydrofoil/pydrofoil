@@ -1012,6 +1012,35 @@ class SmallBitVectorConstant(Constant):
         return "SmallBitVectorConstant(%s, %s)" % (value, self.resolved_type)
 
 
+class GenericBitVectorConstant(Constant):
+    resolved_type = types.GenericBitVector()
+
+    def __init__(self, value):
+        assert isinstance(value, bitvector.BitVector)
+        self.value = value
+
+    def comparison_key(self):
+        return (GenericBitVectorConstant, self.value.pack(), self.resolved_type)
+
+    def _repr(self, print_varnames):
+        return repr(self)
+
+    def _construction_expr(self):
+        val = self.value.tolong()
+        size = self.value.size()
+        if size % 4 == 0:
+            value = hex(int(val))
+        else:
+            value = bin(int(val))
+        #import pdb;pdb.set_trace()
+        if isinstance(self.value, (bitvector.SparseBitVector, bitvector.SmallBitVector)):
+            return "bitvector.from_ruint(%s, r_uint(%s))" % (size, self.value.val)
+        return "bitvector.from_bigint(%s, rbigint.fromlong(%s))" % (size, value)
+
+    def __repr__(self):
+        return "GenericBitVectorConstant(%s)" % self._construction_expr()
+
+
 class DefaultValue(Constant):
 
     def __init__(self, resolved_type):
@@ -1842,6 +1871,9 @@ class BaseOptimizer(object):
         return self.codegen.builtin_names.get(name, name)
 
     def _extract_smallfixedbitvector(self, arg):
+        if isinstance(arg, GenericBitVectorConstant) and arg.value.size() <= 64:
+            typ = types.SmallFixedBitVector(arg.value.size())
+            return SmallBitVectorConstant(arg.value.touint(), typ), typ
         if isinstance(arg.resolved_type, types.SmallFixedBitVector):
             return arg, arg.resolved_type
         if not isinstance(arg, Cast):
@@ -2017,6 +2049,8 @@ class LocalOptimizer(BaseOptimizer):
                 runtimeargs.append(arg.number)
             elif isinstance(arg, SmallBitVectorConstant):
                 runtimeargs.append(arg.value)
+            elif isinstance(arg, GenericBitVectorConstant):
+                runtimeargs.append(arg.value)
             elif arg.resolved_type is types.Real():
                 return # later
             elif arg.resolved_type is types.Unit():
@@ -2044,6 +2078,9 @@ class LocalOptimizer(BaseOptimizer):
         if resolved_type is types.String():
             assert isinstance(res, str)
             return StringConstant(res)
+        if resolved_type is types.GenericBitVector():
+            assert isinstance(res, bitvector.BitVector)
+            return GenericBitVectorConstant(res)
         # XXX other types? import pdb;pdb.set_trace()
 
     def _try_fold_phi(self, name, func, args, resolved_type, op):
@@ -3599,6 +3636,12 @@ class LocalOptimizer(BaseOptimizer):
             ),
             op.resolved_type
         )
+
+    def optimize_UINT64_C(self, op):
+        arg0, = self._args(op)
+        assert isinstance(arg0, MachineIntConstant)
+        assert arg0.number == 0
+        return GenericBitVectorConstant(bitvector.from_ruint(0, r_uint(0)))
 
 
 @repeat

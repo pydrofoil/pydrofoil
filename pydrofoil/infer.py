@@ -81,7 +81,7 @@ class TypeAttachingVisitor(parse.Visitor):
         self.context.add_named_type(ast.name, typ)
 
     def visit_Union(self, ast):
-        uniontyp = types.Union(ast)
+        uniontyp = types.Union(ast.name, tuple(ast.names), tuple(self.visit(typ) for typ in ast.types))
         self.context.add_named_type(ast.name, uniontyp)
         if ast.name == "zexception":
             self.context.add_global_name("current_exception", uniontyp)
@@ -210,11 +210,7 @@ class TypeAttachingVisitor(parse.Visitor):
 
     def visit_Cast(self, ast):
         self.visit(ast.expr)
-
-        unionast = ast.expr.resolved_type.ast
-        index = unionast.names.index(ast.variant)
-        typ = self.visit(unionast.types[index])
-
+        typ = ast.expr.resolved_type.variants[ast.variant]
         ast.resolved_type = typ
         return typ
 

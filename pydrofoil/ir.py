@@ -1205,12 +1205,21 @@ def print_graph_construction(graph, codegen=None):
     else:
         builtin_names = {}
 
+    uniontyps = []
+    seen_uniontyps = {}
+    def type_repr(typ):
+        if isinstance(typ, types.Union):
+            if typ.name not in seen_uniontyps:
+                uniontyps.append("%s = %r" % (typ.name, typ))
+                seen_uniontyps[typ.name] = typ
+            return typ.name
+        return repr(typ)
 
     blocknames = {block: "block%s" % i for i, block in enumerate(blocks)}
     print_varnames = {}
     for arg in graph.args:
         print_varnames[arg] = arg.name
-        res.append("%s = %r" % (arg.name, arg))
+        res.append("%s = Argument(%r, %s)" % (arg.name, arg.name, type_repr(arg.resolved_type)))
     for block, name in blocknames.iteritems():
         res.append("%s = Block()" % name)
     pending_updates = defaultdict(list)
@@ -1221,7 +1230,7 @@ def print_graph_construction(graph, codegen=None):
             name = op._get_print_name(print_varnames)
             if isinstance(op, Operation):
                 args = ", ".join([a._repr(print_varnames) for a in op.args])
-                res.append("%s = %s.emit(%s, %r, [%s], %r, %r, %r)"  % (name, blockname, op.__class__.__name__, builtin_names.get(op.name, op.name), args, op.resolved_type, op.sourcepos, op.varname_hint))
+                res.append("%s = %s.emit(%s, %r, [%s], %s, %r, %r)"  % (name, blockname, op.__class__.__name__, builtin_names.get(op.name, op.name), args, type_repr(op.resolved_type), op.sourcepos, op.varname_hint))
             else:
                 assert isinstance(op, Phi)
                 blockargs = ", ".join([blocknames[b] for b in op.prevblocks])
@@ -1234,13 +1243,14 @@ def print_graph_construction(graph, codegen=None):
                         args.append(a._repr(print_varnames))
 
                 args = ", ".join(args)
-                res.append("%s = %s.emit_phi([%s], [%s], %s)" % (name, blockname, blockargs, args, op.resolved_type))
+                res.append("%s = %s.emit_phi([%s], [%s], %s)" % (name, blockname, blockargs, args, type_repr(op.resolved_type)))
             if pending_updates[op]:
                 for prevname, index in pending_updates[op]:
                     res.append("%s.prevvalues[%s] = %s" % (prevname, index, name))
             seen_ops.add(op)
         res.append("%s.next = %s" % (blockname, block.next._repr(print_varnames, blocknames)))
     res.append("graph = Graph(%r, [%s], block0%s)" % (graph.name, ", ".join(arg.name for arg in graph.args), ", True" if graph.has_loop else ""))
+    res = uniontyps + res
     return res
 
 

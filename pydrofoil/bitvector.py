@@ -360,6 +360,11 @@ class SmallBitVector(BitVectorWithSize):
         assert i <= size
         return SmallBitVector(i, self.val, normalize=i < size)
 
+    def append_64(self, ui):
+        if not self.val:
+            return from_ruint(self.size() + 64, ui)
+        return BitVectorWithSize.append_64(self, ui)
+
     def pack(self):
         return (self.size(), self.val, None)
 
@@ -581,6 +586,11 @@ class SparseBitVector(BitVectorWithSize):
         if i <= 64:
             return SmallBitVector(i, ruint_mask(i, self.val), normalize=True)
         return SparseBitVector(i, self.val)
+
+    def append_64(self, ui):
+        if not self.val:
+            return SparseBitVector(self.size() + 64, ui)
+        return BitVectorWithSize.append_64(self, ui)
 
     def pack(self):
         return (self.size(), self.val, None)

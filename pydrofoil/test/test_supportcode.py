@@ -24,6 +24,8 @@ ints = strategies.integers(-sys.maxint-1, sys.maxint)
 wrapped_ints = strategies.builds(
         make_int,
         strategies.data())
+uints = strategies.builds(
+        r_uint, ints)
 
 def _make_small_bitvector(data, width=-1):
     if width == -1:
@@ -2255,3 +2257,19 @@ def test_lshift_rshift_equivalent_to_mask(data):
     mask = ~((r_uint(1) << numbits) - 1)
     fast_result = address & mask
     assert proper_result == fast_result
+
+@given(bitvectors, bitvectors)
+def test_append_hypothesis(a, b):
+    la = a.tolong()
+    lb = b.tolong()
+    res = a.append(b)
+    lres = res.tolong()
+    assert lres == (la << b.size()) | lb
+
+@given(bitvectors, uints)
+def test_append_64_hypothesis(a, b):
+    la = a.tolong()
+    lb = int(b)
+    res = a.append_64(b)
+    lres = res.tolong()
+    assert lres == (la << 64) | lb

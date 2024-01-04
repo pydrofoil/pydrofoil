@@ -358,7 +358,7 @@ def test_inlinability_changes():
     block0.next = ConditionalGoto(i0, block1, block2)
     curr = fa
     for i in range(100):
-        curr = block2.emit(Operation, '@add_int', [curr, curr], Int())
+        curr = block2.emit(Operation, 'add_int', [curr, curr], Int())
     block2.next = Return(curr)
     block1.next = Return(IntConstant(12), None)
     fgraph = Graph('f', [fa], block0)

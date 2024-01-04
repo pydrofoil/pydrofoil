@@ -2262,35 +2262,52 @@ class LocalOptimizer(BaseOptimizer):
         if arg0 is arg1:
             return BooleanConstant.FALSE
         try:
-            arg1 = self._extract_number(arg1)
+            arg1num = self._extract_number(arg1)
         except NoMatchException:
             pass
         else:
-            if arg1.number == 0 and self._must_be_non_negative(arg0):
+            if arg1num.number == 0 and self._must_be_non_negative(arg0):
                 return BooleanConstant.FALSE
         if arg0.resolved_type is not types.Int():
-            arg0 = self._extract_number(arg0)
-            arg1 = self._extract_number(arg1)
-            return BooleanConstant.frombool(arg0.number < arg1.number)
-        arg0 = self._extract_machineint(arg0)
-        arg1 = self._extract_machineint(arg1)
-        return self.newop("@lt", [arg0, arg1], op.resolved_type, op.sourcepos,
-                          op.varname_hint)
+            try:
+                arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+            except NoMatchException:
+                pass
+            else:
+                return BooleanConstant.frombool(arg0.number < arg1.number)
+        else:
+            try:
+                arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
+            except NoMatchException:
+                pass
+            else:
+                return self.newop("@lt", [arg0, arg1], op.resolved_type, op.sourcepos,
+                                  op.varname_hint)
+        return self._cmp_generic_optimization(op, arg0, arg1)
 
     def optimize_gt(self, op):
         arg0, arg1 = self._args(op)
         if arg0 is arg1:
             return BooleanConstant.FALSE
         if arg0.resolved_type is not types.Int():
-            arg0 = self._extract_number(arg0)
-            arg1 = self._extract_number(arg1)
-            return BooleanConstant.frombool(arg0.number > arg1.number)
-        arg0 = self._extract_machineint(arg0)
-        arg1 = self._extract_machineint(arg1)
-        return self.newop("@gt", [arg0, arg1], op.resolved_type, op.sourcepos,
-                          op.varname_hint)
+            try:
+                arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+            except NoMatchException:
+                pass
+            else:
+                return BooleanConstant.frombool(arg0.number > arg1.number)
+        else:
+            try:
+                arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
+            except NoMatchException:
+                pass
+            else:
+                return self.newop("@gt", [arg0, arg1], op.resolved_type, op.sourcepos,
+                                  op.varname_hint)
+        return self._cmp_generic_optimization(op, arg0, arg1)
 
     def _cmp_generic_optimization(self, op, arg0, arg1):
+        assert arg0.resolved_type is arg1.resolved_type
         add_components, sub_components, constant, useful = self._add_sub_extract_components(arg0, arg1)
         if useful:
             if len(add_components) + len(sub_components) <= 1 and isinstance(constant, int):
@@ -2314,8 +2331,11 @@ class LocalOptimizer(BaseOptimizer):
                     lhs = MachineIntConstant(constant)
                     rhs = MachineIntConstant(0)
                 assert rhs.resolved_type is lhs.resolved_type
+                name = op.name
+                if rhs.resolved_type is types.MachineInt() and not name.startswith("@"):
+                    name = "@" + self._builtinname(name)
                 return self.newop(
-                    op.name,
+                    name,
                     [lhs, rhs],
                     op.resolved_type,
                     op.sourcepos,
@@ -2328,16 +2348,14 @@ class LocalOptimizer(BaseOptimizer):
             return BooleanConstant.TRUE
         if arg0.resolved_type is not types.Int():
             try:
-                arg0 = self._extract_number(arg0)
-                arg1 = self._extract_number(arg1)
+                arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
             except NoMatchException:
                 pass
             else:
                 return BooleanConstant.frombool(arg0.number <= arg1.number)
         else:
             try:
-                arg0 = self._extract_machineint(arg0)
-                arg1 = self._extract_machineint(arg1)
+                arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
             except NoMatchException:
                 pass
             else:
@@ -2351,16 +2369,14 @@ class LocalOptimizer(BaseOptimizer):
             return BooleanConstant.TRUE
         if arg0.resolved_type is not types.Int():
             try:
-                arg0 = self._extract_number(arg0)
-                arg1 = self._extract_number(arg1)
+                arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
             except NoMatchException:
                 pass
             else:
                 return BooleanConstant.frombool(arg0.number >= arg1.number)
         else:
             try:
-                arg0 = self._extract_machineint(arg0)
-                arg1 = self._extract_machineint(arg1)
+                arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
             except NoMatchException:
                 pass
             else:
@@ -2371,35 +2387,49 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_vector_subrange_o_i_i(self, op):
         arg0, arg1, arg2 = self._args(op)
 
-        arg1 = self._extract_number(arg1)
-        arg2 = self._extract_number(arg2)
-        width = arg1.number - arg2.number + 1
-        if width > 64:
-            return
-
-        assert op.resolved_type is types.GenericBitVector()
         try:
-            arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+            arg1 = self._extract_number(arg1)
+            arg2 = self._extract_number(arg2)
         except NoMatchException:
-            res = self.newop(
-                "@vector_subrange_o_i_i_unwrapped_res",
-                [arg0, arg1, arg2],
-                types.SmallFixedBitVector(width),
-                op.sourcepos,
-                op.varname_hint,
-            )
+            pass
         else:
-            res = self.newop(
-                "@vector_subrange_fixed_bv_i_i",
-                [arg0, arg1, arg2],
-                types.SmallFixedBitVector(width),
+            width = arg1.number - arg2.number + 1
+            if width > 64:
+                return
+
+            assert op.resolved_type is types.GenericBitVector()
+            try:
+                arg0, typ0 = self._extract_smallfixedbitvector(arg0)
+            except NoMatchException:
+                res = self.newop(
+                    "@vector_subrange_o_i_i_unwrapped_res",
+                    [arg0, arg1, arg2],
+                    types.SmallFixedBitVector(width),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            else:
+                res = self.newop(
+                    "@vector_subrange_fixed_bv_i_i",
+                    [arg0, arg1, arg2],
+                    types.SmallFixedBitVector(width),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            return self.newcast(
+                res,
+                op.resolved_type,
+            )
+        add_components, sub_components, constant, useful = self._add_sub_extract_components(arg1, arg2)
+        if not add_components and not sub_components and isinstance(constant, int):
+            return self.newop(
+                "@slice_o_i_i",
+                [arg0, arg2, MachineIntConstant(constant + 1)],
+                types.GenericBitVector(),
                 op.sourcepos,
                 op.varname_hint,
             )
-        return self.newcast(
-            res,
-            op.resolved_type,
-        )
+
 
     def optimize_vector_subrange_o_i_i_unwrapped_res(self, op):
         arg0, arg1, arg2 = self._args(op)
@@ -2794,6 +2824,15 @@ class LocalOptimizer(BaseOptimizer):
                     add_components.append(val)
                 else:
                     sub_components.append(val)
+            if len(add_components) + len(sub_components) > 50:
+                # something is wrong, stop trying to do more
+                # see test_inlinability_changes
+                while todo:
+                    val, polarity = todo.pop()
+                    if polarity == 1:
+                        add_components.append(val)
+                    else:
+                        sub_components.append(val)
         index = 0
         while index < len(add_components):
             val = add_components[index]
@@ -2811,7 +2850,7 @@ class LocalOptimizer(BaseOptimizer):
         add_components, sub_components, constant, useful = self._add_sub_extract_components(op)
         if not useful:
             return None
-        if useful > 2:
+        if useful > 4:
             import pdb;pdb.set_trace()
 
         # now we need to reconstruct the result

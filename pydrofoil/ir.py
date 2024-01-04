@@ -1125,7 +1125,7 @@ class Return(Next):
         return "Return(%s, %r)" % (None if self.value is None else self.value._repr(print_varnames), self.sourcepos)
 
 class Raise(Next):
-    def __init__(self, kind, sourcepos):
+    def __init__(self, kind, sourcepos=None):
         self.kind = kind
         self.sourcepos = sourcepos
 
@@ -1379,11 +1379,13 @@ def _bare_optimize(graph, codegen):
     res = remove_dead(graph, codegen) or res
     res = simplify_phis(graph, codegen) or res
     res = inline(graph, codegen) or res
+    res = remove_superfluous_union_checks(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=False) or res
     res = remove_empty_blocks(graph, codegen) or res
     res = swap_not(graph, codegen) or res
     res = optimize_with_range_info(graph, codegen) or res
     res = cse_global_reads(graph, codegen) or res
+    res = remove_superfluous_union_checks(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph, codegen) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
@@ -1399,12 +1401,16 @@ def localopt(graph, codegen, do_double_casts=True):
 
 @repeat
 def remove_dead(graph, codegen):
+    def is_union_creation(value):
+        return isinstance(value.resolved_type, types.Union) and type(value) is Operation and value.name in value.resolved_type.variants
     def can_remove_op(op):
         if not op.can_have_side_effects:
             return True
         if op.name == "@not":
             return True
         if op.name == "@eq":
+            return True
+        if is_union_creation(op):
             return True
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
@@ -1662,6 +1668,47 @@ def remove_superfluous_enum_cases(graph, codegen):
         remove_dead(graph, codegen)
         return True
     return False
+
+def remove_superfluous_union_checks(graph, codegen):
+    if graph.has_loop:
+        return
+
+    def init_variant_set(value):
+        typ = value.resolved_type
+        return frozenset(typ.variants)
+
+    changed = False
+    # maps blocks -> values -> sets of variant names
+    possible_union_variants = defaultdict(lambda : defaultdict_with_key_arg(init_variant_set))
+    entrymap = graph.make_entrymap()
+    for block in topo_order(graph):
+        values_in_block = possible_union_variants[block]
+        if not isinstance(block.next, ConditionalGoto) or not isinstance(block.next.booleanvalue, UnionVariantCheck):
+            for nextblock in block.next.next_blocks():
+                if len(entrymap[nextblock]) == 1:
+                    possible_union_variants[nextblock].update(values_in_block)
+            continue
+        cond = block.next.booleanvalue
+        assert isinstance(cond, UnionVariantCheck)
+        arg0, = cond.args
+        possible_values_arg0 = values_in_block[arg0]
+        single = frozenset([cond.name])
+        if possible_values_arg0 == single:
+            changed = True
+            block.next.booleanvalue = BooleanConstant.FALSE
+        else:
+            if len(entrymap[block.next.truetarget]) == 1:
+                values_in_block = possible_union_variants[block.next.truetarget]
+                values_in_block[arg0] = possible_values_arg0 - single
+            if len(entrymap[block.next.falsetarget]) == 1:
+                values_in_block = possible_union_variants[block.next.falsetarget]
+                values_in_block[arg0] = single
+    if changed:
+        remove_if_true_false(graph, codegen)
+        remove_dead(graph, codegen)
+        return True
+    return False
+
 
 def remove_useless_switch(graph, codegen):
     # if we have a switch where the two target blocks are the same we can
@@ -2276,6 +2323,16 @@ class LocalOptimizer(BaseOptimizer):
             correct_block.operations.insert(0, newphi)
             return newphi
         return None
+
+    def _optimize_UnionCast(self, op, block, index):
+        def is_union_creation(value):
+            assert isinstance(value.resolved_type, types.Union)
+            return type(value) is Operation and value.name in value.resolved_type.variants
+        arg0, = self._args(op)
+        if is_union_creation(arg0) and arg0.name == op.name:
+            assert len(arg0.args) == 1
+            assert arg0.args[0].resolved_type == op.resolved_type
+            return arg0.args[0]
 
     @symmetric
     def optimize_eq_bits(self, op, arg0, arg1):

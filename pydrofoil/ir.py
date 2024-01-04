@@ -1,3 +1,4 @@
+import sys
 import random
 import time
 from collections import defaultdict
@@ -512,7 +513,7 @@ class Block(object):
             res.append(newop)
         return res
 
-    def _dot(self, dotgen, seen, print_varnames, codegen, backedges):
+    def _dot(self, dotgen, seen, print_varnames, codegen, backedges, maxblocks):
         if codegen is None:
             builtin_names = {}
         else:
@@ -551,7 +552,10 @@ class Block(object):
             fillcolor=fillcolor,
         )
         for index, nextblock in enumerate(nextblocks):
-            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges)
+            if len(seen) <= maxblocks:
+                nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
+            else:
+                nextid = str(id(next))
             label = ''
             if len(nextblocks) > 1:
                 label = str(bool(index))
@@ -591,15 +595,15 @@ class Graph(object):
         assert isinstance(node, Block)
         return node.next.next_blocks()
 
-    def view(self, codegen=None):
+    def view(self, codegen=None, maxblocks=sys.maxint):
         from rpython.translator.tool.make_dot import DotGen
         from dotviewer import graphclient
         import pytest
         dotgen = DotGen('G')
-        print_varnames = self._dot(dotgen, codegen)
+        print_varnames = self._dot(dotgen, codegen, maxblocks)
         GraphPage(dotgen.generate(target=None), print_varnames, self.args).display()
 
-    def _dot(self, dotgen, codegen):
+    def _dot(self, dotgen, codegen, maxblocks):
         name = "graph" + self.name
         dotgen.emit_node(
             name,
@@ -613,7 +617,9 @@ class Graph(object):
             backedges = set(find_backedges(self))
         else:
             backedges = set()
-        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges)
+        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
+        for block in topo_order_best_attempt(self)[:maxblocks]:
+            block._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
         dotgen.emit_edge(name, firstid)
         return print_varnames
 

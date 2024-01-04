@@ -38,7 +38,7 @@ class Union(Type):
             self.variants[name] = typ
 
     def __repr__(self):
-        return "%s(%s, %s, %s)" % (type(self).__name__, self.name, self.names, self.typs)
+        return "%s(%r, %s, %s)" % (type(self).__name__, self.name, self.names, self.typs)
 
 
 @unique

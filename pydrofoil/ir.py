@@ -2132,12 +2132,17 @@ class LocalOptimizer(BaseOptimizer):
         else:
             # try to find correct block to insert
             # XXX this shows the need for phis to point to their "home" block
-            for prevblock in phi.prevblocks:
-                for correct_block in prevblock.next.next_blocks():
-                    if phi in correct_block.operations:
-                        correct_block.operations.insert(0, newphi)
-                        return newphi
+            correct_block = self._try_find_phi_home_block(phi)
+            if correct_block:
+                correct_block.operations.insert(0, newphi)
+                return newphi
             return None
+
+    def _try_find_phi_home_block(self, phi):
+        for prevblock in phi.prevblocks:
+            for correct_block in prevblock.next.next_blocks():
+                if phi in correct_block.operations:
+                    return correct_block
 
     def _optimize_GlobalWrite(self, op, block, index):
         arg, = self._args(op)
@@ -2240,6 +2245,37 @@ class LocalOptimizer(BaseOptimizer):
 
     def _optimize_NonSSAAssignment(self, op, block, index):
         return REMOVE
+
+    def _optimize_UnionVariantCheck(self, op, block, index):
+        def is_union_creation(value):
+            assert isinstance(value.resolved_type, types.Union)
+            return type(value) is Operation and value.name in value.resolved_type.variants
+        arg, = self._args(op)
+        if type(arg) is Operation:
+            if arg.name == op.name:
+                return BooleanConstant.FALSE
+            if is_union_creation(arg):
+                return BooleanConstant.TRUE
+        if not isinstance(arg, Phi):
+            return
+        phi = arg
+        if not all(is_union_creation(value) for value in phi.prevvalues):
+            return
+
+        results = []
+        for value in phi.prevvalues:
+            results.append(BooleanConstant.frombool(value.name != op.name))
+        if len(set(results)) == 1:
+            return results[0]
+        newphi = Phi(phi.prevblocks[:], results, types.Bool())
+        if phi in self.current_block.operations or phi in self.newoperations:
+            self.newoperations.insert(0, newphi)
+            return newphi
+        correct_block = self._try_find_phi_home_block(phi)
+        if correct_block:
+            correct_block.operations.insert(0, newphi)
+            return newphi
+        return None
 
     @symmetric
     def optimize_eq_bits(self, op, arg0, arg1):

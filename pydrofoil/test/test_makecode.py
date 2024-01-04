@@ -338,4 +338,4 @@ files "x.sail"
 """
     support_code = "from pydrofoil.test.nand2tetris import supportcodenand as supportcode"
     res = parse_and_make_code(s, support_code)
-    assert "machine._reg_zPC = r_uint(0xCAFE)" in res
+    assert "machine._reg_zPC = r_uint(0xcafeL)" in res

@@ -139,7 +139,7 @@ class CodeEmitter(object):
             with self.codegen.cached_declaration(constr, name) as arg:
                 self.codegen.emit("%s = %s" % (
                     arg, constr))
-            return name
+            return arg
         import pdb; pdb.set_trace()
 
     def _get_args(self, args):

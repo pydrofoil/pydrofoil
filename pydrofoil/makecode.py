@@ -265,14 +265,14 @@ class Codegen(specialize.FixpointSpecializer):
             with self.emit_indent("def copy_into(self, res=None):"):
                 self.emit("if res is None: res = type(self)()")
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
-                    self.emit("res.%s = self.%s # %s" % (arg, arg, fieldtyp))
+                    self.emit("res.%s = self.%s" % (arg, arg))
                 self.emit("return res")
             self.emit("@objectmodel.always_inline")
             with self.emit_indent("def eq(self, other):"):
                 self.emit("assert isinstance(other, %s)" % (pyname, ))
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
-                    self.emit("if %s: return False # %s" % (
-                        fieldtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (fieldtyp, fieldtyp), types.Bool()), fieldtyp))
+                    self.emit("if %s: return False" % (
+                        fieldtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (fieldtyp, fieldtyp), types.Bool())))
                 self.emit("return True")
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
 
@@ -358,8 +358,8 @@ class __extend__(parse.Union):
     def make_code(self, codegen):
         name = "Union_" + self.name
         self.pyname = name
-        for typ in self.types:
-            typ.resolve_type(codegen) # pre-declare the types
+        # pre-declare the types
+        rtyps = [typ.resolve_type(codegen) for typ in self.types]
         with codegen.emit_code_type("declarations"):
             with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
                 codegen.emit("@objectmodel.always_inline")
@@ -367,7 +367,9 @@ class __extend__(parse.Union):
                     codegen.emit("return False")
             codegen.emit("%s.singleton = %s()" % (name, name))
             self.pynames = []
-            uniontyp = types.Union(self)
+            names = tuple(self.names)
+            names = tuple(self.names)
+            uniontyp = types.Union(self.name, names, tuple(rtyps))
             uniontyp.uninitialized_value = "%s.singleton" % (name, )
             codegen.add_named_type(self.name, self.pyname, uniontyp, self)
             for name, typ in zip(self.names, self.types):
@@ -705,7 +707,7 @@ class __extend__(parse.Function):
                 clsname = codegen.getname(cond.condition.variant)
                 known_cls = cond.condition.variant
             else:
-                clsname = uniontyp.ast.pyname
+                clsname = codegen.namedtypes[uniontyp.name].pyname
                 known_cls = None
             if clsname in generated_for_class:
                 continue
@@ -906,7 +908,6 @@ class __extend__(parse.Files):
 class __extend__(parse.Let):
     def make_code(self, codegen):
         from pydrofoil.ir import construct_ir, extract_global_value
-        codegen.emit("# %s" % (self, ))
         pyname = "machine.l.%s" % self.name
         codegen.add_global(self.name, pyname, self.typ.resolve_type(codegen), self, pyname)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):

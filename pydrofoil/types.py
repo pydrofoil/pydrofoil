@@ -25,13 +25,21 @@ class Type(object):
     __metaclass__ = extendabletype
     uninitialized_value = '"uninitialized_value"' # often fine for rpython!
 
+
 @unique
 class Union(Type):
-    def __init__(self, ast):
-        self.ast = ast
+    def __init__(self, name, names, typs):
+        self.name = name
+        self.names = names
+        self.typs = typs
+        assert len(self.names) == len(self.typs)
+        self.variants = {}
+        for name, typ in zip(names, typs):
+            self.variants[name] = typ
 
     def __repr__(self):
-        return "%s(<%s>)" % (type(self).__name__, self.ast.name)
+        return "%s(%r, %s, %s)" % (type(self).__name__, self.name, self.names, self.typs)
+
 
 @unique
 class Enum(Type):
@@ -43,6 +51,7 @@ class Enum(Type):
 
     def __repr__(self):
         return "%s(%r, %r)" % (type(self).__name__, self.name, self.elements)
+
 
 @unique
 class Struct(Type):

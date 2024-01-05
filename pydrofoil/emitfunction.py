@@ -133,6 +133,13 @@ class CodeEmitter(object):
             return "()"
         if isinstance(value, ir.StringConstant):
             return repr(value.string)
+        if isinstance(value, ir.GenericBitVectorConstant):
+            name = "bitvectorconstant%s_%s" % (value.value.size(), value.value.tolong())
+            constr = value._construction_expr()
+            with self.codegen.cached_declaration(constr, name) as arg:
+                self.codegen.emit("%s = %s" % (
+                    arg, constr))
+            return arg
         import pdb; pdb.set_trace()
 
     def _get_args(self, args):

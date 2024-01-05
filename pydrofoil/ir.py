@@ -1,3 +1,4 @@
+import sys
 import random
 import time
 from collections import defaultdict
@@ -512,7 +513,7 @@ class Block(object):
             res.append(newop)
         return res
 
-    def _dot(self, dotgen, seen, print_varnames, codegen, backedges):
+    def _dot(self, dotgen, seen, print_varnames, codegen, backedges, maxblocks):
         if codegen is None:
             builtin_names = {}
         else:
@@ -551,7 +552,10 @@ class Block(object):
             fillcolor=fillcolor,
         )
         for index, nextblock in enumerate(nextblocks):
-            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges)
+            if len(seen) <= maxblocks:
+                nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
+            else:
+                nextid = str(id(next))
             label = ''
             if len(nextblocks) > 1:
                 label = str(bool(index))
@@ -591,15 +595,15 @@ class Graph(object):
         assert isinstance(node, Block)
         return node.next.next_blocks()
 
-    def view(self, codegen=None):
+    def view(self, codegen=None, maxblocks=sys.maxint):
         from rpython.translator.tool.make_dot import DotGen
         from dotviewer import graphclient
         import pytest
         dotgen = DotGen('G')
-        print_varnames = self._dot(dotgen, codegen)
+        print_varnames = self._dot(dotgen, codegen, maxblocks)
         GraphPage(dotgen.generate(target=None), print_varnames, self.args).display()
 
-    def _dot(self, dotgen, codegen):
+    def _dot(self, dotgen, codegen, maxblocks):
         name = "graph" + self.name
         dotgen.emit_node(
             name,
@@ -613,7 +617,9 @@ class Graph(object):
             backedges = set(find_backedges(self))
         else:
             backedges = set()
-        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges)
+        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
+        for block in topo_order_best_attempt(self)[:maxblocks]:
+            block._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
         dotgen.emit_edge(name, firstid)
         return print_varnames
 
@@ -1006,6 +1012,35 @@ class SmallBitVectorConstant(Constant):
         return "SmallBitVectorConstant(%s, %s)" % (value, self.resolved_type)
 
 
+class GenericBitVectorConstant(Constant):
+    resolved_type = types.GenericBitVector()
+
+    def __init__(self, value):
+        assert isinstance(value, bitvector.BitVector)
+        self.value = value
+
+    def comparison_key(self):
+        return (GenericBitVectorConstant, self.value.pack(), self.resolved_type)
+
+    def _repr(self, print_varnames):
+        return repr(self)
+
+    def _construction_expr(self):
+        val = self.value.tolong()
+        size = self.value.size()
+        if size % 4 == 0:
+            value = hex(int(val))
+        else:
+            value = bin(int(val))
+        #import pdb;pdb.set_trace()
+        if isinstance(self.value, (bitvector.SparseBitVector, bitvector.SmallBitVector)):
+            return "bitvector.from_ruint(%s, r_uint(%s))" % (size, self.value.val)
+        return "bitvector.from_bigint(%s, rbigint.fromlong(%s))" % (size, value)
+
+    def __repr__(self):
+        return "GenericBitVectorConstant(%s)" % self._construction_expr()
+
+
 class DefaultValue(Constant):
 
     def __init__(self, resolved_type):
@@ -1090,7 +1125,7 @@ class Return(Next):
         return "Return(%s, %r)" % (None if self.value is None else self.value._repr(print_varnames), self.sourcepos)
 
 class Raise(Next):
-    def __init__(self, kind, sourcepos):
+    def __init__(self, kind, sourcepos=None):
         self.kind = kind
         self.sourcepos = sourcepos
 
@@ -1170,12 +1205,21 @@ def print_graph_construction(graph, codegen=None):
     else:
         builtin_names = {}
 
+    uniontyps = []
+    seen_uniontyps = {}
+    def type_repr(typ):
+        if isinstance(typ, types.Union):
+            if typ.name not in seen_uniontyps:
+                uniontyps.append("%s = %r" % (typ.name, typ))
+                seen_uniontyps[typ.name] = typ
+            return typ.name
+        return repr(typ)
 
     blocknames = {block: "block%s" % i for i, block in enumerate(blocks)}
     print_varnames = {}
     for arg in graph.args:
         print_varnames[arg] = arg.name
-        res.append("%s = %r" % (arg.name, arg))
+        res.append("%s = Argument(%r, %s)" % (arg.name, arg.name, type_repr(arg.resolved_type)))
     for block, name in blocknames.iteritems():
         res.append("%s = Block()" % name)
     pending_updates = defaultdict(list)
@@ -1186,7 +1230,7 @@ def print_graph_construction(graph, codegen=None):
             name = op._get_print_name(print_varnames)
             if isinstance(op, Operation):
                 args = ", ".join([a._repr(print_varnames) for a in op.args])
-                res.append("%s = %s.emit(%s, %r, [%s], %r, %r, %r)"  % (name, blockname, op.__class__.__name__, builtin_names.get(op.name, op.name), args, op.resolved_type, op.sourcepos, op.varname_hint))
+                res.append("%s = %s.emit(%s, %r, [%s], %s, %r, %r)"  % (name, blockname, op.__class__.__name__, builtin_names.get(op.name, op.name), args, type_repr(op.resolved_type), op.sourcepos, op.varname_hint))
             else:
                 assert isinstance(op, Phi)
                 blockargs = ", ".join([blocknames[b] for b in op.prevblocks])
@@ -1199,13 +1243,14 @@ def print_graph_construction(graph, codegen=None):
                         args.append(a._repr(print_varnames))
 
                 args = ", ".join(args)
-                res.append("%s = %s.emit_phi([%s], [%s], %s)" % (name, blockname, blockargs, args, op.resolved_type))
+                res.append("%s = %s.emit_phi([%s], [%s], %s)" % (name, blockname, blockargs, args, type_repr(op.resolved_type)))
             if pending_updates[op]:
                 for prevname, index in pending_updates[op]:
                     res.append("%s.prevvalues[%s] = %s" % (prevname, index, name))
             seen_ops.add(op)
         res.append("%s.next = %s" % (blockname, block.next._repr(print_varnames, blocknames)))
     res.append("graph = Graph(%r, [%s], block0%s)" % (graph.name, ", ".join(arg.name for arg in graph.args), ", True" if graph.has_loop else ""))
+    res = uniontyps + res
     return res
 
 
@@ -1334,11 +1379,13 @@ def _bare_optimize(graph, codegen):
     res = remove_dead(graph, codegen) or res
     res = simplify_phis(graph, codegen) or res
     res = inline(graph, codegen) or res
+    res = remove_superfluous_union_checks(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=False) or res
     res = remove_empty_blocks(graph, codegen) or res
     res = swap_not(graph, codegen) or res
     res = optimize_with_range_info(graph, codegen) or res
     res = cse_global_reads(graph, codegen) or res
+    res = remove_superfluous_union_checks(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph, codegen) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
@@ -1354,12 +1401,16 @@ def localopt(graph, codegen, do_double_casts=True):
 
 @repeat
 def remove_dead(graph, codegen):
+    def is_union_creation(value):
+        return isinstance(value.resolved_type, types.Union) and type(value) is Operation and value.name in value.resolved_type.variants
     def can_remove_op(op):
         if not op.can_have_side_effects:
             return True
         if op.name == "@not":
             return True
         if op.name == "@eq":
+            return True
+        if is_union_creation(op):
             return True
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
@@ -1618,6 +1669,47 @@ def remove_superfluous_enum_cases(graph, codegen):
         return True
     return False
 
+def remove_superfluous_union_checks(graph, codegen):
+    if graph.has_loop:
+        return
+
+    def init_variant_set(value):
+        typ = value.resolved_type
+        return frozenset(typ.variants)
+
+    changed = False
+    # maps blocks -> values -> sets of variant names
+    possible_union_variants = defaultdict(lambda : defaultdict_with_key_arg(init_variant_set))
+    entrymap = graph.make_entrymap()
+    for block in topo_order(graph):
+        values_in_block = possible_union_variants[block]
+        if not isinstance(block.next, ConditionalGoto) or not isinstance(block.next.booleanvalue, UnionVariantCheck):
+            for nextblock in block.next.next_blocks():
+                if len(entrymap[nextblock]) == 1:
+                    possible_union_variants[nextblock].update(values_in_block)
+            continue
+        cond = block.next.booleanvalue
+        assert isinstance(cond, UnionVariantCheck)
+        arg0, = cond.args
+        possible_values_arg0 = values_in_block[arg0]
+        single = frozenset([cond.name])
+        if possible_values_arg0 == single:
+            changed = True
+            block.next.booleanvalue = BooleanConstant.FALSE
+        else:
+            if len(entrymap[block.next.truetarget]) == 1:
+                values_in_block = possible_union_variants[block.next.truetarget]
+                values_in_block[arg0] = possible_values_arg0 - single
+            if len(entrymap[block.next.falsetarget]) == 1:
+                values_in_block = possible_union_variants[block.next.falsetarget]
+                values_in_block[arg0] = single
+    if changed:
+        remove_if_true_false(graph, codegen)
+        remove_dead(graph, codegen)
+        return True
+    return False
+
+
 def remove_useless_switch(graph, codegen):
     # if we have a switch where the two target blocks are the same we can
     # remove the if completely
@@ -1836,6 +1928,9 @@ class BaseOptimizer(object):
         return self.codegen.builtin_names.get(name, name)
 
     def _extract_smallfixedbitvector(self, arg):
+        if isinstance(arg, GenericBitVectorConstant) and arg.value.size() <= 64:
+            typ = types.SmallFixedBitVector(arg.value.size())
+            return SmallBitVectorConstant(arg.value.touint(), typ), typ
         if isinstance(arg.resolved_type, types.SmallFixedBitVector):
             return arg, arg.resolved_type
         if not isinstance(arg, Cast):
@@ -2011,6 +2106,8 @@ class LocalOptimizer(BaseOptimizer):
                 runtimeargs.append(arg.number)
             elif isinstance(arg, SmallBitVectorConstant):
                 runtimeargs.append(arg.value)
+            elif isinstance(arg, GenericBitVectorConstant):
+                runtimeargs.append(arg.value)
             elif arg.resolved_type is types.Real():
                 return # later
             elif arg.resolved_type is types.Unit():
@@ -2038,6 +2135,9 @@ class LocalOptimizer(BaseOptimizer):
         if resolved_type is types.String():
             assert isinstance(res, str)
             return StringConstant(res)
+        if resolved_type is types.GenericBitVector():
+            assert isinstance(res, bitvector.BitVector)
+            return GenericBitVectorConstant(res)
         # XXX other types? import pdb;pdb.set_trace()
 
     def _try_fold_phi(self, name, func, args, resolved_type, op):
@@ -2079,12 +2179,17 @@ class LocalOptimizer(BaseOptimizer):
         else:
             # try to find correct block to insert
             # XXX this shows the need for phis to point to their "home" block
-            for prevblock in phi.prevblocks:
-                for correct_block in prevblock.next.next_blocks():
-                    if phi in correct_block.operations:
-                        correct_block.operations.insert(0, newphi)
-                        return newphi
+            correct_block = self._try_find_phi_home_block(phi)
+            if correct_block:
+                correct_block.operations.insert(0, newphi)
+                return newphi
             return None
+
+    def _try_find_phi_home_block(self, phi):
+        for prevblock in phi.prevblocks:
+            for correct_block in prevblock.next.next_blocks():
+                if phi in correct_block.operations:
+                    return correct_block
 
     def _optimize_GlobalWrite(self, op, block, index):
         arg, = self._args(op)
@@ -2187,6 +2292,47 @@ class LocalOptimizer(BaseOptimizer):
 
     def _optimize_NonSSAAssignment(self, op, block, index):
         return REMOVE
+
+    def _optimize_UnionVariantCheck(self, op, block, index):
+        def is_union_creation(value):
+            assert isinstance(value.resolved_type, types.Union)
+            return type(value) is Operation and value.name in value.resolved_type.variants
+        arg, = self._args(op)
+        if type(arg) is Operation:
+            if arg.name == op.name:
+                return BooleanConstant.FALSE
+            if is_union_creation(arg):
+                return BooleanConstant.TRUE
+        if not isinstance(arg, Phi):
+            return
+        phi = arg
+        if not all(is_union_creation(value) for value in phi.prevvalues):
+            return
+
+        results = []
+        for value in phi.prevvalues:
+            results.append(BooleanConstant.frombool(value.name != op.name))
+        if len(set(results)) == 1:
+            return results[0]
+        newphi = Phi(phi.prevblocks[:], results, types.Bool())
+        if phi in self.current_block.operations or phi in self.newoperations:
+            self.newoperations.insert(0, newphi)
+            return newphi
+        correct_block = self._try_find_phi_home_block(phi)
+        if correct_block:
+            correct_block.operations.insert(0, newphi)
+            return newphi
+        return None
+
+    def _optimize_UnionCast(self, op, block, index):
+        def is_union_creation(value):
+            assert isinstance(value.resolved_type, types.Union)
+            return type(value) is Operation and value.name in value.resolved_type.variants
+        arg0, = self._args(op)
+        if is_union_creation(arg0) and arg0.name == op.name:
+            assert len(arg0.args) == 1
+            assert arg0.args[0].resolved_type == op.resolved_type
+            return arg0.args[0]
 
     @symmetric
     def optimize_eq_bits(self, op, arg0, arg1):
@@ -3593,6 +3739,12 @@ class LocalOptimizer(BaseOptimizer):
             ),
             op.resolved_type
         )
+
+    def optimize_UINT64_C(self, op):
+        arg0, = self._args(op)
+        assert isinstance(arg0, MachineIntConstant)
+        assert arg0.number == 0
+        return GenericBitVectorConstant(bitvector.from_ruint(0, r_uint(0)))
 
 
 @repeat

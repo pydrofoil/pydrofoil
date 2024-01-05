@@ -67,16 +67,10 @@ class __extend__(types.Int):
         assert restyp is types.Bool()
         return "%s.eq(%s)" % (sarg1, sarg2)
 
-class DummyAst(object):
-    def __init__(self, s):
-        self.s = s
-    def to_code(self, codegen):
-        return self.s
-
 class __extend__(types.List):
     def make_op_code_special_hd(self, ast, sargs, argtyps, restyp):
-        ast = DummyAst("%s.head" % (sargs[0], ))
-        return pair(argtyps[0].typ.elements[0], restyp).convert(ast, None)
+        expr = "%s.head" % (sargs[0], )
+        return pair(argtyps[0].typ.elements[0], restyp).convert(expr, None)
 
     def make_op_code_special_tl(self, ast, sargs, argtyps, restyp):
         assert argtyps[0] is restyp
@@ -103,10 +97,10 @@ class __extend__(types.Enum):
         assert restyp is types.Bool()
         return "%s == %s" % (sargs[0], sargs[1])
 
-class __extend__(types.Bit):
-    def make_op_code_special_eq(self, ast, sargs, argtyps, restyp):
-        assert restyp is types.Bool()
-        return "%s == %s" % (sargs[0], sargs[1])
+#class __extend__(types.Bit):
+#    def make_op_code_special_eq(self, ast, sargs, argtyps, restyp):
+#        assert restyp is types.Bool()
+#        return "%s == %s" % (sargs[0], sargs[1])
 
 class __extend__(types.String):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
@@ -148,4 +142,4 @@ class __extend__(types.Vec):
         return "%s[%s]" % tuple(sargs)
 
     def make_op_code_special_vector_update_o_i_o(self, ast, sargs, argtyps, restyp):
-        return "supportcode.helper_vector_update_list_o_i_o(machine, %s)" % ", ".join(sargs)
+        return "supportcode.vector_update_list(machine, %s)" % ", ".join(sargs)

@@ -41,7 +41,7 @@ def riscvmain():
 
 @pytest.mark.parametrize("elf", elfs)
 def test_full_riscv(riscvmain, elf):
-    riscvmain(['executable', elf])
+    riscvmain(['executable', elf, "--verbose"])
 
 def test_load_objdump(riscvmain):
     from riscv import supportcoderiscv

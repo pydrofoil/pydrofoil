@@ -20,13 +20,54 @@ def make_code(regen=True):
     outarm = _make_code(regen)
     return supportcodearm.get_main(outarm)
 
+def should_inline(name):
+    if "step_model" in name:
+        return False
+    if "subrange_subrange" in name:
+        return True
+    if "slice_mask" in name:
+        return True
+    if "sail_mask" in name:
+        return True
+    if "extzzv" in name:
+        return True
+    if "IMPDEF" in name:
+        return True
+    if "undefined" in name:
+        return True
+    if "TGxGranuleBits" in name:
+        return True
+    if "fdiv_int" in name:
+        return True
+    if "Align__1" in name:
+        return True
+    if name == "zAlign":
+        return True
+    if "TTBaseAddress" in name:
+        return True
+    if "zAArch64_S1StartLevel" in name:
+        return True
+    if "zAArch64_S2StartLevel" in name:
+        return True # risky, several callers
+    if "zAArch64_PhysicalAddressSizze" in name:
+        return True
+    if "zAArch64_PAMax" in name:
+        return True # risky, several callers
+    #if name == "z__SetThisInstr":
+    #    return False # hook for the JIT
+
+
 def _make_code(regen=True):
     print "making python code"
+
     if regen:
         with open(armir, "rb") as f:
             s = f.read()
+        entrypoints = "zstep_model z__SetThisInstr zmain".split()
         support_code = "from arm import supportcodearm as supportcode"
-        res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS)
+        res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS,
+                                  should_inline=should_inline,
+                                  entrypoints=entrypoints)
         with open(outarm, "w") as f:
             f.write(res)
         print "written file", outarm, "importing now"

@@ -24,6 +24,8 @@ ints = strategies.integers(-sys.maxint-1, sys.maxint)
 wrapped_ints = strategies.builds(
         make_int,
         strategies.data())
+uints = strategies.builds(
+        r_uint, ints)
 
 def _make_small_bitvector(data, width=-1):
     if width == -1:
@@ -445,6 +447,14 @@ def test_arith_shiftr_hypothesis(data):
     intres = bv.signed().tobigint().tolong() >> shift
     assert res.tobigint().tolong() == intres & ((1 << size) - 1)
 
+def test_shiftr_bv_i():
+    assert supportcode.arith_shiftr_bv_i(machine, 0b10001101, 8, 2) == 0b11100011
+    assert supportcode.arith_shiftr_bv_i(machine, 0b10001101, 8, 8) == 0b11111111
+    assert supportcode.arith_shiftr_bv_i(machine, 0b00101101, 8, 3) == 0b101
+    assert supportcode.shiftr_bv_i(machine, 0b10001101, 8, 2) == 0b100011
+    assert supportcode.shiftr_bv_i(machine, 0b10001101, 8, 8) == 0b0
+    assert supportcode.shiftr_bv_i(machine, 0b00101101, 8, 3) == 0b101
+
 def test_bitvector_touint():
     for size in [6, 6000]:
         assert bv(size, 0b11).touint() == r_uint(0b11)
@@ -602,6 +612,14 @@ def test_op_int_div_mod():
             assert c1(-2**63).tdiv(c2(-1)).tolong() == 2 ** 63
             assert c1(-2**63).tmod(c2(-1)).tolong() == 0
 
+def test_tdiv_int_i_i():
+    # check rounding towards 0
+    assert supportcode.tdiv_int_i_i(machine, 7, 2) == 3
+    assert supportcode.tdiv_int_i_i(machine, -7, 2) == -3
+    assert supportcode.tdiv_int_i_i(machine, 7, -2) == -3
+    assert supportcode.tdiv_int_i_i(machine, -7, -2) == 3
+
+
 def test_shift_amount():
     for i in range(63):
         assert BigInteger._shift_amount(2 ** i) == i
@@ -730,6 +748,15 @@ def test_emod_ediv_int():
    assert bi(-12345678901234567890).ediv(bi(10000000000000000000)).toint() == -2
    assert bi(-12345678901234567890).emod(bi(10000000000000000000)).toint() == 7654321098765432110
    assert bi(-12345678901234567890).emod(bi(-10000000000000000000)).toint() == 7654321098765432110
+
+def test_ediv_int_i_ipos():
+    assert supportcode.ediv_int_i_ipos(None, 123875, 13) == 123875 // 13
+    assert supportcode.ediv_int_i_ipos(None, MININT, 2) == -2**62
+    assert supportcode.ediv_int_i_ipos(None, MININT + 1, sys.maxint) == -1
+    assert supportcode.ediv_int_i_ipos(None, 7, 5) == 1
+    assert supportcode.ediv_int_i_ipos(None, -7, 5) == -2
+    assert supportcode.ediv_int_i_ipos(None, 12, 3) == 4
+    assert supportcode.ediv_int_i_ipos(None, -12, 3) == -4
 
 def test_pow2():
     for i in range(1000):
@@ -2210,3 +2237,39 @@ def test_sparse_arith_shiftr_hypothesis(data):
     res = v.arith_rshift(shift)
     intres = v.signed().tobigint().tolong() >> shift
     assert res.tobigint().tolong() == intres & ((1 << size) - 1)
+
+@given(strategies.data())
+def test_lshift_rshift_equivalent_to_mask(data):
+    numbits = data.draw(strategies.integers(1, 20))
+    value = data.draw(strategies.integers(0, 2**64))
+    address = r_uint(value)
+    machine = None
+    proper_result = supportcode.get_slice_int_i_o_i_unwrapped_res(
+        machine,
+        64,
+        supportcode.shl_int_i_i_wrapped_res(
+            machine,
+            supportcode.unsigned_bv64_rshift_int_result(machine, address, numbits),
+            numbits,
+        ),
+        0,
+    )
+    mask = ~((r_uint(1) << numbits) - 1)
+    fast_result = address & mask
+    assert proper_result == fast_result
+
+@given(bitvectors, bitvectors)
+def test_append_hypothesis(a, b):
+    la = a.tolong()
+    lb = b.tolong()
+    res = a.append(b)
+    lres = res.tolong()
+    assert lres == (la << b.size()) | lb
+
+@given(bitvectors, uints)
+def test_append_64_hypothesis(a, b):
+    la = a.tolong()
+    lb = int(b)
+    res = a.append_64(b)
+    lres = res.tolong()
+    assert lres == (la << 64) | lb

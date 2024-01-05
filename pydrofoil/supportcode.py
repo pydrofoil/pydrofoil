@@ -42,10 +42,19 @@ def unwrap(spec):
         wrappedfunc.__dict__.update(func.__dict__)
         unwrapped_name = func.func_name + "_" + "_".join(argspecs)
         globals()[unwrapped_name] = func
+        if func.func_name in purefunctions:
+            purefunctions[func.func_name] = wrappedfunc
+            purefunctions[unwrapped_name] = func
         wrappedfunc.func_name += "_" + func.func_name
         all_unwraps[func.func_name] = (argspecs, unwrapped_name)
         return wrappedfunc
     return wrap
+
+purefunctions = {}
+
+def purefunction(func):
+    purefunctions[func.func_name] = func
+    return func
 
 # unimplemented
 
@@ -79,12 +88,15 @@ make_dummy("softfloat_f64roundToInt")
 
 # generic helpers
 
-def raise_type_error():
+def raise_type_error(msg=''):
+    if msg:
+        print "INTERNAL ERROR", msg
     raise TypeError
 
 
 # bit vectors
 
+@purefunction
 def signed_bv(machine, op, n):
     if n == 64:
         return intmask(op)
@@ -95,47 +107,66 @@ def signed_bv(machine, op, n):
     return intmask((op ^ m) - m)
 
 @objectmodel.always_inline
+@purefunction
 def unsigned_bv_wrapped_res(machine, op, n):
     return bitvector.Integer.from_ruint(op)
 
 @objectmodel.always_inline
+@purefunction
+def unsigned_bv64_rshift_int_result(machine, op, n):
+    assert 0 < n < 64
+    return intmask(op >> n)
+
+@objectmodel.always_inline
+@purefunction
 def unsigned_bv(machine, op, n):
     if n == 64 and (op & (r_uint(1) << 63)):
         raise ValueError
     return intmask(op)
 
 @objectmodel.always_inline
+@purefunction
+@objectmodel.specialize.argtype(1, 2)
 def add_bits_int(machine, a, b):
     return a.add_int(b)
 
 @objectmodel.always_inline
+@purefunction
 def add_bits_int_bv_i(machine, a, width, b):
     return _mask(width, a + r_uint(b))
 
 @objectmodel.always_inline
+@purefunction
 def add_bits(machine, a, b):
     return a.add_bits(b)
 
+@purefunction
 def add_bits_bv_bv(machine, a, b, width):
     return _mask(width, a + b)
 
+@purefunction
 def sub_bits_int(machine, a, b):
     return a.sub_int(b)
 
 @objectmodel.always_inline
+@purefunction
 def sub_bits_int_bv_i(machine, a, width, b):
     return _mask(width, a - r_uint(b))
 
 @objectmodel.always_inline
+@purefunction
 def sub_bits(machine, a, b):
     return a.sub_bits(b)
 
+@purefunction
 def sub_bits_bv_bv(machine, a, b, width):
     return _mask(width, a - b)
 
+@purefunction
 def length(machine, gbv):
     return gbv.size_as_int()
 
+@purefunction
 def length_unwrapped_res(machine, gbv):
     return gbv.size()
 
@@ -149,24 +180,40 @@ def sign_extend_bv_i_i(machine, bv, width, targetwidth):
     m = r_uint(1) << (width - 1)
     return _mask(targetwidth, (bv ^ m) - m)
 
+def sign_extend_o_i_unwrapped_res(machine, bv, size):
+    assert size <= 64
+    assert isinstance(bv, bitvector.SmallBitVector)
+    return sign_extend_bv_i_i(machine, bv.touint(), bv.size(), size)
+
 @unwrap("o i")
 @objectmodel.always_inline
+@purefunction
 def zero_extend(machine, gbv, size):
     return gbv.zero_extend(size)
 
 @objectmodel.always_inline
+@purefunction
 def zero_extend_bv_i_i(machine, bv, width, targetwidth):
     return bv # XXX correct?
 
+def zero_extend_o_i_unwrapped_res(machine, bv, size):
+    assert size <= 64
+    assert isinstance(bv, bitvector.SmallBitVector)
+    return bv.touint()
+
+@purefunction
 def eq_bits(machine, gvba, gvbb):
     return gvba.eq(gvbb)
 
+@purefunction
 def eq_bits_bv_bv(machine, bva, bvb):
     return bva == bvb
 
+@purefunction
 def neq_bits(machine, gvba, gvbb):
     return not gvba.eq(gvbb)
 
+@purefunction
 def neq_bits_bv_bv(machine, bva, bvb):
     return bva != bvb
 
@@ -191,6 +238,7 @@ def or_vec_bv_bv(machine, bva, bvb):
 def not_bits(machine, gvba):
     return gvba.invert()
 
+@purefunction
 def not_vec_bv(machine, bva, width):
     return _mask(width, ~bva)
 
@@ -204,19 +252,30 @@ def prerr_bits(machine, s, b):
 
 
 @unwrap("o i")
+@purefunction
 def shiftl(machine, gbv, i):
     return gbv.lshift(abs(i))
 
+@purefunction
 def shiftl_bv_i(machine, a, width, i):
     return _mask(width, a << i)
 
 @unwrap("o i")
+@purefunction
 def shiftr(machine, gbv, i):
     return gbv.rshift(i)
+
+@purefunction
+def shiftr_bv_i(machine, a, width, i):
+    return _mask(width, a >> i)
 
 @unwrap("o i")
 def arith_shiftr(machine, gbv, i):
     return gbv.arith_rshift(i)
+
+def arith_shiftr_bv_i(machine, a, width, i):
+    signed = signed_bv(machine, a, width)
+    return _mask(width, r_uint(signed >> i))
 
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)
@@ -225,51 +284,51 @@ def shift_bits_right(machine, gbv, gbva):
     return gbv.rshift_bits(gbva)
 
 @unwrap("o i")
+@purefunction
 def replicate_bits(machine, bv, repetition):
     return bv.replicate(repetition)
 
+def replicate_bv_i_i(machine, bv, width, repetition):
+    return bitvector.SmallBitVector._replicate(bv, width, repetition)
 
+@purefunction
 def sail_unsigned(machine, gbv):
     return gbv.unsigned()
 
+@purefunction
 def sail_signed(machine, gbv):
     return gbv.signed()
 
+@purefunction
 def append(machine, bv1, bv2):
     return bv1.append(bv2)
 
+@purefunction
 def bitvector_concat_bv_bv(machine, bv1, width, bv2):
     return (bv1 << width) | bv2
 
+@purefunction
 def append_64(machine, bv, v):
     return bv.append_64(v)
 
 @unwrap("o i o")
-@objectmodel.specialize.argtype(1, 3)
+@purefunction
 def vector_update(machine, bv, index, element):
     return bv.update_bit(index, element)
 
-@objectmodel.specialize.argtype(1, 3)
-def helper_vector_update_list_o_i_o(machine, vec, index, element, res=None):
-    if vec is None:
-        raise TypeError
-    if res is None:
-        res = vec[:]
-    else:
-        assert res is vec
-    res[index] = element
-    return res
-
 @unwrap("o i")
+@purefunction
 def vector_access(machine, vec, index):
     return vec.read_bit(index)
 
+@purefunction
 def vector_access_bv_i(machine, bv, index):
     if index == 0:
         return bv & r_uint(1)
     return r_uint(1) & safe_rshift(None, bv, index)
 
-def update_fbits(machine, fb, index, element):
+@purefunction
+def zupdate_fbits(machine, fb, index, element):
     assert 0 <= index < 64
     if element:
         return fb | (r_uint(1) << index)
@@ -277,9 +336,11 @@ def update_fbits(machine, fb, index, element):
         return fb & ~(r_uint(1) << index)
 
 @unwrap("o i i o")
+@purefunction
 def vector_update_subrange(machine, bv, n, m, s):
     return bv.update_subrange(n, m, s)
 
+@purefunction
 def vector_update_subrange_fixed_bv_i_i_bv(machine, bv, n, m, s):
     width = n - m + 1
     mask = ~(((r_uint(1) << width) - 1) << m)
@@ -288,30 +349,36 @@ def vector_update_subrange_fixed_bv_i_i_bv(machine, bv, n, m, s):
 @unwrap("o i i")
 @objectmodel.always_inline
 @objectmodel.specialize.argtype(1)
+@purefunction
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n, m)
 
 @objectmodel.always_inline
 @objectmodel.specialize.argtype(1)
+@purefunction
 def vector_subrange_o_i_i_unwrapped_res(machine, bv, n, m):
     return bv.subrange_unwrapped_res(n, m)
 
 @unwrap("o i i")
 @objectmodel.specialize.argtype(1)
+@purefunction
 def slice(machine, bv, start, length):
     return bv.subrange(start + length - 1, start)
 
 @objectmodel.always_inline
 @objectmodel.specialize.argtype(1)
+@purefunction
 def vector_slice_o_i_i_unwrapped_res(machine, bv, start, length):
     return bv.subrange_unwrapped_res(start + length - 1, start)
 
-@unwrap("o o o i o")
+@unwrap("i i o i o")
 @objectmodel.specialize.argtype(3)
+@purefunction
 def set_slice(machine, _len, _slen, bv, start, bv_new):
     return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)
 
 @objectmodel.always_inline
+@purefunction
 def vector_subrange_fixed_bv_i_i(machine, v, n, m):
     res = safe_rshift(None, v, m)
     width = n - m + 1
@@ -319,6 +386,7 @@ def vector_subrange_fixed_bv_i_i(machine, v, n, m):
     return _mask(width, res)
 
 @objectmodel.always_inline
+@purefunction
 def slice_fixed_bv_i_i(machine, v, start, length):
     return vector_subrange_fixed_bv_i_i(machine, v, start + length - 1, start)
 
@@ -328,16 +396,18 @@ def string_of_bits(machine, gbv):
 def decimal_string_of_bits(machine, sbits):
     return str(sbits)
 
-def uint64c(num):
+def uint64c(machine, num):
     if not objectmodel.we_are_translated():
         import pdb; pdb.set_trace()
     return bitvector.from_ruint(64, r_uint(num))
 
 @unwrap("i")
+@purefunction
 def zeros(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 
 @unwrap("i")
+@purefunction
 def ones(machine, num):
     if num <= 64:
         return bitvector.from_ruint(num, r_uint(-1))
@@ -345,105 +415,209 @@ def ones(machine, num):
         return bitvector.from_bigint(num, rbigint.fromint(-1))
 
 @unwrap("i")
+@purefunction
 def undefined_bitvector(machine, num):
     return bitvector.from_ruint(num, r_uint(0))
 
 @unwrap("o i")
+@purefunction
 def sail_truncate(machine, bv, i):
     return bv.truncate(i)
 
+@purefunction
+def truncate_bv_i(machine, bv, i):
+    return _mask(i, bv)
 
 # integers
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def eq_int(machine, a, b):
     assert isinstance(a, Integer)
     return a.eq(b)
 
+@purefunction
 def eq_int_i_i(machine, a, b):
     return a == b
 
+@purefunction
 def eq_int_o_i(machine, a, b):
     return a.int_eq(b)
 
+@purefunction
 def eq_bit(machine, a, b):
     return a == b
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def lteq(machine, ia, ib):
+    if not objectmodel.we_are_translated():
+        if isinstance(ia, int) and isinstance(ib, int):
+            assert machine == "constfolding"
+            return ia <= ib # const folding only
     return ia.le(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def lt(machine, ia, ib):
+    if not objectmodel.we_are_translated():
+        if isinstance(ia, int) and isinstance(ib, int):
+            assert machine == "constfolding"
+            return ia < ib # const folding only
     return ia.lt(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def gt(machine, ia, ib):
+    if not objectmodel.we_are_translated():
+        if isinstance(ia, int) and isinstance(ib, int):
+            assert machine == "constfolding"
+            return ia > ib # const folding only
     return ia.gt(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def gteq(machine, ia, ib):
+    if not objectmodel.we_are_translated():
+        if isinstance(ia, int) and isinstance(ib, int):
+            assert machine == "constfolding"
+            return ia >= ib # const folding only
     return ia.ge(ib)
 
+@objectmodel.not_rpython
+@purefunction
+def eq(machine, ia, ib):
+    assert not objectmodel.we_are_translated()
+    assert machine == "constfolding"
+    if type(ia) is int:
+        assert type(ib) is int
+        return ia == ib
+    import pdb;pdb.set_trace()
+
 @objectmodel.specialize.argtype(1)
+@purefunction
 def add_int(machine, ia, ib):
     return ia.add(ib)
 
+@purefunction
 def add_o_i_wrapped_res(machine, a, b):
     return a.int_add(b)
 
+@purefunction
 def add_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.add_i_i(a, b)
 
+@purefunction
+def add_i_i_must_fit(machine, a, b):
+    try:
+        return ovfcheck(a + b)
+    except OverflowError:
+        assert 0, "must not happen"
+
 @objectmodel.specialize.argtype(1)
+@purefunction
 def sub_int(machine, ia, ib):
     return ia.sub(ib)
 
+@purefunction
 def sub_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.sub_i_i(a, b)
 
+@purefunction
+def sub_i_i_must_fit(machine, a, b):
+    try:
+        return ovfcheck(a - b)
+    except OverflowError:
+        assert 0, "must not happen"
+
+@purefunction
 def sub_o_i_wrapped_res(machine, a, b):
     return a.int_sub(b)
 
+@objectmodel.always_inline
+@purefunction
+def sub_i_o_wrapped_res(machine, a, b):
+    if isinstance(b, bitvector.SmallInteger):
+        return bitvector.SmallInteger.sub_i_i(a, b.val)
+    return bitvector.Integer.fromint(a).sub(b)
+
 @objectmodel.specialize.argtype(1)
+@purefunction
 def mult_int(machine, ia, ib):
     return ia.mul(ib)
 
+@purefunction
+def mult_o_i_wrapped_res(machine, a, b):
+    return a.int_mul(b)
+
+@purefunction
+def mult_i_i_wrapped_res(machine, a, b):
+    return bitvector.SmallInteger.mul_i_i(a, b)
+
+@purefunction
+def mult_i_i_must_fit(machine, a, b):
+    try:
+        return ovfcheck(a * b)
+    except OverflowError:
+        assert 0, "must not happen"
+
 @objectmodel.specialize.argtype(1)
+@purefunction
 def tdiv_int(machine, ia, ib):
     return ia.tdiv(ib)
 
+@purefunction
+def tdiv_int_i_i(machine, a, b):
+    from rpython.rlib.rarithmetic import int_c_div
+    if b == 0:
+        raise ZeroDivisionError
+    assert b != -1
+    return int_c_div(a, b)
+
 @objectmodel.specialize.argtype(1)
+@purefunction
 def tmod_int(machine, ia, ib):
     return ia.tmod(ib)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def ediv_int(machine, a, b):
     return a.ediv(b)
 
+@purefunction
+def ediv_int_i_ipos(machine, a, b):
+    assert b >= 2
+    return a // b
+
 @objectmodel.specialize.argtype(1)
+@purefunction
 def emod_int(machine, a, b):
     return a.emod(b)
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def max_int(machine, ia, ib):
     if ia.gt(ib):
         return ia
     return ib
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def min_int(machine, ia, ib):
     if ia.lt(ib):
         return ia
     return ib
 
 @unwrap("i o i")
+@purefunction
 def get_slice_int(machine, len, n, start):
     return n.slice(len, start)
 
+@purefunction
 def get_slice_int_i_o_i_unwrapped_res(machine, len, n, start):
     return n.slice_unwrapped_res(len, start)
 
+@purefunction
 def get_slice_int_i_i_i(machine, len, i, start):
     return _mask(len, r_uint(i >> start))
 
@@ -461,6 +635,7 @@ def prerr_int(machine, s, i):
     os.write(STDERR, s + i.str() + "\n")
     return ()
 
+@purefunction
 def not_(machine, b):
     return not b
 
@@ -471,6 +646,7 @@ def string_of_int(machine, r):
     return r.str()
 
 @objectmodel.specialize.arg_or_var(1)
+@purefunction
 def int_to_int64(machine, r):
     if objectmodel.is_annotation_constant(r):
         return _int_to_int64_memo(r)
@@ -480,25 +656,28 @@ def int_to_int64(machine, r):
 def _int_to_int64_memo(r):
     return r.toint()
 
+@purefunction
 def int64_to_int(machine, i):
     return Integer.fromint(i)
 
 def string_to_int(machine, s):
     return Integer.fromstr(s)
 
-
+@purefunction
 def undefined_int(machine, _):
     return Integer.fromint(0)
 
 @unwrap("i")
+@purefunction
 def pow2(machine, x):
     assert x >= 0
     if x < 63:
         return Integer.fromint(1 << x)
     return Integer.frombigint(ONERBIGINT.lshift(x))
 
+@purefunction
 def neg_int(machine, x):
-    return Integer.fromint(0).sub(x)
+    return sub_i_o_wrapped_res(machine, 0, x)
 
 def dec_str(machine, x):
     return x.str()
@@ -507,19 +686,35 @@ def hex_str(machine, x):
     return x.hex()
 
 @unwrap("o i")
+@purefunction
 def shl_int(machine, i, shift):
     return i.lshift(shift)
 
+@purefunction
+def shl_int_i_i_wrapped_res(machine, i, shift):
+    return bitvector.SmallInteger.lshift_i_i(i, shift)
+
+@purefunction
+def shl_int_i_i_must_fit(machine, i, shift):
+    try:
+        return ovfcheck(i << shift)
+    except OverflowError:
+        assert 0, "must not happen"
+
 @unwrap("o i")
+@purefunction
 def shr_int(machine, i, shift):
     return i.rshift(shift)
 
+@purefunction
 def shl_mach_int(machine, i, shift):
     return i << shift
 
+@purefunction
 def shr_mach_int(machine, i, shift):
     return i >> shift
 
+@purefunction
 def abs_int(machine, i):
     return i.abs()
 
@@ -582,6 +777,7 @@ def print_real(machine, s, r):
 def to_real(machine, i):
     return Real(i.tobigint(), ONERBIGINT, normalized=True)
 
+@purefunction
 def undefined_real(machine, _):
     return Real.fromint(12, 19)
 
@@ -592,7 +788,8 @@ def undefined_real(machine, _):
 def reg_deref(machine, s):
     return s
 
-def sail_assert(cond, st):
+@objectmodel.always_inline
+def sail_assert(machine, cond, st):
     if not objectmodel.we_are_translated() and not cond:
         import pdb; pdb.set_trace()
     assert cond, st
@@ -610,27 +807,45 @@ def sail_putchar(machine, i):
     os.write(STDOUT, chr(i.toint() & 0xff))
     return ()
 
+@purefunction
 def undefined_bool(machine, _):
     return False
 
+@purefunction
 def undefined_unit(machine, _):
     return ()
 
 # list weirdnesses
 
 @objectmodel.specialize.argtype(1)
+@purefunction
 def internal_pick(machine, lst):
     return lst.head
 
+@purefunction
+def cons(machine, a, b):
+    assert 0, "unreachable at runtime, see GlobalVal.makecode"
+
 # vector stuff
 
-@objectmodel.specialize.argtype(1, 2, 4)
+@objectmodel.specialize.argtype(2, 4)
 def vector_update_inplace(machine, res, l, index, element):
     # super weird, the C backend does the same
-    if res is not l:
-        l = l[:]
+    l = l[:]
     l[index] = element
     return l
+
+@objectmodel.specialize.argtype(1, 3)
+def vector_update_list(machine, l, index, element):
+    l = l[:]
+    l[index] = element
+    return l
+
+@objectmodel.specialize.argtype(1, 3)
+def helper_vector_update_inplace_o_i_o(machine, vec, index, element):
+    if vec is None:
+        raise TypeError
+    vec[index] = element
 
 @objectmodel.specialize.argtype(2)
 def undefined_vector(machine, size, element):
@@ -649,12 +864,15 @@ def platform_write_mem_ea(machine, write_kind, addr_size, addr, n):
 
 # strings
 
+@purefunction
 def concat_str(machine, a, b):
     return a + b
 
+@purefunction
 def eq_string(machine, a, b):
     return a == b
 
+@purefunction
 def string_length(machine, s):
     return Integer.fromint(len(s))
 
@@ -955,8 +1173,8 @@ def write_mem(machine, address, data):
     machine.g.mem.write(address, 1, data)
     return ()
 
+@unwrap("o o o i")
 def platform_read_mem(machine, read_kind, addr_size, addr, n):
-    n = n.toint()
     assert addr_size in (64, 32)
     mem = jit.promote(machine.g).mem
     addr = addr.touint()
@@ -965,6 +1183,10 @@ def platform_read_mem(machine, read_kind, addr_size, addr, n):
         return bitvector.SmallBitVector(n*8, res)
     else:
         return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
+
+def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
+    mem = jit.promote(machine.g).mem
+    return mem.read(addr, n, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
 
 @jit.unroll_safe
 def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):

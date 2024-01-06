@@ -1,5 +1,6 @@
 import time
 from rpython.rlib import jit
+from rpython.rlib import rsignal
 from pydrofoil import mem as mem_mod
 from pydrofoil.supportcode import *
 from pydrofoil.supportcode import Globals as BaseGlobals
@@ -183,6 +184,8 @@ def get_main(outarm):
         if len(argv) != 1:
             print "unrecognized option:", argv[1]
             return 1
+        if objectmodel.we_are_translated():
+            rsignal.pypysig_setflag(rsignal.SIGINT)
         print "done, starting main"
         t1 = time.time()
         try:
@@ -246,8 +249,12 @@ class CycleLimitReached(Exception):
 def cycle_count(machine, _):
     machine.g.cycle_count += 1
     max_cycle_count = machine.g.max_cycle_count
+    p = rsignal.pypysig_getaddr_occurred()
     if max_cycle_count and machine.g.cycle_count >= max_cycle_count:
         print "[Sail] TIMEOUT: exceeded %s cycles" % (max_cycle_count, )
+        raise CycleLimitReached
+    if objectmodel.we_are_translated() and p.c_value < 0:
+        print "[Sail] CTRL-C was pressed"
         raise CycleLimitReached
     return ()
 

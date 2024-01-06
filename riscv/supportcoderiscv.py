@@ -11,8 +11,12 @@ from rpython.rlib.jit import JitDriver, promote
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from rpython.rlib.rrandom import Random
 from rpython.rlib import jit
+from rpython.rlib import rsignal
 
 import time
+
+class ExitNow(Exception):
+    pass
 
 VERSION = "0.0.1-alpha0"
 
@@ -464,6 +468,8 @@ def main(argv, *machineclasses):
     except IOError as e:
         print "ERROR [errno %s] %s" % (e.errno, e.strerror or '')
         return -2
+    except ExitNow:
+        return -4
     except BaseException as e:
         if we_are_translated():
             from rpython.rlib.debug import debug_print_traceback
@@ -553,6 +559,9 @@ def _main(argv, *machineclasses):
         ipt = int(per_tick)
         machine.g.rv_insns_per_tick = ipt
 
+    # prepare SIGINT signal handler
+    if we_are_translated():
+        rsignal.pypysig_setflag(rsignal.SIGINT)
 
     for i in range(iterations):
         machine.run_sail(limit, print_kips)
@@ -719,13 +728,23 @@ def get_main(outriscv, rv64):
                 if tick_cond:
                     tick = True
                 elif prev_pc >= self._reg_zPC: # backward jump
+                    if we_are_translated():
+                        p = rsignal.pypysig_getaddr_occurred()
+                        if p.c_value < 0:
+                            # ctrl-c was pressed
+                            break
                     driver.can_enter_jit(pc=self._reg_zPC, tick=tick,
                             insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
                             do_show_times=do_show_times, machine=self, g=g)
             # loop end
 
             interval_end = time.time()
-            if self._reg_zhtif_exit_code == 0:
+            p = rsignal.pypysig_getaddr_occurred()
+            ctrlc = False
+            if we_are_translated() and p.c_value < 0:
+                print "CTRL-C was pressed"
+                ctrlc = True
+            elif self._reg_zhtif_exit_code == 0:
                 print "SUCCESS"
             else:
                 print "FAILURE", self._reg_zhtif_exit_code
@@ -734,6 +753,8 @@ def get_main(outriscv, rv64):
             print "Instructions: %s" % (step_no, )
             print "Total time (s): %s" % (interval_end - self.g.total_start)
             print "Perf: %s Kips" % (step_no / 1000. / (interval_end - self.g.total_start), )
+            if ctrlc:
+                raise ExitNow
 
 
     Machine.rv64 = rv64

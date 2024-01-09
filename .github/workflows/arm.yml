@@ -55,7 +55,8 @@ jobs:
 
     - name: build ARM
       run: |
-        make pydrofoil-arm
+        make pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir
+        PYTHONPATH=. pypy_binary/bin/python pypy/rpython/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py --no-arm-regen
 
     - name: boot linux
       run: |

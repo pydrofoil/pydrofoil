@@ -1257,6 +1257,8 @@ class BigInteger(Integer):
                 index -= 1
             if index != len(data) - 1:
                 data = data[:index + 1]
+            if not data:
+                sign = 0
         self.data = data
         self.sign = sign
 
@@ -1397,7 +1399,19 @@ class BigInteger(Integer):
         if isinstance(other, SmallInteger):
             return BigInteger(self.rval().int_add(other.val))
         assert isinstance(other, BigInteger)
-        return BigInteger(self.rval().add(other.rval()))
+        selfsign = self.sign
+        othersign = other.sign
+        if selfsign == 0:
+            return other
+        if othersign == 0:
+            return self
+        if selfsign == othersign:
+            resultdata, sign = _data_add(self.data, other.data)
+        else:
+            resultdata, sign = _data_sub(other.data, self.data)
+        result = BigInteger(resultdata, sign)
+        result.sign *= othersign
+        return result
 
     def int_add(self, other):
         return BigInteger(self.rval().int_add(other))
@@ -1553,4 +1567,71 @@ def intsign(i):
     if i == 0:
         return 0
     return -1 if i < 0 else 1
+
+def _data_add(selfdata, otherdata):
+    size_self = len(selfdata)
+    size_other = len(otherdata)
+    assert size_self and size_other
+
+    # Ensure selfdata is the larger of the two:
+    if size_self < size_other:
+        selfdata, otherdata = otherdata, selfdata
+        size_self, size_other = size_other, size_self
+    resdata = [r_uint(0)] * (size_self + 1)
+    index = 0
+    carry = r_uint(0)
+    i = 0
+    for i, othervalue in enumerate(otherdata):
+        res = selfdata[i] + carry
+        carry = r_uint(res < carry)
+        res += othervalue
+        carry += res < othervalue
+        resdata[i] = res
+    for i in range(size_other, size_self):
+        res = selfdata[i] + carry
+        carry = r_uint(res < carry)
+        resdata[i] = res
+    resdata[i + 1] = carry
+    return resdata, 1
+
+def _data_sub(selfdata, otherdata):
+    size_self = len(selfdata)
+    size_other = len(otherdata)
+    sign = 1
+
+    # Ensure selfdata is the larger of the two:
+    if size_self < size_other:
+        sign = -1
+        selfdata, otherdata = otherdata, selfdata
+        size_self, size_other = size_other, size_self
+    elif size_self == size_other:
+        # Find highest digit where selfdata and otherdata differ:
+        i = size_self - 1
+        while i >= 0 and selfdata[i] == otherdata[i]:
+            i -= 1
+        if i < 0:
+            return [], 0
+        if selfdata[i] < otherdata[i]:
+            sign = -1
+            selfdata, otherdata = otherdata, selfdata
+        size_self = size_other = i+1
+
+    resdata = [r_uint(0)] * size_self
+    carry = r_uint(0)
+    i = 0
+    while i < size_other:
+        value = otherdata[i]
+        value += carry
+        carry = r_uint(value < carry)
+        selfvalue = selfdata[i]
+        carry += selfvalue < value
+        resdata[i] = selfvalue - value
+        i += 1
+    while i < size_self:
+        selfvalue = selfdata[i]
+        resdata[i] = selfvalue - carry
+        carry = r_uint(selfvalue < carry)
+        i += 1
+    assert carry == 0
+    return resdata, sign
 

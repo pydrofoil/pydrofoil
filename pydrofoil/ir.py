@@ -1020,7 +1020,7 @@ class GenericBitVectorConstant(Constant):
         self.value = value
 
     def comparison_key(self):
-        return (GenericBitVectorConstant, self.value.pack(), self.resolved_type)
+        return (GenericBitVectorConstant, self._construction_expr(), self.resolved_type)
 
     def _repr(self, print_varnames):
         return repr(self)

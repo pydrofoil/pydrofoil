@@ -2378,3 +2378,22 @@ def test_array_from_to_rbigint_roundtrip_size(data):
     data = bitvector.array_from_rbigint(bitwidth, rval)
     rval2 = bitvector.rbigint_from_array(data)
     assert rval2.tolong() == value & ((1 << bitwidth) - 1)
+
+@given(strategies.integers())
+def test_array_and_sign_from_to_rbigint_roundtrip(value):
+    rval = rbigint.fromlong(value)
+    data, sign = bitvector.array_and_sign_from_rbigint(rval)
+    rval2 = bitvector.rbigint_from_array_and_sign(data, sign)
+    assert rval.eq(rval2)
+
+
+# more hypothesis tests for ints
+
+@given(wrapped_ints, strategies.data())
+def test_hypothesis_int_lshift(i, data):
+    value = i.tolong()
+    bitwidth = i.tolong().bit_length()
+    shift = data.draw(strategies.integers(0, bitwidth + 5))
+    res = i.lshift(shift).tolong()
+    assert res == (value << shift)
+

@@ -351,6 +351,11 @@ class SmallBitVector(BitVectorWithSize):
         assert i <= size
         return SmallBitVector(i, self.val, normalize=i < size)
 
+    def append_64(self, ui):
+        if not self.val:
+            return from_ruint(self.size() + 64, ui)
+        return BitVectorWithSize.append_64(self, ui)
+
     def pack(self):
         return (self.size(), self.val, None)
 
@@ -398,7 +403,7 @@ class SparseBitVector(BitVectorWithSize):
         resdata[0] = self.val
         return GenericBitVector(self._size, resdata, normalize=False)
 
-    def add_int(self, i): 
+    def add_int(self, i):
         if isinstance(i, SmallInteger):
             if i.val > 0:
                 res = self.val + r_uint(i.val)
@@ -409,7 +414,7 @@ class SparseBitVector(BitVectorWithSize):
 
     def _add_int_slow(self, i):
         return self._to_generic().add_int(i)
-    
+
     def add_bits(self, other):
         assert self.size() == other.size()
         if isinstance(other, SparseBitVector):
@@ -419,7 +424,7 @@ class SparseBitVector(BitVectorWithSize):
                 return SparseBitVector(self.size(), res)
             other = other._to_generic() # XXX this case can be optimized
         return other.add_bits(self)
-       
+
     def sub_bits(self, other):
         assert self.size() == other.size()
         if isinstance(other, SparseBitVector):
@@ -438,7 +443,7 @@ class SparseBitVector(BitVectorWithSize):
             if (self.val >> (64 - i)) == 0:
                 return SparseBitVector(self.size(), self.val << i)
         return self._to_generic().lshift(i)
-            
+
     def rshift(self, i):
         assert i >= 0
         if i >= self.size():
@@ -472,7 +477,7 @@ class SparseBitVector(BitVectorWithSize):
         return self._to_generic().invert()
 
     def subrange(self,n,m):
-        assert 0 <= m <= n < self.size()        
+        assert 0 <= m <= n < self.size()
         width = n - m + 1
         if width <= 64:
             return SmallBitVector(width, self.subrange_unwrapped_res(n,m))
@@ -501,10 +506,10 @@ class SparseBitVector(BitVectorWithSize):
             return False
         mask = r_uint(1) << pos
         return bool(self.val & mask)
-    
+
     def update_bit(self, pos, bit):
         assert pos < self.size()
-        if pos >= 64: 
+        if pos >= 64:
             return self._to_generic().update_bit(pos, bit)
         mask = r_uint(1) << pos
         if bit:
@@ -533,13 +538,13 @@ class SparseBitVector(BitVectorWithSize):
             return self._to_generic().update_subrange(n, m ,s)
         mask = ~(((r_uint(1) << width) - 1) << m)
         return SparseBitVector(self.size(), (self.val & mask) | (sval << m))
-    
+
     def signed(self):
         return Integer.from_ruint(self.val)
-    
+
     def unsigned(self):
         return Integer.from_ruint(self.val)
-    
+
     def eq(self, other):
         assert other.size() == self.size()
         if isinstance(other, SparseBitVector):
@@ -550,23 +555,28 @@ class SparseBitVector(BitVectorWithSize):
         if self.read_bit(63):
             raise OverflowError
         return intmask(self.val)
-    
+
     def touint(self, expected_width=0):
         if expected_width:
             self.size() == expected_width
         return self.val
-    
+
     def tobigint(self):
         return rbigint_fromrarith_int(self.val)
-    
+
     def replicate(self, i):
         return self._to_generic().replicate(i)
-    
+
     def truncate(self, i):
         assert i <= self.size()
         if i <= 64:
             return SmallBitVector(i, ruint_mask(i, self.val), normalize=True)
         return SparseBitVector(i, self.val)
+
+    def append_64(self, ui):
+        if not self.val:
+            return SparseBitVector(self.size() + 64, ui)
+        return BitVectorWithSize.append_64(self, ui)
 
     def pack(self):
         return (self.size(), self.val, None)
@@ -1077,6 +1087,9 @@ class SmallInteger(Integer):
     def int_sub(self, other):
         return SmallInteger.sub_i_i(self.val, other)
 
+    def int_mul(self, other):
+        return SmallInteger.mul_i_i(self.val, other)
+
     def sub(self, other):
         if isinstance(other, SmallInteger):
             return SmallInteger.sub_i_i(self.val, other.val)
@@ -1139,12 +1152,18 @@ class SmallInteger(Integer):
 
     def lshift(self, i):
         assert i >= 0
+        return self.lshift_i_i(self.val, i)
+
+    @staticmethod
+    def lshift_i_i(a, i):
+        if not a:
+            return SmallInteger(0)
         if i < 64:
             try:
-                return SmallInteger(ovfcheck(self.val << i))
+                return SmallInteger(ovfcheck(a << i))
             except OverflowError:
                 pass
-        return BigInteger(rbigint.fromint(self.val).lshift(i))
+        return BigInteger(rbigint.fromint(a).lshift(i))
 
     @staticmethod
     def add_i_i(a, b):
@@ -1159,6 +1178,13 @@ class SmallInteger(Integer):
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
             return BigInteger(rbigint.fromint(b).int_sub(a).neg())
+
+    @staticmethod
+    def mul_i_i(a, b):
+        try:
+            return SmallInteger(ovfcheck(a * b))
+        except OverflowError:
+            return BigInteger(rbigint.fromint(a).int_mul(b))
 
     def pack(self):
         return (self.val, None)
@@ -1259,6 +1285,9 @@ class BigInteger(Integer):
 
     def int_sub(self, other):
         return BigInteger(self.rval.int_sub(other))
+
+    def int_mul(self, other):
+        return BigInteger(self.rval.int_mul(other))
 
     def sub(self, other):
         if isinstance(other, SmallInteger):

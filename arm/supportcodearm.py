@@ -1,5 +1,6 @@
 import time
 from rpython.rlib import jit
+from rpython.rlib import rsignal
 from pydrofoil import mem as mem_mod
 from pydrofoil.supportcode import *
 from pydrofoil.supportcode import Globals as BaseGlobals
@@ -77,23 +78,30 @@ def get_main(outarm):
         return setinstr(machine, opcode)
     outarm.func_z__SetThisInstr = jitsetinstr
 
-    jit.dont_look_inside(outarm.func_zAArch32_AutoGen_ArchitectureReset)
-    jit.dont_look_inside(outarm.func_zAArch64_AutoGen_ArchitectureReset)
-    jit.unroll_safe(outarm.func_zMem_read__1)
-    jit.unroll_safe(outarm.func_zAArch64_MemSingle_read__1)
-    jit.unroll_safe(outarm.func_zMem_set__1)
-    jit.unroll_safe(outarm.func_zAArch64_MemSingle_set__1)
-    jit.unroll_safe(outarm.func_zAArch64_S1Translate)
-    jit.unroll_safe(outarm.func_zAArch64_S1Walk)
-    jit.unroll_safe(outarm.func_zAArch64_S2Translate)
-    jit.unroll_safe(outarm.func_zMaybeZeroSVEUppers)
-    jit.unroll_safe(outarm.func_zAArch64_DataMemZero)
-    jit.unroll_safe(outarm.func_zexecute_aarch64_instrs_integer_arithmetic_rev)
-
     for name, func in outarm.__dict__.iteritems():
-        if "IMPDEF_boolean" in name:
+        if "IMPDEF" in name:
             func = objectmodel.specialize.arg(1)(func)
             objectmodel.always_inline(func)
+        if "func_zMem_read__1" in name:
+            jit.unroll_safe(func)
+        if "func_zMem_set__1" in name:
+            jit.unroll_safe(func)
+        if "MemSingle_" in name:
+            jit.unroll_safe(func)
+        if "S1Translate" in name:
+            jit.unroll_safe(func)
+        if "S2Translate" in name:
+            jit.unroll_safe(func)
+        if "S1Walk" in name:
+            jit.unroll_safe(func)
+        if "MaybeZeroSVEUppers" in name:
+            jit.unroll_safe(func)
+        if "DataMemZero" in name:
+            jit.unroll_safe(func)
+        if "instrs_integer_arithmetic" in name:
+            jit.unroll_safe(func)
+        if "ArchitectureReset" in name:
+            jit.unroll_safe(func)
 
     def main(argv):
         try:
@@ -176,6 +184,8 @@ def get_main(outarm):
         if len(argv) != 1:
             print "unrecognized option:", argv[1]
             return 1
+        if objectmodel.we_are_translated():
+            rsignal.pypysig_setflag(rsignal.SIGINT)
         print "done, starting main"
         t1 = time.time()
         try:
@@ -189,7 +199,7 @@ def get_main(outarm):
 
 
 class Globals(BaseGlobals):
-    _immutable_fields_ = ['max_cycle_count?', 'verbosity?']
+    _immutable_fields_ = ['max_cycle_count?', 'sail_verbosity?']
     def __init__(self):
         BaseGlobals.__init__(self)
         self.cycle_count = 0
@@ -239,8 +249,12 @@ class CycleLimitReached(Exception):
 def cycle_count(machine, _):
     machine.g.cycle_count += 1
     max_cycle_count = machine.g.max_cycle_count
+    p = rsignal.pypysig_getaddr_occurred()
     if max_cycle_count and machine.g.cycle_count >= max_cycle_count:
         print "[Sail] TIMEOUT: exceeded %s cycles" % (max_cycle_count, )
+        raise CycleLimitReached
+    if objectmodel.we_are_translated() and p.c_value < 0:
+        print "[Sail] CTRL-C was pressed"
         raise CycleLimitReached
     return ()
 

@@ -1397,18 +1397,22 @@ class BigInteger(Integer):
 
     def add(self, other):
         if isinstance(other, SmallInteger):
-            return BigInteger(self.rval().int_add(other.val))
-        assert isinstance(other, BigInteger)
+            othersign = intsign(other.val)
+            # XXX could be improved, but the logic is definitely right
+            otherdata = [othersign * r_uint(other.val)]
+        else:
+            assert isinstance(other, BigInteger)
+            othersign = other.sign
+            otherdata = other.data
         selfsign = self.sign
-        othersign = other.sign
         if selfsign == 0:
             return other
         if othersign == 0:
             return self
         if selfsign == othersign:
-            resultdata, sign = _data_add(self.data, other.data)
+            resultdata, sign = _data_add(self.data, otherdata)
         else:
-            resultdata, sign = _data_sub(other.data, self.data)
+            resultdata, sign = _data_sub(otherdata, self.data)
         result = BigInteger(resultdata, sign)
         result.sign *= othersign
         return result
@@ -1424,9 +1428,24 @@ class BigInteger(Integer):
 
     def sub(self, other):
         if isinstance(other, SmallInteger):
-            return BigInteger(self.rval().int_sub(other.val))
-        assert isinstance(other, BigInteger)
-        return BigInteger(self.rval().sub(other.rval()))
+            othersign = intsign(other.val)
+            # XXX could be improved, but the logic is definitely right
+            otherdata = [othersign * r_uint(other.val)]
+        else:
+            assert isinstance(other, BigInteger)
+            othersign = other.sign
+            otherdata = other.data
+        if othersign == 0:
+            return self
+        elif self.sign == 0:
+            return BigInteger(otherdata, -othersign)
+        elif self.sign == othersign:
+            resultdata, sign = _data_sub(self.data, otherdata)
+        else:
+            resultdata, sign = _data_add(self.data, otherdata)
+        result = BigInteger(resultdata, sign)
+        result.sign *= self.sign
+        return result
 
     def mul(self, other):
         if isinstance(other, SmallInteger):

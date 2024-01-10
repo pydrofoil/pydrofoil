@@ -379,6 +379,7 @@ class FixpointSpecializer(object):
 
     def __init__(self, entrypoints=None):
         import collections
+        import py
         self.specialization_todo = collections.deque()
         self.specialization_todo_set = set()
         self.inlinable_functions = {}
@@ -386,7 +387,9 @@ class FixpointSpecializer(object):
         self.all_graph_by_name = {}
         self.inline_dependencies = defaultdict(set) # graph -> {graphs}
         self.program_entrypoints = entrypoints
+        # attributes for printing
         self._highlevel_task_msg = ''
+        self._terminal_columns = py.io.get_terminal_width()
 
     def schedule_graph_specialization(self, graph):
         self.all_graph_by_name[graph.name] = graph
@@ -460,11 +463,13 @@ class FixpointSpecializer(object):
     def print_highlevel_task(self, *args):
         msg = " ".join(str(x) for x in args)
         self._highlevel_task_msg = "\033[1K\r%s" % msg
-        print self._highlevel_task_msg,
+        print self._highlevel_task_msg[:self._terminal_columns],
         sys.stdout.flush()
 
     def print_debug_msg(self, *args):
-        print self._highlevel_task_msg + " " + " ".join(str(x) for x in args),
+        msg = self._highlevel_task_msg + " " + " ".join(str(x) for x in args)
+        msg = msg[:self._terminal_columns]
+        print msg,
         sys.stdout.flush()
 
     def print_persistent_msg(self, *args):

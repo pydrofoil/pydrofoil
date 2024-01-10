@@ -34,7 +34,7 @@ jobs:
     - name: install dependencies and create virtualenv
       run: |
         make pypy_binary/bin/python
-        make pypy/rpython/bin/rpython
+        make pypy2/rpython/bin/rpython
 
     - name: Test with pytest
       run: |
@@ -55,7 +55,7 @@ jobs:
 
     - name: Run all RISC-V tests
       run: |
-        RISCVMODELCHECKOUT=sail-riscv make riscv-tests
+        RISCVMODELCHECKOUT=sail-riscv ./pypy_binary/bin/python run_riscv_tests.py
 
     - name: Boot Linux
       run: |

@@ -1337,31 +1337,61 @@ class BigInteger(Integer):
         return self.data[0] == other
 
     def lt(self, other):
+        selfsign = self.sign
         if isinstance(other, SmallInteger):
-            return self.rval().int_lt(other.val)
-        assert isinstance(other, BigInteger)
-        return self.rval().lt(other.rval())
+            othersign = intsign(other.val)
+            # XXX could be improved, but the logic is definitely right
+            otherdata = [othersign * r_uint(other.val)]
+        else:
+            assert isinstance(other, BigInteger)
+            othersign = other.sign
+            otherdata = other.data
+        if selfsign > othersign:
+            return False
+        if selfsign < othersign:
+            return True
+        ld1 = len(self.data)
+        ld2 = len(otherdata)
+        if ld1 > ld2:
+            if othersign > 0:
+                return False
+            else:
+                return True
+        elif ld1 < ld2:
+            if othersign > 0:
+                return True
+            else:
+                return False
+        i = ld1 - 1
+        while i >= 0:
+            d1 = self.data[i]
+            d2 = otherdata[i]
+            if d1 < d2:
+                if othersign > 0:
+                    return True
+                else:
+                    return False
+            elif d1 > d2:
+                if othersign > 0:
+                    return False
+                else:
+                    return True
+            i -= 1
+        return False
 
     def le(self, other):
-        if isinstance(other, SmallInteger):
-            return self.rval().int_le(other.val)
-        assert isinstance(other, BigInteger)
-        return self.rval().le(other.rval())
+        return not other.lt(self)
 
     def gt(self, other):
-        if isinstance(other, SmallInteger):
-            return self.rval().int_gt(other.val)
-        assert isinstance(other, BigInteger)
-        return self.rval().gt(other.rval())
+        return other.lt(self)
 
     def ge(self, other):
-        if isinstance(other, SmallInteger):
-            return self.rval().int_ge(other.val)
-        assert isinstance(other, BigInteger)
-        return self.rval().ge(other.rval())
+        return not self.lt(other)
 
     def abs(self):
-        return BigInteger(self.rval().abs())
+        if self.sign != -1:
+            return self
+        return BigInteger(self.data, 1)
 
     def add(self, other):
         if isinstance(other, SmallInteger):

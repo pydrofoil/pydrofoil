@@ -250,7 +250,7 @@ def test_set_slice_int(i, start, length, data):
 def test_hypothesis_get_slice_int(length, start, i):
     res = supportcode.get_slice_int_i_o_i(machine, length, i, start)
     assert res.size() == length
-    assert res.tobigint().tolong() == (i.tolong() >> start) % (2 ** length)
+    assert res.tolong() == (i.tolong() >> start) % (2 ** length)
 
 @given(strategies.integers(1, 64), strategies.integers(0, sys.maxint), ints)
 def test_hypothesis_get_slice_int_i_i_i(length, start, i):

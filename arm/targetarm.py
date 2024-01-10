@@ -60,7 +60,7 @@ def should_inline(name):
 def _make_code(regen=True):
     print "making python code"
 
-    if regen:
+    if 0:# regen:
         with open(armir, "rb") as f:
             s = f.read()
         entrypoints = "zstep_model z__SetThisInstr zmain".split()

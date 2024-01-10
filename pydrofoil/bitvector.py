@@ -802,7 +802,6 @@ class GenericBitVector(BitVectorWithSize):
         if i >= size:
             i = size
         highest_bit = self.read_bit(size - 1)
-        import pdb;pdb.set_trace()
         rval = self.rval()
         highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
         res = rval.rshift(i)
@@ -948,18 +947,15 @@ class GenericBitVector(BitVectorWithSize):
         #    accum = digit >> antibitshift
         #    wordshift += 1
 
-        import pdb;pdb.set_trace()
         return self.from_bigint(self.size(), self.rval().and_(mask).or_(s.tobigint().lshift(m)))
 
     def signed(self):
         n = self.size()
         assert n > 0
         m = ONERBIGINT.lshift(n - 1)
-        import pdb;pdb.set_trace()
         return Integer.from_bigint(self.rval().xor(m).sub(m))
 
     def unsigned(self):
-        import pdb;pdb.set_trace()
         return Integer.from_bigint(self.rval())
 
     def eq(self, other):
@@ -994,7 +990,7 @@ class GenericBitVector(BitVectorWithSize):
         return rbigint_from_array(self.data)
 
     def replicate(self, i):
-        import pdb;pdb.set_trace()
+        size = self.size()
         res = val = self.rval()
         for _ in range(i - 1):
             res = res.lshift(size).or_(val)
@@ -1007,7 +1003,7 @@ class GenericBitVector(BitVectorWithSize):
             return SmallBitVector(i, self.data[0], normalize=True)
         if i == size:
             return self
-        length = _data_size(i)
+        length = GenericBitVector._data_size(i)
         return GenericBitVector(i, self.data[:length], normalize=True)
 
     def pack(self):
@@ -1314,9 +1310,19 @@ class BigInteger(Integer):
 
     def eq(self, other):
         if isinstance(other, SmallInteger):
-            return self.rval().int_eq(other.val)
+            return self.int_eq(other.val)
         assert isinstance(other, BigInteger)
-        return self.rval().eq(other.rval())
+        if self.sign != other.sign:
+            return False
+        for index in range(min(len(self.data), len(other.data))):
+            if self.data[index] != other.data[index]:
+                return False
+        if len(self.data) < len(other.data):
+            self, other = other.self
+        for index in range(len(other.data), len(self.data)):
+            if self.data[index]:
+                return False
+        return True
 
     def int_eq(self, other):
         return self.rval().int_eq(other)

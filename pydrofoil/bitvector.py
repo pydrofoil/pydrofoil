@@ -1267,7 +1267,6 @@ class BigInteger(Integer):
         return pos >> 6, pos & 63
 
     def rval(self):
-        import pdb;pdb.set_trace()
         return rbigint_from_array_and_sign(self.data, self.sign)
 
     def str(self):
@@ -1473,6 +1472,7 @@ class BigInteger(Integer):
                 resdata[wordshift] = accum
                 accum = digit >> antibitshift
                 wordshift += 1
+            resdata[wordshift] = accum
         return BigInteger(resdata, self.sign)
 
     def pack(self):

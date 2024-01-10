@@ -1,16 +1,16 @@
-RPYTHON_DIR ?= pypy/rpython
+RPYTHON_DIR ?= pypy2/rpython
 
 ALL: pydrofoil-riscv
 
 ## RISC-V targets:
 
 .PHONY: pydrofoil-riscv
-pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build the pydrofoil RISC-V emulator
+pydrofoil-riscv: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build the pydrofoil RISC-V emulator
 	pkg-config libffi # if this fails, libffi development headers arent installed
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
-pydrofoil-test: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the pydrofoil implementation-level unit tests
-	./pypy_binary/bin/python pypy/pytest.py -v pydrofoil/ riscv/
+pydrofoil-test: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the pydrofoil implementation-level unit tests
+	./pypy_binary/bin/python pypy2/pytest.py -v pydrofoil/ riscv/
 
 .PHONY: riscv-tests
 riscv-tests: pypy_binary/bin/python pydrofoil-riscv  ## Run risc-v test suite, needs env variable RISCVMODELCHECKOUT set
@@ -184,11 +184,11 @@ pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o: ## Build the
 ## ARM model targets
 
 .PHONY: pydrofoil-arm-test
-pydrofoil-test-arm: pypy/rpython/bin/rpython pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## Run the ARM emulator unit tests
-	PYTHONPATH=. ./pypy_binary/bin/python pypy/pytest.py -v arm/
+pydrofoil-test-arm: pypy2/rpython/bin/rpython pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir ## Run the ARM emulator unit tests
+	PYTHONPATH=. ./pypy_binary/bin/python pypy2/pytest.py -v arm/
 
 .PHONY: pydrofoil-arm
-pydrofoil-arm: pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
+pydrofoil-arm: pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py
 
 sail-arm/arm-v9.3-a/src/v8_base.sail: ## Clone the sail-arm submodule
@@ -210,7 +210,7 @@ pypy_binary/bin/python:  ## Download a PyPy binary
 	./pypy_binary/bin/python -m ensurepip
 	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml
 
-pypy/rpython/bin/rpython: ## Clone the PyPy submodule
+pypy2/rpython/bin/rpython: ## Clone the PyPy submodule
 	git submodule update --init --depth 1
 
 isla/isla-sail/Makefile: ## Clone the isla submodule

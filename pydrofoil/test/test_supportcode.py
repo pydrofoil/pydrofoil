@@ -2397,3 +2397,11 @@ def test_hypothesis_int_lshift(i, data):
     res = i.lshift(shift).tolong()
     assert res == (value << shift)
 
+@given(wrapped_ints, strategies.data())
+def test_hypothesis_int_rshift(i, data):
+    value = i.tolong()
+    bitwidth = i.tolong().bit_length()
+    shift = data.draw(strategies.integers(0, bitwidth + 5))
+    res = i.rshift(shift).tolong()
+    assert res == (value >> shift)
+

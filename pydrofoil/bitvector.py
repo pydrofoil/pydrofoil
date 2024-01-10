@@ -663,7 +663,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def _size_mask(self, data):
         bitsleft = self.size()
-        wordindex, bitindex = self._data_indexes(bitsleft - 1)
+        wordindex, bitindex = _data_indexes(bitsleft - 1)
         data[wordindex] = ruint_mask(bitindex + 1, data[wordindex])
         return data
 
@@ -754,7 +754,7 @@ class GenericBitVector(BitVectorWithSize):
         size = self.size()
         if i >= size:
             return SparseBitVector(size, r_uint(0))
-        wordshift, bitshift = self._data_indexes(i)
+        wordshift, bitshift = _data_indexes(i)
         data = self.data
         resdata = [r_uint(0)] * len(data)
         if not bitshift:
@@ -779,7 +779,7 @@ class GenericBitVector(BitVectorWithSize):
             raise ValueError("negative shift count")
         if i == 0:
             return self
-        wordshift, bitshift = self._data_indexes(i)
+        wordshift, bitshift = _data_indexes(i)
         data = self.data
         resdata = [r_uint(0)] * len(data)
         if not bitshift:
@@ -796,6 +796,7 @@ class GenericBitVector(BitVectorWithSize):
         return self.make(resdata)
 
     def arith_rshift(self, i):
+        # XXX can do the invert rshift invert trick for negative bitvectors
         assert i >= 0
         size = self.size()
         if i >= size:
@@ -859,7 +860,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange_unwrapped_res(self, n, m):
         width = n - m + 1
-        wordshift, bitshift = self._data_indexes(m)
+        wordshift, bitshift = _data_indexes(m)
         size = self.size()
         data = self.data
         digit = data[wordshift]
@@ -872,7 +873,7 @@ class GenericBitVector(BitVectorWithSize):
         if i == self.size():
             return self
         assert i > self.size()
-        wordsize, bitsize = self._data_indexes(i)
+        wordsize, bitsize = _data_indexes(i)
         targetsize = wordsize + bool(bitsize)
         resdata = [r_uint(0)] * targetsize
         for index, value in enumerate(self.data):
@@ -901,11 +902,11 @@ class GenericBitVector(BitVectorWithSize):
         return GenericBitVector(i, resdata, True)
 
     def read_bit(self, pos):
-        wordindex, bitindex = self._data_indexes(pos)
+        wordindex, bitindex = _data_indexes(pos)
         return bool((self.data[wordindex] >> bitindex) & 1)
 
     def update_bit(self, pos, bit):
-        wordindex, bitindex = self._data_indexes(pos)
+        wordindex, bitindex = _data_indexes(pos)
         resdata = self.data[:]
         word = resdata[wordindex]
         mask = r_uint(1) << bitindex
@@ -921,8 +922,8 @@ class GenericBitVector(BitVectorWithSize):
         width = s.size()
         assert width == n - m + 1
         mask = MASKS.get(width).lshift(m).invert()
-        #start_wordindex, start_bitindex = self._data_indexes(m)
-        #end_wordindex, end_bitindex = self._data_indexes(n + 1) # exclusive
+        #start_wordindex, start_bitindex = _data_indexes(m)
+        #end_wordindex, end_bitindex = _data_indexes(n + 1) # exclusive
         #resdata = self.data[:]
 
         #for zeroindex in range(start_wordindex + bool), end_wordindex - 1)
@@ -1006,7 +1007,7 @@ class GenericBitVector(BitVectorWithSize):
             return SmallBitVector(i, self.data[0], normalize=True)
         if i == size:
             return self
-        length = self._data_size(i)
+        length = _data_size(i)
         return GenericBitVector(i, self.data[:length], normalize=True)
 
     def pack(self):
@@ -1261,11 +1262,6 @@ class BigInteger(Integer):
     def __repr__(self):
         return "<BigInteger %s>" % (self.rval().str(), )
 
-    @staticmethod
-    @always_inline
-    def _data_indexes(pos):
-        return pos >> 6, pos & 63
-
     def rval(self):
         return rbigint_from_array_and_sign(self.data, self.sign)
 
@@ -1449,14 +1445,37 @@ class BigInteger(Integer):
     def rshift(self, i):
         assert i >= 0
         # XXX should we check whether it fits in a SmallInteger now?
-        return BigInteger(self.rval().rshift(i))
+        if i == 0 or self.sign == 0:
+            return self
+        if self.sign < 0:
+            return BigInteger(self.rval().rshift(i))
+
+        wordshift, bitshift = _data_indexes(i)
+        data = self.data
+        newsize = len(data) - wordshift
+        if newsize <= 0:
+            return SmallInteger(0)
+
+        resdata = [r_uint(0)] * newsize
+        if not bitshift:
+            for i in range(newsize):
+                resdata[i] = data[i + wordshift]
+        else:
+            antibitshift = 64 - bitshift
+            accum = r_uint(0)
+            for i in range(len(data) - 1, wordshift - 1, -1):
+                digit = data[i]
+                accum |= digit >> bitshift
+                resdata[i - wordshift] = accum
+                accum = digit << antibitshift
+        return BigInteger(resdata, 1)
 
     def lshift(self, i):
         assert i >= 0
         if i == 0 or self.sign == 0:
             return self
 
-        wordshift, bitshift = self._data_indexes(i)
+        wordshift, bitshift = _data_indexes(i)
         data = self.data
         if not bitshift:
             resdata = [r_uint(0)] * wordshift + self.data
@@ -1477,3 +1496,10 @@ class BigInteger(Integer):
 
     def pack(self):
         return (-23, self.rval())
+
+
+# common helper functions for manipulating arrays of digits
+
+@always_inline
+def _data_indexes(pos):
+    return pos >> 6, pos & 63

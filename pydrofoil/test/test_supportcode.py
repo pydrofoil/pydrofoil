@@ -613,6 +613,8 @@ def test_eq_int():
         for c2 in bi, si:
             assert c1(-12331).eq(c2(-12331))
             assert not c1(-12331).eq(c2(12331))
+            assert c1(sys.maxint).eq(c2(sys.maxint))
+            assert c1(-sys.maxint-1).eq(c2(-sys.maxint-1))
 
 def test_op_int():
     for c1 in bi, si:

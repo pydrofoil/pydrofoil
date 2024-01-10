@@ -1245,13 +1245,18 @@ class SmallInteger(Integer):
 
 
 class BigInteger(Integer):
-    _immutable_fields_ = ['rval']
+    _immutable_fields_ = ['data[*]', 'sign']
 
     def __init__(self, data, sign=-15):
         if isinstance(data, rbigint):
             data, sign = array_and_sign_from_rbigint(data)
         else:
             assert sign in (0, 1, -1)
+            index = len(data) - 1
+            while index >= 0 and not data[index]:
+                index -= 1
+            if index != len(data) - 1:
+                data = data[:index + 1]
         self.data = data
         self.sign = sign
 
@@ -1314,18 +1319,22 @@ class BigInteger(Integer):
         assert isinstance(other, BigInteger)
         if self.sign != other.sign:
             return False
-        for index in range(min(len(self.data), len(other.data))):
+        if len(self.data) != len(other.data):
+            return False
+        for index in range(len(self.data)):
             if self.data[index] != other.data[index]:
-                return False
-        if len(self.data) < len(other.data):
-            self, other = other.self
-        for index in range(len(other.data), len(self.data)):
-            if self.data[index]:
                 return False
         return True
 
     def int_eq(self, other):
-        return self.rval().int_eq(other)
+        if self.sign != intsign(other):
+            return False
+        other = r_uint(other)
+        if self.sign == 0:
+            return True
+        if self.sign < 0:
+            other = -other
+        return self.data[0] == other
 
     def lt(self, other):
         if isinstance(other, SmallInteger):
@@ -1509,3 +1518,9 @@ class BigInteger(Integer):
 @always_inline
 def _data_indexes(pos):
     return pos >> 6, pos & 63
+
+def intsign(i):
+    if i == 0:
+        return 0
+    return -1 if i < 0 else 1
+

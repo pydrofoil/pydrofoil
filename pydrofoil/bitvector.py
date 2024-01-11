@@ -108,6 +108,7 @@ class BitVector(object):
         mask = MASKS.get(size)
         return rval.and_(mask)
 
+    @not_rpython
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
 
@@ -115,6 +116,7 @@ class BitVector(object):
         return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
 
     def append_64(self, ui):
+        # XXX can be better for GenericBitVector
         return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
 
     def lshift_bits(self, other):
@@ -250,6 +252,7 @@ class SmallBitVector(BitVectorWithSize):
     def subrange_unwrapped_res(self, n, m):
         assert 0 <= m <= n < self.size()
         width = n - m + 1
+        assert 0 < width <= 64
         return ruint_mask(width, self.val >> m)
 
     @always_inline
@@ -487,6 +490,7 @@ class SparseBitVector(BitVectorWithSize):
     def subrange_unwrapped_res(self, n, m):
         assert 0 <= m <= n < self.size()
         width = n - m + 1
+        assert 0 < width <= 64
         return ruint_mask(width, self.val >> m)
 
     def zero_extend(self, i):
@@ -779,10 +783,10 @@ class GenericBitVector(BitVectorWithSize):
         return self.make(resdata, True)
 
     def rshift(self, i):
-        if i >= self.size():
-            return SparseBitVector(self.size(), r_uint(0))
         if i < 0:
             raise ValueError("negative shift count")
+        if i >= self.size():
+            return SparseBitVector(self.size(), r_uint(0))
         if i == 0:
             return self
         wordshift, bitshift = _data_indexes(i)
@@ -859,6 +863,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def subrange_unwrapped_res(self, n, m):
         width = n - m + 1
+        assert 0 < width <= 64
         wordshift, bitshift = _data_indexes(m)
         size = self.size()
         data = self.data
@@ -1319,13 +1324,12 @@ class BigInteger(Integer):
         return self.rval()
 
     def slice(self, len, start):
-        rval = self.rval()
         if len <= 64:
             return SmallBitVector(len, self.slice_unwrapped_res(len, start))
         if start == 0:
-            n = rval
+            rval = self.rval()
         else:
-            n = rval.rshift(start)
+            n = self.rshift(start).tobigint()
         return from_bigint(len, n)
 
     def set_slice_int(self, len, start, bv):
@@ -1562,7 +1566,6 @@ class BigInteger(Integer):
 
     def rshift(self, i):
         assert i >= 0
-        # XXX should we check whether it fits in a SmallInteger now?
         if i == 0 or self.sign == 0:
             return self
         if self.sign < 0:

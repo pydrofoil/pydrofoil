@@ -153,7 +153,7 @@ two_bitvectors = strategies.builds(
     strategies.data())
 
 def gbv(size, val):
-    return bitvector.from_bigint(size, rbigint.fromlong(val))
+    return bitvector.GenericBitVector.from_bigint(size, rbigint.fromlong(val))
 
 def bv(size, val):
     return bitvector.from_ruint(size, r_uint(val))
@@ -219,6 +219,14 @@ def test_zero_extend():
         assert supportcode.zero_extend(machine, c(2, 0b10), Integer.fromint(100)).tobigint().tolong() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010
         assert supportcode.zero_extend(machine, c(2, 0b11), Integer.fromint(100)).tobigint().tolong() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
 
+def test_extend_same_width():
+    for c in gbv, bv:
+        x = c(8, 0b011100)
+        assert x.sign_extend(8) is x
+        assert x.zero_extend(8) is x
+    x = sbv(100, 0b011100)
+    assert x.sign_extend(100) is x
+    assert x.zero_extend(100) is x
 
 def test_unsigned():
     for c in gbv, bv:

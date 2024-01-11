@@ -981,7 +981,7 @@ class GenericBitVector(BitVectorWithSize):
 
     def touint(self, expected_width=0):
         if expected_width:
-            self.size() == expected_width
+            assert self.size() == expected_width
         for i in range(1, len(self.data)):
             if self.data[i]:
                 raise ValueError

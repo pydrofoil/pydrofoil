@@ -713,6 +713,10 @@ def test_op_int_hypothesis(a, b):
         a.tmod(bi(0))
     assert a.neg().tolong() == -v1
 
+def test_int_eq_bug():
+    a = bitvector.BigInteger([r_uint(1), r_uint(1)], 1)
+    assert not a.int_eq(1)
+
 @given(wrapped_ints, ints)
 def test_int_add_sub_mul_hypothesis(a, b):
     v1 = a.tobigint().tolong()

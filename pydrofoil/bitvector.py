@@ -1415,6 +1415,8 @@ class BigInteger(Integer):
         other = r_uint(other)
         if self.sign == 0:
             return True
+        if len(self.data) != 1:
+            return False
         if self.sign < 0:
             other = -other
         return self.data[0] == other

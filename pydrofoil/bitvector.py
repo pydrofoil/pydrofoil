@@ -615,7 +615,7 @@ def array_and_sign_from_rbigint(rval):
         rval = rval.rshift(64)
     if not res:
         sign = 0
-    return res, sign
+    return res[:], sign
 
 def rbigint_from_array_and_sign(data, sign):
     res = rbigint.fromint(0)
@@ -1019,7 +1019,22 @@ class Integer(object):
 
     @staticmethod
     def from_bigint(rval):
-        return BigInteger(rval)
+        data, sign = array_and_sign_from_rbigint(rval)
+        return Integer.from_data_and_sign(data, sign)
+
+    @staticmethod
+    def from_data_and_sign(data, sign):
+        assert sign in (0, 1, -1)
+        # normalize
+        index = len(data) - 1
+        while index >= 0 and not data[index]:
+            index -= 1
+        if index == -1:
+            return SmallInteger(0)
+        # XXX if index == 0, could fit into a SmallInteger
+        if index != len(data) - 1:
+            data = data[:index + 1]
+        return BigInteger(data, sign)
 
     @staticmethod
     def fromstr(val):
@@ -1027,7 +1042,7 @@ class Integer(object):
         try:
             return SmallInteger(string_to_int(val, 10))
         except ParseStringOverflowError as e:
-            return BigInteger(rbigint._from_numberstring_parser(e.parser))
+            return Integer.from_bigint(rbigint._from_numberstring_parser(e.parser))
 
     @staticmethod
     @always_inline
@@ -1044,7 +1059,7 @@ class Integer(object):
     def unpack(val, rval):
         if rval is None:
             return SmallInteger(val)
-        return BigInteger(rval)
+        return Integer.from_bigint(rval)
 
 class SmallInteger(Integer):
     _immutable_fields_ = ['val']
@@ -1094,7 +1109,7 @@ class SmallInteger(Integer):
     def eq(self, other):
         if isinstance(other, SmallInteger):
             return self.val == other.val
-        return other.eq(self)
+        return other.int_eq(self.val)
 
     def int_eq(self, other):
         return self.val == other
@@ -1125,7 +1140,7 @@ class SmallInteger(Integer):
 
     def abs(self):
         if self.val == MININT:
-            return BigInteger(rbigint.fromint(self.val).abs())
+            return BigInteger([r_uint(self.val)], 1)
         return SmallInteger(abs(self.val))
 
     def add(self, other):
@@ -1133,7 +1148,7 @@ class SmallInteger(Integer):
             return SmallInteger.add_i_i(self.val, other.val)
         else:
             assert isinstance(other, BigInteger)
-            return BigInteger(other.rval().int_add(self.val))
+            return Integer.from_bigint(other.rval().int_add(self.val))
 
     def int_add(self, other):
         return SmallInteger.add_i_i(self.val, other)
@@ -1147,14 +1162,14 @@ class SmallInteger(Integer):
     def sub(self, other):
         if isinstance(other, SmallInteger):
             return SmallInteger.sub_i_i(self.val, other.val)
-        return BigInteger((other.tobigint().int_sub(self.val)).neg()) # XXX can do better
+        return Integer.from_bigint((other.tobigint().int_sub(self.val)).neg()) # XXX can do better
 
     def mul(self, other):
         if isinstance(other, SmallInteger):
             try:
                 return SmallInteger(ovfcheck(self.val * other.val))
             except OverflowError:
-                return BigInteger(self.tobigint().int_mul(other.val))
+                return Integer.from_bigint(self.tobigint().int_mul(other.val))
         else:
             assert isinstance(other, BigInteger)
             return other.mul(self)
@@ -1166,7 +1181,9 @@ class SmallInteger(Integer):
                 raise ZeroDivisionError
             if not (self.val == -2**63 and other.val == -1):
                 return SmallInteger(int_c_div(self.val, other.val))
-        return BigInteger(self.tobigint()).tdiv(other)
+            return self.abs()
+        div, rem = bigint_divrem(self.tobigint(), other.tobigint())
+        return Integer.from_bigint(div)
 
     def tmod(self, other):
         # C behaviour
@@ -1175,11 +1192,15 @@ class SmallInteger(Integer):
                 raise ZeroDivisionError
             if not (self.val == -2**63 and other.val == -1):
                 return SmallInteger(int_c_mod(self.val, other.val))
-        return BigInteger(self.tobigint()).tmod(other)
+        other = other.tobigint()
+        if other.get_sign() == 0:
+            raise ZeroDivisionError
+        div, rem = bigint_divrem(self.tobigint(), other)
+        return Integer.from_bigint(rem)
 
     def ediv(self, other):
         if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
-            return BigInteger(self.tobigint()).ediv(other)
+            return Integer.from_bigint(self.tobigint()).ediv(other)
         other = other.val
         if other == 0:
             raise ZeroDivisionError
@@ -1190,7 +1211,7 @@ class SmallInteger(Integer):
 
     def emod(self, other):
         if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
-            return BigInteger(self.tobigint()).emod(other)
+            return Integer.from_bigint(self.tobigint()).emod(other)
         other = other.val
         if other == 0:
             raise ZeroDivisionError
@@ -1217,28 +1238,28 @@ class SmallInteger(Integer):
                 return SmallInteger(ovfcheck(a << i))
             except OverflowError:
                 pass
-        return BigInteger(rbigint.fromint(a).lshift(i))
+        return Integer.from_bigint(rbigint.fromint(a).lshift(i))
 
     @staticmethod
     def add_i_i(a, b):
         try:
             return SmallInteger(ovfcheck(a + b))
         except OverflowError:
-            return BigInteger(rbigint.fromint(a).int_add(b))
+            return Integer.from_bigint(rbigint.fromint(a).int_add(b))
 
     @staticmethod
     def sub_i_i(a, b):
         try:
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
-            return BigInteger(rbigint.fromint(b).int_sub(a).neg())
+            return Integer.from_bigint(rbigint.fromint(b).int_sub(a).neg())
 
     @staticmethod
     def mul_i_i(a, b):
         try:
             return SmallInteger(ovfcheck(a * b))
         except OverflowError:
-            return BigInteger(rbigint.fromint(a).int_mul(b))
+            return Integer.from_bigint(rbigint.fromint(a).int_mul(b))
 
     def pack(self):
         return (self.val, None)
@@ -1247,18 +1268,7 @@ class SmallInteger(Integer):
 class BigInteger(Integer):
     _immutable_fields_ = ['data[*]', 'sign']
 
-    def __init__(self, data, sign=-15):
-        if isinstance(data, rbigint):
-            data, sign = array_and_sign_from_rbigint(data)
-        else:
-            assert sign in (0, 1, -1)
-            index = len(data) - 1
-            while index >= 0 and not data[index]:
-                index -= 1
-            if index != len(data) - 1:
-                data = data[:index + 1]
-            if not data:
-                sign = 0
+    def __init__(self, data, sign):
         self.data = data
         self.sign = sign
 
@@ -1310,7 +1320,7 @@ class BigInteger(Integer):
         slice_one = MASKS.get(bv.size()).lshift(start)
         out_val = rval.and_(slice_one.invert())
         out_val = out_val.or_(bv.tobigint().lshift(start))
-        return BigInteger(out_val)
+        return Integer.from_bigint(out_val)
 
     def slice_unwrapped_res(self, len, start):
         return ruint_mask(len, rbigint_extract_ruint(self.rval(), start))
@@ -1413,18 +1423,16 @@ class BigInteger(Integer):
             resultdata, sign = _data_add(self.data, otherdata)
         else:
             resultdata, sign = _data_sub(otherdata, self.data)
-        result = BigInteger(resultdata, sign)
-        result.sign *= othersign
-        return result
+        return Integer.from_data_and_sign(resultdata, sign * othersign)
 
     def int_add(self, other):
-        return BigInteger(self.rval().int_add(other))
+        return Integer.from_bigint(self.rval().int_add(other))
 
     def int_sub(self, other):
-        return BigInteger(self.rval().int_sub(other))
+        return Integer.from_bigint(self.rval().int_sub(other))
 
     def int_mul(self, other):
-        return BigInteger(self.rval().int_mul(other))
+        return Integer.from_bigint(self.rval().int_mul(other))
 
     def sub(self, other):
         if isinstance(other, SmallInteger):
@@ -1443,9 +1451,7 @@ class BigInteger(Integer):
             resultdata, sign = _data_sub(self.data, otherdata)
         else:
             resultdata, sign = _data_add(self.data, otherdata)
-        result = BigInteger(resultdata, sign)
-        result.sign *= self.sign
-        return result
+        return Integer.from_data_and_sign(resultdata, sign * self.sign)
 
     def mul(self, other):
         if isinstance(other, SmallInteger):
@@ -1458,9 +1464,9 @@ class BigInteger(Integer):
                 # power of two, replace by lshift
                 shift = self._shift_amount(val)
                 return self.lshift(shift)
-            return BigInteger(self.rval().int_mul(other.val))
+            return Integer.from_bigint(self.rval().int_mul(other.val))
         assert isinstance(other, BigInteger)
-        return BigInteger(self.rval().mul(other.rval()))
+        return Integer.from_bigint(self.rval().mul(other.rval()))
 
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python
@@ -1472,12 +1478,12 @@ class BigInteger(Integer):
                 # can use shift
                 return self.rshift(self._shift_amount(other))
             div, rem = bigint_divrem1(self.rval(), other)
-            return BigInteger(div)
+            return Integer.from_bigint(div)
         other = other.tobigint()
         if other.get_sign() == 0:
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
-        return BigInteger(div)
+        return Integer.from_bigint(div)
 
     @staticmethod
     @jit.elidable
@@ -1500,16 +1506,16 @@ class BigInteger(Integer):
         if other.get_sign() == 0:
             raise ZeroDivisionError
         div, rem = bigint_divrem(self.tobigint(), other)
-        return BigInteger(rem)
+        return Integer.from_bigint(rem)
 
     def ediv(self, other):
         other = other.tobigint()
         if other.int_eq(0):
             raise ZeroDivisionError
         if other.int_gt(0):
-            return BigInteger(self.rval().floordiv(other))
+            return Integer.from_bigint(self.rval().floordiv(other))
         else:
-            return BigInteger(self.rval().floordiv(other.neg()).neg())
+            return Integer.from_bigint(self.rval().floordiv(other.neg()).neg())
 
     def emod(self, other):
         other = other.tobigint()
@@ -1518,7 +1524,7 @@ class BigInteger(Integer):
         res = self.rval().mod(other)
         if res.int_lt(0):
             res = res.sub(other)
-        return BigInteger(res)
+        return Integer.from_bigint(res)
 
     def rshift(self, i):
         assert i >= 0
@@ -1526,7 +1532,7 @@ class BigInteger(Integer):
         if i == 0 or self.sign == 0:
             return self
         if self.sign < 0:
-            return BigInteger(self.rval().rshift(i))
+            return Integer.from_bigint(self.rval().rshift(i))
 
         wordshift, bitshift = _data_indexes(i)
         data = self.data
@@ -1546,7 +1552,7 @@ class BigInteger(Integer):
                 accum |= digit >> bitshift
                 resdata[i - wordshift] = accum
                 accum = digit << antibitshift
-        return BigInteger(resdata, 1)
+        return Integer.from_data_and_sign(resdata, 1)
 
     def lshift(self, i):
         assert i >= 0
@@ -1570,7 +1576,7 @@ class BigInteger(Integer):
                 accum = digit >> antibitshift
                 wordshift += 1
             resdata[wordshift] = accum
-        return BigInteger(resdata, self.sign)
+        return Integer.from_data_and_sign(resdata, self.sign)
 
     def pack(self):
         return (-23, self.rval())

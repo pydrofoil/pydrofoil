@@ -670,6 +670,12 @@ def safe_rshift(machine, n, shift):
         return r_uint(0)
     return n >> shift
 
+def safe_lshift(machine, n, shift):
+    assert shift >= 0
+    if shift >= 64:
+        return r_uint(0)
+    return n << shift
+
 def print_int(machine, s, i):
     print s + i.str()
     return ()

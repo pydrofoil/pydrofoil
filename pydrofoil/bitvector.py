@@ -10,6 +10,7 @@ from rpython.rlib.rstring import (
 from rpython.rlib import jit
 
 MININT = -sys.maxint - 1
+MAXINT = sys.maxint
 
 @jit.elidable
 def bigint_divrem1(a, n):
@@ -591,7 +592,7 @@ def array_from_rbigint(size, rval):
         index += 64
     if size != 0:
         res[-1] &= ((r_uint(1) << (size + 64)) - 1)
-    return res
+    return res[:]
 
 def rbigint_from_array(data):
     res = rbigint.fromint(0)
@@ -1041,7 +1042,9 @@ class Integer(object):
             return SmallInteger(0)
         # XXX if index == 0, could fit into a SmallInteger
         if index != len(data) - 1:
-            data = data[:index + 1]
+            end = index + 1
+            assert end > 0
+            data = data[:end]
         return BigInteger(data, sign)
 
     @staticmethod
@@ -1362,9 +1365,8 @@ class BigInteger(Integer):
     def lt(self, other):
         selfsign = self.sign
         if isinstance(other, SmallInteger):
-            othersign = intsign(other.val)
             # XXX could be improved, but the logic is definitely right
-            otherdata = [othersign * r_uint(other.val)]
+            otherdata, othersign = _data_and_sign_from_int(other.val)
         else:
             assert isinstance(other, BigInteger)
             othersign = other.sign
@@ -1625,7 +1627,7 @@ def intsign(i):
 @always_inline
 def _data_and_sign_from_int(value):
     sign = intsign(value)
-    return [sign * r_uint(value)], sign
+    return [r_uint(sign) * r_uint(value)], sign
 
 def _data_add(selfdata, otherdata):
     size_self = len(selfdata)

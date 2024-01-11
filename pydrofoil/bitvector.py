@@ -372,9 +372,8 @@ def rbigint_extract_ruint(self, int_other):
     if sign == -1:
         # XXX needs to be better but I keep running into bugs
         return ~rbigint_extract_ruint(self.invert(), int_other)
+    assert sign >= 0
     if wordshift >= numdigits:
-        if sign == -1:
-            return r_uint(-1)
         return r_uint(0)
     digit = self.udigit(wordshift)
     # arithmetic shift

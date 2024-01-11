@@ -159,6 +159,10 @@ class SmallBitVector(BitVectorWithSize):
         assert isinstance(val, r_uint)
         if normalize and size != 64:
             val = val & ((r_uint(1) << size) - 1)
+        if not normalize:
+            # XXX disable after translation, later
+            if size < 64:
+                assert val >> size == r_uint(0)
         self.val = val # r_uint
 
     def __repr__(self):
@@ -637,7 +641,8 @@ class GenericBitVector(BitVectorWithSize):
         if 1: # not we_are_translated(): XXX disable later
             wordindex, bitindex = _data_indexes(size - 1)
             assert len(data) == wordindex + 1
-            assert data[wordindex] >> (bitindex + 1) == 0
+            if bitindex < 63:
+                assert data[wordindex] >> (bitindex + 1) == 0
         self.data = data # list of r_uint
 
     @staticmethod

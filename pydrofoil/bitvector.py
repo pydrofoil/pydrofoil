@@ -1154,9 +1154,8 @@ class SmallInteger(Integer):
     def lt(self, other):
         if isinstance(other, SmallInteger):
             return self.val < other.val
-        assert isinstance(other, BigInteger)
-        jit.jit_debug("SmallInteger.lt")
-        return other.rval().int_gt(self.val)
+        selfdata, selfsign = _data_and_sign_from_int(self.val)
+        return _data_lt(selfdata, selfsign, other.data, other.sign)
 
     def le(self, other):
         if isinstance(other, SmallInteger):
@@ -1176,8 +1175,7 @@ class SmallInteger(Integer):
         if isinstance(other, SmallInteger):
             return self.val >= other.val
         assert isinstance(other, BigInteger)
-        jit.jit_debug("SmallInteger.ge")
-        return other.rval().int_le(self.val)
+        return other.le(self)
 
     def abs(self):
         if self.val < 0:
@@ -1195,7 +1193,7 @@ class SmallInteger(Integer):
             return SmallInteger.sub_i_i(self.val, other.val)
         if not self.val:
             return other.neg()
-        return Integer.from_bigint((other.tobigint().int_sub(self.val)).neg()) # XXX can do better
+        return other.int_sub(self.val).neg()
 
     def int_sub(self, other):
         return SmallInteger.sub_i_i(self.val, other)
@@ -1367,7 +1365,7 @@ class BigInteger(Integer):
             return SmallBitVector(len, self.slice_unwrapped_res(len, start))
         jit.jit_debug("BitInteger.slice")
         if start == 0:
-            rval = self.rval()
+            n = self.rval()
         else:
             n = self.rshift(start).tobigint()
         return from_bigint(len, n)
@@ -1413,7 +1411,6 @@ class BigInteger(Integer):
         return self.data[0] == other
 
     def lt(self, other):
-        selfsign = self.sign
         if isinstance(other, SmallInteger):
             # XXX could be improved, but the logic is definitely right
             otherdata, othersign = _data_and_sign_from_int(other.val)
@@ -1421,38 +1418,7 @@ class BigInteger(Integer):
             assert isinstance(other, BigInteger)
             othersign = other.sign
             otherdata = other.data
-        if selfsign > othersign:
-            return False
-        if selfsign < othersign:
-            return True
-        ld1 = len(self.data)
-        ld2 = len(otherdata)
-        if ld1 > ld2:
-            if othersign > 0:
-                return False
-            else:
-                return True
-        elif ld1 < ld2:
-            if othersign > 0:
-                return True
-            else:
-                return False
-        i = ld1 - 1
-        while i >= 0:
-            d1 = self.data[i]
-            d2 = otherdata[i]
-            if d1 < d2:
-                if othersign > 0:
-                    return True
-                else:
-                    return False
-            elif d1 > d2:
-                if othersign > 0:
-                    return False
-                else:
-                    return True
-            i -= 1
-        return False
+        return _data_lt(self.data, self.sign, otherdata, othersign)
 
     def le(self, other):
         return not other.lt(self)
@@ -1557,7 +1523,7 @@ class BigInteger(Integer):
             other = other.val
             if other == 0:
                 raise ZeroDivisionError
-            if other > 0 and other & (other - 1) == 0 and self.rval().get_sign() >= 0:
+            if other > 0 and other & (other - 1) == 0 and self.sign >= 0:
                 # can use shift
                 return self.rshift(self._shift_amount(other))
             jit.jit_debug("BigInteger.tdiv")
@@ -1685,9 +1651,12 @@ def intsign(i):
 
 @always_inline
 def _data_and_sign_from_int(value):
+    if not value:
+        return [], 0
     sign = intsign(value)
     return [r_uint(sign) * r_uint(value)], sign
 
+@jit.unroll_safe
 def _data_add(selfdata, otherdata):
     size_self = len(selfdata)
     size_other = len(otherdata)
@@ -1714,6 +1683,7 @@ def _data_add(selfdata, otherdata):
     resdata[i + 1] = carry
     return resdata, 1
 
+@jit.unroll_safe
 def _data_sub(selfdata, otherdata):
     size_self = len(selfdata)
     size_other = len(otherdata)
@@ -1754,4 +1724,39 @@ def _data_sub(selfdata, otherdata):
         i += 1
     assert carry == 0
     return resdata, sign
+
+@jit.unroll_safe
+def _data_lt(selfdata, selfsign, otherdata, othersign):
+    if selfsign > othersign:
+        return False
+    if selfsign < othersign:
+        return True
+    ld1 = len(selfdata)
+    ld2 = len(otherdata)
+    if ld1 > ld2:
+        if othersign > 0:
+            return False
+        else:
+            return True
+    elif ld1 < ld2:
+        if othersign > 0:
+            return True
+        else:
+            return False
+    i = ld1 - 1
+    while i >= 0:
+        d1 = selfdata[i]
+        d2 = otherdata[i]
+        if d1 < d2:
+            if othersign > 0:
+                return True
+            else:
+                return False
+        elif d1 > d2:
+            if othersign > 0:
+                return False
+            else:
+                return True
+        i -= 1
+    return False
 

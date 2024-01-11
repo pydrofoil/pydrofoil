@@ -4,7 +4,7 @@ from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, 
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong
 from rpython.rlib.objectmodel import always_inline, specialize, \
-        we_are_translated, is_annotation_constant
+        we_are_translated, is_annotation_constant, not_rpython
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 from rpython.rlib import jit
@@ -1016,6 +1016,14 @@ class Integer(object):
     @staticmethod
     def fromint(val):
         return SmallInteger(val)
+
+    @staticmethod
+    @not_rpython # translation time only
+    def fromlong(val):
+        if MININT <= val <= MAXINT:
+            return SmallInteger(int(val))
+        else:
+            return Integer.from_bigint(rbigint.fromlong(val))
 
     @staticmethod
     def from_bigint(rval):

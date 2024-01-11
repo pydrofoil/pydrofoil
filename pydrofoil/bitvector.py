@@ -815,12 +815,6 @@ class GenericBitVector(BitVectorWithSize):
             res = res.or_(MASKS.get(i).lshift(size - i))
         return GenericBitVector.from_bigint(size, res)
 
-    def lshift_bits(self, other):
-        return self.lshift(other.toint())
-
-    def rshift_bits(self, other):
-        return self.rshift(other.toint())
-
     def xor(self, other):
         resdata = self.data[:]
         if isinstance(other, GenericBitVector):

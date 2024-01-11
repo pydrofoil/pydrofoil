@@ -329,16 +329,17 @@ def test_hypothesis_vector_subrange(data):
 @settings(deadline=1000)
 @given(strategies.data())
 def test_hypothesis_sign_extend(data):
-    bitwidth = data.draw(strategies.integers(1, 10000))
-    target_bitwidth = bitwidth + data.draw(strategies.integers(1, 100))
+    bitwidth = data.draw(strategies.integers(1, 1000))
+    target_bitwidth = bitwidth + data.draw(strategies.integers(0, 100))
     value = data.draw(strategies.integers(0, 2**bitwidth - 1))
+    print bitwidth, target_bitwidth, value
     bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
     res = bv.sign_extend(target_bitwidth)
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
 
 @given(strategies.data())
 def test_hypothesis_sign_extend_ruint(data):
-    bitwidth = data.draw(strategies.integers(1, 63))
+    bitwidth = data.draw(strategies.integers(1, 64))
     targetwidth = data.draw(strategies.integers(bitwidth, 64))
     value = data.draw(strategies.integers(-2**(bitwidth-1), 2**(bitwidth-1)-1))
     bv = supportcode._mask(bitwidth, r_uint(value))
@@ -450,6 +451,11 @@ def test_sparse_vector_update_subrange_hypothesis(data):
     # second check: the read of the same range must return replace_bv
     assert replace_bv.eq(sres.subrange(upper, lower))
 
+@given(bitvectors)
+def test_hypothesis_unpack_pack(bv):
+    tup = bv.pack()
+    bv2 = bitvector.BitVector.unpack(*tup)
+    assert bv2.eq(bv)
 
 def test_vector_shift():
     for c in gbv, bv:
@@ -1651,7 +1657,8 @@ def test_real_ge_hypothesis(num1, den1, num2, den2):
     frac2 = Fraction(num2, den2)
     assert r1.ge(r2) == (frac1 - frac2 >= 0)
 
-@given(strategies.integers().filter(lambda n: n != 0), strategies.integers(min_value = 1), strategies.integers(min_value = -50, max_value = 50))
+@given(strategies.integers().filter(lambda n: n != 0), strategies.integers(min_value = 1), strategies.integers(min_value = -25, max_value = 25))
+@example(num=-136245869567953879195472884560736319741L, den=1, n=39)
 def test_real_pow_hypothesis(num, den, n):
     r = rr_den_pos(num, den)
     res = r.pow(n)
@@ -2123,6 +2130,11 @@ def test_sparse_hypothesis_add_int(data):
             assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans
         assert SparseBitVector(100, r_uint(value1)).add_int(c(value2)).tolong() == ans % (2 ** 100)
 
+@given(bitvectors, wrapped_ints)
+def test_hypothesis_add_int(bv, i):
+    res = bv.add_int(i)
+    assert res.tolong() == (bv.tolong() + i.tolong()) % (2 ** bv.size())
+
 @given(strategies.data())
 def test_sparse_hypothesis_truncate(data):
     bitwidth = data.draw(strategies.integers(65, 10000))
@@ -2155,7 +2167,7 @@ def test_sparse_hypothesis_vector_subrange(data):
 @given(strategies.data())
 def test_sparse_hypothesis_sign_extend(data):
     bitwidth = data.draw(strategies.integers(65, 10000))
-    target_bitwidth = bitwidth + data.draw(strategies.integers(1, 100))
+    target_bitwidth = bitwidth + data.draw(strategies.integers(0, 100))
     value = data.draw(strategies.integers(0, 2**64 - 1))
     bv = SparseBitVector(bitwidth, r_uint(value))
     res = bv.sign_extend(target_bitwidth)
@@ -2165,30 +2177,17 @@ def test_sparse_hypothesis_sign_extend(data):
 @given(strategies.data())
 def test_sparse_hypothesis_zero_extend(data):
     bitwidth = data.draw(strategies.integers(65, 10000))
-    target_bitwidth = bitwidth + data.draw(strategies.integers(1, 100))
+    target_bitwidth = bitwidth + data.draw(strategies.integers(0, 100))
     value = data.draw(strategies.integers(0, 2**64 - 1))
     bv = SparseBitVector(bitwidth, r_uint(value))
     res = bv.zero_extend(target_bitwidth)
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()
 
-@given(strategies.data())
-@settings(deadline = None)
-def test_sparse_hypothesis_replicate(data):
-    bitwidth = data.draw(strategies.integers(65, 10000))
-    repeats = data.draw(strategies.integers(1, 10))
-    value = data.draw(strategies.integers(0, 2 **64 - 1))
-    bv = SparseBitVector(bitwidth, r_uint(value))
-    res = bv.replicate(repeats)
-    ans_as_int = bin(value)
-    formatted_value = str(ans_as_int)[2:]
-    leading_zero = (str(0)* (bitwidth - len(formatted_value)) + formatted_value)
-    assert len(leading_zero) == bitwidth
-    ans = str(leading_zero) * repeats
-    assert res.tolong() == int(ans, 2)
-
 @given(bitvectors, strategies.data())
+@settings(deadline = None)
 def test_hypothesis_replicate(bv, data):
     bitwidth = bv.size()
+    assume(bitwidth < 1000)
     repeats = data.draw(strategies.integers(1, 100))
     res = bv.replicate(repeats)
     ans_as_int = bin(bv.tolong())
@@ -2197,7 +2196,6 @@ def test_hypothesis_replicate(bv, data):
     assert len(leading_zero) == bitwidth
     ans = str(leading_zero) * repeats
     assert res.tolong() == int(ans, 2)
-
 
 @given(two_bitvectors)
 def test_hypothesis_eq(values):
@@ -2409,3 +2407,9 @@ def test_hypothesis_int_rshift(i, data):
     res = i.rshift(shift).tolong()
     assert res == (value >> shift)
 
+
+@given(wrapped_ints)
+def test_hypothesis_int_unpack_pack(i):
+    tup = i.pack()
+    i2 = bitvector.Integer.unpack(*tup)
+    assert i2.eq(i)

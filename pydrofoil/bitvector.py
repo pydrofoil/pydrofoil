@@ -1606,6 +1606,7 @@ class BigInteger(Integer):
         return Integer.from_data_and_sign(resdata, self.sign)
 
     def pack(self):
+        # XXX this is major nonsense
         return (-23, self.rval())
 
 

@@ -385,7 +385,8 @@ def vector_update_subrange(machine, bv, n, m, s):
 @purefunction
 def vector_update_subrange_fixed_bv_i_i_bv(machine, bv, n, m, s):
     width = n - m + 1
-    mask = ~(((r_uint(1) << width) - 1) << m)
+    ones = _mask(width, r_uint(-1))
+    mask = ~(ones << m)
     return (bv & mask) | (s << m)
 
 @unwrap("o i i")

@@ -449,7 +449,6 @@ def test_vector_update_subrange_hypothesis(bv, data):
     lower = data.draw(strategies.integers(0, width-1))
     upper = data.draw(strategies.integers(lower, width-1))
     subwidth = upper - lower + 1
-    subvalue = r_uint(data.draw(strategies.integers(0, 2 ** min(subwidth, 64) - 1)))
     replace_bv = make_bitvector(data, subwidth)
 
     res = bv.update_subrange(upper, lower, replace_bv)
@@ -460,6 +459,25 @@ def test_vector_update_subrange_hypothesis(bv, data):
         assert res.subrange(lower - 1, 0).eq(bv.subrange(lower - 1, 0))
     if upper < width - 1:
         assert res.subrange(width - 1, upper + 1).eq(bv.subrange(width - 1, upper + 1))
+
+@given(strategies.data())
+def test_vector_update_subrange_hypothesis_unboxed(data):
+    width = data.draw(strategies.integers(1, 64))
+    value = data.draw(strategies.integers(0, 2**width-1))
+    lower = data.draw(strategies.integers(0, width-1))
+    upper = data.draw(strategies.integers(lower, width-1))
+    subwidth = upper - lower + 1
+    assert 1 <= subwidth <= width <= 64
+    subvalue = supportcode.r_uint(data.draw(strategies.integers(0, 2 ** subwidth - 1)))
+
+    res = supportcode.vector_update_subrange_fixed_bv_i_i_bv(machine, r_uint(value), upper, lower, subvalue)
+    # check: the read of the same range must return replace_bv
+    assert subvalue == supportcode.vector_subrange_fixed_bv_i_i(machine, res, upper, lower)
+    # the other bits must be unchanged
+    if lower:
+        assert supportcode.vector_subrange_fixed_bv_i_i(machine, res, lower - 1, 0) == supportcode.vector_subrange_fixed_bv_i_i(machine, value, lower - 1, 0)
+    if upper < width - 1:
+        assert supportcode.vector_subrange_fixed_bv_i_i(machine, res, width - 1, upper + 1) == supportcode.vector_subrange_fixed_bv_i_i(machine, value, width - 1, upper + 1)
 
 @given(strategies.data())
 def test_sparse_vector_update_subrange_hypothesis(data):

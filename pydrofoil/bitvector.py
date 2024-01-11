@@ -1392,9 +1392,23 @@ class BigInteger(Integer):
         out_val = out_val.or_(bv.tobigint().lshift(start))
         return Integer.from_bigint(out_val)
 
-    def slice_unwrapped_res(self, len, start):
-        jit.jit_debug("BigInteger.slice_unwrapped_res")
-        return ruint_mask(len, rbigint_extract_ruint(self.rval(), start))
+    def slice_unwrapped_res(self, length, start):
+        if self.sign == 0:
+            return r_uint(0)
+        elif self.sign == -1:
+            # invert self, via ~x = -(x+1)
+            jit.jit_debug("BigInteger.slice_unwrapped_res could be better")
+            res = self.int_add(1).neg().slice_unwrapped_res(length, start)
+            return ruint_mask(length, ~res)
+        wordindex, bitindex = _data_indexes(start)
+        if wordindex >= len(self.data):
+            return r_uint(0)
+        res = self.data[wordindex] >> bitindex
+        if bitindex:
+            antibitshift = 64 - bitindex
+            if wordindex + 1 < len(self.data):
+                res |= self.data[wordindex + 1] << antibitshift
+        return ruint_mask(length, res)
 
     def eq(self, other):
         if isinstance(other, SmallInteger):
@@ -1591,6 +1605,7 @@ class BigInteger(Integer):
             res = res.sub(other)
         return Integer.from_bigint(res)
 
+    @jit.look_inside_iff(lambda self, i: jit.isconstant(i))
     def rshift(self, i):
         assert i >= 0
         if i == 0 or self.sign == 0:
@@ -1619,6 +1634,7 @@ class BigInteger(Integer):
                 accum = digit << antibitshift
         return Integer.from_data_and_sign(resdata, 1)
 
+    @jit.look_inside_iff(lambda self, i: jit.isconstant(i))
     def lshift(self, i):
         assert i >= 0
         if i == 0 or self.sign == 0:

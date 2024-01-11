@@ -1144,11 +1144,7 @@ class SmallInteger(Integer):
         return self
 
     def add(self, other):
-        if isinstance(other, SmallInteger):
-            return SmallInteger.add_i_i(self.val, other.val)
-        else:
-            assert isinstance(other, BigInteger)
-            return Integer.from_bigint(other.rval().int_add(self.val))
+        return other.int_add(self.val)
 
     def int_add(self, other):
         return SmallInteger.add_i_i(self.val, other)
@@ -1156,6 +1152,8 @@ class SmallInteger(Integer):
     def sub(self, other):
         if isinstance(other, SmallInteger):
             return SmallInteger.sub_i_i(self.val, other.val)
+        if not self.val:
+            return other.neg()
         return Integer.from_bigint((other.tobigint().int_sub(self.val)).neg()) # XXX can do better
 
     def int_sub(self, other):
@@ -1416,14 +1414,12 @@ class BigInteger(Integer):
         if isinstance(other, SmallInteger):
             if not other.val:
                 return self
-            # XXX could be improved, but the logic is definitely right
-            otherdata, othersign = _data_and_sign_from_int(other.val)
-        else:
-            assert isinstance(other, BigInteger)
-            othersign = other.sign
-            if othersign == 0:
-                return self
-            otherdata = other.data
+            return self.int_add(other.val)
+        assert isinstance(other, BigInteger)
+        othersign = other.sign
+        if othersign == 0:
+            return self
+        otherdata = other.data
         return self._add_data(otherdata, othersign)
 
     def _add_data(self, otherdata, othersign):
@@ -1442,22 +1438,16 @@ class BigInteger(Integer):
         otherdata, othersign = _data_and_sign_from_int(other)
         return self._add_data(otherdata, othersign)
 
-    def int_mul(self, other):
-        return Integer.from_bigint(self.rval().int_mul(other))
-
     def sub(self, other):
         if isinstance(other, SmallInteger):
-            if not other.val:
-                return self
-            othersign = intsign(other.val)
-            # XXX could be improved, but the logic is definitely right
-            otherdata = [othersign * r_uint(other.val)]
-        else:
-            assert isinstance(other, BigInteger)
-            othersign = other.sign
-            if othersign == 0:
-                return self
-            otherdata = other.data
+            if not self.sign:
+                return other.neg()
+            return self.int_sub(other.val)
+        assert isinstance(other, BigInteger)
+        othersign = other.sign
+        if othersign == 0:
+            return self
+        otherdata = other.data
         if self.sign == 0:
             return Integer.from_data_and_sign(otherdata, -othersign)
         return self._sub_data(otherdata, othersign)
@@ -1474,10 +1464,10 @@ class BigInteger(Integer):
     def int_sub(self, other):
         if not other:
             return self
+        if not self.sign:
+            return SmallInteger(other).neg()
         # XXX could be improved, but the logic is definitely right
         otherdata, othersign = _data_and_sign_from_int(other)
-        if not self.sign:
-            return Integer.from_data_and_sign(otherdata, -othersign)
         return self._sub_data(otherdata, othersign)
 
     def neg(self):
@@ -1485,18 +1475,19 @@ class BigInteger(Integer):
 
     def mul(self, other):
         if isinstance(other, SmallInteger):
-            val = other.val
-            if not val:
-                return SmallInteger(0)
-            if val == 1:
-                return self
-            if val & (val - 1) == 0:
-                # power of two, replace by lshift
-                shift = self._shift_amount(val)
-                return self.lshift(shift)
-            return Integer.from_bigint(self.rval().int_mul(other.val))
+            return self.int_mul(other.val)
         assert isinstance(other, BigInteger)
         return Integer.from_bigint(self.rval().mul(other.rval()))
+
+    def int_mul(self, other):
+        if not other:
+            return SmallInteger(0)
+        if other == 1:
+            return self
+        if other & (other - 1) == 0:
+            shift = self._shift_amount(other)
+            return self.lshift(shift)
+        return Integer.from_bigint(self.rval().int_mul(other))
 
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python

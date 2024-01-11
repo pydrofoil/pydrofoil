@@ -329,6 +329,23 @@ def test_hypothesis_vector_subrange(data):
     bvres = bv.subrange(upper, lower)
     assert bvres.tobigint().tolong() == correct_res_as_int
 
+
+@given(bitvectors)
+def test_hypothesis_size_as_int(bv):
+    assert bv.size_as_int().tolong() == bv.size()
+
+@given(bitvectors)
+def test_hypothesis_check_size_and_return(bv):
+    assert bv.check_size_and_return(bv.size()) is bv
+    with pytest.raises(ValueError):
+        bv.check_size_and_return(bv.size() + 1)
+    with pytest.raises(ValueError):
+        bv.check_size_and_return(bv.size() - 1)
+
+def test_toint_overflow():
+    with pytest.raises(OverflowError):
+        bv(64, r_uint(-1)).toint()
+
 @settings(deadline=1000)
 @given(strategies.data())
 def test_hypothesis_sign_extend(data):
@@ -658,18 +675,22 @@ def test_op_int():
 
 @given(wrapped_ints, wrapped_ints)
 def test_op_int_hypothesis(a, b):
-    v1 = a.tobigint().tolong()
-    v2 = b.tobigint().tolong()
-    assert a.add(b).tolong() == v1 + v2
+    v1 = a.tolong()
+    v2 = b.tolong()
+    assert a.add(b).tolong() == b.add(a).tolong() == v1 + v2
     assert a.sub(b).tolong() == v1 - v2
-    assert a.mul(b).tolong() == v1 * v2
+    assert a.mul(b).tolong() == b.mul(a).tolong() == v1 * v2
     if v2:
         assert a.abs().tdiv(b.abs()).tolong() == abs(v1) // abs(v2)
         assert a.abs().tmod(b.abs()).tolong() == abs(v1) % abs(v2)
         # (a/b) * b + a%b == a
         assert a.tdiv(b).mul(b).add(a.tmod(b)).eq(a)
 
-    assert a.eq(b) == (v1 == v2)
+    assert a.eq(b) == (v1 == v2) == b.eq(a)
+    if isinstance(b, SmallInteger):
+        assert a.int_eq(b.val) == (v1 == v2)
+    if isinstance(a, SmallInteger):
+        assert b.int_eq(a.val) == (v1 == v2)
     assert a.lt(b) == (v1 < v2)
     assert a.gt(b) == (v1 > v2)
     assert a.le(b) == (v1 <= v2)
@@ -685,11 +706,12 @@ def test_op_int_hypothesis(a, b):
     assert a.neg().tolong() == -v1
 
 @given(wrapped_ints, ints)
-def test_int_add_sub_hypothesis(a, b):
+def test_int_add_sub_mul_hypothesis(a, b):
     v1 = a.tobigint().tolong()
     v2 = b
     assert a.int_add(b).tolong() == v1 + v2
     assert a.int_sub(b).tolong() == v1 - v2
+    assert a.int_mul(b).tolong() == v1 * v2
 
 def test_op_int_div_mod():
     for c1 in bi, si:
@@ -2422,7 +2444,7 @@ def test_data_and_sign_from_int(value):
 def test_hypothesis_int_lshift(i, data):
     value = i.tolong()
     bitwidth = i.tolong().bit_length()
-    shift = data.draw(strategies.integers(0, bitwidth + 5))
+    shift = data.draw(strategies.integers(0, bitwidth + 100))
     res = i.lshift(shift).tolong()
     assert res == (value << shift)
 
@@ -2430,10 +2452,25 @@ def test_hypothesis_int_lshift(i, data):
 def test_hypothesis_int_rshift(i, data):
     value = i.tolong()
     bitwidth = i.tolong().bit_length()
-    shift = data.draw(strategies.integers(0, bitwidth + 5))
+    shift = data.draw(strategies.integers(0, bitwidth + 100))
     res = i.rshift(shift).tolong()
     assert res == (value >> shift)
 
+@given(wrapped_ints, strategies.data())
+def test_hypothesis_int_lshift_multiple_of_64(i, data):
+    value = i.tolong()
+    bitwidth = i.tolong().bit_length()
+    shift = data.draw(strategies.integers(0, bitwidth + 100)) // 64 * 64
+    res = i.lshift(shift).tolong()
+    assert res == (value << shift)
+
+@given(wrapped_ints, strategies.data())
+def test_hypothesis_int_rshift_multiple_of_64(i, data):
+    value = i.tolong()
+    bitwidth = i.tolong().bit_length()
+    shift = data.draw(strategies.integers(0, bitwidth + 100)) // 64 * 64
+    res = i.rshift(shift).tolong()
+    assert res == (value >> shift)
 
 @given(wrapped_ints)
 def test_hypothesis_int_unpack_pack(i):
@@ -2448,3 +2485,13 @@ def test_hypothesis_fromstr(i):
 @given(strategies.integers())
 def test_hypothesis_fromlong(i):
     assert Integer.fromlong(i).tolong() == i
+
+@given(strategies.integers())
+def test_hypothesis_int_str(i):
+    assert Integer.fromlong(i).str() == str(i)
+    assert Integer.fromlong(i).hex() == hex(i)
+
+@given(uints)
+def test_hypothesis_int_from_ruint_to_uint_roundtrips(ui):
+    assert Integer.from_ruint(ui).touint() == ui
+

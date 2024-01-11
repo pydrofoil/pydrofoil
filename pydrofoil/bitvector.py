@@ -117,7 +117,6 @@ class BitVector(object):
         return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
 
     def append_64(self, ui):
-        # XXX can be better for GenericBitVector
         jit.jit_debug("BitVector.append_64")
         return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
 
@@ -186,6 +185,7 @@ class SmallBitVector(BitVectorWithSize):
             rhs = r_uint(i.val)
         else:
             assert isinstance(i, BigInteger)
+            jit.jit_debug("SmallInteger.add_int")
             rhs = rbigint_extract_ruint(i.rval(), 0)
         return self.make(self.val + rhs, True)
 
@@ -687,6 +687,7 @@ class GenericBitVector(BitVectorWithSize):
             if i.val >= 0:
                 return self._add_ruint(r_uint(i.val))
             return self._sub_ruint(-r_uint(i.val))
+        assert isinstance(i, BigInteger)
         jit.jit_debug("GenericBitVector.add_int")
         # XXX easy to fix
         rval = i.tobigint()
@@ -975,9 +976,7 @@ class GenericBitVector(BitVectorWithSize):
         return Integer.from_bigint(self.rval().xor(m).sub(m))
 
     def unsigned(self):
-        jit.jit_debug("GenericBitVector.unsigned")
-        # XXX easy to fix
-        return Integer.from_bigint(self.rval())
+        return Integer.from_data_and_sign(self.data, 1)
 
     def eq(self, other):
         assert self.size() == other.size()
@@ -1020,6 +1019,7 @@ class GenericBitVector(BitVectorWithSize):
         return GenericBitVector.from_bigint(size * i, res)
 
     def truncate(self, i):
+        assert i >= 0
         size = self.size()
         assert i <= self.size()
         if i <= 64:
@@ -1027,7 +1027,11 @@ class GenericBitVector(BitVectorWithSize):
         if i == size:
             return self
         length = GenericBitVector._data_size(i)
+        assert length >= 0
         return GenericBitVector(i, self.data[:length], normalize=True)
+
+    def append_64(self, ui):
+        return GenericBitVector(self.size() + 64, [ui] + self.data)
 
     def pack(self):
         return (self.size(), r_uint(0xdeaddead), self.data)
@@ -1054,6 +1058,7 @@ class Integer(object):
         return Integer.from_data_and_sign(data, sign)
 
     @staticmethod
+    @jit.unroll_safe
     def from_data_and_sign(data, sign):
         assert sign in (0, 1, -1)
         # normalize
@@ -1156,6 +1161,7 @@ class SmallInteger(Integer):
     def lt(self, other):
         if isinstance(other, SmallInteger):
             return self.val < other.val
+        assert isinstance(other, BigInteger)
         selfdata, selfsign = _data_and_sign_from_int(self.val)
         return _data_lt(selfdata, selfsign, other.data, other.sign)
 

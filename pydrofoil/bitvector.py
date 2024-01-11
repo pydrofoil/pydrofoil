@@ -181,10 +181,6 @@ class SmallBitVector(BitVectorWithSize):
             rhs = rbigint_extract_ruint(i.rval(), 0)
         return self.make(self.val + rhs, True)
 
-    def _add_int_slow(self, i):
-        # XXX can be better
-        return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().add(i.tobigint())))
-
     def add_bits(self, other):
         assert self.size() == other.size()
         assert isinstance(other, SmallBitVector)

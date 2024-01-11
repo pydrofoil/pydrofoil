@@ -316,7 +316,7 @@ class SmallBitVector(BitVectorWithSize):
 
     def touint(self, expected_width=0):
         if expected_width:
-            self.size() == expected_width
+            assert self.size() == expected_width
         return self.val
 
     def tobigint(self):

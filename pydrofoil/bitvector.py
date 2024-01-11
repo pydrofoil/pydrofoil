@@ -862,10 +862,13 @@ class GenericBitVector(BitVectorWithSize):
         wordshift, bitshift = _data_indexes(m)
         size = self.size()
         data = self.data
-        digit = data[wordshift]
-        res = digit >> bitshift
-        if wordshift + 1 < len(data):
-            res |= (data[wordshift + 1] << (64 - bitshift))
+        res = data[wordshift]
+        if bitshift:
+            res >>= bitshift
+            if wordshift + 1 < len(data):
+                antibitshift = 64 - bitshift
+                assert 0 <= antibitshift < 64
+                res |= (data[wordshift + 1] << antibitshift)
         return ruint_mask(width, res)
 
     def zero_extend(self, i):

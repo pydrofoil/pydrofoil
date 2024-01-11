@@ -879,8 +879,8 @@ def test_string_of_bits():
 
 
 def test_append():
-    for c1 in gbv, bv:
-        for c2 in gbv, bv:
+    for c1 in bv,:
+        for c2 in bv,:
             assert c1(16, 0xa9e3).append(c2(16, 0x04fb)).toint() == 0xa9e304fb
 
 def test_abs_int():

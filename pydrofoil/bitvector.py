@@ -113,6 +113,8 @@ class BitVector(object):
         return self.tobigint().tolong()
 
     def append(self, other):
+        if isinstance(other, SmallBitVector) and other.size() == 64:
+            return self.append_64(other.val)
         jit.jit_debug("BitVector.append")
         return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
 
@@ -1030,6 +1032,16 @@ class GenericBitVector(BitVectorWithSize):
         length = GenericBitVector._data_size(i)
         assert length >= 0
         return GenericBitVector(i, self.data[:length], normalize=True)
+
+    def append(self, other):
+        if isinstance(other, SmallBitVector):
+            if other.size() == 64:
+                return self.append_64(other.val)
+            res = self.zero_extend(self.size() + other.size()).lshift(other.size())
+            assert isinstance(res, GenericBitVector)
+            res.data[0] |= other.val
+            return res
+        return BitVector.append(self, other)
 
     def append_64(self, ui):
         return GenericBitVector(self.size() + 64, [ui] + self.data)

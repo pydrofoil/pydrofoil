@@ -623,7 +623,6 @@ def test_op_int():
                 a = c1(v1)
                 for v2 in [-10, 223, 12311, 0, 1, 8, 2**63-1, -2**45]:
                     b = c2(v2)
-                    print c1, c2, v1, v2
                     assert a.add(b).tolong() == v1 + v2
                     assert a.sub(b).tolong() == v1 - v2
                     assert a.mul(b).tolong() == v1 * v2

@@ -1406,27 +1406,38 @@ class BigInteger(Integer):
         return BigInteger(self.data, 1)
 
     def add(self, other):
+        if self.sign == 0:
+            return other
         if isinstance(other, SmallInteger):
+            if not other.val:
+                return self
             othersign = intsign(other.val)
             # XXX could be improved, but the logic is definitely right
             otherdata = [othersign * r_uint(other.val)]
         else:
             assert isinstance(other, BigInteger)
             othersign = other.sign
+            if othersign == 0:
+                return self
             otherdata = other.data
-        selfsign = self.sign
-        if selfsign == 0:
-            return other
-        if othersign == 0:
-            return self
-        if selfsign == othersign:
+        return self._add_data(otherdata, othersign)
+
+    def _add_data(self, otherdata, othersign):
+        if self.sign == othersign:
             resultdata, sign = _data_add(self.data, otherdata)
         else:
             resultdata, sign = _data_sub(otherdata, self.data)
         return Integer.from_data_and_sign(resultdata, sign * othersign)
 
     def int_add(self, other):
-        return Integer.from_bigint(self.rval().int_add(other))
+        if not other:
+            return self
+        if not self.sign:
+            return SmallInteger(other)
+        # XXX could be improved, but the logic is definitely right
+        othersign = intsign(other)
+        otherdata = [othersign * r_uint(other)]
+        return self._add_data(otherdata, othersign)
 
     def int_sub(self, other):
         return Integer.from_bigint(self.rval().int_sub(other))

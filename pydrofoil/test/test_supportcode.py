@@ -11,14 +11,46 @@ from fractions import Fraction
 from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
 from rpython.rlib.rbigint import rbigint
 
+def makelong_long_sequences(data, ndigits):
+    """ From CPython:
+    Get quasi-random long consisting of ndigits digits (in base BASE).
+    quasi == the most-significant digit will not be 0, and the number
+    is constructed to contain long strings of 0 and 1 bits.  These are
+    more likely than random bits to provoke digit-boundary errors.
+    The sign of the number is also random.
+    """
+    SHIFT = 64
+    nbits_hi = ndigits * SHIFT
+    nbits_lo = nbits_hi - SHIFT + 1
+    answer = 0L
+    nbits = 0
+    r = data.draw(strategies.integers(0, SHIFT * 2 - 1)) | 1  # force 1 bits to start
+    while nbits < nbits_lo:
+        bits = (r >> 1) + 1
+        bits = min(bits, nbits_hi - nbits)
+        assert 1 <= bits <= SHIFT
+        nbits = nbits + bits
+        answer = answer << bits
+        if r & 1:
+            answer = answer | ((1 << bits) - 1)
+        r = data.draw(strategies.integers(0, SHIFT * 2 - 1))
+    assert nbits_lo <= nbits <= nbits_hi
+    if data.draw(strategies.booleans()):
+        answer = -answer
+    return answer
 
 def make_int(data):
-    if data.draw(strategies.booleans()):
+    kind = data.draw(strategies.integers(0, 3))
+    if kind == 0:
+        return SmallInteger(data.draw(ints))
+    elif kind == 1:
+        return SmallInteger(intmask(r_uint(makelong_long_sequences(data, 1))))
+    elif kind == 2:
         # big ints
         return bi(data.draw(strategies.integers()))
     else:
-        # small ints
-        return SmallInteger(data.draw(ints))
+        ndigits = data.draw(strategies.integers(1, 20))
+        return bi(makelong_long_sequences(data, ndigits))
 
 ints = strategies.integers(-sys.maxint-1, sys.maxint)
 wrapped_ints = strategies.builds(
@@ -703,7 +735,8 @@ def test_op_int():
 def test_op_int_hypothesis(a, b):
     v1 = a.tolong()
     v2 = b.tolong()
-    assert a.add(b).tolong() == b.add(a).tolong() == v1 + v2
+    aaddb = a.add(b)
+    assert aaddb.tolong() == b.add(a).tolong() == v1 + v2
     assert a.sub(b).tolong() == v1 - v2
     assert a.mul(b).tolong() == b.mul(a).tolong() == v1 * v2
     if v2:
@@ -712,9 +745,15 @@ def test_op_int_hypothesis(a, b):
         # (a/b) * b + a%b == a
         assert a.tdiv(b).mul(b).add(a.tmod(b)).eq(a)
 
+    assert a.eq(a)
+    assert b.eq(b)
+    if v1 and v2:
+        assert not b.eq(aaddb)
     assert a.eq(b) == (v1 == v2) == b.eq(a)
     if isinstance(b, SmallInteger):
         assert a.int_eq(b.val) == (v1 == v2)
+        if v1 and v2:
+            assert not aaddb.int_eq(b.val)
     if isinstance(a, SmallInteger):
         assert b.int_eq(a.val) == (v1 == v2)
     assert a.lt(b) == (v1 < v2)

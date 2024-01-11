@@ -11,6 +11,14 @@ from pydrofoil.real import Real
 STDOUT = 1
 STDERR = 2
 
+DEBUG_PRINT_BUILTINS = False
+
+if DEBUG_PRINT_BUILTINS:
+    def always_inline(func):
+        return func
+
+    objectmodel.always_inline = always_inline
+
 @objectmodel.specialize.call_location()
 def make_dummy(name):
     def dummy(machine, *args):
@@ -54,7 +62,41 @@ purefunctions = {}
 
 def purefunction(func):
     purefunctions[func.func_name] = func
-    return func
+    name = func.func_name
+    @objectmodel.specialize.argtype(0)
+    def print_args(arg, *args):
+        if isinstance(arg, int):
+            print arg,
+        elif isinstance(arg, r_uint):
+            print arg,
+        elif isinstance(arg, str):
+            print arg,
+        elif isinstance(arg, bool):
+            print arg,
+        elif isinstance(arg, bitvector.Integer):
+            print arg.__repr__(),
+        elif isinstance(arg, bitvector.BitVector):
+            print arg.__repr__(),
+        else:
+            print "unknown",
+        if not args:
+            return
+        print_args(*args)
+
+    def wrapped_func(machine, *args):
+        print name,
+        if args:
+            print_args(*args)
+        res = func(machine, *args)
+        print "->",
+        print_args(res)
+        print
+        return res
+    wrapped_func.func_name = name
+    if DEBUG_PRINT_BUILTINS:
+        return wrapped_func
+    else:
+        return func
 
 # unimplemented
 
@@ -348,32 +390,32 @@ def vector_update_subrange_fixed_bv_i_i_bv(machine, bv, n, m, s):
 
 @unwrap("o i i")
 @objectmodel.always_inline
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def vector_subrange(machine, bv, n, m):
     return bv.subrange(n, m)
 
 @objectmodel.always_inline
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def vector_subrange_o_i_i_unwrapped_res(machine, bv, n, m):
     return bv.subrange_unwrapped_res(n, m)
 
 @unwrap("o i i")
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def slice(machine, bv, start, length):
     return bv.subrange(start + length - 1, start)
 
 @objectmodel.always_inline
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def vector_slice_o_i_i_unwrapped_res(machine, bv, start, length):
     return bv.subrange_unwrapped_res(start + length - 1, start)
 
 @unwrap("i i o i o")
-@objectmodel.specialize.argtype(3)
 @purefunction
+@objectmodel.specialize.argtype(3)
 def set_slice(machine, _len, _slen, bv, start, bv_new):
     return bv.update_subrange(start + bv_new.size() - 1, start, bv_new)
 
@@ -430,8 +472,8 @@ def truncate_bv_i(machine, bv, i):
 
 # integers
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def eq_int(machine, a, b):
     assert isinstance(a, Integer)
     return a.eq(b)
@@ -448,8 +490,8 @@ def eq_int_o_i(machine, a, b):
 def eq_bit(machine, a, b):
     return a == b
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def lteq(machine, ia, ib):
     if not objectmodel.we_are_translated():
         if isinstance(ia, int) and isinstance(ib, int):
@@ -457,8 +499,8 @@ def lteq(machine, ia, ib):
             return ia <= ib # const folding only
     return ia.le(ib)
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def lt(machine, ia, ib):
     if not objectmodel.we_are_translated():
         if isinstance(ia, int) and isinstance(ib, int):
@@ -466,8 +508,8 @@ def lt(machine, ia, ib):
             return ia < ib # const folding only
     return ia.lt(ib)
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def gt(machine, ia, ib):
     if not objectmodel.we_are_translated():
         if isinstance(ia, int) and isinstance(ib, int):
@@ -475,8 +517,8 @@ def gt(machine, ia, ib):
             return ia > ib # const folding only
     return ia.gt(ib)
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def gteq(machine, ia, ib):
     if not objectmodel.we_are_translated():
         if isinstance(ia, int) and isinstance(ib, int):
@@ -494,8 +536,8 @@ def eq(machine, ia, ib):
         return ia == ib
     import pdb;pdb.set_trace()
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def add_int(machine, ia, ib):
     return ia.add(ib)
 
@@ -514,8 +556,8 @@ def add_i_i_must_fit(machine, a, b):
     except OverflowError:
         assert 0, "must not happen"
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def sub_int(machine, ia, ib):
     return ia.sub(ib)
 
@@ -541,8 +583,8 @@ def sub_i_o_wrapped_res(machine, a, b):
         return bitvector.SmallInteger.sub_i_i(a, b.val)
     return bitvector.Integer.fromint(a).sub(b)
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def mult_int(machine, ia, ib):
     return ia.mul(ib)
 
@@ -561,8 +603,8 @@ def mult_i_i_must_fit(machine, a, b):
     except OverflowError:
         assert 0, "must not happen"
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def tdiv_int(machine, ia, ib):
     return ia.tdiv(ib)
 
@@ -574,13 +616,13 @@ def tdiv_int_i_i(machine, a, b):
     assert b != -1
     return int_c_div(a, b)
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def tmod_int(machine, ia, ib):
     return ia.tmod(ib)
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def ediv_int(machine, a, b):
     return a.ediv(b)
 
@@ -589,20 +631,20 @@ def ediv_int_i_ipos(machine, a, b):
     assert b >= 2
     return a // b
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def emod_int(machine, a, b):
     return a.emod(b)
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def max_int(machine, ia, ib):
     if ia.gt(ib):
         return ia
     return ib
 
-@objectmodel.specialize.argtype(1)
 @purefunction
+@objectmodel.specialize.argtype(1)
 def min_int(machine, ia, ib):
     if ia.lt(ib):
         return ia
@@ -645,8 +687,8 @@ def eq_bool(machine, a, b):
 def string_of_int(machine, r):
     return r.str()
 
-@objectmodel.specialize.arg_or_var(1)
 @purefunction
+@objectmodel.specialize.arg_or_var(1)
 def int_to_int64(machine, r):
     if objectmodel.is_annotation_constant(r):
         return _int_to_int64_memo(r)
@@ -818,9 +860,10 @@ def undefined_unit(machine, _):
 # list weirdnesses
 
 @objectmodel.specialize.argtype(1)
-@purefunction
 def internal_pick(machine, lst):
     return lst.head
+if not DEBUG_PRINT_BUILTINS:
+    internal_pick = purefunction(internal_pick)
 
 @purefunction
 def cons(machine, a, b):

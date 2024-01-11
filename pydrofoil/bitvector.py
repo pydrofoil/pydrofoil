@@ -403,7 +403,7 @@ class SparseBitVector(BitVectorWithSize):
         self.val = val
 
     def __repr__(self):
-        return "<SparseBitVector %s %r>"%(self.size(), self.val)
+        return "<SparseBitVector %s %s>"%(self.size(), self.val)
 
     def _to_generic(self):
         size = GenericBitVector._data_size(self.size())
@@ -674,6 +674,7 @@ class GenericBitVector(BitVectorWithSize):
         return GenericBitVector(self.size(), data, normalize)
 
     def __repr__(self):
+        return "<GenericBitVector %s %s>" % (self.size(), self.rval().hex())
         return "<GenericBitVector %s [%s]>" % (self.size(), ", ".join(hex(x) for x in self.data))
 
     def _size_mask(self, data):

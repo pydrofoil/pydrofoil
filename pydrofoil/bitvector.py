@@ -1125,6 +1125,8 @@ class SmallInteger(Integer):
     def slice(self, len, start):
         n = self.val >> start
         if len > 64:
+            if n > 0:
+                return SparseBitVector(len, r_uint(n))
             jit.jit_debug("SmallInteger.slice")
             return from_bigint(len, rbigint.fromint(n))
         return from_ruint(len, r_uint(n))

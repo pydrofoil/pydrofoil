@@ -2204,6 +2204,7 @@ def test_hypothesis_zero_extend(bv, data):
     assert res.truncate(bitwidth).eq(bv)
     if extra_width:
         assert res.rshift(bitwidth).truncate(extra_width).eq(bitvector.from_ruint(extra_width, r_uint(0)))
+    assert bv.unsigned().eq(res.unsigned())
 
 @given(bitvectors, strategies.data())
 @settings(deadline = None)
@@ -2439,3 +2440,11 @@ def test_hypothesis_int_unpack_pack(i):
     tup = i.pack()
     i2 = bitvector.Integer.unpack(*tup)
     assert i2.eq(i)
+
+@given(strategies.integers())
+def test_hypothesis_fromstr(i):
+    assert Integer.fromstr(str(i).strip('L')).tolong() == i
+
+@given(strategies.integers())
+def test_hypothesis_fromlong(i):
+    assert Integer.fromlong(i).tolong() == i

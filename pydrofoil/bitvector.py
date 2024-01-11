@@ -1053,6 +1053,7 @@ class Integer(object):
         try:
             return SmallInteger(string_to_int(val, 10))
         except ParseStringOverflowError as e:
+            e.parser.rewind()
             return Integer.from_bigint(rbigint._from_numberstring_parser(e.parser))
 
     @staticmethod

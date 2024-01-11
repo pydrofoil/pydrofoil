@@ -388,6 +388,7 @@ class SparseBitVector(BitVectorWithSize):
     def __init__(self, size, val):
         assert size > 64
         self._size = size
+        assert isinstance(val, r_uint)
         self.val = val
 
     def __repr__(self):
@@ -443,13 +444,13 @@ class SparseBitVector(BitVectorWithSize):
     def rshift(self, i):
         assert i >= 0
         if i >= 64:
-            return SparseBitVector(self.size(), 0)
+            return SparseBitVector(self.size(), r_uint(0))
         return SparseBitVector(self.size(), self.val >> i)
 
     def arith_rshift(self, i):
         assert i >= 0
         if i >= 64:
-            return SparseBitVector(self.size(), 0)
+            return SparseBitVector(self.size(), r_uint(0))
         return SparseBitVector(self.size(), self.val >> i)
 
     def xor(self, other):
@@ -633,6 +634,10 @@ class GenericBitVector(BitVectorWithSize):
         self._size = size
         if normalize:
             self._size_mask(data)
+        if 1: # not we_are_translated(): XXX disable later
+            wordindex, bitindex = _data_indexes(size - 1)
+            assert len(data) == wordindex + 1
+            assert data[wordindex] >> (bitindex + 1) == 0
         self.data = data # list of r_uint
 
     @staticmethod
@@ -658,8 +663,8 @@ class GenericBitVector(BitVectorWithSize):
         return "<GenericBitVector %s [%s]>" % (self.size(), ", ".join(hex(x) for x in self.data))
 
     def _size_mask(self, data):
-        bitsleft = self.size()
-        wordindex, bitindex = _data_indexes(bitsleft - 1)
+        width = self.size()
+        wordindex, bitindex = _data_indexes(width - 1)
         data[wordindex] = ruint_mask(bitindex + 1, data[wordindex])
         return data
 

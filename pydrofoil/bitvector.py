@@ -113,10 +113,12 @@ class BitVector(object):
         return self.tobigint().tolong()
 
     def append(self, other):
+        jit.jit_debug("BitVector.append")
         return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
 
     def append_64(self, ui):
         # XXX can be better for GenericBitVector
+        jit.jit_debug("BitVector.append_64")
         return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
 
     def lshift_bits(self, other):
@@ -201,6 +203,7 @@ class SmallBitVector(BitVectorWithSize):
         if isinstance(i, SmallInteger):
             return self.make(self.val - r_uint(i.val), True)
         # XXX can be better
+        jit.jit_debug("SmallInteger.sub_int")
         return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().sub(i.tobigint())))
 
     def lshift(self, i):
@@ -327,6 +330,7 @@ class SmallBitVector(BitVectorWithSize):
         return self.val
 
     def tobigint(self):
+        jit.jit_debug("SmallInteger.tobigint")
         return rbigint_fromrarith_int(self.val)
 
     def append(self, other):
@@ -567,6 +571,7 @@ class SparseBitVector(BitVectorWithSize):
         return self.val
 
     def tobigint(self):
+        jit.jit_debug("SparseBitVector.tobigint")
         return rbigint_fromrarith_int(self.val)
 
     def replicate(self, i):
@@ -682,6 +687,8 @@ class GenericBitVector(BitVectorWithSize):
             if i.val >= 0:
                 return self._add_ruint(r_uint(i.val))
             return self._sub_ruint(-r_uint(i.val))
+        jit.jit_debug("GenericBitVector.add_int")
+        # XXX easy to fix
         rval = i.tobigint()
         sign = rval.get_sign()
         if sign == 0:
@@ -746,6 +753,7 @@ class GenericBitVector(BitVectorWithSize):
                 self._sub_ruint(r_uint(i.val))
             else:
                 self._add_ruint(-r_uint(i.val))
+        jit.jit_debug("GenericBitVector.sub_int")
         rval = i.tobigint()
         sign = rval.get_sign()
         if sign == 0:
@@ -812,6 +820,7 @@ class GenericBitVector(BitVectorWithSize):
         if i >= size:
             i = size
         highest_bit = self.read_bit(size - 1)
+        jit.jit_debug("GenericBitVector.arith_rshift")
         rval = self.rval()
         highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
         res = rval.rshift(i)
@@ -955,15 +964,19 @@ class GenericBitVector(BitVectorWithSize):
         #    accum = digit >> antibitshift
         #    wordshift += 1
 
+        jit.jit_debug("GenericBitVector.update_subrange")
         return self.from_bigint(self.size(), self.rval().and_(mask).or_(s.tobigint().lshift(m)))
 
     def signed(self):
         n = self.size()
         assert n > 0
         m = ONERBIGINT.lshift(n - 1)
+        jit.jit_debug("GenericBitVector.signed")
         return Integer.from_bigint(self.rval().xor(m).sub(m))
 
     def unsigned(self):
+        jit.jit_debug("GenericBitVector.unsigned")
+        # XXX easy to fix
         return Integer.from_bigint(self.rval())
 
     def eq(self, other):
@@ -995,10 +1008,12 @@ class GenericBitVector(BitVectorWithSize):
         return self.data[0]
 
     def tobigint(self):
+        jit.jit_debug("GenericBitVector.tobigint")
         return rbigint_from_array(self.data)
 
     def replicate(self, i):
         size = self.size()
+        jit.jit_debug("GenericBitVector.replicate")
         res = val = self.rval()
         for _ in range(i - 1):
             res = res.lshift(size).or_(val)
@@ -1104,11 +1119,13 @@ class SmallInteger(Integer):
         return r_uint(self.val)
 
     def tobigint(self):
+        jit.jit_debug("SmallInteger.tobigint")
         return rbigint.fromint(self.val)
 
     def slice(self, len, start):
         n = self.val >> start
         if len > 64:
+            jit.jit_debug("SmallInteger.slice")
             return from_bigint(len, rbigint.fromint(n))
         return from_ruint(len, r_uint(n))
 
@@ -1117,6 +1134,7 @@ class SmallInteger(Integer):
 
     def set_slice_int(self, len, start, bv):
         if len > 64 or start + len >= 64:
+            jit.jit_debug("SmallInteger.set_slice_int")
             return BigInteger._set_slice_int(self.tobigint(), len, start, bv)
         assert len == bv.size()
         out_val = self.val
@@ -1137,24 +1155,28 @@ class SmallInteger(Integer):
         if isinstance(other, SmallInteger):
             return self.val < other.val
         assert isinstance(other, BigInteger)
+        jit.jit_debug("SmallInteger.lt")
         return other.rval().int_gt(self.val)
 
     def le(self, other):
         if isinstance(other, SmallInteger):
             return self.val <= other.val
         assert isinstance(other, BigInteger)
+        jit.jit_debug("SmallInteger.le")
         return other.rval().int_ge(self.val)
 
     def gt(self, other):
         if isinstance(other, SmallInteger):
             return self.val > other.val
         assert isinstance(other, BigInteger)
+        jit.jit_debug("SmallInteger.gt")
         return other.rval().int_lt(self.val)
 
     def ge(self, other):
         if isinstance(other, SmallInteger):
             return self.val >= other.val
         assert isinstance(other, BigInteger)
+        jit.jit_debug("SmallInteger.ge")
         return other.rval().int_le(self.val)
 
     def abs(self):
@@ -1188,6 +1210,7 @@ class SmallInteger(Integer):
             try:
                 return SmallInteger(ovfcheck(self.val * other.val))
             except OverflowError:
+                jit.jit_debug("SmallInteger.mul ovf")
                 return Integer.from_bigint(self.tobigint().int_mul(other.val))
         else:
             assert isinstance(other, BigInteger)
@@ -1204,6 +1227,8 @@ class SmallInteger(Integer):
             if not (self.val == -2**63 and other.val == -1):
                 return SmallInteger(int_c_div(self.val, other.val))
             return self.abs()
+        jit.jit_debug("SmallInteger.tdiv")
+        assert isinstance(other, BigInteger)
         div, rem = bigint_divrem(self.tobigint(), other.tobigint())
         return Integer.from_bigint(div)
 
@@ -1214,6 +1239,9 @@ class SmallInteger(Integer):
                 raise ZeroDivisionError
             if not (self.val == -2**63 and other.val == -1):
                 return SmallInteger(int_c_mod(self.val, other.val))
+            return SmallInteger(0) # anything % -1 == 0
+        assert isinstance(other, BigInteger)
+        jit.jit_debug("SmallInteger.tmod")
         other = other.tobigint()
         if other.get_sign() == 0:
             raise ZeroDivisionError
@@ -1222,6 +1250,7 @@ class SmallInteger(Integer):
 
     def ediv(self, other):
         if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
+            jit.jit_debug("SmallInteger.ediv")
             return Integer.from_bigint(self.tobigint()).ediv(other)
         other = other.val
         if other == 0:
@@ -1233,6 +1262,7 @@ class SmallInteger(Integer):
 
     def emod(self, other):
         if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
+            jit.jit_debug("SmallInteger.emod")
             return Integer.from_bigint(self.tobigint()).emod(other)
         other = other.val
         if other == 0:
@@ -1260,6 +1290,7 @@ class SmallInteger(Integer):
                 return SmallInteger(ovfcheck(a << i))
             except OverflowError:
                 pass
+        jit.jit_debug("SmallInteger.lshift_i_i ovf")
         return Integer.from_bigint(rbigint.fromint(a).lshift(i))
 
     @staticmethod
@@ -1267,6 +1298,7 @@ class SmallInteger(Integer):
         try:
             return SmallInteger(ovfcheck(a + b))
         except OverflowError:
+            jit.jit_debug("SmallInteger.add_i_i ovf")
             return Integer.from_bigint(rbigint.fromint(a).int_add(b))
 
     @staticmethod
@@ -1274,6 +1306,7 @@ class SmallInteger(Integer):
         try:
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
+            jit.jit_debug("SmallInteger.sub_i_i ovf")
             return Integer.from_bigint(rbigint.fromint(b).int_sub(a).neg())
 
     @staticmethod
@@ -1298,18 +1331,23 @@ class BigInteger(Integer):
         return "<BigInteger %s>" % (self.rval().str(), )
 
     def rval(self):
+        jit.jit_debug("BigInteger.rval")
         return rbigint_from_array_and_sign(self.data, self.sign)
 
     def str(self):
+        jit.jit_debug("BigInteger.str")
         return self.rval().str()
 
     def hex(self):
+        jit.jit_debug("BigInteger.hex")
         return self.rval().hex()
 
     def toint(self):
+        jit.jit_debug("BigInteger.toint")
         return self.rval().toint()
 
     def touint(self):
+        jit.jit_debug("BigInteger.touint")
         return self.rval().touint()
 
     def tolong(self):
@@ -1321,11 +1359,13 @@ class BigInteger(Integer):
         return res * self.sign
 
     def tobigint(self):
+        jit.jit_debug("BigInteger.tobigint")
         return self.rval()
 
     def slice(self, len, start):
         if len <= 64:
             return SmallBitVector(len, self.slice_unwrapped_res(len, start))
+        jit.jit_debug("BitInteger.slice")
         if start == 0:
             rval = self.rval()
         else:
@@ -1333,6 +1373,7 @@ class BigInteger(Integer):
         return from_bigint(len, n)
 
     def set_slice_int(self, len, start, bv):
+        jit.jit_debug("BigInteger.set_slice_int")
         return self._set_slice_int(self.rval(), len, start, bv)
 
     @staticmethod
@@ -1340,10 +1381,12 @@ class BigInteger(Integer):
         assert len == bv.size()
         slice_one = MASKS.get(bv.size()).lshift(start)
         out_val = rval.and_(slice_one.invert())
+        jit.jit_debug("BigInteger._set_slice_int")
         out_val = out_val.or_(bv.tobigint().lshift(start))
         return Integer.from_bigint(out_val)
 
     def slice_unwrapped_res(self, len, start):
+        jit.jit_debug("BigInteger.slice_unwrapped_res")
         return ruint_mask(len, rbigint_extract_ruint(self.rval(), start))
 
     def eq(self, other):
@@ -1494,6 +1537,7 @@ class BigInteger(Integer):
         if isinstance(other, SmallInteger):
             return self.int_mul(other.val)
         assert isinstance(other, BigInteger)
+        jit.jit_debug("BigInteger.mul")
         return Integer.from_bigint(self.rval().mul(other.rval()))
 
     def int_mul(self, other):
@@ -1504,6 +1548,7 @@ class BigInteger(Integer):
         if other & (other - 1) == 0:
             shift = self._shift_amount(other)
             return self.lshift(shift)
+        jit.jit_debug("BigInteger.int_mul")
         return Integer.from_bigint(self.rval().int_mul(other))
 
     def tdiv(self, other):
@@ -1515,8 +1560,10 @@ class BigInteger(Integer):
             if other > 0 and other & (other - 1) == 0 and self.rval().get_sign() >= 0:
                 # can use shift
                 return self.rshift(self._shift_amount(other))
+            jit.jit_debug("BigInteger.tdiv")
             div, rem = bigint_divrem1(self.rval(), other)
             return Integer.from_bigint(div)
+        jit.jit_debug("BigInteger.tdiv")
         other = other.tobigint()
         if other.get_sign() == 0:
             raise ZeroDivisionError
@@ -1533,6 +1580,7 @@ class BigInteger(Integer):
         return shift
 
     def tmod(self, other):
+        jit.jit_debug("BigInteger.tmod")
         if isinstance(other, SmallInteger) and int_in_valid_range(other.val):
             other = other.val
             if other == 0:
@@ -1547,6 +1595,7 @@ class BigInteger(Integer):
         return Integer.from_bigint(rem)
 
     def ediv(self, other):
+        jit.jit_debug("BigInteger.emod")
         other = other.tobigint()
         if other.int_eq(0):
             raise ZeroDivisionError
@@ -1556,6 +1605,7 @@ class BigInteger(Integer):
             return Integer.from_bigint(self.rval().floordiv(other.neg()).neg())
 
     def emod(self, other):
+        jit.jit_debug("BigInteger.emod")
         other = other.tobigint()
         if other.int_eq(0):
             raise ZeroDivisionError
@@ -1569,6 +1619,7 @@ class BigInteger(Integer):
         if i == 0 or self.sign == 0:
             return self
         if self.sign < 0:
+            jit.jit_debug("BigInteger.rshift negative")
             return Integer.from_bigint(self.rval().rshift(i))
 
         wordshift, bitshift = _data_indexes(i)
@@ -1617,6 +1668,7 @@ class BigInteger(Integer):
 
     def pack(self):
         # XXX this is major nonsense
+        jit.jit_debug("BigInteger.pack")
         return (-23, self.rval())
 
 

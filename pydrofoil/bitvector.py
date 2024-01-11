@@ -442,13 +442,13 @@ class SparseBitVector(BitVectorWithSize):
 
     def rshift(self, i):
         assert i >= 0
-        if i >= self.size():
+        if i >= 64:
             return SparseBitVector(self.size(), 0)
         return SparseBitVector(self.size(), self.val >> i)
 
     def arith_rshift(self, i):
         assert i >= 0
-        if i >= self.size():
+        if i >= 64:
             return SparseBitVector(self.size(), 0)
         return SparseBitVector(self.size(), self.val >> i)
 

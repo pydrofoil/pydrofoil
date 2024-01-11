@@ -621,6 +621,7 @@ def test_op_int():
         for c2 in bi, si:
             for v1 in [-10, 223, 12311, 0, 1, 2**63-1]:
                 a = c1(v1)
+                assert a.neg().tolong() == -v1
                 for v2 in [-10, 223, 12311, 0, 1, 8, 2**63-1, -2**45]:
                     b = c2(v2)
                     assert a.add(b).tolong() == v1 + v2
@@ -668,6 +669,7 @@ def test_op_int_hypothesis(a, b):
         a.tmod(bi(0))
     with pytest.raises(ZeroDivisionError):
         a.tmod(bi(0))
+    assert a.neg().tolong() == -v1
 
 @given(wrapped_ints, ints)
 def test_int_add_sub_hypothesis(a, b):

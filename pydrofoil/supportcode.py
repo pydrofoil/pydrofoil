@@ -677,7 +677,7 @@ def pow2(machine, x):
 
 @purefunction
 def neg_int(machine, x):
-    return sub_i_o_wrapped_res(machine, 0, x)
+    return x.neg()
 
 def dec_str(machine, x):
     return x.str()

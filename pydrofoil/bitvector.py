@@ -1098,7 +1098,7 @@ class Integer(object):
     def unpack(val, rval):
         if rval is None:
             return SmallInteger(val)
-        return Integer.from_bigint(rval)
+        return BigInteger(rval, val)
 
 class SmallInteger(Integer):
     _immutable_fields_ = ['val']
@@ -1641,9 +1641,8 @@ class BigInteger(Integer):
         return Integer.from_data_and_sign(resdata, self.sign)
 
     def pack(self):
-        # XXX this is major nonsense
         jit.jit_debug("BigInteger.pack")
-        return (-23, self.rval())
+        return (self.sign, self.data)
 
 
 # common helper functions for manipulating arrays of digits

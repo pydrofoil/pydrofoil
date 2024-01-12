@@ -457,7 +457,7 @@ def test_hypothesis_extract_ruint(value, shift):
 
 def test_vector_update_subrange():
     for c1 in gbv, bv:
-        for c2 in gbv, bv:
+        for c2 in bv,:
             x = c1(8, 0b10001101)
             x = x.update_subrange(5, 2, c2(4, 0b1010))
             assert x.toint() == 0b10101001
@@ -465,6 +465,50 @@ def test_vector_update_subrange():
             y = c2(64, 0b1101001010010)
             x = x.update_subrange(63, 0, y)
             assert x.tolong() == y.tolong()
+
+def test_big_update_subrange():
+    # word indexes                    4               3               2               1               0
+    # word boundaries <       .       <       .       <       .       <       .       <       .       <
+    v1 = gbv(5 * 64, 0x0102030405060708090a0b0c0e0f1112131415160102030405060708090a0b0c0e0f111213141516)
+    # other word indexes                             2               1               0
+    # other word boundaries                          <       .       <       .       <
+    v2 = gbv(132,                                  0xaabacadaeafbabbcfafbfcfdfeffbfcbf)
+    exp =           '0x0102030405060708090A0B0C0E0F11AABACADAEAFBABBCFAFBFCFDFEFFBFCBFC0E0F111213141516'
+    res = v1.update_subrange(68 + 132 - 1, 68, v2)
+    assert res.string_of_bits() == exp
+
+    # word indexes                    4               3               2               1               0
+    # word boundaries <       .       <       .       <       .       <       .       <       .       <
+    v1 = gbv(5 * 64, 0x0102030405060708090a0b0c0e0f1112131415160102030405060708090a0b0c0e0f111213141516)
+    # other word indexes                             2               1               0
+    # other word boundaries                          <       .       <       .       <
+    v2 = gbv(128,                                   0xabacadaeafbabbcfafbfcfdfeffbfcbf)
+    exp =           '0x0102030405060708090A0B0C0E0F111ABACADAEAFBABBCFAFBFCFDFEFFBFCBFC0E0F111213141516'
+    #                0x0102030405060708090a0b0c0e0f1112bacadaeafbabbcfafbfcfdfeffbfcbfc0e0f111213141516  resdata after loop
+    res = v1.update_subrange(68 + 128 - 1, 68, v2)
+    assert res.string_of_bits() == exp
+
+    # word indexes                    4               3               2               1               0
+    # word boundaries <       .       <       .       <       .       <       .       <       .       <
+    v1 = gbv(5 * 64, 0x0102030405060708090a0b0c0e0f1112131415160102030405060708090a0b0c0e0f111213141516)
+    # other word indexes                              2               1               0
+    # other word boundaries                           <       .       <       .       <
+    v2 = gbv(140,                                 0x999abacadaeafbabbcfafbfcfdfeffbfcbf)
+    exp =           '0x0102030405060708090A0B0C0E0F1999ABACADAEAFBABBCFAFBFCFDFEFFBFCBF0E0F111213141516'
+    #                0x0102030405060708090a0b0c0e0f1112bacadaeafbabbcfafbfcfdfeffbfcbfc0e0f111213141516  resdata after loop
+    res = v1.update_subrange(64 + 140 - 1, 64, v2)
+    assert res.string_of_bits() == exp
+
+    # word indexes                    4               3               2               1               0
+    # word boundaries <       .       <       .       <       .       <       .       <       .       <
+    v1 = gbv(5 * 64, 0x0102030405060708090a0b0c0e0f1112131415160102030405060708090a0b0c0e0f111213141516)
+    # other word indexes                              2               1               0
+    # other word boundaries                           <       .       <       .       <
+    v2 = gbv(128,                                    0xabacadaeafbabbcfafbfcfdfeffbfcbf)
+    exp =           '0x0102030405060708090A0B0C0E0F1112ABACADAEAFBABBCFAFBFCFDFEFFBFCBF0E0F111213141516'
+    #                0x0102030405060708090a0b0c0e0f1112bacadaeafbabbcfafbfcfdfeffbfcbfc0e0f111213141516  resdata after loop
+    res = v1.update_subrange(64 + 128 - 1, 64, v2)
+    assert res.string_of_bits() == exp
 
 def test_sparse_vector_update_subrange():
     for c in sbv, gbv:

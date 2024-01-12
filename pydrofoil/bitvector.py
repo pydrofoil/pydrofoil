@@ -944,39 +944,46 @@ class GenericBitVector(BitVectorWithSize):
         resdata[wordindex] = newword
         return GenericBitVector(self.size(), resdata)
 
-    def update_subrange(self, n, m, s):
-
-        width = s.size()
+    @jit.unroll_safe
+    def update_subrange(self, n, m, other):
+        width = other.size()
         assert width == n - m + 1
-        mask = MASKS.get(width).lshift(m).invert()
-        #start_wordindex, start_bitindex = _data_indexes(m)
-        #end_wordindex, end_bitindex = _data_indexes(n + 1) # exclusive
-        #resdata = self.data[:]
 
-        #for zeroindex in range(start_wordindex + bool), end_wordindex - 1)
-
-
-        #if isinstance(other, GenericBitVector):
-        #    otherdata = other.data
-        #elif isinstance(other, SparseBitVector):
-        #    xxx
-        #else:
-        #    assert isinstance(other, SmallBitVector)
-        #    otherdata = [other.val]
-
-
-        #accum = r_uint(0)
-        #antibitshift = 64 - bitshift
-        #j = 0
-        #for i in range(len(otherdata)):
-        #    digit = otherdata[i]
-        #    accum |= digit << bitshift
-        #    resdata[wordshift] = accum
-        #    accum = digit >> antibitshift
-        #    wordshift += 1
-
-        jit.jit_debug("GenericBitVector.update_subrange")
-        return self.from_bigint(self.size(), self.rval().and_(mask).or_(s.tobigint().lshift(m)))
+        start_wordindex, start_bitindex = _data_indexes(m)
+        end_wordindex, end_bitindex = _data_indexes(n + 1) # exclusive
+        if width <= 64:
+            assert isinstance(other, SmallBitVector)
+            otherdata = [other.val]
+        else:
+            if isinstance(other, SparseBitVector):
+                otherdata = other._to_generic().data
+            else:
+                assert isinstance(other, GenericBitVector)
+                otherdata = other.data
+        resdata = self.data[:]
+        if not start_bitindex:
+            j = 0
+            for index in range(start_wordindex, end_wordindex):
+                resdata[index] = otherdata[j]
+                j += 1
+            accum = r_uint(0)
+        else:
+            accum = self.data[start_wordindex] & ((1 << start_bitindex) - 1)
+            antibitshift = 64 - start_bitindex
+            j = 0
+            for index in range(start_wordindex, end_wordindex):
+                digit = otherdata[j]
+                accum |= digit << start_bitindex
+                resdata[index] = accum
+                accum = digit >> antibitshift
+                j += 1
+        if end_bitindex:
+            mask = ~((r_uint(1) << end_bitindex) - 1)
+            last_digit = (resdata[end_wordindex] & mask) | accum
+            if start_bitindex < end_bitindex:
+                last_digit |= otherdata[j] << start_bitindex
+            resdata[end_wordindex] = last_digit
+        return GenericBitVector(self.size(), resdata, normalize=False)
 
     def signed(self):
         n = self.size()

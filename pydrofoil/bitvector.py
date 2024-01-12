@@ -709,6 +709,7 @@ class GenericBitVector(BitVectorWithSize):
         else:
             return self.sub_bits(self.make(array_from_rbigint(self.size(), rval.abs())))
 
+    @jit.unroll_safe
     def add_bits(self, other):
         assert self.size() == other.size()
         if isinstance(other, GenericBitVector):
@@ -726,6 +727,7 @@ class GenericBitVector(BitVectorWithSize):
             assert isinstance(other, SparseBitVector)
             return self._add_ruint(other.val)
 
+    @jit.unroll_safe
     def _add_ruint(self, othervalue):
         resdata = [r_uint(0)] * len(self.data)
         for i, value in enumerate(self.data):
@@ -734,6 +736,7 @@ class GenericBitVector(BitVectorWithSize):
             othervalue = r_uint(res < value)
         return self.make(resdata, True)
 
+    @jit.unroll_safe
     def sub_bits(self, other):
         assert self.size() == other.size()
         resdata = [r_uint(0)] * len(self.data)
@@ -750,6 +753,7 @@ class GenericBitVector(BitVectorWithSize):
         assert isinstance(other, SparseBitVector)
         return self._sub_ruint(other.val)
 
+    @jit.unroll_safe
     def _sub_ruint(self, othervalue):
         resdata = [r_uint(0)] * len(self.data)
         for i, value in enumerate(self.data):
@@ -774,6 +778,7 @@ class GenericBitVector(BitVectorWithSize):
         else:
             return self.add_bits(self.make(array_from_rbigint(self.size(), rval.abs())))
 
+    @jit.look_inside_iff(lambda self, i: jit.isconstant(i))
     def lshift(self, i):
         from rpython.rlib.rbigint import NULLDIGIT, _load_unsigned_digit
         if i < 0:
@@ -801,6 +806,7 @@ class GenericBitVector(BitVectorWithSize):
                 wordshift += 1
         return self.make(resdata, True)
 
+    @jit.unroll_safe
     def rshift(self, i):
         if i < 0:
             raise ValueError("negative shift count")
@@ -839,6 +845,7 @@ class GenericBitVector(BitVectorWithSize):
             res = res.or_(MASKS.get(i).lshift(size - i))
         return GenericBitVector.from_bigint(size, res)
 
+    @jit.unroll_safe
     def xor(self, other):
         resdata = self.data[:]
         if isinstance(other, GenericBitVector):
@@ -849,6 +856,7 @@ class GenericBitVector(BitVectorWithSize):
             resdata[0] ^= other.val
         return self.make(resdata)
 
+    @jit.unroll_safe
     def or_(self, other):
         resdata = self.data[:]
         if isinstance(other, GenericBitVector):
@@ -859,6 +867,7 @@ class GenericBitVector(BitVectorWithSize):
             resdata[0] |= other.val
         return self.make(resdata)
 
+    @jit.unroll_safe
     def and_(self, other):
         if isinstance(other, GenericBitVector):
             resdata = self.data[:]
@@ -869,6 +878,7 @@ class GenericBitVector(BitVectorWithSize):
             assert isinstance(other, SparseBitVector)
             return SparseBitVector(self.size(), self.data[0] & other.val)
 
+    @jit.unroll_safe
     def invert(self):
         resdata = [~x for x in self.data]
         return self.make(resdata, normalize=True)
@@ -896,6 +906,7 @@ class GenericBitVector(BitVectorWithSize):
                 res |= (data[wordshift + 1] << antibitshift)
         return ruint_mask(width, res)
 
+    @jit.unroll_safe
     def zero_extend(self, i):
         if i == self.size():
             return self
@@ -914,6 +925,7 @@ class GenericBitVector(BitVectorWithSize):
         return self._sign_extend(size, self.data, i)
 
     @staticmethod
+    @jit.unroll_safe
     def _sign_extend(size, data, i):
         assert i > size
         hbit_word_index, hbit_index = GenericBitVector._data_indexes(size - 1)
@@ -995,6 +1007,7 @@ class GenericBitVector(BitVectorWithSize):
     def unsigned(self):
         return Integer.from_data_and_sign(self.data, 1)
 
+    @jit.unroll_safe
     def eq(self, other):
         assert self.size() == other.size()
         if isinstance(other, GenericBitVector):
@@ -1006,6 +1019,7 @@ class GenericBitVector(BitVectorWithSize):
                     return False
             return other.val == self.data[0]
 
+    @jit.unroll_safe
     def toint(self):
         for i in range(1, len(self.data)):
             if self.data[i]:
@@ -1015,6 +1029,7 @@ class GenericBitVector(BitVectorWithSize):
             raise ValueError
         return intmask(lastdigit)
 
+    @jit.unroll_safe
     def touint(self, expected_width=0):
         if expected_width:
             assert self.size() == expected_width
@@ -1027,6 +1042,7 @@ class GenericBitVector(BitVectorWithSize):
         jit.jit_debug("GenericBitVector.tobigint")
         return rbigint_from_array(self.data)
 
+    @jit.unroll_safe
     def replicate(self, i):
         size = self.size()
         jit.jit_debug("GenericBitVector.replicate")
@@ -1048,6 +1064,7 @@ class GenericBitVector(BitVectorWithSize):
         return GenericBitVector(i, self.data[:length], normalize=True)
 
     @staticmethod
+    @jit.unroll_safe
     def _append(self, other):
         # self and other can be arbitrary bitvectors
         if isinstance(other, SmallBitVector):
@@ -1450,6 +1467,7 @@ class BigInteger(Integer):
                 res |= self.data[wordindex + 1] << antibitshift
         return ruint_mask(length, res)
 
+    @jit.unroll_safe
     def eq(self, other):
         if isinstance(other, SmallInteger):
             return self.int_eq(other.val)
@@ -1645,7 +1663,7 @@ class BigInteger(Integer):
             res = res.sub(other)
         return Integer.from_bigint(res)
 
-    @jit.look_inside_iff(lambda self, i: jit.isconstant(i))
+    @jit.unroll_safe
     def rshift(self, i):
         assert i >= 0
         if i == 0 or self.sign == 0:
@@ -1674,19 +1692,22 @@ class BigInteger(Integer):
                 accum = digit << antibitshift
         return Integer.from_data_and_sign(resdata, 1)
 
-    @jit.look_inside_iff(lambda self, i: jit.isconstant(i))
     def lshift(self, i):
         assert i >= 0
         if i == 0 or self.sign == 0:
             return self
+        resdata = self._lshift_data(self.data, i)
+        return Integer.from_data_and_sign(resdata, self.sign)
 
+    @staticmethod
+    @jit.look_inside_iff(lambda data, i: jit.isconstant(i))
+    def _lshift_data(data, i):
         wordshift, bitshift = _data_indexes(i)
-        data = self.data
         if not bitshift:
-            resdata = [r_uint(0)] * wordshift + self.data
+            resdata = [r_uint(0)] * wordshift + data
         else:
             accum = r_uint(0)
-            newsize = len(self.data) + wordshift + 1
+            newsize = len(data) + wordshift + 1
             resdata = [r_uint(0)] * newsize
             antibitshift = 64 - bitshift
             j = 0
@@ -1697,7 +1718,7 @@ class BigInteger(Integer):
                 accum = digit >> antibitshift
                 wordshift += 1
             resdata[wordshift] = accum
-        return Integer.from_data_and_sign(resdata, self.sign)
+        return resdata
 
     def pack(self):
         jit.jit_debug("BigInteger.pack")

@@ -2574,3 +2574,61 @@ def test_hypothesis_int_str(i):
 def test_hypothesis_int_from_ruint_to_uint_roundtrips(ui):
     assert Integer.from_ruint(ui).touint() == ui
 
+def test_efficient_append(monkeypatch):
+    monkeypatch.setattr(bitvector.SmallBitVector, 'tobigint', None)
+    monkeypatch.setattr(bitvector.GenericBitVector, 'tobigint', None)
+    monkeypatch.setattr(bitvector.SparseBitVector, 'tobigint', None)
+    v1 = bv(64, 0xa9e3)
+    v2 = bv(16, 0x04fb)
+    res = v1.append(v2)
+    assert isinstance(res, SparseBitVector)
+    assert res.toint() == 0xa9e304fb
+
+    v1 = bv(64, 0xa9e3)
+    v2 = bv(56, 0x04fb)
+    res = v1.append(v2)
+    assert isinstance(res, bitvector.GenericBitVector)
+    assert res.rval().tolong() == (0xa9e3 << 56) | 0x04fb
+
+    v1 = sbv(128, 0xa9e3)
+    v2 = sbv(128, 0x04fb)
+    res = v1.append(v2)
+    assert isinstance(res, bitvector.GenericBitVector)
+    assert res.rval().tolong() == (0xa9e3 << 128) | 0x04fb
+
+    v1 = sbv(128, 0xa9e3)
+    v2 = bitvector.GenericBitVector(128, [r_uint(0), r_uint(0x04fb)])
+    res = v1.append(v2)
+    assert isinstance(res, bitvector.GenericBitVector)
+    assert res.rval().tolong() == (0xa9e3 << 128) | (0x04fb << 64)
+
+def test_efficient_append64(monkeypatch):
+    monkeypatch.setattr(bitvector.SmallBitVector, 'tobigint', None)
+    monkeypatch.setattr(bitvector.GenericBitVector, 'tobigint', None)
+    monkeypatch.setattr(bitvector.SparseBitVector, 'tobigint', None)
+
+    v1 = bv(64, 0x0)
+    res = v1.append_64(r_uint(0x04fb))
+    assert isinstance(res, SparseBitVector)
+    assert res.val == 0x04fb
+
+    v1 = bv(32, 0xa9e3)
+    res = v1.append_64(r_uint(0x04fb))
+    assert isinstance(res, bitvector.GenericBitVector)
+    assert res.rval().tolong() == (0xa9e3 << 64) | 0x04fb
+    assert res.size() == 64 + 32
+
+    v1 = sbv(128, 0xa9e3)
+    res = v1.append_64(r_uint(0x04fb))
+    assert res.rval().tolong() == (0xa9e3 << 64) | 0x04fb
+    assert res.size() == 64 + 128
+
+    v1 = sbv(128, 0x0)
+    res = v1.append_64(r_uint(0x04fb))
+    assert isinstance(res, SparseBitVector)
+    assert res.val == 0x04fb
+    assert res.size() == 64 + 128
+
+    v1 = bitvector.GenericBitVector(128, [r_uint(0), r_uint(0xa9e3)])
+    res = v1.append_64(r_uint(0x04fb))
+    assert res.data == [r_uint(0x04fb), r_uint(0), r_uint(0xa9e3)]

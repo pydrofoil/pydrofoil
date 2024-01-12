@@ -115,12 +115,10 @@ class BitVector(object):
     def append(self, other):
         if isinstance(other, SmallBitVector) and other.size() == 64:
             return self.append_64(other.val)
-        jit.jit_debug("BitVector.append")
-        return from_bigint(self.size() + other.size(), self.tobigint().lshift(other.size()).or_(other.tobigint()))
+        return GenericBitVector._append(self, other)
 
     def append_64(self, ui):
-        jit.jit_debug("BitVector.append_64")
-        return from_bigint(self.size() + 64, self.tobigint().lshift(64).or_(rbigint_fromrarith_int(ui)))
+        raise NotImplementedError("abstract base class")
 
     def lshift_bits(self, other):
         return self.lshift(other.toint())
@@ -265,9 +263,7 @@ class SmallBitVector(BitVectorWithSize):
         if i == self.size():
             return self
         assert i > self.size()
-        if i > 64:
-            return SparseBitVector(i, self.val)
-        return SmallBitVector(i, self.val)
+        return from_ruint(i, self.val)
 
     @always_inline
     def sign_extend(self, i):
@@ -364,7 +360,7 @@ class SmallBitVector(BitVectorWithSize):
     def append_64(self, ui):
         if not self.val:
             return from_ruint(self.size() + 64, ui)
-        return BitVectorWithSize.append_64(self, ui)
+        return GenericBitVector(self.size() + 64, [ui, self.val])
 
     def pack(self):
         return (self.size(), self.val, None)
@@ -592,9 +588,14 @@ class SparseBitVector(BitVectorWithSize):
         return SparseBitVector(i, self.val)
 
     def append_64(self, ui):
+        newsize = self.size() + 64
         if not self.val:
-            return SparseBitVector(self.size() + 64, ui)
-        return BitVectorWithSize.append_64(self, ui)
+            return SparseBitVector(newsize, ui)
+        size = GenericBitVector._data_size(newsize)
+        resdata = [r_uint(0)] * size
+        resdata[1] = self.val
+        resdata[0] = ui
+        return GenericBitVector(newsize, resdata, normalize=False)
 
     def pack(self):
         return (self.size(), self.val, None)
@@ -1039,15 +1040,29 @@ class GenericBitVector(BitVectorWithSize):
         assert length >= 0
         return GenericBitVector(i, self.data[:length], normalize=True)
 
-    def append(self, other):
+    @staticmethod
+    def _append(self, other):
+        # self and other can be arbitrary bitvectors
         if isinstance(other, SmallBitVector):
             if other.size() == 64:
                 return self.append_64(other.val)
-            res = self.zero_extend(self.size() + other.size()).lshift(other.size())
-            assert isinstance(res, GenericBitVector)
+        res = self.zero_extend(self.size() + other.size()).lshift(other.size())
+        assert not isinstance(res, SmallBitVector)
+        if isinstance(res, SparseBitVector):
+            if isinstance(other, SmallBitVector):
+                res.val |= other.val
+                return res
+        assert isinstance(res, GenericBitVector)
+        if isinstance(other, SmallBitVector):
             res.data[0] |= other.val
             return res
-        return BitVector.append(self, other)
+        if isinstance(other, SparseBitVector):
+            res.data[0] |= other.val
+            return res
+        assert isinstance(other, GenericBitVector)
+        for index, otherdata in enumerate(other.data):
+            res.data[index] |= otherdata
+        return res
 
     def append_64(self, ui):
         return GenericBitVector(self.size() + 64, [ui] + self.data)

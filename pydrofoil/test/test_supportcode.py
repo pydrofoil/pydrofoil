@@ -432,6 +432,12 @@ def test_hypothesis_vector_subrange_unwrapped_res(data):
     bvres = bv.subrange_unwrapped_res(upper, lower)
     assert bvres == correct_res_as_int
 
+def test_sparse_sub_range_unwrapped_res_bug():
+    v = sbv(128, 2164260864)
+    res = supportcode.vector_subrange_o_i_i_unwrapped_res(machine, v, 127, 64)
+    assert res == 0
+    #vector_subrange_o_i_i_unwrapped_res <SparseBitVector 128 2164260864> 127 64 -> 2164260864
+
 @given(strategies.data())
 def Xtest_hypothesis_subrange_unwrapped_res(data):
     bitwidth = data.draw(strategies.integers(1, 10000))

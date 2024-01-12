@@ -486,17 +486,23 @@ class SparseBitVector(BitVectorWithSize):
     def invert(self):
         return self._to_generic().invert()
 
-    def subrange(self,n,m):
+    def subrange(self, n, m):
         assert 0 <= m <= n < self.size()
         width = n - m + 1
         if width <= 64:
             return SmallBitVector(width, self.subrange_unwrapped_res(n,m))
-        return SparseBitVector(width, self.val >> m)
+        if m >= 64:
+            res = r_uint(0)
+        else:
+            res = self.val >> m
+        return SparseBitVector(width, res)
 
     def subrange_unwrapped_res(self, n, m):
         assert 0 <= m <= n < self.size()
         width = n - m + 1
         assert 0 < width <= 64
+        if m >= 64:
+            return r_uint(0)
         return ruint_mask(width, self.val >> m)
 
     def zero_extend(self, i):

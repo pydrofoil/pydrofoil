@@ -1269,8 +1269,8 @@ def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
     start = 0
     stop = 7
     for i in range(n):
-        byte = data.subrange(stop, start)
-        mem.write(addr + i, 1, byte.touint())
+        byte = data.subrange_unwrapped_res(stop, start)
+        mem.write(addr + i, 1, byte)
         stop += 8
         start += 8
     assert start == data.size()

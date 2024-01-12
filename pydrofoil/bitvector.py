@@ -1362,16 +1362,31 @@ class SmallInteger(Integer):
         try:
             return SmallInteger(ovfcheck(a + b))
         except OverflowError:
-            jit.jit_debug("SmallInteger.add_i_i ovf")
-            return Integer.from_bigint(rbigint.fromint(a).int_add(b))
+            selfdata, selfsign = _data_and_sign_from_int(a)
+            otherdata, othersign = _data_and_sign_from_int(b)
+            assert selfsign != 0 and othersign != 0
+            # XXX make BigInteger._add_data a staticmethod and call that instead
+            if selfsign == othersign:
+                resultdata, sign = _data_add(selfdata, otherdata)
+            else:
+                resultdata, sign = _data_sub(otherdata, self.data)
+            return Integer.from_data_and_sign(resultdata, sign * othersign)
 
     @staticmethod
     def sub_i_i(a, b):
         try:
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
-            jit.jit_debug("SmallInteger.sub_i_i ovf")
-            return Integer.from_bigint(rbigint.fromint(b).int_sub(a).neg())
+            selfdata, selfsign = _data_and_sign_from_int(a)
+            otherdata, othersign = _data_and_sign_from_int(b)
+            assert selfsign != 0 and othersign != 0
+            # XXX make BigInteger._sub_data a staticmethod and call that instead
+            if selfsign == othersign:
+                resultdata, sign = _data_sub(selfdata, otherdata)
+            else:
+                resultdata, sign = _data_add(selfdata, otherdata)
+            return Integer.from_data_and_sign(resultdata, sign * selfsign)
+
 
     @staticmethod
     def mul_i_i(a, b):

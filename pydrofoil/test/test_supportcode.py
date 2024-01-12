@@ -2288,6 +2288,11 @@ def test_hypothesis_add_int(bv, i):
     res = bv.add_int(i)
     assert res.tolong() == (bv.tolong() + i.tolong()) % (2 ** bv.size())
 
+@given(bitvectors, wrapped_ints)
+def test_hypothesis_sub_int(bv, i):
+    res = bv.sub_int(i)
+    assert res.tolong() == (bv.tolong() - i.tolong()) % (2 ** bv.size())
+
 @given(strategies.data())
 def test_sparse_hypothesis_truncate(data):
     bitwidth = data.draw(strategies.integers(65, 10000))

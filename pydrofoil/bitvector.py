@@ -185,8 +185,7 @@ class SmallBitVector(BitVectorWithSize):
             rhs = r_uint(i.val)
         else:
             assert isinstance(i, BigInteger)
-            jit.jit_debug("SmallInteger.add_int")
-            rhs = rbigint_extract_ruint(i.rval(), 0)
+            rhs = i.slice_unwrapped_res(64, 0)
         return self.make(self.val + rhs, True)
 
     def add_bits(self, other):
@@ -202,9 +201,10 @@ class SmallBitVector(BitVectorWithSize):
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
             return self.make(self.val - r_uint(i.val), True)
-        # XXX can be better
-        jit.jit_debug("SmallInteger.sub_int")
-        return from_bigint(self.size(), self.rbigint_mask(self.size(), self.tobigint().sub(i.tobigint())))
+        else:
+            assert isinstance(i, BigInteger)
+            rhs = i.slice_unwrapped_res(64, 0)
+        return self.make(self.val - rhs, True)
 
     def lshift(self, i):
         assert i >= 0
@@ -1644,7 +1644,7 @@ class BigInteger(Integer):
         return Integer.from_bigint(rem)
 
     def ediv(self, other):
-        jit.jit_debug("BigInteger.emod")
+        jit.jit_debug("BigInteger.ediv")
         other = other.tobigint()
         if other.int_eq(0):
             raise ZeroDivisionError

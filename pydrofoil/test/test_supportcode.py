@@ -12,9 +12,6 @@ from fractions import Fraction
 from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
 from rpython.rlib.rbigint import rbigint
 
-settings.register_profile("ci", max_examples=10000)
-settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "default"))
-
 def makelong_long_sequences(data, ndigits):
     """ From CPython:
     Get quasi-random long consisting of ndigits digits (in base BASE).

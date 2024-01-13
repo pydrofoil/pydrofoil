@@ -12,6 +12,8 @@ from fractions import Fraction
 from rpython.rlib.rarithmetic import r_uint, intmask, r_ulonglong
 from rpython.rlib.rbigint import rbigint
 
+MININT = -sys.maxint - 1
+
 def makelong_long_sequences(data, ndigits):
     """ From CPython:
     Get quasi-random long consisting of ndigits digits (in base BASE).
@@ -758,22 +760,22 @@ def test_eq_int():
 def test_op_int():
     for c1 in bi, si:
         for c2 in bi, si:
-            for v1 in [-10, 223, 12311, 0, 1, 2**63-1]:
+            for v1 in [-10, 223, 12311, 0, 1, 2**63-1, MININT]:
                 a = c1(v1)
                 assert a.neg().tolong() == -v1
-                for v2 in [-10, 223, 12311, 0, 1, 8, 2**63-1, -2**45]:
+                for v2 in [-10, 223, 12311, 0, 1, 8, 2**63-1, -2**45, MININT]:
+                    v2 = int(v2)
                     b = c2(v2)
                     assert a.add(b).tolong() == v1 + v2
                     assert a.sub(b).tolong() == v1 - v2
                     assert a.mul(b).tolong() == v1 * v2
-                    if v2:
+                    if v2 and v1 != MININT and v2 != MININT:
                         assert c1(abs(v1)).tdiv(c2(abs(v2))).tolong() == abs(v1) // abs(v2)
                         assert c1(abs(v1)).tmod(c2(abs(v2))).tolong() == abs(v1) % abs(v2)
                         # (a/b) * b + a%b == a
                         assert a.tdiv(b).mul(b).add(a.tmod(b)).eq(a)
-                    if isinstance(int(v2), int): # fits into machine int?
-                        assert a.int_add(v2).tolong() == v1 + v2
-                        assert a.int_sub(v2).tolong() == v1 - v2
+                    assert a.int_add(v2).tolong() == v1 + v2
+                    assert a.int_sub(v2).tolong() == v1 - v2
 
                     assert a.eq(b) == (v1 == v2)
                     assert a.lt(b) == (v1 < v2)

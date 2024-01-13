@@ -1363,19 +1363,19 @@ class SmallInteger(Integer):
             return SmallInteger(ovfcheck(a + b))
         except OverflowError:
             selfdata, selfsign = _data_and_sign_from_int(a)
-            otherdata, othersign = _data_and_sign_from_int(b)
-            assert selfsign != 0 and othersign != 0
-            return BigInteger._add_data(selfdata, selfsign, otherdata, othersign)
+            assert selfsign != 0 and b
+            return BigInteger._add_int(selfdata, selfsign, b)
 
     @staticmethod
     def sub_i_i(a, b):
         try:
             return SmallInteger(ovfcheck(a - b))
         except OverflowError:
+            if not a:
+                return SmallInteger(b).neg()
             selfdata, selfsign = _data_and_sign_from_int(a)
-            otherdata, othersign = _data_and_sign_from_int(b)
-            assert selfsign != 0 and othersign != 0
-            return BigInteger._sub_data(selfdata, selfsign, otherdata, othersign)
+            assert selfsign != 0 and b
+            return BigInteger._sub_int(selfdata, selfsign, b)
 
     @staticmethod
     def mul_i_i(a, b):
@@ -1525,8 +1525,6 @@ class BigInteger(Integer):
         if self.sign == 0:
             return other
         if isinstance(other, SmallInteger):
-            if not other.val:
-                return self
             return self.int_add(other.val)
         assert isinstance(other, BigInteger)
         othersign = other.sign
@@ -1567,8 +1565,6 @@ class BigInteger(Integer):
 
     def sub(self, other):
         if isinstance(other, SmallInteger):
-            if not self.sign:
-                return other.neg()
             return self.int_sub(other.val)
         assert isinstance(other, BigInteger)
         othersign = other.sign
@@ -1594,9 +1590,23 @@ class BigInteger(Integer):
             return self
         if not self.sign:
             return SmallInteger(other).neg()
-        # XXX could be improved, but the logic is definitely right
-        otherdata, othersign = _data_and_sign_from_int(other)
-        return self._sub_data(self.data, self.sign, otherdata, othersign)
+        return self._sub_int(self.data, self.sign, other)
+
+    @staticmethod
+    def _sub_int(selfdata, selfsign, other):
+        assert selfsign
+        assert other
+        if other > 0:
+            othersign = 1
+            otherdigit = r_uint(other)
+        else:
+            othersign = -1
+            otherdigit = -r_uint(other)
+        if selfsign == othersign:
+            resultdata, sign = _data_sub1(selfdata, otherdigit)
+        else:
+            resultdata, sign = _data_add1(selfdata, otherdigit)
+        return Integer.from_data_and_sign(resultdata, sign * selfsign)
 
     def neg(self):
         return Integer.from_data_and_sign(self.data, -self.sign)

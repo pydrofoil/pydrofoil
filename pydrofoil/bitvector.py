@@ -1547,9 +1547,23 @@ class BigInteger(Integer):
             return self
         if not self.sign:
             return SmallInteger(other)
-        # XXX could be improved, but the logic is definitely right
-        otherdata, othersign = _data_and_sign_from_int(other)
-        return self._add_data(self.data, self.sign, otherdata, othersign)
+        return self._add_int(self.data, self.sign, other)
+
+    @staticmethod
+    def _add_int(selfdata, selfsign, other):
+        assert other
+        if other > 0:
+            othersign = 1
+            otherdigit = r_uint(other)
+        else:
+            othersign = -1
+            otherdigit = -r_uint(other)
+        if selfsign == othersign:
+            resultdata, sign = _data_add1(selfdata, otherdigit)
+        else:
+            resultdata, sign = _data_sub1(selfdata, otherdigit)
+            sign = -sign
+        return Integer.from_data_and_sign(resultdata, sign * othersign)
 
     def sub(self, other):
         if isinstance(other, SmallInteger):
@@ -1750,6 +1764,7 @@ def _data_and_sign_from_int(value):
 
 @jit.unroll_safe
 def _data_add(selfdata, otherdata):
+    # XXX get rid of the , 1 return
     size_self = len(selfdata)
     size_other = len(otherdata)
     assert size_self and size_other
@@ -1774,6 +1789,28 @@ def _data_add(selfdata, otherdata):
         resdata[i] = res
     resdata[i + 1] = carry
     return resdata, 1
+
+@jit.unroll_safe
+def _data_add1(selfdata, otherdigit):
+    size_self = len(selfdata)
+    assert size_self
+
+    index = 0
+    i = 0
+    res = selfdata[0] + otherdigit
+    carry = res < otherdigit
+    if size_self == 1 and not carry:
+        return [res], 1
+    resdata = [r_uint(0)] * (size_self + 1)
+    resdata[0] = res
+    carry = r_uint(carry)
+    for i in range(1, size_self):
+        res = selfdata[i] + carry
+        carry = r_uint(res < carry)
+        resdata[i] = res
+    resdata[i + 1] = carry
+    return resdata, 1
+
 
 @jit.unroll_safe
 def _data_sub(selfdata, otherdata):
@@ -1816,6 +1853,34 @@ def _data_sub(selfdata, otherdata):
         i += 1
     assert carry == 0
     return resdata, sign
+
+@jit.unroll_safe
+def _data_sub1(selfdata, otherdigit):
+    size_self = len(selfdata)
+
+    assert selfdata
+    selfdigit = selfdata[0]
+    if size_self == 1:
+        sign = 1
+        if selfdigit == otherdigit:
+            return [], 0
+        if selfdigit < otherdigit:
+            sign = -1
+            selfdigit, otherdigit = otherdigit, selfdigit
+        return [selfdigit - otherdigit], sign
+
+    resdata = [r_uint(0)] * size_self
+    carry = r_uint(selfdigit < otherdigit)
+    resdata[0] = selfdigit - otherdigit
+    i = 1
+    while i < size_self:
+        selfvalue = selfdata[i]
+        resdata[i] = selfvalue - carry
+        carry = r_uint(selfvalue < carry)
+        i += 1
+    assert carry == 0
+    return resdata, 1
+
 
 @jit.unroll_safe
 def _data_lt(selfdata, selfsign, otherdata, othersign):

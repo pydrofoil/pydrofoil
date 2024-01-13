@@ -771,6 +771,9 @@ def test_op_int():
                         assert c1(abs(v1)).tmod(c2(abs(v2))).tolong() == abs(v1) % abs(v2)
                         # (a/b) * b + a%b == a
                         assert a.tdiv(b).mul(b).add(a.tmod(b)).eq(a)
+                    if isinstance(int(v2), int): # fits into machine int?
+                        assert a.int_add(v2).tolong() == v1 + v2
+                        assert a.int_sub(v2).tolong() == v1 - v2
 
                     assert a.eq(b) == (v1 == v2)
                     assert a.lt(b) == (v1 < v2)

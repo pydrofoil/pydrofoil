@@ -1354,8 +1354,8 @@ class SmallInteger(Integer):
                 return SmallInteger(ovfcheck(a << i))
             except OverflowError:
                 pass
-        jit.jit_debug("SmallInteger.lshift_i_i ovf")
-        return Integer.from_bigint(rbigint.fromint(a).lshift(i))
+        data, sign = _data_and_sign_from_int(a)
+        return Integer.from_data_and_sign(BigInteger._lshift_data(data, i), sign)
 
     @staticmethod
     def add_i_i(a, b):

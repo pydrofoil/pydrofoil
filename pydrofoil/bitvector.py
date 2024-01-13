@@ -1365,12 +1365,7 @@ class SmallInteger(Integer):
             selfdata, selfsign = _data_and_sign_from_int(a)
             otherdata, othersign = _data_and_sign_from_int(b)
             assert selfsign != 0 and othersign != 0
-            # XXX make BigInteger._add_data a staticmethod and call that instead
-            if selfsign == othersign:
-                resultdata, sign = _data_add(selfdata, otherdata)
-            else:
-                resultdata, sign = _data_sub(otherdata, self.data)
-            return Integer.from_data_and_sign(resultdata, sign * othersign)
+            return BigInteger._add_data(selfdata, selfsign, otherdata, othersign)
 
     @staticmethod
     def sub_i_i(a, b):
@@ -1380,13 +1375,7 @@ class SmallInteger(Integer):
             selfdata, selfsign = _data_and_sign_from_int(a)
             otherdata, othersign = _data_and_sign_from_int(b)
             assert selfsign != 0 and othersign != 0
-            # XXX make BigInteger._sub_data a staticmethod and call that instead
-            if selfsign == othersign:
-                resultdata, sign = _data_sub(selfdata, otherdata)
-            else:
-                resultdata, sign = _data_add(selfdata, otherdata)
-            return Integer.from_data_and_sign(resultdata, sign * selfsign)
-
+            return BigInteger._sub_data(selfdata, selfsign, otherdata, othersign)
 
     @staticmethod
     def mul_i_i(a, b):
@@ -1543,14 +1532,14 @@ class BigInteger(Integer):
         othersign = other.sign
         if othersign == 0:
             return self
-        otherdata = other.data
-        return self._add_data(otherdata, othersign)
+        return self._add_data(self.data, self.sign, other.data, othersign)
 
-    def _add_data(self, otherdata, othersign):
-        if self.sign == othersign:
-            resultdata, sign = _data_add(self.data, otherdata)
+    @staticmethod
+    def _add_data(selfdata, selfsign, otherdata, othersign):
+        if selfsign == othersign:
+            resultdata, sign = _data_add(selfdata, otherdata)
         else:
-            resultdata, sign = _data_sub(otherdata, self.data)
+            resultdata, sign = _data_sub(otherdata, selfdata)
         return Integer.from_data_and_sign(resultdata, sign * othersign)
 
     def int_add(self, other):
@@ -1560,7 +1549,7 @@ class BigInteger(Integer):
             return SmallInteger(other)
         # XXX could be improved, but the logic is definitely right
         otherdata, othersign = _data_and_sign_from_int(other)
-        return self._add_data(otherdata, othersign)
+        return self._add_data(self.data, self.sign, otherdata, othersign)
 
     def sub(self, other):
         if isinstance(other, SmallInteger):
@@ -1574,16 +1563,17 @@ class BigInteger(Integer):
         otherdata = other.data
         if self.sign == 0:
             return Integer.from_data_and_sign(otherdata, -othersign)
-        return self._sub_data(otherdata, othersign)
+        return self._sub_data(self.data, self.sign, otherdata, othersign)
 
-    def _sub_data(self, otherdata, othersign):
-        assert self.sign
+    @staticmethod
+    def _sub_data(selfdata, selfsign, otherdata, othersign):
+        assert selfsign
         assert othersign
-        if self.sign == othersign:
-            resultdata, sign = _data_sub(self.data, otherdata)
+        if selfsign == othersign:
+            resultdata, sign = _data_sub(selfdata, otherdata)
         else:
-            resultdata, sign = _data_add(self.data, otherdata)
-        return Integer.from_data_and_sign(resultdata, sign * self.sign)
+            resultdata, sign = _data_add(selfdata, otherdata)
+        return Integer.from_data_and_sign(resultdata, sign * selfsign)
 
     def int_sub(self, other):
         if not other:
@@ -1592,7 +1582,7 @@ class BigInteger(Integer):
             return SmallInteger(other).neg()
         # XXX could be improved, but the logic is definitely right
         otherdata, othersign = _data_and_sign_from_int(other)
-        return self._sub_data(otherdata, othersign)
+        return self._sub_data(self.data, self.sign, otherdata, othersign)
 
     def neg(self):
         return Integer.from_data_and_sign(self.data, -self.sign)

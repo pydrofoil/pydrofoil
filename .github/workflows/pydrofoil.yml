@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# Limit tests to latest commit on branches other than main
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   build:
 
@@ -38,7 +43,14 @@ jobs:
 
     - name: Test with pytest
       run: |
-        make pydrofoil-test
+        HYPOTHESIS_PROFILE=ci make pydrofoil-test
+
+    - name: Test Coverage for Bitvectors, Integers and Reals
+      if: matrix.os == 'ubuntu-20.04'
+      run: |
+        ./pypy_binary/bin/python -m coverage pypy2/bin/pytest.py pydrofoil/test/test_bitvector.py pydrofoil/test/test_real.py
+        ./pypy_binary/bin/python -m coverage report --include=pydrofoil/bitvector.py --fail-under=100 -m
+        ./pypy_binary/bin/python -m coverage report --include=pydrofoil/real.py --fail-under=95 -m
 
     - name: Translate and run binary
       run: |

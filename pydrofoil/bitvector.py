@@ -75,6 +75,7 @@ class BitVector(object):
     _immutable_fields_ = ['_size']
 
     def __init__(self, size):
+        assert size > 0
         self._size = size
 
     def size(self):
@@ -129,7 +130,7 @@ class SmallBitVector(BitVector):
     _immutable_fields_ = ['val']
 
     def __init__(self, size, val, normalize=False):
-        self._size = size # number of bits
+        BitVector.__init__(self, size)
         assert isinstance(val, r_uint)
         if normalize and size != 64:
             val = val & ((r_uint(1) << size) - 1)
@@ -622,9 +623,8 @@ class GenericBitVector(BitVector):
     _immutable_fields_ = ['data[*]']
 
     def __init__(self, size, data, normalize=False):
-        assert size > 0
+        BitVector.__init__(self, size)
         assert isinstance(data, list)
-        self._size = size
         if normalize:
             self._size_mask(data)
         if 1: # not we_are_translated(): XXX disable later

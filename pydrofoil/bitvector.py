@@ -71,10 +71,19 @@ class MaskHolder(object):
 MASKS = MaskHolder()
 
 class BitVector(object):
-    _attrs_ = []
+    _attrs_ = ['_size']
+    _immutable_fields_ = ['_size']
+
+    def __init__(self, size):
+        self._size = size
 
     def size(self):
-        raise NotImplementedError("abstract base class")
+        return self._size
+
+    def check_size_and_return(self, expected_width):
+        if self.size() != expected_width:
+            raise ValueError
+        return self
 
     def size_as_int(self):
         return Integer.fromint(self.size())
@@ -116,23 +125,7 @@ class BitVector(object):
             return GenericBitVector(size, data)
 
 
-class BitVectorWithSize(BitVector):
-    _attrs_ = ['_size']
-    _immutable_fields_ = ['_size']
-
-    def __init__(self, size):
-        self._size = size
-
-    def size(self):
-        return self._size
-
-    def check_size_and_return(self, expected_width):
-        if self.size() != expected_width:
-            raise ValueError
-        return self
-
-
-class SmallBitVector(BitVectorWithSize):
+class SmallBitVector(BitVector):
     _immutable_fields_ = ['val']
 
     def __init__(self, size, val, normalize=False):
@@ -369,7 +362,7 @@ def rbigint_extract_ruint(self, offset):
         return res
     return res | (self.udigit(wordshift + 1) << (SHIFT - remshift))
 
-class SparseBitVector(BitVectorWithSize):
+class SparseBitVector(BitVector):
     _immutable_fields_ = ['val']
 
     def __init__(self, size, val):
@@ -625,7 +618,7 @@ def rbigint_from_array_and_sign(data, sign):
     return res
 
 
-class GenericBitVector(BitVectorWithSize):
+class GenericBitVector(BitVector):
     _immutable_fields_ = ['data[*]']
 
     def __init__(self, size, data, normalize=False):

@@ -294,7 +294,7 @@ class SmallBitVector(BitVector):
 
     def toint(self):
         if self.size() == 64 and self.read_bit(63):
-                raise OverflowError
+            raise OverflowError
         return intmask(self.val)
 
     def touint(self, expected_width=0):

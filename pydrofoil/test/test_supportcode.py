@@ -290,7 +290,7 @@ def test_hypothesis_set_slice_int(i, start, length, data):
     assert i2.slice(length, start).eq(bv)
     if start:
         assert i2.slice(start, 0).eq(i.slice(start, 0))
-        assert i2.slice(100, start + length).eq(i.slice(100, start + length))
+    assert i2.slice(100, start + length).eq(i.slice(100, start + length))
 
 @given(strategies.integers(1, 1000), strategies.integers(0, sys.maxint), wrapped_ints)
 def test_hypothesis_get_slice_int(length, start, i):
@@ -678,6 +678,9 @@ def test_arith_shiftr():
     res = x.arith_rshift(3)
     assert res.size() == 100
     assert res.tolong() == 0b101
+
+    res = x.arith_rshift(400)
+    assert res.tolong() == 0
 
     with pytest.raises(ValueError):
         x.arith_rshift(-1)
@@ -1737,26 +1740,42 @@ def test_append_64_hypothesis(a, b):
     la = a.tolong()
     lb = int(b)
     res = a.append_64(b)
-    lres = res.tolong()
-    assert lres == (la << 64) | lb
+    lres1 = res.tolong()
+    assert lres1 == (la << 64) | lb
+    res = a.append(bv(64, b))
+    lres2 = res.tolong()
+    assert lres2 == lres1
+
+@given(bitvectors)
+def test_hypothesis_bv_repr_doesnt_crash(bv):
+    repr(bv)
 
 @given(strategies.data())
 def test_hypothesis_bitvector_touint(data):
-    width = data.draw(strategies.integers(1, 64))
-    value = data.draw(strategies.integers(0, 2**width-1))
-    v = bv(width, value)
-    assert v.touint() == v.touint(width) == value
+    width = data.draw(strategies.integers(1, 1000))
+    if width > 64:
+        cs = sbv, gbv
+    else:
+        cs = bv,
+    value = data.draw(strategies.integers(0, 2**min(width, 64)-1))
+    for c in cs:
+        v = c(width, value)
+        assert v.touint() == v.touint(width) == value
+        with pytest.raises(AssertionError):
+            v.touint(width + 1)
+
+@given(strategies.data())
+def test_hypothesis_bitvector_touint_toobig(data):
+    width = data.draw(strategies.integers(65, 1000))
+    value = data.draw(strategies.integers(2**64, 2**width-1))
+    v = gbv(width, value)
+    with pytest.raises(ValueError):
+        v.touint()
+    with pytest.raises(ValueError):
+        v.touint(width)
     with pytest.raises(AssertionError):
         v.touint(width + 1)
 
-@given(strategies.data())
-def test_hypothesis_sparse_bitvector_touint(data):
-    width = data.draw(strategies.integers(65, 1000))
-    value = data.draw(strategies.integers(0, 2**64-1))
-    v = sbv(width, value)
-    assert v.touint() == v.touint(width) == value
-    with pytest.raises(AssertionError):
-        v.touint(width + 1)
 
 # new generic bitvector infrastructure
 
@@ -1852,6 +1871,7 @@ def test_hypothesis_int_toint_error(i):
         bi.toint()
 
 @given(strategies.integers())
+@example(1 << 100)
 def test_hypothesis_fromstr(i):
     assert Integer.fromstr(str(i).strip('L')).tolong() == i
 
@@ -1867,6 +1887,10 @@ def test_hypothesis_int_str(i):
 @given(uints)
 def test_hypothesis_int_from_ruint_to_uint_roundtrips(ui):
     assert Integer.from_ruint(ui).touint() == ui
+
+@given(wrapped_ints)
+def test_hypothesis_int_repr_doesnt_crash(i):
+    repr(i)
 
 def test_efficient_append(monkeypatch):
     tobigint = GenericBitVector.tobigint

@@ -684,7 +684,6 @@ class GenericBitVector(BitVectorWithSize):
 
     def __repr__(self):
         return "<GenericBitVector %s %s>" % (self.size(), self.rval().hex())
-        return "<GenericBitVector %s [%s]>" % (self.size(), ", ".join(hex(x) for x in self.data))
 
     def _size_mask(self, data):
         width = self.size()
@@ -698,15 +697,19 @@ class GenericBitVector(BitVectorWithSize):
                 return self._add_ruint(r_uint(i.val))
             return self._sub_ruint(-r_uint(i.val))
         assert isinstance(i, BigInteger)
-        jit.jit_debug("GenericBitVector.add_int")
-        # XXX easy to fix
-        rval = i.tobigint()
-        sign = rval.get_sign()
+        sign = i.sign
         if sign == 0:
             return self
         elif sign >= 0:
-            return self.add_bits(self.make(array_from_rbigint(self.size(), rval)))
+            resdata, sign = _data_add(self.data, i.data)
+            assert sign == 1
+            if len(resdata) > len(self.data):
+                # XXX don't compute the extra digit
+                resdata = resdata[:len(self.data)]
+            return self.make(resdata, True)
         else:
+            jit.jit_debug("GenericBitVector.add_int negative case")
+            rval = i.tobigint()
             return self.sub_bits(self.make(array_from_rbigint(self.size(), rval.abs())))
 
     @jit.unroll_safe

@@ -671,11 +671,6 @@ class GenericBitVector(BitVectorWithSize):
         return rbigint_from_array(self.data)
 
     @staticmethod
-    @always_inline
-    def _data_indexes(pos):
-        return pos >> 6, pos & 63
-
-    @staticmethod
     def _data_size(bitwidth):
         return (bitwidth >> 6) + bool(bitwidth & 63)
 
@@ -931,12 +926,12 @@ class GenericBitVector(BitVectorWithSize):
     @jit.unroll_safe
     def _sign_extend(size, data, i):
         assert i > size
-        hbit_word_index, hbit_index = GenericBitVector._data_indexes(size - 1)
+        hbit_word_index, hbit_index = _data_indexes(size - 1)
         upper_bits = -r_uint((data[hbit_word_index] >> hbit_index) & 1)
-        wordsize, bitsize = GenericBitVector._data_indexes(i)
+        wordsize, bitsize = _data_indexes(i)
         targetsize = wordsize + bool(bitsize)
         resdata = [upper_bits] * targetsize
-        lastindex, bits = GenericBitVector._data_indexes(size)
+        lastindex, bits = _data_indexes(size)
         for index in range(lastindex):
             resdata[index] = data[index]
         if bits:

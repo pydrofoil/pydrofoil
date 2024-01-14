@@ -471,46 +471,19 @@ def test_real_floor_hypothesis(num, den):
             assert res.tolong() == frac.numerator // frac.denominator
         else:
             assert res.tolong() == -((-frac.numerator) // frac.denominator + 1)
+    assert res.le(r.ceil())
 
 @given(strategies.integers(), positive_ints, strategies.integers(), positive_ints)
-def test_real_eq_hypothesis(num1, den1, num2, den2):
+def test_real_comparisons_hypothesis(num1, den1, num2, den2):
     r1 = rr_den_pos(num1, den1)
     r2 = rr_den_pos(num2, den2)
     frac1 = Fraction(num1, den1)
     frac2 = Fraction(num2, den2)
-    assert r1.eq(r2) == (frac1.numerator == frac2.numerator and frac1.denominator == frac2.denominator)
-
-@given(strategies.integers(), positive_ints, strategies.integers(), positive_ints)
-def test_real_lt_hypothesis(num1, den1, num2, den2):
-    r1 = rr_den_pos(num1, den1)
-    r2 = rr_den_pos(num2, den2)
-    frac1 = Fraction(num1, den1)
-    frac2 = Fraction(num2, den2)
-    assert r1.lt(r2) == (frac1 - frac2 < 0)
-
-@given(strategies.integers(), positive_ints, strategies.integers(), positive_ints)
-def test_real_gt_hypothesis(num1, den1, num2, den2):
-    r1 = rr_den_pos(num1, den1)
-    r2 = rr_den_pos(num2, den2)
-    frac1 = Fraction(num1, den1)
-    frac2 = Fraction(num2, den2)
-    assert r1.gt(r2) == (frac1 - frac2 > 0)
-
-@given(strategies.integers(), positive_ints, strategies.integers(), positive_ints)
-def test_real_le_hypothesis(num1, den1, num2, den2):
-    r1 = rr_den_pos(num1, den1)
-    r2 = rr_den_pos(num2, den2)
-    frac1 = Fraction(num1, den1)
-    frac2 = Fraction(num2, den2)
-    assert r1.le(r2) == (frac1 - frac2 <= 0)
-
-@given(strategies.integers(), positive_ints, strategies.integers(), positive_ints)
-def test_real_ge_hypothesis(num1, den1, num2, den2):
-    r1 = rr_den_pos(num1, den1)
-    r2 = rr_den_pos(num2, den2)
-    frac1 = Fraction(num1, den1)
-    frac2 = Fraction(num2, den2)
-    assert r1.ge(r2) == (frac1 - frac2 >= 0)
+    assert r1.eq(r2) == (frac1 == frac2)
+    assert r1.lt(r2) == (frac1 < frac2)
+    assert r1.gt(r2) == (frac1 > frac2)
+    assert r1.le(r2) == (frac1 <= frac2)
+    assert r1.ge(r2) == (frac1 >= frac2)
 
 @given(strategies.integers().filter(lambda n: n != 0), positive_ints, strategies.integers(min_value = -25, max_value = 25))
 @example(num=-136245869567953879195472884560736319741L, den=1, n=39)

@@ -594,10 +594,21 @@ def test_vector_shift():
     assert res.size() == 8
     assert res.toint() == 0
 
+    x = bv(8, 0b10001101)
+    res = x.rshift(10)
+    assert res.size() == 8
+    assert res.toint() == 0
+
+
     x = gbv(65, 0b10001101)
     res = x.lshift(100)
     assert res.size() == 65
     assert res.toint() == 0
+    x = gbv(65, 0b10001101)
+    res = x.rshift(100)
+    assert res.size() == 65
+    assert res.toint() == 0
+
 
 
 def test_vector_shift_bits():

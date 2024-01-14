@@ -750,12 +750,13 @@ class GenericBitVector(BitVectorWithSize):
                 self._sub_ruint(r_uint(i.val))
             else:
                 self._add_ruint(-r_uint(i.val))
-        jit.jit_debug("GenericBitVector.sub_int")
-        rval = i.tobigint()
-        sign = rval.get_sign()
+        assert isinstance(i, BigInteger)
+        sign = i.sign
         if sign == 0:
             return self
-        elif sign >= 0:
+        jit.jit_debug("GenericBitVector.sub_int")
+        rval = i.tobigint()
+        if sign >= 0:
             return self.sub_bits(self.make(array_from_rbigint(self.size(), rval)))
         else:
             return self.add_bits(self.make(array_from_rbigint(self.size(), rval.abs())))

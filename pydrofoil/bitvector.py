@@ -1461,8 +1461,20 @@ class BigInteger(Integer):
         return "".join(res)
 
     def toint(self):
-        jit.jit_debug("BigInteger.toint")
-        return self.rval().toint()
+        if self.sign == 0:
+            return 0
+        if len(self.data) > 1:
+            raise ValueError
+        digit = self.data[0]
+        if self.sign == -1:
+            if digit == (r_uint(1) << 63):
+                return MININT
+            if digit & (r_uint(1) << 63):
+                raise ValueError
+            return intmask(-digit)
+        if digit & (r_uint(1) << 63):
+            raise ValueError
+        return intmask(digit)
 
     def touint(self):
         jit.jit_debug("BigInteger.touint")

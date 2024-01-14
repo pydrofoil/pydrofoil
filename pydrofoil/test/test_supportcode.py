@@ -2633,6 +2633,28 @@ def test_hypothesis_int_unpack_pack(i):
     i2 = bitvector.Integer.unpack(*tup)
     assert i2.eq(i)
 
+@given(ints)
+@example(MAXINT)
+@example(MININT)
+def test_hypothesis_int_toint(i):
+    si = Integer.fromint(i)
+    assert si.toint() == i
+    data, sign = bitvector._data_and_sign_from_int(i)
+    bi = bitvector.BigInteger(data, sign)
+    assert bi.toint() == i
+
+@given(strategies.integers())
+def test_hypothesis_int_toint_error(i):
+    data, sign = bitvector._data_and_sign_from_int(i)
+    bi = bitvector.BigInteger(data, sign)
+    assume(i != 0)
+    if i > 0:
+        bi = Integer.fromlong(i + MAXINT)
+    elif i < 0:
+        bi = Integer.fromlong(MININT + i)
+    with pytest.raises(ValueError):
+        bi.toint()
+
 @given(strategies.integers())
 def test_hypothesis_fromstr(i):
     assert Integer.fromstr(str(i).strip('L')).tolong() == i

@@ -1018,9 +1018,16 @@ class GenericBitVector(BitVectorWithSize):
     def signed(self):
         n = self.size()
         assert n > 0
-        m = ONERBIGINT.lshift(n - 1)
-        jit.jit_debug("GenericBitVector.signed")
-        return Integer.from_bigint(self.rval().xor(m).sub(m))
+        _, bitindex = _data_indexes(n - 1)
+        # xor = self ^ (1 << (n - 1))
+        xor = self.data[:]
+        xor[-1] ^= r_uint(1) << bitindex
+
+        # subtract (1 << (n - 1))
+        oneshiftnsub1 = [r_uint(0)] * len(self.data)
+        oneshiftnsub1[-1] = r_uint(1) << bitindex
+        resdata, sign = _data_sub(xor, oneshiftnsub1)
+        return Integer.from_data_and_sign(resdata, sign)
 
     def unsigned(self):
         return Integer.from_data_and_sign(self.data, 1)

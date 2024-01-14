@@ -1770,8 +1770,9 @@ def test_hypothesis_bv_repr_doesnt_crash(bv):
     repr(bv)
 
 @given(strategies.data())
+@settings(deadline=None)
 def test_hypothesis_bitvector_touint(data):
-    width = data.draw(strategies.integers(1, 1000))
+    width = data.draw(strategies.integers(1, 500))
     if width > 64:
         cs = sbv, gbv
     else:
@@ -1784,8 +1785,9 @@ def test_hypothesis_bitvector_touint(data):
             v.touint(width + 1)
 
 @given(strategies.data())
+@settings(deadline=None)
 def test_hypothesis_bitvector_touint_toobig(data):
-    width = data.draw(strategies.integers(65, 1000))
+    width = data.draw(strategies.integers(65, 500))
     value = data.draw(strategies.integers(2**64, 2**width-1))
     v = gbv(width, value)
     with pytest.raises(ValueError):

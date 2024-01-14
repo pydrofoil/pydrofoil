@@ -208,7 +208,7 @@ pypy_binary/bin/python:  ## Download a PyPy binary
 	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
 	rm pypy.tar.bz2
 	./pypy_binary/bin/python -m ensurepip
-	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage=5.5
 
 pypy2/rpython/bin/rpython: ## Clone the PyPy submodule
 	git submodule update --init --depth 1

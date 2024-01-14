@@ -40,6 +40,12 @@ jobs:
       run: |
         HYPOTHESIS_PROFILE=ci make pydrofoil-test
 
+    - name: Test Coverage for Bitvectors, Integers and Reals
+      run: |
+        ./pypy_binary/bin/python -m coverage pypy2/bin/pytest.py pydrofoil/test/test_bitvector.py pydrofoil/test/test_real.py
+        ./pypy_binary/bin/python -m coverage report --include=pydrofoil/bitvector.py --fail-under=100 -m
+        ./pypy_binary/bin/python -m coverage report --include=pydrofoil/real.py --fail-under=95 -m
+
     - name: Translate and run binary
       run: |
         make pydrofoil-riscv

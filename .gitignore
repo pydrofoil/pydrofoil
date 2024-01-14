@@ -14,3 +14,10 @@ pydrofoil-riscv-tests.xml
 *.o
 *.so
 *.a
+.coverage
+htmlcov
+pydrofoil-risc
+pydrofoil-arm
+perf.data
+perf.data.old
+callgrind.out*

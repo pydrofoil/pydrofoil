@@ -41,6 +41,7 @@ jobs:
         HYPOTHESIS_PROFILE=ci make pydrofoil-test
 
     - name: Test Coverage for Bitvectors, Integers and Reals
+      if: matrix.or == 'ubuntu-20.04'
       run: |
         ./pypy_binary/bin/python -m coverage pypy2/bin/pytest.py pydrofoil/test/test_bitvector.py pydrofoil/test/test_real.py
         ./pypy_binary/bin/python -m coverage report --include=pydrofoil/bitvector.py --fail-under=100 -m

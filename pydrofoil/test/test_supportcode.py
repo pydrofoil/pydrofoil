@@ -272,6 +272,18 @@ def test_unsigned():
         x = c(64, r_uint(-1))
         assert x.unsigned().tolong() == (1<<64)-1
 
+def test_zero_width_bv_append():
+    # used in the arm model
+    v = bv(0, 0)
+    assert v.size() == 0
+    x = bv(8, 0b10001101)
+    res = x.append(v)
+    assert res.tolong() == 0b10001101
+    assert res.size() == 8
+    res = v.append(x)
+    assert res.tolong() == 0b10001101
+    assert res.size() == 8
+
 def test_get_slice_int():
     for c in si, bi:
         assert supportcode.get_slice_int(machine, Integer.fromint(8), c(0b011010010000), Integer.fromint(4)).tolong() == 0b01101001

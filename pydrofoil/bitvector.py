@@ -75,7 +75,7 @@ class BitVector(object):
     _immutable_fields_ = ['_size']
 
     def __init__(self, size):
-        assert size > 0
+        assert size >= 0
         self._size = size
 
     def size(self):

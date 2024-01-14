@@ -1142,7 +1142,7 @@ class Integer(object):
         while index >= 0 and not data[index]:
             index -= 1
         if index == -1:
-            return SmallInteger(0)
+            return INT_ZERO
         # XXX if index == 0, could fit into a SmallInteger
         if index != len(data) - 1:
             end = index + 1
@@ -1321,7 +1321,7 @@ class SmallInteger(Integer):
                 raise ZeroDivisionError
             if not (self.val == -2**63 and other.val == -1):
                 return SmallInteger(int_c_mod(self.val, other.val))
-            return SmallInteger(0) # anything % -1 == 0
+            return INT_ZERO # anything % -1 == 0
         assert isinstance(other, BigInteger)
         jit.jit_debug("SmallInteger.tmod")
         other = other.tobigint()
@@ -1366,7 +1366,7 @@ class SmallInteger(Integer):
     @staticmethod
     def lshift_i_i(a, i):
         if not a:
-            return SmallInteger(0)
+            return INT_ZERO
         if i < 64:
             try:
                 return SmallInteger(ovfcheck(a << i))
@@ -1405,6 +1405,7 @@ class SmallInteger(Integer):
     def pack(self):
         return (self.val, None)
 
+INT_ZERO = SmallInteger(0)
 
 class BigInteger(Integer):
     _immutable_fields_ = ['data[*]', 'sign']
@@ -1640,7 +1641,7 @@ class BigInteger(Integer):
 
     def int_mul(self, other):
         if not other:
-            return SmallInteger(0)
+            return INT_ZERO
         if other == 1:
             return self
         if other & (other - 1) == 0:
@@ -1725,7 +1726,7 @@ class BigInteger(Integer):
         data = self.data
         newsize = len(data) - wordshift
         if newsize <= 0:
-            return SmallInteger(0)
+            return INT_ZERO
 
         resdata = [r_uint(0)] * newsize
         if not bitshift:

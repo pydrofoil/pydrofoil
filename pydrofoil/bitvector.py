@@ -26,17 +26,10 @@ def bigint_divrem1(a, n):
 
 
 @always_inline
-#@specialize.arg_or_var(0, 1)
 def from_ruint(size, val):
     if size <= 64:
-#        if is_annotation_constant(size) and is_annotation_constant(val):
-#            return _small_bit_vector_memo(size, val)
         return SmallBitVector(size, val, True)
     return SparseBitVector(size, val)
-
-@specialize.memo()
-def _small_bit_vector_memo(size, val):
-    return SmallBitVector(size, val)
 
 @always_inline
 def from_bigint(size, rval):

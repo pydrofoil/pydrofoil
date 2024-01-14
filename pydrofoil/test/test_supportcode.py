@@ -395,7 +395,6 @@ def test_hypothesis_sign_extend(data):
     bitwidth = data.draw(strategies.integers(1, 1000))
     target_bitwidth = bitwidth + data.draw(strategies.integers(0, 100))
     value = data.draw(strategies.integers(0, 2**bitwidth - 1))
-    print bitwidth, target_bitwidth, value
     bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
     res = bv.sign_extend(target_bitwidth)
     assert bv.signed().tobigint().tolong() == res.signed().tobigint().tolong()

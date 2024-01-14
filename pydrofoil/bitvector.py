@@ -132,7 +132,6 @@ class BitVector(object):
             assert data is None
             return SmallBitVector(size, val)
         elif data is None:
-            assert data is None
             return SparseBitVector(size, val)
         else:
             return GenericBitVector(size, data)
@@ -1414,6 +1413,7 @@ class SmallInteger(Integer):
 
 INT_ZERO = SmallInteger(0)
 
+HEXCHARS = '0123456789abcdef'
 
 class BigInteger(Integer):
     _immutable_fields_ = ['data[*]', 'sign']
@@ -1434,8 +1434,31 @@ class BigInteger(Integer):
         return self.rval().str()
 
     def hex(self):
-        jit.jit_debug("BigInteger.hex")
-        return self.rval().hex()
+        from rpython.rlib.rstring import StringBuilder
+        res = ['0'] * (len(self.data) * 16 + (self.sign == -1) + 3)
+        next_digit_index = len(res) - 1
+        res[next_digit_index] = 'L'
+        next_digit_index -= 1
+        for digitindex, digit in enumerate(self.data):
+            for i in range(16):
+                nibble = digit & 0xf
+                digit >>= 4
+                res[next_digit_index] = HEXCHARS[intmask(nibble)]
+                next_digit_index -= 1
+                if digitindex == len(self.data) - 1 and not digit:
+                    break
+        res[next_digit_index] = 'x'
+        next_digit_index -= 1
+        res[next_digit_index] = '0'
+        next_digit_index -= 1
+        if self.sign == -1:
+            res[next_digit_index] = '-'
+            next_digit_index -= 1
+        next_digit_index += 1
+        assert next_digit_index >= 0
+        if next_digit_index > 0:
+            res = res[next_digit_index:]
+        return "".join(res)
 
     def toint(self):
         jit.jit_debug("BigInteger.toint")

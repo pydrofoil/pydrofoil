@@ -41,7 +41,8 @@ def _small_bit_vector_memo(size, val):
 @always_inline
 def from_bigint(size, rval):
     if size <= 64:
-        return SmallBitVector(size, BitVector.rbigint_mask(size, rval).touint())
+        value = rbigint_extract_ruint(rval, 0)
+        return SmallBitVector(size, value, True)
     return GenericBitVector.from_bigint(size, rval)
 
 @always_inline
@@ -92,21 +93,6 @@ class BitVector(object):
         else:
             res = self.tobigint().format("01")
             return "0b%s%s" % ("0" * max(0, self.size() - len(res)), res)
-
-    @staticmethod
-    def rbigint_mask(size, rval):
-        res = BitVector._rbigint_mask(size, rval)
-        # rbigint_mask is idempotent
-        #jit.record_known_result(res, BitVector._rbigint_mask, size, res)
-        return res
-
-    @staticmethod
-    @jit.elidable
-    def _rbigint_mask(size, rval):
-        if rval.get_sign() >= 0 and rval.bit_length() <= size:
-            return rval
-        mask = MASKS.get(size)
-        return rval.and_(mask)
 
     @not_rpython
     def tolong(self): # only for tests:

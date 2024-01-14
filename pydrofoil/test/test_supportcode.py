@@ -1,6 +1,5 @@
 import os
 import pytest
-import math
 import sys
 
 from pydrofoil import supportcode
@@ -1511,7 +1510,6 @@ def test_sparse_bv_bitwise():
     assert res.toint() == 0b11110000 ^ 0b11001100
 
 def test_sparse_zero_extend():
-    # XXX Should I test it with support code?
     v = sbv(65, 0b0)
     res = v.zero_extend(100)
     assert res.size() == 100
@@ -1533,7 +1531,6 @@ def test_sparse_zero_extend():
     assert res.toint() == 0b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011
 
 def test_sparse_sign_extend():
-    # XXX Should I test it with support code?
     v = sbv(65, 0b0)
     res = v.sign_extend(100)
     assert res.size() == 100
@@ -1556,25 +1553,23 @@ def test_sparse_sign_extend():
 
 
 def test_sparse_vector_subrange():
-    # XXX Regression bug and sail implementation
     v = sbv(100, 0b111)
     r = v.subrange(3, 2)
     assert r.size() == 2
     assert r.toint() == 1
     assert isinstance(r, bitvector.SmallBitVector)
 
-    # BUG Doesnt work on 64 width
-    # v = sbv(65, 0b111)
-    # r = v.subrange(63, 0)
-    # assert r.size() == 64
-    # assert r.toint() == 0b111
-    # assert isinstance(r, bitvector.SmallBitVector)
+    v = sbv(65, 0b111)
+    r = v.subrange(63, 0)
+    assert r.size() == 64
+    assert r.toint() == 0b111
+    assert isinstance(r, bitvector.SmallBitVector)
 
-    # v = sbv(100, 0b101010101)
-    # r = v.subrange(65, 2)
-    # assert r.size() == 64
-    # assert r.toint() == 0b101010
-    # assert isinstance(r, bitvector.SmallBitVector)
+    v = sbv(100, 0b101010101)
+    r = v.subrange(65, 2)
+    assert r.size() == 64
+    assert r.toint() == 0b1010101
+    assert isinstance(r, bitvector.SmallBitVector)
 
     v = sbv(100, 0b101010101)
     r = v.subrange(5, 0)
@@ -1921,7 +1916,7 @@ def test_sparse_hypothesis_signed(data):
     bitwidth = data.draw(strategies.integers(65,10000))
     value = data.draw(strategies.integers(-(2**63), (2**63)- 1))
     v = SparseBitVector(bitwidth, r_uint(value))
-    # it could never be negative when interpret as signed
+    # it can never be negative when interpreted as signed
     assert v.signed().tolong() >= 0
     assert v.signed().tolong() == r_uint(value)
 

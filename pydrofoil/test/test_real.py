@@ -34,11 +34,6 @@ def test_add_real():
     y = Real.fromint(-9, 3)
     res = x.add(y)
     assert res.toint() == -1
-    # Test for denominator equal to 0
-    # x = Real.fromint(3, 0)
-    # y = Real.fromint(2, 5)
-    # res = x.add(y)
-    # assert res.toint() == 1
 
 def test_sub_real():
     x = Real.fromint(16)

@@ -696,8 +696,7 @@ class GenericBitVector(BitVectorWithSize):
         if sign == 0:
             return self
         elif sign >= 0:
-            resdata, sign = _data_add(self.data, i.data)
-            assert sign == 1
+            resdata = _data_add(self.data, i.data)
             if len(resdata) > len(self.data):
                 # XXX don't compute the extra digit
                 resdata = resdata[:len(self.data)]
@@ -1209,7 +1208,7 @@ class SmallInteger(Integer):
         if len > 64:
             if n > 0:
                 return SparseBitVector(len, r_uint(n))
-            jit.jit_debug("SmallInteger.slice")
+            jit.jit_debug("SmallInteger.slice large width negative case")
             return from_bigint(len, rbigint.fromint(n))
         return from_ruint(len, r_uint(n))
 
@@ -1554,7 +1553,8 @@ class BigInteger(Integer):
     @staticmethod
     def _add_data(selfdata, selfsign, otherdata, othersign):
         if selfsign == othersign:
-            resultdata, sign = _data_add(selfdata, otherdata)
+            resultdata = _data_add(selfdata, otherdata)
+            sign = 1
         else:
             resultdata, sign = _data_sub(otherdata, selfdata)
         return Integer.from_data_and_sign(resultdata, sign * othersign)
@@ -1601,7 +1601,8 @@ class BigInteger(Integer):
         if selfsign == othersign:
             resultdata, sign = _data_sub(selfdata, otherdata)
         else:
-            resultdata, sign = _data_add(selfdata, otherdata)
+            resultdata = _data_add(selfdata, otherdata)
+            sign = 1
         return Integer.from_data_and_sign(resultdata, sign * selfsign)
 
     def int_sub(self, other):
@@ -1793,7 +1794,6 @@ def _data_and_sign_from_int(value):
 
 @jit.unroll_safe
 def _data_add(selfdata, otherdata):
-    # XXX get rid of the , 1 return
     size_self = len(selfdata)
     size_other = len(otherdata)
     assert size_self and size_other
@@ -1817,7 +1817,7 @@ def _data_add(selfdata, otherdata):
         carry = r_uint(res < carry)
         resdata[i] = res
     resdata[i + 1] = carry
-    return resdata, 1
+    return resdata
 
 @jit.unroll_safe
 def _data_add1(selfdata, otherdigit):

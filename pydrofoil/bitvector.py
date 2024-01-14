@@ -353,19 +353,19 @@ class SmallBitVector(BitVectorWithSize):
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
-def rbigint_extract_ruint(self, int_other):
+def rbigint_extract_ruint(self, offset):
     from rpython.rlib.rbigint import SHIFT
     from rpython.rlib.rbigint import NULLDIGIT, _load_unsigned_digit
-    assert int_other >= 0
+    assert offset >= 0
     assert SHIFT * 2 > 64
-    # wordshift, remshift = divmod(int_other, SHIFT)
-    wordshift = int_other // SHIFT
-    remshift = int_other - wordshift * SHIFT
+    # wordshift, remshift = divmod(offset, SHIFT)
+    wordshift = offset // SHIFT
+    remshift = offset - wordshift * SHIFT
     numdigits = self.numdigits()
     sign = self.get_sign()
     if sign == -1:
         # XXX needs to be better but I keep running into bugs
-        return ~rbigint_extract_ruint(self.invert(), int_other)
+        return ~rbigint_extract_ruint(self.invert(), offset)
     assert sign >= 0
     if wordshift >= numdigits:
         return r_uint(0)

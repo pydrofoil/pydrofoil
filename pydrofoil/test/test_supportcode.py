@@ -282,6 +282,7 @@ def test_get_slice_int():
         assert supportcode.get_slice_int(machine, Integer.fromint(64), c(-1), Integer.fromint(1000)).tolong() == 0xffffffffffffffff
         assert supportcode.get_slice_int(machine, Integer.fromint(100), c(-1), Integer.fromint(1000)).tolong() == 0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
+
 @given(wrapped_ints, strategies.integers(0, 100), strategies.integers(1, 100), strategies.data())
 def test_hypothesis_set_slice_int(i, start, length, data):
     value = data.draw(strategies.integers(0, 2**length - 1))
@@ -386,8 +387,14 @@ def test_hypothesis_check_size_and_return(bv):
         bv.check_size_and_return(bv.size() - 1)
 
 def test_toint_overflow():
-    with pytest.raises(OverflowError):
+    with pytest.raises(ValueError):
         bv(64, r_uint(-1)).toint()
+    with pytest.raises(ValueError):
+        sbv(70, r_uint(-1)).toint()
+    with pytest.raises(ValueError):
+        gbv(100, r_uint(-1)).toint()
+    with pytest.raises(ValueError):
+        gbv(100, 1 << 64).toint()
 
 @settings(deadline=1000)
 @given(strategies.data())
@@ -1880,6 +1887,7 @@ def test_hypothesis_fromlong(i):
     assert Integer.fromlong(i).tolong() == i
 
 @given(strategies.integers())
+@example((1 << 129) + 38882882)
 def test_hypothesis_int_str(i):
     assert Integer.fromlong(i).str() == str(i)
     assert Integer.fromlong(i).hex() == hex(i)

@@ -294,7 +294,7 @@ class SmallBitVector(BitVector):
 
     def toint(self):
         if self.size() == 64 and self.read_bit(63):
-            raise OverflowError
+            raise ValueError
         return intmask(self.val)
 
     def touint(self, expected_width=0):
@@ -541,7 +541,7 @@ class SparseBitVector(BitVector):
 
     def toint(self):
         if self.read_bit(63):
-            raise OverflowError
+            raise ValueError
         return intmask(self.val)
 
     def touint(self, expected_width=0):
@@ -1067,8 +1067,7 @@ class GenericBitVector(BitVector):
     def _append(self, other):
         # self and other can be arbitrary bitvectors
         if isinstance(other, SmallBitVector):
-            if other.size() == 64:
-                return self.append_64(other.val)
+            assert other.size() != 64 # caught by the case in BitVector.append
         res = self.zero_extend(self.size() + other.size()).lshift(other.size())
         assert not isinstance(res, SmallBitVector)
         if isinstance(res, SparseBitVector):

@@ -1407,6 +1407,7 @@ class SmallInteger(Integer):
 
 INT_ZERO = SmallInteger(0)
 
+
 class BigInteger(Integer):
     _immutable_fields_ = ['data[*]', 'sign']
 
@@ -1518,8 +1519,13 @@ class BigInteger(Integer):
 
     def lt(self, other):
         if isinstance(other, SmallInteger):
-            # XXX could be improved, but the logic is definitely right
-            otherdata, othersign = _data_and_sign_from_int(other.val)
+            if other.val > 0:
+                othersign = 1
+                otherdigit = r_uint(other.val)
+            else:
+                othersign = -1
+                otherdigit = -r_uint(other.val)
+            return _data_lt1(self.data, self.sign, otherdigit, othersign)
         else:
             assert isinstance(other, BigInteger)
             othersign = other.sign
@@ -1914,36 +1920,38 @@ def _data_sub1(selfdata, otherdigit):
 
 @jit.unroll_safe
 def _data_lt(selfdata, selfsign, otherdata, othersign):
-    if selfsign > othersign:
-        return False
-    if selfsign < othersign:
-        return True
+    if selfsign != othersign:
+        return selfsign < othersign
     ld1 = len(selfdata)
     ld2 = len(otherdata)
     if ld1 > ld2:
-        if othersign > 0:
-            return False
-        else:
-            return True
+        return othersign <= 0
     elif ld1 < ld2:
-        if othersign > 0:
-            return True
-        else:
-            return False
+        return othersign > 0
     i = ld1 - 1
     while i >= 0:
         d1 = selfdata[i]
         d2 = otherdata[i]
-        if d1 < d2:
-            if othersign > 0:
-                return True
-            else:
-                return False
-        elif d1 > d2:
-            if othersign > 0:
-                return False
-            else:
-                return True
+        if d1 > d2:
+            return othersign <= 0
+        elif d1 < d2:
+            return othersign > 0
         i -= 1
+    return False
+
+@jit.unroll_safe
+def _data_lt1(selfdata, selfsign, otherdigit, othersign):
+    if selfsign != othersign:
+        return selfsign < othersign
+    ld1 = len(selfdata)
+    if ld1 > 1:
+        return othersign <= 0
+    assert ld1 == 1
+    d1 = selfdata[0]
+    d2 = otherdigit
+    if d1 > d2:
+        return othersign <= 0
+    elif d1 < d2:
+        return othersign > 0
     return False
 

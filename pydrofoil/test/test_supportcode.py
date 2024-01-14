@@ -436,16 +436,6 @@ def test_sparse_sub_range_unwrapped_res_bug():
     assert res == 0
     #vector_subrange_o_i_i_unwrapped_res <SparseBitVector 128 2164260864> 127 64 -> 2164260864
 
-@given(strategies.data())
-def Xtest_hypothesis_subrange_unwrapped_res(data):
-    bitwidth = data.draw(strategies.integers(1, 10000))
-    start = data.draw(strategies.integers(0, 2 * bitwidth))
-    value = data.draw(strategies.integers(0, 2**bitwidth - 1))
-    rb = rbigint.fromlong(value)
-    bv = bitvector.from_bigint(bitwidth, rb)
-    res = bv.subrange_unwrapped_res(start + 63, start)
-    assert res == rb.rshift(start).and_(rbigint.fromlong(2**64-1)).tolong()
-
 @given(strategies.integers(), strategies.integers(0, 100))
 @example(-9223372036854775935L, 1)
 @example(-9223372036854775809L, 63)

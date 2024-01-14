@@ -650,6 +650,7 @@ class GenericBitVector(BitVectorWithSize):
 
     @staticmethod
     def from_bigint(size, data):
+        jit.jit_debug("GenericBitVector.from_bigint")
         return GenericBitVector(size, array_from_rbigint(size, data))
 
     def rval(self):

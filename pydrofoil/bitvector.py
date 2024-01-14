@@ -179,19 +179,22 @@ class SmallBitVector(BitVector):
         return self.make(self.val - rhs, True)
 
     def lshift(self, i):
-        assert i >= 0
+        if i < 0:
+            raise ValueError("negative shift count")
         if i >= 64:
             return self.make(r_uint(0))
         return self.make(self.val << i, True)
 
     def rshift(self, i):
-        assert i >= 0
+        if i < 0:
+            raise ValueError("negative shift count")
         if i >= self.size():
             return self.make(r_uint(0))
         return self.make(self.val >> i)
 
     def arith_rshift(self, i):
-        assert i >= 0
+        if i < 0:
+            raise ValueError("negative shift count")
         size = self.size()
         if i >= size:
             i = size
@@ -543,7 +546,7 @@ class SparseBitVector(BitVector):
 
     def touint(self, expected_width=0):
         if expected_width:
-            self.size() == expected_width
+            assert self.size() == expected_width
         return self.val
 
     def tobigint(self):
@@ -799,7 +802,8 @@ class GenericBitVector(BitVector):
 
     def arith_rshift(self, i):
         # XXX can do the invert rshift invert trick for negative bitvectors
-        assert i >= 0
+        if i < 0:
+            raise ValueError("negative shift count")
         size = self.size()
         highest_bit = self.read_bit(size - 1)
         if i >= size:

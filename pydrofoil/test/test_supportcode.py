@@ -589,6 +589,11 @@ def test_vector_shift():
         assert res.size() == 8
         assert res.toint() == 0b00000100
 
+        with pytest.raises(ValueError):
+            x.lshift(-1)
+        with pytest.raises(ValueError):
+            x.rshift(-1)
+
     x = bv(8, 0b10001101)
     res = x.lshift(10)
     assert res.size() == 8
@@ -653,6 +658,9 @@ def test_arith_shiftr():
     assert res.size() == 8
     assert res.toint() == 0b101
 
+    with pytest.raises(ValueError):
+        x.arith_rshift(-1)
+
     x = gbv(100, 0xfffffffffffffffffffffff8d)
     res = x.arith_rshift(4)
     assert res.size() == 100
@@ -670,6 +678,9 @@ def test_arith_shiftr():
     res = x.arith_rshift(3)
     assert res.size() == 100
     assert res.tolong() == 0b101
+
+    with pytest.raises(ValueError):
+        x.arith_rshift(-1)
 
 def test_arith_shiftr_bug():
     x = gbv(64, 18446744073709551616)
@@ -972,36 +983,40 @@ def test_rshift_int():
 
 def test_emod_ediv_int():
    for c1 in bi, si:
-        for c2 in bi, si:
-            assert c1(123875).emod(si(13)).toint() == 123875 % 13
-            assert c1(123875).ediv(c2(13)).toint() == 123875 // 13
-            assert c1(MININT).ediv(c2(2)).toint() == -2**62
-            assert c1(MININT).ediv(c2(-2)).toint() == 2**62
-            assert c1(MININT).ediv(c2(MININT)).toint() == 1
-            assert c1(5).ediv(c2(MININT)).toint() == 0
-            assert c1(-5).ediv(c2(MININT)).toint() == 1
-            assert c1(MININT + 1).ediv(c2(sys.maxint)).toint() == -1
-            assert c1(MININT).ediv(c2(MININT)).toint() == 1
-            assert c1(7).ediv(c2(5)).toint() == 1
-            assert c1(7).ediv(c2(-5)).toint() == -1
-            assert c1(-7).ediv(c2(-5)).toint() == 2
-            assert c1(-7).ediv(c2(5)).toint() == -2
-            assert c1(12).ediv(c2(3)).toint() == 4
-            assert c1(12).ediv(c2(-3)).toint() == -4
-            assert c1(-12).ediv(c2(3)).toint() == -4
-            assert c1(-12).ediv(c2(-3)).toint() == 4
-            assert c1(MININT).emod(c2(2)).toint() == 0
-            assert c1(MININT).emod(c2(- 2)).toint() == 0
-            assert c1(MININT).emod(c2(- 2 ** 63)).toint() == 0
-            assert c1(sys.maxint).emod(c2(sys.maxint)).toint() == 0
-            assert c1(7).emod(c2(5)).toint() == 2
-            assert c1(7).emod(c2(-5)).toint() == 2
-            assert c1(-7).emod(c2(5)).toint() == 3
-            assert c1(-7).emod(c2(-5)).toint() == 3
-            assert c1(12).emod(c2(3)).toint() == 0
-            assert c1(12).emod(c2(-3)).toint() == 0
-            assert c1(-12).emod(c2(3)).toint() == 0
-            assert c1(-12).emod(c2(-3)).toint() == 0
+       for c2 in bi, si:
+           with pytest.raises(ZeroDivisionError):
+               c1(123).emod(c2(0))
+           with pytest.raises(ZeroDivisionError):
+               c1(123).ediv(c2(0))
+           assert c1(123875).emod(c2(13)).toint() == 123875 % 13
+           assert c1(123875).ediv(c2(13)).toint() == 123875 // 13
+           assert c1(MININT).ediv(c2(2)).toint() == -2**62
+           assert c1(MININT).ediv(c2(-2)).toint() == 2**62
+           assert c1(MININT).ediv(c2(MININT)).toint() == 1
+           assert c1(5).ediv(c2(MININT)).toint() == 0
+           assert c1(-5).ediv(c2(MININT)).toint() == 1
+           assert c1(MININT + 1).ediv(c2(sys.maxint)).toint() == -1
+           assert c1(MININT).ediv(c2(MININT)).toint() == 1
+           assert c1(7).ediv(c2(5)).toint() == 1
+           assert c1(7).ediv(c2(-5)).toint() == -1
+           assert c1(-7).ediv(c2(-5)).toint() == 2
+           assert c1(-7).ediv(c2(5)).toint() == -2
+           assert c1(12).ediv(c2(3)).toint() == 4
+           assert c1(12).ediv(c2(-3)).toint() == -4
+           assert c1(-12).ediv(c2(3)).toint() == -4
+           assert c1(-12).ediv(c2(-3)).toint() == 4
+           assert c1(MININT).emod(c2(2)).toint() == 0
+           assert c1(MININT).emod(c2(- 2)).toint() == 0
+           assert c1(MININT).emod(c2(- 2 ** 63)).toint() == 0
+           assert c1(sys.maxint).emod(c2(sys.maxint)).toint() == 0
+           assert c1(7).emod(c2(5)).toint() == 2
+           assert c1(7).emod(c2(-5)).toint() == 2
+           assert c1(-7).emod(c2(5)).toint() == 3
+           assert c1(-7).emod(c2(-5)).toint() == 3
+           assert c1(12).emod(c2(3)).toint() == 0
+           assert c1(12).emod(c2(-3)).toint() == 0
+           assert c1(-12).emod(c2(3)).toint() == 0
+           assert c1(-12).emod(c2(-3)).toint() == 0
 
 
    assert bi(0xfffffe00411e0e90L).emod(si(64)).toint() == 16
@@ -1724,6 +1739,24 @@ def test_append_64_hypothesis(a, b):
     res = a.append_64(b)
     lres = res.tolong()
     assert lres == (la << 64) | lb
+
+@given(strategies.data())
+def test_hypothesis_bitvector_touint(data):
+    width = data.draw(strategies.integers(1, 64))
+    value = data.draw(strategies.integers(0, 2**width-1))
+    v = bv(width, value)
+    assert v.touint() == v.touint(width) == value
+    with pytest.raises(AssertionError):
+        v.touint(width + 1)
+
+@given(strategies.data())
+def test_hypothesis_sparse_bitvector_touint(data):
+    width = data.draw(strategies.integers(65, 1000))
+    value = data.draw(strategies.integers(0, 2**64-1))
+    v = sbv(width, value)
+    assert v.touint() == v.touint(width) == value
+    with pytest.raises(AssertionError):
+        v.touint(width + 1)
 
 # new generic bitvector infrastructure
 

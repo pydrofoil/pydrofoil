@@ -745,9 +745,9 @@ class GenericBitVector(BitVectorWithSize):
     def sub_int(self, i):
         if isinstance(i, SmallInteger):
             if i.val >= 0:
-                self._sub_ruint(r_uint(i.val))
+                return self._sub_ruint(r_uint(i.val))
             else:
-                self._add_ruint(-r_uint(i.val))
+                return self._add_ruint(-r_uint(i.val))
         assert isinstance(i, BigInteger)
         sign = i.sign
         if sign == 0:

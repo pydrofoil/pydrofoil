@@ -5,6 +5,7 @@ import math
 from pydrofoil import supportcode
 from pydrofoil import bitvector
 from pydrofoil.bitvector import Integer, SmallInteger, BigInteger, MININT, SparseBitVector
+from pydrofoil.bitvector import GenericBitVector, SmallBitVector
 from pydrofoil.real import *
 from hypothesis import given, strategies, assume, example, settings
 from fractions import Fraction
@@ -2673,9 +2674,12 @@ def test_hypothesis_int_from_ruint_to_uint_roundtrips(ui):
     assert Integer.from_ruint(ui).touint() == ui
 
 def test_efficient_append(monkeypatch):
-    monkeypatch.setattr(bitvector.SmallBitVector, 'tobigint', None)
-    monkeypatch.setattr(bitvector.GenericBitVector, 'tobigint', None)
-    monkeypatch.setattr(bitvector.SparseBitVector, 'tobigint', None)
+    tobigint = GenericBitVector.tobigint
+    def tolong(res):
+        return tobigint(res).tolong()
+    monkeypatch.setattr(SmallBitVector, 'tobigint', None)
+    monkeypatch.setattr(GenericBitVector, 'tobigint', None)
+    monkeypatch.setattr(SparseBitVector, 'tobigint', None)
     v1 = bv(64, 0xa9e3)
     v2 = bv(16, 0x04fb)
     res = v1.append(v2)
@@ -2685,25 +2689,28 @@ def test_efficient_append(monkeypatch):
     v1 = bv(64, 0xa9e3)
     v2 = bv(56, 0x04fb)
     res = v1.append(v2)
-    assert isinstance(res, bitvector.GenericBitVector)
-    assert res.rval().tolong() == (0xa9e3 << 56) | 0x04fb
+    assert isinstance(res, GenericBitVector)
+    assert tolong(res) == (0xa9e3 << 56) | 0x04fb
 
     v1 = sbv(128, 0xa9e3)
     v2 = sbv(128, 0x04fb)
     res = v1.append(v2)
-    assert isinstance(res, bitvector.GenericBitVector)
-    assert res.rval().tolong() == (0xa9e3 << 128) | 0x04fb
+    assert isinstance(res, GenericBitVector)
+    assert tolong(res) == (0xa9e3 << 128) | 0x04fb
 
     v1 = sbv(128, 0xa9e3)
-    v2 = bitvector.GenericBitVector(128, [r_uint(0), r_uint(0x04fb)])
+    v2 = GenericBitVector(128, [r_uint(0), r_uint(0x04fb)])
     res = v1.append(v2)
-    assert isinstance(res, bitvector.GenericBitVector)
-    assert res.rval().tolong() == (0xa9e3 << 128) | (0x04fb << 64)
+    assert isinstance(res, GenericBitVector)
+    assert tolong(res) == (0xa9e3 << 128) | (0x04fb << 64)
 
 def test_efficient_append64(monkeypatch):
-    monkeypatch.setattr(bitvector.SmallBitVector, 'tobigint', None)
-    monkeypatch.setattr(bitvector.GenericBitVector, 'tobigint', None)
-    monkeypatch.setattr(bitvector.SparseBitVector, 'tobigint', None)
+    tobigint = GenericBitVector.tobigint
+    def tolong(res):
+        return tobigint(res).tolong()
+    monkeypatch.setattr(SmallBitVector, 'tobigint', None)
+    monkeypatch.setattr(GenericBitVector, 'tobigint', None)
+    monkeypatch.setattr(SparseBitVector, 'tobigint', None)
 
     v1 = bv(64, 0x0)
     res = v1.append_64(r_uint(0x04fb))
@@ -2712,13 +2719,13 @@ def test_efficient_append64(monkeypatch):
 
     v1 = bv(32, 0xa9e3)
     res = v1.append_64(r_uint(0x04fb))
-    assert isinstance(res, bitvector.GenericBitVector)
-    assert res.rval().tolong() == (0xa9e3 << 64) | 0x04fb
+    assert isinstance(res, GenericBitVector)
+    assert tolong(res) == (0xa9e3 << 64) | 0x04fb
     assert res.size() == 64 + 32
 
     v1 = sbv(128, 0xa9e3)
     res = v1.append_64(r_uint(0x04fb))
-    assert res.rval().tolong() == (0xa9e3 << 64) | 0x04fb
+    assert tolong(res) == (0xa9e3 << 64) | 0x04fb
     assert res.size() == 64 + 128
 
     v1 = sbv(128, 0x0)
@@ -2727,6 +2734,6 @@ def test_efficient_append64(monkeypatch):
     assert res.val == 0x04fb
     assert res.size() == 64 + 128
 
-    v1 = bitvector.GenericBitVector(128, [r_uint(0), r_uint(0xa9e3)])
+    v1 = GenericBitVector(128, [r_uint(0), r_uint(0xa9e3)])
     res = v1.append_64(r_uint(0x04fb))
     assert res.data == [r_uint(0x04fb), r_uint(0), r_uint(0xa9e3)]

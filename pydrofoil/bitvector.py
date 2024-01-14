@@ -832,16 +832,37 @@ class GenericBitVector(BitVectorWithSize):
         # XXX can do the invert rshift invert trick for negative bitvectors
         assert i >= 0
         size = self.size()
-        if i >= size:
-            i = size
         highest_bit = self.read_bit(size - 1)
-        jit.jit_debug("GenericBitVector.arith_rshift")
-        rval = self.rval()
-        highest_bit = rval.abs_rshift_and_mask(r_ulonglong(size - 1), 1)
-        res = rval.rshift(i)
-        if highest_bit:
-            res = res.or_(MASKS.get(i).lshift(size - i))
-        return GenericBitVector.from_bigint(size, res)
+        if i >= size:
+            if highest_bit:
+                return GenericBitVector(size, [r_uint(-1)] * len(self.data), True)
+            else:
+                return SparseBitVector(size, r_uint(0))
+        # XXX not optimal, fix broken code below
+        return self.signed().rshift(i).slice(size, 0)
+        #res = self.rshift(i)
+        #if highest_bit and i:
+        #    if i == 14 and size == 333:
+        #        import pdb;pdb.set_trace()
+        #    # set the i leftmost bits
+        #    wordshift, bitshift = _data_indexes(i)
+        #    numwords, lastwordsize = _data_indexes(size)
+        #    # lower boundary word
+        #    if not wordshift:
+        #        # only need to fix last word
+        #        res.data[-1] |= ((r_uint(1) << i) - 1) << (lastwordsize - i)
+        #    else:
+        #        if bitshift:
+        #            # earliest word that needs fixing
+        #            mask = r_uint(-1) << (64 - bitshift)
+        #            res.data[wordshift] |= mask
+        #            wordshift += 1
+        #        # zero words in between
+        #        for index in range(wordshift, len(res.data)):
+        #            res.data[index] = r_uint(-1)
+        #        # other boundary word
+        #        res.data[-1] |= (r_uint(1) << lastwordsize) - 1
+        #return res
 
     @jit.unroll_safe
     def xor(self, other):

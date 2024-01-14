@@ -635,24 +635,46 @@ def test_vector_shift_bits():
 
 
 def test_arith_shiftr():
-    for c in bv, gbv:
-        x = c(8, 0b10001101)
-        res = x.arith_rshift(2)
-        assert res.size() == 8
-        assert res.toint() == 0b11100011
+    x = bv(8, 0b10001101)
+    res = x.arith_rshift(2)
+    assert res.size() == 8
+    assert res.toint() == 0b11100011
 
-        res = x.arith_rshift(8)
-        assert res.size() == 8
-        assert res.toint() == 0b11111111
+    res = x.arith_rshift(8)
+    assert res.size() == 8
+    assert res.toint() == 0b11111111
 
-        res = x.arith_rshift(10)
-        assert res.size() == 8
-        assert res.toint() == 0b11111111
+    res = x.arith_rshift(10)
+    assert res.size() == 8
+    assert res.toint() == 0b11111111
 
-        x = c(8, 0b00101101)
-        res = x.arith_rshift(3)
-        assert res.size() == 8
-        assert res.toint() == 0b101
+    x = bv(8, 0b00101101)
+    res = x.arith_rshift(3)
+    assert res.size() == 8
+    assert res.toint() == 0b101
+
+    x = gbv(100, 0xfffffffffffffffffffffff8d)
+    res = x.arith_rshift(4)
+    assert res.size() == 100
+    assert res.tolong() == 0xffffffffffffffffffffffff8
+
+    res = x.arith_rshift(8)
+    assert res.size() == 100
+    assert res.tolong() == 0xfffffffffffffffffffffffff
+
+    res = x.arith_rshift(110)
+    assert res.size() == 100
+    assert res.tolong() == 0xfffffffffffffffffffffffff
+
+    x = gbv(100, 0b00101101)
+    res = x.arith_rshift(3)
+    assert res.size() == 100
+    assert res.tolong() == 0b101
+
+def test_arith_shiftr_bug():
+    x = gbv(64, 18446744073709551616)
+    x.arith_rshift(2)
+
 
 @given(bitvectors, strategies.data())
 def test_arith_shiftr_hypothesis(bv, data):

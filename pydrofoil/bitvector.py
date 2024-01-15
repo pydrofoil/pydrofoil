@@ -2,7 +2,7 @@ import sys
 from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, \
         _divrem1, intsign, int_in_valid_range
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
-        int_c_div, int_c_mod, r_ulonglong
+        int_c_div, int_c_mod, r_ulonglong, uint_mul_high
 from rpython.rlib.objectmodel import always_inline, specialize, \
         we_are_translated, is_annotation_constant, not_rpython
 from rpython.rlib.rstring import (
@@ -90,6 +90,7 @@ class BitVector(object):
         return Integer.fromint(self.size())
 
     def string_of_bits(self):
+        jit.jit_debug("BitVector.string_of_bits")
         if self.size() % 4 == 0:
             res = self.tobigint().format("0123456789ABCDEF")
             return "0x%s%s" % ("0" * max(0, self.size() // 4 - len(res)), res)
@@ -1380,7 +1381,10 @@ class SmallInteger(Integer):
         try:
             return SmallInteger(ovfcheck(a * b))
         except OverflowError:
-            return Integer.from_bigint(rbigint.fromint(a).int_mul(b))
+            selfdigit, selfsign = _digit_and_sign_from_int(a)
+            otherdigit, othersign = _digit_and_sign_from_int(b)
+            resdata = [selfdigit * otherdigit, uint_mul_high(selfdigit, otherdigit)]
+            return Integer.from_data_and_sign(resdata, selfsign * othersign)
 
     def pack(self):
         return (self.val, None)
@@ -1588,12 +1592,7 @@ class BigInteger(Integer):
     @staticmethod
     def _add_int(selfdata, selfsign, other):
         assert other
-        if other > 0:
-            othersign = 1
-            otherdigit = r_uint(other)
-        else:
-            othersign = -1
-            otherdigit = -r_uint(other)
+        otherdigit, othersign = _digit_and_sign_from_int(other)
         if selfsign == othersign:
             resultdata, sign = _data_add1(selfdata, otherdigit)
         else:
@@ -1635,12 +1634,7 @@ class BigInteger(Integer):
     def _sub_int(selfdata, selfsign, other):
         assert selfsign
         assert other
-        if other > 0:
-            othersign = 1
-            otherdigit = r_uint(other)
-        else:
-            othersign = -1
-            otherdigit = -r_uint(other)
+        otherdigit, othersign = _digit_and_sign_from_int(other)
         if selfsign == othersign:
             resultdata, sign = _data_sub1(selfdata, otherdigit)
         else:
@@ -1658,15 +1652,16 @@ class BigInteger(Integer):
         return Integer.from_bigint(self.tobigint().mul(other.tobigint()))
 
     def int_mul(self, other):
-        if not other:
+        if not other or self.sign == 0:
             return INT_ZERO
         if other == 1:
             return self
         if other & (other - 1) == 0:
             shift = self._shift_amount(other)
             return self.lshift(shift)
-        jit.jit_debug("BigInteger.int_mul")
-        return Integer.from_bigint(self.tobigint().int_mul(other))
+        otherdigit, othersign = _digit_and_sign_from_int(other)
+        resdata = _data_mul1(self.data, otherdigit)
+        return Integer.from_data_and_sign(resdata, self.sign * othersign)
 
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python
@@ -1810,6 +1805,16 @@ def _data_and_sign_from_int(value):
         return [], 0
     sign = intsign(value)
     return [r_uint(sign) * r_uint(value)], sign
+
+@always_inline
+def _digit_and_sign_from_int(value):
+    if not value:
+        return r_uint(0), 0
+    if value > 0:
+        return r_uint(value), 1
+    else:
+        return -r_uint(value), -1
+
 
 @jit.unroll_safe
 def _data_add(selfdata, otherdata):
@@ -1967,3 +1972,15 @@ def _data_lt1(selfdata, selfsign, otherdigit, othersign):
         return othersign > 0
     return False
 
+@jit.unroll_safe
+def _data_mul1(selfdata, otherdigit):
+    resdata = [r_uint(0)] * (len(selfdata) + 1)
+    carry = r_uint(0)
+    for index, selfdigit in enumerate(selfdata):
+        low = selfdigit * otherdigit
+        high = uint_mul_high(selfdigit, otherdigit)
+        low += carry
+        carry = r_uint(low < carry) + high
+        resdata[index] = low
+    resdata[len(selfdata)] = carry
+    return resdata

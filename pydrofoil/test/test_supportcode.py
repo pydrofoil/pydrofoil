@@ -1829,6 +1829,12 @@ def test_data_and_sign_from_int(value):
     data, sign = bitvector._data_and_sign_from_int(value)
     assert bitvector.rbigint_from_array_and_sign(data, sign).tolong() == value
 
+@given(ints)
+@example(0)
+def test_digit_and_sign_from_int(value):
+    digit, sign = bitvector._digit_and_sign_from_int(value)
+    assert value == intmask(sign * digit)
+
 # more hypothesis tests for ints
 
 @given(wrapped_ints, strategies.data())

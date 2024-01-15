@@ -1903,6 +1903,7 @@ def test_hypothesis_fromlong(i):
 
 @given(strategies.integers())
 @example((1 << 129) + 38882882)
+@example(-12144 ** 20)
 def test_hypothesis_int_str(i):
     assert Integer.fromlong(i).str() == str(i)
     assert Integer.fromlong(i).hex() == hex(i)

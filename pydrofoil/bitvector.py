@@ -1269,15 +1269,7 @@ class SmallInteger(Integer):
         return SmallInteger(-self.val)
 
     def mul(self, other):
-        if isinstance(other, SmallInteger):
-            try:
-                return SmallInteger(ovfcheck(self.val * other.val))
-            except OverflowError:
-                jit.jit_debug("SmallInteger.mul ovf")
-                return Integer.from_bigint(self.tobigint().int_mul(other.val))
-        else:
-            assert isinstance(other, BigInteger)
-            return other.mul(self)
+        return other.int_mul(self.val)
 
     def int_mul(self, other):
         return SmallInteger.mul_i_i(self.val, other)

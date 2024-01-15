@@ -91,5 +91,6 @@ if __name__ == '__main__':
     try:
         target(None, [])(sys.argv)
     except:
-        import pdb;pdb.xpm()
+        if os.getenv("GITHUB_ACTIONS") is None:
+            import pdb; pdb.xpm()
         raise

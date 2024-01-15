@@ -1,5 +1,6 @@
 import time
 from rpython.rlib import jit
+from rpython.rlib import rsignal
 from pydrofoil import mem as mem_mod
 from pydrofoil.supportcode import *
 from pydrofoil.supportcode import Globals as BaseGlobals
@@ -37,9 +38,12 @@ def get_main(outarm):
     Globals._pydrofoil_enum_read_ifetch_value = outarm.Enum_zread_kind.zRead_ifetch
 
     Machine = outarm.Machine
+    def get_printable_location(pc):
+        return hex(pc)
 
     driver = jit.JitDriver(
-        greens=[],
+        get_printable_location=get_printable_location,
+        greens=['pc'],
         reds=['machine'],
         name="arm",
         is_recursive=True)
@@ -51,8 +55,16 @@ def get_main(outarm):
             return step(machine, *args)
         # otherwise just do the main work here
         while 1:
-            driver.jit_merge_point(machine=machine)
             jit.promote(machine.g)
+            promote_pc = machine.g.promote_pc
+            if promote_pc:
+                pc = machine._reg_z_PC
+            else:
+                pc = 0
+            driver.jit_merge_point(machine=machine, pc=pc)
+            jit.promote(machine.g)
+            if machine.g.promote_pc:
+                jit.promote(pc)
             step(machine, ())
             if machine.have_exception:
                 return ()
@@ -61,19 +73,20 @@ def get_main(outarm):
 
     setinstr = outarm.func_z__SetThisInstr
     def jitsetinstr(machine, opcode):
-        # approach: promote opcode, but do it 4 bits at a time, to make sure we
-        # don't just get a linear search. start from the highest bits, because
-        # that's where the instruction-specific bits are
+        # approach: promote the top 12 bits of opcode, but do it 4 bits at a
+        # time, to make sure we don't just get a linear search. start from the
+        # highest bits, because that's where the instruction-specific bits are
         jit.jit_debug("arm-opcode", opcode)
         jit.promote(opcode & 0xf0000000)
         jit.promote(opcode & 0x0f000000)
         jit.promote(opcode & 0x00f00000)
-        jit.promote(opcode & 0x000f0000)
-        jit.promote(opcode & 0x0000f000)
-        jit.promote(opcode & 0x00000f00)
-        jit.promote(opcode & 0x000000f0)
-        jit.promote(opcode & 0x0000000f)
-        jit.promote(opcode)
+        # this would not be needed with knownbits but well
+        jit.promote(opcode >> 21)
+        #jit.promote(opcode & 0x000f0000)
+        #jit.promote(opcode & 0x0000f000)
+        #jit.promote(opcode & 0x00000f00)
+        #jit.promote(opcode & 0x000000f0)
+        #jit.promote(opcode & 0x0000000f)
         return setinstr(machine, opcode)
     outarm.func_z__SetThisInstr = jitsetinstr
 
@@ -107,6 +120,8 @@ def get_main(outarm):
             return _main(argv)
         except CycleLimitReached:
             return 0
+        except CtrlCPressed:
+            return 1
         except OSError as e:
             errno = e.errno
             try:
@@ -155,13 +170,6 @@ def get_main(outarm):
         machine.g.sail_verbosity = r_uint(verbosity)
 
         binaries = parse_args(argv, "-b", "--binary", many=True)
-        for binary in binaries:
-            offset, filename = binary.split(',', 2)
-            offset = parseint(offset)
-            if check_file_missing(filename):
-                return -1
-            print "loading binary blob", filename, "at offset", hex(offset)
-            load_raw_single(machine, r_uint(offset), filename)
 
         jitopts = parse_args(argv, "--jit")
         if jitopts:
@@ -173,35 +181,60 @@ def get_main(outarm):
             except ValueError:
                 print "invalid jit option"
                 return 1
+        machine.g.promote_pc = parse_flag(argv, "--promote-pc")
 
         configs = parse_args(argv, "-C", "--model-config", many=True)
-        for config in configs:
-            configname, value = config.split('=', 2)
-            value = parseint(value)
-            print "setting config value", configname, "to", hex(value)
-            outarm.func_z__SetConfig(machine, configname, bitvector.Integer.fromint(value))
+
+        repeat = parse_args(argv, "--repeat")
+        repeats = 1
+        if repeat:
+            repeats = parseint(repeat)
+            print "will do", repeats, "repetitions"
         if len(argv) != 1:
             print "unrecognized option:", argv[1]
             return 1
         print "done, starting main"
-        t1 = time.time()
-        try:
-            outarm.func_zmain(machine, ())
-        finally:
-            t2 = time.time()
-            print "ran for %s(s), %s instructions, KIPS: %s" % (t2 - t1, machine.g.cycle_count, machine.g.cycle_count / (t2 - t1) / 1000)
+        for i in range(repeats):
+            outarm.func_zinitializze_registers(machine, ())
+            machine.g.mem.__init__()
+            for binary in binaries:
+                offset, filename = binary.split(',', 2)
+                offset = parseint(offset)
+                if check_file_missing(filename):
+                    return -1
+                print "loading binary blob", filename, "at offset", hex(offset)
+                load_raw_single(machine, r_uint(offset), filename)
+            for config in configs:
+                configname, value = config.split('=', 2)
+                value = parseint(value)
+                print "setting config value", configname, "to", hex(value)
+                outarm.func_z__SetConfig(machine, configname, bitvector.Integer.fromint(value))
+
+            machine.g.cycle_count = 0
+            if objectmodel.we_are_translated():
+                rsignal.pypysig_setflag(rsignal.SIGINT)
+                t1 = time.time()
+                try:
+                    outarm.func_zmain(machine, ())
+                except CycleLimitReached:
+                    if i == repeats - 1:
+                        raise
+                finally:
+                    t2 = time.time()
+                    print "ran for %s(s), %s instructions, KIPS: %s" % (t2 - t1, machine.g.cycle_count, machine.g.cycle_count / (t2 - t1) / 1000)
         return 0
     main.mod = outarm
     return main
 
 
 class Globals(BaseGlobals):
-    _immutable_fields_ = ['max_cycle_count?', 'sail_verbosity?']
+    _immutable_fields_ = ['max_cycle_count?', 'verbosity?', 'promote_pc?', 'sail_verbosity?']
     def __init__(self):
         BaseGlobals.__init__(self)
         self.cycle_count = 0
         self.max_cycle_count = 0
         self.sail_verbosity = 0
+        self.promote_pc = False
 
 
 def make_dummy(name):
@@ -243,12 +276,19 @@ def elf_entry(machine, _):
 class CycleLimitReached(Exception):
     pass
 
+class CtrlCPressed(Exception):
+    pass
+
 def cycle_count(machine, _):
     machine.g.cycle_count += 1
     max_cycle_count = machine.g.max_cycle_count
+    p = rsignal.pypysig_getaddr_occurred()
     if max_cycle_count and machine.g.cycle_count >= max_cycle_count:
         print "[Sail] TIMEOUT: exceeded %s cycles" % (max_cycle_count, )
         raise CycleLimitReached
+    if objectmodel.we_are_translated() and p.c_value < 0:
+        print "[Sail] CTRL-C was pressed"
+        raise CtrlCPressed
     return ()
 
 cyclecount = 0

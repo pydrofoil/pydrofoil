@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# Limit tests to latest commit on branches other than main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   build:
 
@@ -34,11 +39,18 @@ jobs:
     - name: install dependencies and create virtualenv
       run: |
         make pypy_binary/bin/python
-        make pypy/rpython/bin/rpython
+        make pypy2/rpython/bin/rpython
 
     - name: Test with pytest
       run: |
-        make pydrofoil-test
+        HYPOTHESIS_PROFILE=ci make pydrofoil-test
+
+    - name: Test Coverage for Bitvectors, Integers and Reals
+      if: matrix.os == 'ubuntu-20.04'
+      run: |
+        ./pypy_binary/bin/python -m coverage run pypy2/pytest.py --hypothesis-profile=coverage -v pydrofoil/test/test_supportcode.py pydrofoil/test/test_real.py
+        ./pypy_binary/bin/python -m coverage report --include=pydrofoil/bitvector.py --fail-under=99 -m
+        ./pypy_binary/bin/python -m coverage report --include=pydrofoil/real.py --fail-under=95 -m
 
     - name: Translate and run binary
       run: |
@@ -55,7 +67,7 @@ jobs:
 
     - name: Run all RISC-V tests
       run: |
-        RISCVMODELCHECKOUT=sail-riscv make riscv-tests
+        RISCVMODELCHECKOUT=sail-riscv ./pypy_binary/bin/python run_riscv_tests.py
 
     - name: Boot Linux
       run: |

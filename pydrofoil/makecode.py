@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 from contextlib import contextmanager
@@ -325,7 +326,8 @@ class __extend__(parse.File):
             try:
                 decl.make_code(codegen)
             except Exception as e:
-                import pdb; pdb.xpm()
+                if os.getenv("GITHUB_ACTIONS") is None:
+                    import pdb; pdb.xpm()
                 print failure_count, "COULDN'T GENERATE CODE FOR", index, getattr(decl, "name", decl)
                 print(traceback.format_exc())
                 failure_count += 1

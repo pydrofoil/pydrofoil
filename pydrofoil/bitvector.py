@@ -1284,8 +1284,10 @@ class SmallInteger(Integer):
             try:
                 return SmallInteger(pow_int(self.val, other.val))
             except OverflowError:
-                return BigInteger(self.tobigint().int_pow(other.val))
-        return BigInteger(self.tobigint().pow(other.tobigint()))
+                jit.jit_debug("SmallInteger.pow ovf")
+                return Integer.from_bigint(self.tobigint().int_pow(other.val))
+        jit.jit_debug("SmallInteger.pow")
+        return Integer.from_bigint(self.tobigint().pow(other.tobigint()))
 
     def int_mul(self, other):
         return SmallInteger.mul_i_i(self.val, other)
@@ -1678,9 +1680,10 @@ class BigInteger(Integer):
         return Integer.from_bigint(self.tobigint().int_mul(other))
 
     def pow(self, other):
+        jit.jit_debug("BigInteger.pow")
         if isinstance(other, SmallInteger):
-            return BigInteger(self.rval.int_pow(other.val))
-        return BigInteger(self.rval.pow(other.tobigint()))
+            return Integer.from_bigint(self.tobigint().int_pow(other.val))
+        return Integer.from_bigint(self.tobigint().pow(other.tobigint()))
 
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python

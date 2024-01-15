@@ -1304,24 +1304,28 @@ class SmallInteger(Integer):
         return Integer.from_bigint(rem)
 
     def ediv(self, other):
+        if other.int_eq(0):
+            raise ZeroDivisionError
+        if self.val == 0:
+            return INT_ZERO
         if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
             jit.jit_debug("SmallInteger.ediv")
             return Integer.from_bigint(self.tobigint()).ediv(other)
         other = other.val
-        if other == 0:
-            raise ZeroDivisionError
         if other > 0:
             return SmallInteger(self.val // other)
         else:
             return SmallInteger(-(self.val // -other))
 
     def emod(self, other):
+        if other.int_eq(0):
+            raise ZeroDivisionError
+        if self.val == 0:
+            return INT_ZERO
         if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
             jit.jit_debug("SmallInteger.emod")
             return Integer.from_bigint(self.tobigint()).emod(other)
         other = other.val
-        if other == 0:
-            raise ZeroDivisionError
         res = self.val % other
         if res < 0:
             res -= other
@@ -1668,9 +1672,11 @@ class BigInteger(Integer):
             div, rem = bigint_divrem1(self.tobigint(), other)
             return Integer.from_bigint(div)
         jit.jit_debug("BigInteger.tdiv")
-        other = other.tobigint()
-        if other.get_sign() == 0:
+        if other.int_eq(0):
             raise ZeroDivisionError
+        if not self.sign:
+            return INT_ZERO
+        other = other.tobigint()
         div, rem = bigint_divrem(self.tobigint(), other)
         return Integer.from_bigint(div)
 

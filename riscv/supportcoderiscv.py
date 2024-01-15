@@ -410,9 +410,6 @@ def parse_dump_file(fn):
                 dump[intaddress] = "%s %s %s" % (section, function, res)
     return dump
 
-def parse_flag(argv, flagname):
-    return bool(parse_args(argv, flagname, want_arg=False))
-
 helptext = """
 Usage: %s [options] <elf_file>
 

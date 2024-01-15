@@ -1305,6 +1305,8 @@ def parse_args(argv, shortname, longname="", want_arg=True, many=False):
     if many:
         return reslist
 
+def parse_flag(argv, flagname):
+    return bool(parse_args(argv, flagname, want_arg=False))
 
 
 

@@ -81,6 +81,8 @@ def split_graph(graph, codegen, functyp, next_name, min_size, start_block=None):
     for block in graph.iterblocks():
         if block not in graph1blocks:
             graph2blocks.add(block)
+    if len(graph2blocks) < min_size // 3:
+        raise CantSplitError
     # add reachable end blocks
     for block in list(graph2blocks):
         for block in block.next.next_blocks():
@@ -131,7 +133,6 @@ def split_graph(graph, codegen, functyp, next_name, min_size, start_block=None):
     graph2 = ir.Graph(next_name, newargs, transferblock)
     graph2.replace_ops(replacements)
     graph.check()
-    graph2.check()
     codegen.print_debug_msg("previous size", len(all_blocks), "afterwards:", len(graph1blocks), len(graph2blocks))
     print "previous size", len(all_blocks), "afterwards:", len(graph1blocks), len(graph2blocks)
     return graph2, graph2typ, len(graph2blocks)

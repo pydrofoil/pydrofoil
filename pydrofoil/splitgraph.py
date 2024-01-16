@@ -173,16 +173,16 @@ def view_blocks(graph, colors=None):
     if colors is None:
         colors = {graph.startblock: "green"}
     dotgen = DotGen('G')
+    num_blocks = 0
     for block in graph.iterblocks():
         dotgen.emit_node(str(id(block)), label=' ', shape="box", fillcolor=colors.get(block, 'grey'))
         for nextblock in block.next.next_blocks():
             dotgen.emit_edge(str(id(block)), str(id(nextblock)))
+        num_blocks += 1
     p = pytest.ensuretemp("pyparser").join("temp.dot")
     p.write(dotgen.generate(target=None))
-    if len(list(graph.iterblocks())) > 200:
+    if num_blocks > 200:
         p2 = p.new(ext=".plain")
         os.system("twopi -Tplain %s > %s" % (p, p2))
         p = p2
     graphclient.display_dot_file(str(p))
-
-

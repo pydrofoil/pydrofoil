@@ -589,7 +589,7 @@ class __extend__(parse.Function):
         inlinable = should_inline(graph, codegen.should_inline)
         if inlinable:
             codegen.inlinable_functions[self.name] = graph
-        elif len(list(graph.iterblocks())) > 150 and not graph.has_loop:
+        elif not graph.has_loop and graph.has_more_than_n_blocks(150):
             codegen.print_debug_msg("splitting", self.name)
             functyp = codegen.globalnames[self.name].typ
             for graph2, graph2typ in split_completely(graph, self, functyp, codegen):

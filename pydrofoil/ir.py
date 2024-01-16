@@ -608,7 +608,7 @@ class Graph(object):
         import os
         dotgen = DotGen('G')
         print_varnames = self._dot(dotgen, codegen, maxblocks)
-        if len(list(self.iterblocks())) > 200 and maxblocks is None:
+        if self.has_more_than_n_blocks(200) and maxblocks is None:
             p = pytest.ensuretemp("pyparser").join("temp.dot")
             p.write(dotgen.generate(target=None))
             p2 = p.new(ext=".plain")
@@ -652,6 +652,14 @@ class Graph(object):
             yield block
             seen.add(block)
             todo.extend(block.next.next_blocks())
+
+    def has_more_than_n_blocks(self, maxblocks):
+        count = 0
+        for _ in self.iterblocks():
+            count += 1
+            if count > maxblocks:
+                return True
+        return False
 
     def iteredges(self):
         todo = [self.startblock]
@@ -3852,6 +3860,9 @@ class LocalOptimizer(BaseOptimizer):
 
 @repeat
 def inline(graph, codegen):
+    # don't add blocks to functions that are already really big and need to be
+    # split later
+    really_huge_function = graph.has_more_than_n_blocks(1000)
     changed = False
     for block in graph.iterblocks():
         index = 0
@@ -3868,7 +3879,7 @@ def inline(graph, codegen):
                         index = 0
                         changed = True
                         continue
-                elif not subgraph.has_loop:
+                elif not really_huge_function and not subgraph.has_loop:
                     # complicated case
                     _inline(graph, codegen, block, index, subgraph)
                     remove_empty_blocks(graph, codegen)

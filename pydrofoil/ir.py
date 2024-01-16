@@ -1716,7 +1716,6 @@ def duplicate_end_blocks(graph, codegen):
                 assert 0, "unreachable"
     if num_duplicated:
         graph.check()
-    return changed
     return num_duplicated
 
 

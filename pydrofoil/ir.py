@@ -4189,14 +4189,10 @@ def cse_global_reads(graph, codegen):
             else:
                 continue
             if key in available_in_block:
-                #if not isinstance(available_in_block[key], GlobalRead):
-                #    import pdb;pdb.set_trace()
                 block.operations[index] = None
                 replacements[op] = available_in_block[key]
             else:
                 available_in_block[key] = op
-    #if graph.name == 'zexecute_aarch32_instrs_SADD16_Op_A_txt':
-    #    import pdb;pdb.set_trace()
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]
@@ -4205,7 +4201,6 @@ def cse_global_reads(graph, codegen):
             changed = graph.replace_ops(replacements)
             if not changed:
                 break
-        graph.check()
         return True
     return False
 

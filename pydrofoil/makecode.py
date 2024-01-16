@@ -575,8 +575,6 @@ class __extend__(parse.Function):
         #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
         #    return
         self.pyname = pyname
-        if "DecodeA64" in pyname:
-            import pdb;pdb.set_trace()
         typ = codegen.globalnames[self.name].ast.typ
         blocks = self._prepare_blocks()
         if self.detect_union_switch(blocks[0]):

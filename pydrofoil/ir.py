@@ -1654,20 +1654,27 @@ def convert_sail_assert_to_exception(graph, codegen):
             break
     return res
 
-@repeat
 def duplicate_end_blocks(graph, codegen):
+    assert not graph.has_loop
     # make sure that all end blocks have exactly one predecessor.
     # not used by default, but graph splitting needs it
-    changed = False
+    def should_duplicate(block):
+        return len(block.next.next_blocks()) == 0 and len(entrymap[block]) > 1
+
+    num_duplicated = 0
+    num_ops_duplicated = 0
     entrymap = graph.make_entrymap()
-    for block, preds in entrymap.iteritems():
-        if len(block.next.next_blocks()) > 0:
-            continue
-        if len(preds) <= 1:
-            continue
-        changed = True
+    candidates = [block for block in entrymap if should_duplicate(block)]
+    while candidates:
+        block = candidates.pop()
+        preds = entrymap[block]
+        assert should_duplicate(block)
+        del entrymap[block] # the block won't be reachable at all any more
         next = block.next
         for predblock in preds:
+            num_duplicated += 1
+            # copy operations of the end block, removing phis (they can be
+            # removed because we will only have a single predecessor)
             ops = []
             replacements = {}
             for op in block.operations:
@@ -1681,11 +1688,16 @@ def duplicate_end_blocks(graph, codegen):
                     newop.__class__ = op.__class__
                     replacements[op] = newop
                     ops.append(newop)
+                    num_ops_duplicated += 1
             if isinstance(predblock.next, Goto):
                 # just put the operations in the previous block
                 predblock.operations.extend(ops)
                 newblock = predblock
+                if len(entrymap[predblock]) > 1:
+                    # the previous block needs duplication too
+                    candidates.append(predblock)
             else:
+                # need a new block, the previous block has several successors
                 newblock = Block(ops)
                 predblock.next.replace_next(block, newblock)
             if isinstance(next, Return):
@@ -1694,9 +1706,10 @@ def duplicate_end_blocks(graph, codegen):
                 newblock.next = Raise(replacements.get(next.kind, next.kind), next.sourcepos)
             else:
                 assert 0, "unreachable"
-    if changed:
+    if num_duplicated:
         graph.check()
     return changed
+    return num_duplicated
 
 
 class defaultdict_with_key_arg(dict):

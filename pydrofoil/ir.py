@@ -513,7 +513,7 @@ class Block(object):
             res.append(newop)
         return res
 
-    def _dot(self, dotgen, seen, print_varnames, codegen, backedges, maxblocks):
+    def _dot(self, dotgen, seen, print_varnames, codegen, backedges):
         if codegen is None:
             builtin_names = {}
         else:
@@ -552,10 +552,7 @@ class Block(object):
             fillcolor=fillcolor,
         )
         for index, nextblock in enumerate(nextblocks):
-            if len(seen) <= maxblocks:
-                nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
-            else:
-                nextid = str(id(next))
+            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges)
             label = ''
             if len(nextblocks) > 1:
                 label = str(bool(index))
@@ -595,13 +592,23 @@ class Graph(object):
         assert isinstance(node, Block)
         return node.next.next_blocks()
 
-    def view(self, codegen=None, maxblocks=sys.maxint):
+    def view(self, codegen=None, maxblocks=None):
         from rpython.translator.tool.make_dot import DotGen
         from dotviewer import graphclient
         import pytest
+        import os
         dotgen = DotGen('G')
         print_varnames = self._dot(dotgen, codegen, maxblocks)
-        GraphPage(dotgen.generate(target=None), print_varnames, self.args).display()
+        if len(list(self.iterblocks())) > 200 and maxblocks is None:
+            p = pytest.ensuretemp("pyparser").join("temp.dot")
+            p.write(dotgen.generate(target=None))
+            p2 = p.new(ext=".plain")
+            # twopi is a mess and the wrong tool, but it *will* show you really
+            # huge graphs quickly and not crash
+            os.system("twopi -Tplain %s > %s" % (p, p2))
+            graphclient.display_dot_file(str(p2))
+        else:
+            GraphPage(dotgen.generate(target=None), print_varnames, self.args).display()
 
     def _dot(self, dotgen, codegen, maxblocks):
         name = "graph" + self.name
@@ -617,9 +624,12 @@ class Graph(object):
             backedges = set(find_backedges(self))
         else:
             backedges = set()
-        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
-        for block in topo_order_best_attempt(self)[:maxblocks]:
-            block._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
+        if maxblocks is not None:
+            seen = set(self.iterblocks())
+            blocks = list(self.iterblocks_breadth_first())[:maxblocks]
+            for block in bfs_graph(self)[:maxblocks]:
+                seen.remove(block)
+        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges)
         dotgen.emit_edge(name, firstid)
         return print_varnames
 
@@ -654,6 +664,22 @@ class Graph(object):
         for block in self.iterblocks():
             for op in block.operations:
                 yield op, block
+
+    def iterblocks_breadth_first(self):
+        from collections import deque
+        if start is None:
+            start = self.startblock
+        todo = deque([start])
+        seen = set()
+        res = []
+        while todo:
+            block = todo.popleft()
+            if block in seen:
+                continue
+            seen.add(block)
+            todo.extend(block.next.next_blocks())
+            res.append(block)
+        return res
 
     def make_entrymap(self):
         todo = [self.startblock]

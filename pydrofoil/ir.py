@@ -1708,7 +1708,7 @@ def duplicate_end_blocks(graph, codegen):
                 # just put the operations in the previous block
                 predblock.operations.extend(ops)
                 newblock = predblock
-                if len(entrymap[predblock]) > 1:
+                if 1 < len(entrymap[predblock]) < 8:
                     # the previous block needs duplication too
                     candidates.append(predblock)
             else:
@@ -2316,8 +2316,11 @@ class LocalOptimizer(BaseOptimizer):
             # XXX this shows the need for phis to point to their "home" block
             correct_block = self._try_find_phi_home_block(phi)
             if correct_block:
-                correct_block.operations.insert(0, newphi)
-                return newphi
+                if len(correct_block.operations) < 50:
+                    # weird heuristic, triggers some super strange restriction
+                    # in the GC(!) if we add too many phis
+                    correct_block.operations.insert(0, newphi)
+                    return newphi
             return None
 
     def _try_find_phi_home_block(self, phi):

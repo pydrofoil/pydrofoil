@@ -159,7 +159,7 @@ def split_completely(graph, funcnode, functyp, codegen, min_size=100):
         graph = graph2
         i += 1
     t2 = time.time()
-    codegen.print_persistent_msg("Splitting", next_name_base, "took", t2 - t1)
+    codegen.print_debug_msg("Splitting", next_name_base, "took", t2 - t1)
 
 
 def view_blocks(graph, colors=None):

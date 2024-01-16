@@ -496,6 +496,9 @@ class Block(object):
                 res = op.prevblocks
         return res
 
+    def next_blocks(self):
+        return self.next.next_blocks()
+
     def copy_operations(self, replacements, block_replacements=None, patch_phis=None):
         def replace(arg, is_phi=False):
             if isinstance(arg, Constant):

@@ -108,13 +108,15 @@ def construct_ir(functionast, codegen, singleblock=False):
     return build_ssa(blocks, functionast, args, codegen)
 
 
-def compute_entryblocks(blocks):
+def compute_entryblocks_nextblocks(blocks):
     entryblocks = defaultdict(list)
+    nextblocks = defaultdict(set)
     for pc, block in blocks.iteritems():
         for op in block:
             if isinstance(op, (parse.Goto, parse.ConditionalJump)):
                 entryblocks[op.target].append(pc)
-    return entryblocks
+                nextblocks[pc].add(op.target)
+    return entryblocks, nextblocks
 
 class SSABuilder(object):
     def __init__(self, blocks, functionast, functionargs, codegen, startpc=0, extra_args=None):
@@ -122,7 +124,7 @@ class SSABuilder(object):
         self.functionast = functionast
         self.functionargs = functionargs
         self.codegen = codegen
-        self.entryblocks = compute_entryblocks(blocks)
+        self.entryblocks, self.nextblocks = compute_entryblocks_nextblocks(blocks)
         self.variable_map = None # {name: Value}
         self.variable_maps_at_end = {} # {pc: variable_map}
         self.has_loop = False
@@ -236,6 +238,13 @@ class SSABuilder(object):
                     if index == 0:
                         continue
                     self.patch_phis[otherprevpc].append((phi, index, var))
+        if not self.has_loop:
+            for prevpc in entry:
+                nextblocks_of_prevpc = self.nextblocks[prevpc]
+                nextblocks_of_prevpc.remove(pc)
+                if not nextblocks_of_prevpc:
+                    # don't keep all the variable maps alive, they are huge
+                    del self.variable_maps_at_end[prevpc]
 
     def _build_block(self, block, ssablock):
         for index, op in enumerate(block):

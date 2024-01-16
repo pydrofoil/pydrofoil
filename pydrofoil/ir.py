@@ -1845,6 +1845,10 @@ class BaseOptimizer(object):
         self.changed = False
         self.anticipated_casts = find_anticipated_casts(graph)
         self.entrymap = graph.make_entrymap()
+        self.nextblocks = defaultdict(set)
+        for block, entry in self.entrymap.iteritems():
+            for prevblock in entry:
+                self.nextblocks[prevblock].add(block)
         self.do_double_casts = do_double_casts
         self.current_block = self.graph.startblock
         self._dead_blocks = False
@@ -1895,6 +1899,12 @@ class BaseOptimizer(object):
                                for prev_block in prev_blocks):
                         continue
                     available_in_block[key] = prev_op
+            for prevblock in prev_blocks:
+                nextblocks_of_prevblock = self.nextblocks[prevblock]
+                nextblocks_of_prevblock.discard(block)
+                if not nextblocks_of_prevblock and prevblock in self.cse_op_available:
+                    # don't keep all the cse info alive, it's way too huge
+                    del self.cse_op_available[prevblock]
         self.cse_op_available[block] = available_in_block
         self.cse_op_available_in_block = available_in_block
 

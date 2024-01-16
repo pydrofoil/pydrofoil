@@ -636,7 +636,7 @@ class Graph(object):
         if maxblocks is not None:
             seen = set(self.iterblocks())
             blocks = list(self.iterblocks_breadth_first())[:maxblocks]
-            for block in bfs_graph(self)[:maxblocks]:
+            for block in blocks:
                 seen.remove(block)
         firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges)
         dotgen.emit_edge(name, firstid)

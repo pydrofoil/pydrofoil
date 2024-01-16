@@ -1898,24 +1898,7 @@ class BaseOptimizer(object):
 
     def optimize_block(self, block):
         # prepare CSE
-        available_in_block = {}
-        prev_blocks = self.entrymap[block]
-        if prev_blocks:
-            if len(prev_blocks) == 1:
-                available_in_block = self.cse_op_available[prev_blocks[0]].copy()
-            else:
-                # intersection of what's available in the previous blocks
-                for key, prev_op in self.cse_op_available.get(prev_blocks[0], {}).iteritems():
-                    if not all(self.cse_op_available.get(prev_block, {}).get(key, None) == prev_op
-                               for prev_block in prev_blocks):
-                        continue
-                    available_in_block[key] = prev_op
-            for prevblock in prev_blocks:
-                nextblocks_of_prevblock = self.nextblocks[prevblock]
-                nextblocks_of_prevblock.discard(block)
-                if not nextblocks_of_prevblock and prevblock in self.cse_op_available:
-                    # don't keep all the cse info alive, it's way too huge
-                    del self.cse_op_available[prevblock]
+        available_in_block = self._compute_available_in_block_from_predecessors(block)
         self.cse_op_available[block] = available_in_block
         self.cse_op_available_in_block = available_in_block
 
@@ -1940,6 +1923,35 @@ class BaseOptimizer(object):
         block.operations = self.newoperations
         self.newoperations = None
         self.cse_op_available_in_block = None
+
+    def _compute_available_in_block_from_predecessors(self, block):
+        available_in_block = {}
+        prev_blocks = self.entrymap[block]
+        if prev_blocks:
+            if len(prev_blocks) == 1:
+                available_in_block = self.cse_op_available[prev_blocks[0]].copy()
+            else:
+                # intersection of what's available in the previous blocks
+                prev_cse_dicts = [self.cse_op_available.get(prev_block, {}) for prev_block in prev_blocks]
+                for prev_cse_dict in prev_cse_dicts:
+                    if len(prev_cse_dict) == 0:
+                        break # one of the available dicts is empty, no need to intersect
+                else:
+                    prev_cse_dicts.sort(key=len)
+                    smallest_dict = prev_cse_dicts.pop(0)
+                    for key, prev_op in smallest_dict.iteritems():
+                        for prev_cse_dict in prev_cse_dicts:
+                            if prev_cse_dict.get(key, None) is not prev_op:
+                                break
+                        else:
+                            available_in_block[key] = prev_op
+            for prevblock in prev_blocks:
+                nextblocks_of_prevblock = self.nextblocks[prevblock]
+                nextblocks_of_prevblock.discard(block)
+                if not nextblocks_of_prevblock and prevblock in self.cse_op_available:
+                    # don't keep all the cse info alive, it's way too huge
+                    del self.cse_op_available[prevblock]
+        return available_in_block
 
     def _known_boolean_value(self, op):
         op = self._get_op_replacement(op)

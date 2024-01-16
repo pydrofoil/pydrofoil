@@ -2,21 +2,19 @@ import time
 
 from pydrofoil import ir, types
 
-def bfs_edges(G, start):
+def bfs_edges(start):
     from collections import deque
     todo = deque([start])
     seen = set()
-    res = []
     while todo:
         block = todo.popleft()
         if block in seen:
             continue
         seen.add(block)
-        successors = G[block]
+        successors = block.next_blocks()
         todo.extend(successors)
         for succ in successors:
-            res.append((block, succ))
-    return res
+            yield block, succ
 
 
 def split_graph(graph, codegen, functyp, next_name, min_size, start_block=None):
@@ -42,7 +40,7 @@ def split_graph(graph, codegen, functyp, next_name, min_size, start_block=None):
                 colors[block] = 'grey'
         view_blocks(graph, colors)
 
-    for source, target in bfs_edges(graph, start_block):
+    for source, target in bfs_edges(start_block):
         if not is_end_block(target):
             continue
         # approach: from the edge going to the exit block, extend by adding
@@ -134,7 +132,6 @@ def split_graph(graph, codegen, functyp, next_name, min_size, start_block=None):
     graph2.replace_ops(replacements)
     graph.check()
     codegen.print_debug_msg("previous size", len(all_blocks), "afterwards:", len(graph1blocks), len(graph2blocks))
-    print "previous size", len(all_blocks), "afterwards:", len(graph1blocks), len(graph2blocks)
     return graph2, graph2typ, len(graph2blocks)
 
 
@@ -154,7 +151,7 @@ def split_completely(graph, funcnode, functyp, codegen, min_size=100):
         try:
             graph2, graph2typ, remaining_blocks = split_graph(graph, codegen, functyp, next_name, min_size)
         except CantSplitError:
-            print "couldn't split!", len(list(graph.iterblocks()))
+            codegen.print_debug_msg("couldn't split!", len(list(graph.iterblocks())))
             break
         yield graph2, graph2typ
         if remaining_blocks < min_size:
@@ -162,7 +159,7 @@ def split_completely(graph, funcnode, functyp, codegen, min_size=100):
         graph = graph2
         i += 1
     t2 = time.time()
-    print "Splitting", next_name_base, "took", t2 - t1
+    codegen.print_persistent_msg("Splitting", next_name_base, "took", t2 - t1)
 
 
 def view_blocks(graph, colors=None):

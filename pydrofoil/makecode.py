@@ -600,6 +600,7 @@ class __extend__(parse.Function):
                 codegen.specialization_functions[self.name] = Specializer(graph, codegen)
 
         codegen.add_graph(graph, self.emit_regular_function, pyname)
+        del self.body # save memory, don't need to keep the parse tree around
 
     def emit_regular_function(self, graph, codegen, pyname):
         with self._scope(codegen, pyname, actual_args=graph.args):

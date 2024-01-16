@@ -431,7 +431,6 @@ class FixpointSpecializer(object):
                         todo.append(othergraph)
                         self.specialization_todo_set.add(othergraph)
 
-
     def extract_needed_extra_graphs(self, starting_graphs):
         result = set()
         starting_graphs_set = set(starting_graphs)

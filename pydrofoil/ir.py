@@ -1645,6 +1645,39 @@ def convert_sail_assert_to_exception(graph, codegen):
             break
     return res
 
+@repeat
+def duplicate_end_blocks(graph, codegen):
+    # make sure that all end blocks have exactly one predecessor.
+    # not used by default, but graph splitting needs it
+    changed = False
+    entrymap = graph.make_entrymap()
+    block_replacements = {block: block for block in entrymap}
+    replacements = {op: op for block in entrymap for op in block.operations}
+    for arg in graph.args:
+        replacements[arg] = arg
+    for block, preds in entrymap.iteritems():
+        if len(block.next.next_blocks()) > 0:
+            continue
+        if len(preds) <= 1:
+            continue
+        changed = True
+        next = block.next
+        for predblock in preds[1:]:
+            ops = block.copy_operations(replacements, block_replacements)
+            newblock = Block(ops)
+            if isinstance(next, Return):
+                newblock.next = Return(replacements.get(next.value, next.value), next.sourcepos)
+            elif isinstance(next, Raise):
+                newblock.next = Raise(replacements.get(next.kind, next.kind), next.sourcepos)
+            else:
+                assert 0, "unreachable"
+            predblock.next.replace_next(block, newblock)
+    if changed:
+        _remove_unreachable_phi_prevvalues(graph)
+        join_blocks(graph, codegen)
+    return changed
+
+
 class defaultdict_with_key_arg(dict):
     def __init__(self, factory):
         self.factory = factory

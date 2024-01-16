@@ -326,7 +326,7 @@ class __extend__(parse.File):
             try:
                 decl.make_code(codegen)
             except Exception as e:
-                if os.getenv("GITHUB_ACTIONS") is None:
+                if os.getenv("GITHUB_ACTIONS") is None and hasattr(pdb, 'xpm'):
                     import pdb; pdb.xpm()
                 print failure_count, "COULDN'T GENERATE CODE FOR", index, getattr(decl, "name", decl)
                 print(traceback.format_exc())
@@ -567,12 +567,15 @@ class __extend__(parse.Function):
         from pydrofoil.ir import construct_ir, should_inline
         from pydrofoil.specialize import Specializer, usefully_specializable
         from pydrofoil import optimize
+        from pydrofoil.splitgraph import split_completely
         pyname = codegen.getname(self.name)
         assert pyname.startswith("func_")
         #if codegen.globalnames[self.name].pyname is not None:
         #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
         #    return
         self.pyname = pyname
+        if "DecodeA64" in pyname:
+            import pdb;pdb.set_trace()
         typ = codegen.globalnames[self.name].ast.typ
         blocks = self._prepare_blocks()
         if self.detect_union_switch(blocks[0]):
@@ -581,38 +584,34 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, codegen)
             return
-        if len(blocks) > 340 and codegen.should_inline(self.name) is not True:
-            codegen.print_debug_msg("splitting", self.name)
-            try:
-                self._split_function(blocks, codegen)
-                codegen.emit()
-                return
-            except optimize.CantSplitError:
-                codegen.print_debug_msg("didn't manage to split", self.name)
-
         graph = construct_ir(self, codegen)
         inlinable = should_inline(graph, codegen.should_inline)
         if inlinable:
             codegen.inlinable_functions[self.name] = graph
+        elif len(list(graph.iterblocks())) > 150 and not graph.has_loop:
+            codegen.print_debug_msg("splitting", self.name)
+            functyp = codegen.globalnames[self.name].typ
+            for graph2, graph2typ in split_completely(graph, self, functyp, codegen):
+                codegen.add_global(graph2.name, graph2.name, graph2typ)
+                codegen.add_graph(graph2, self.emit_regular_function, graph2.name)
         else:
             if usefully_specializable(graph):
                 codegen.specialization_functions[self.name] = Specializer(graph, codegen)
 
         codegen.add_graph(graph, self.emit_regular_function, pyname)
 
-    def emit_regular_function(self, graph, codegen, pyname, extra_args=None):
-        with self._scope(codegen, pyname, extra_args=extra_args):
+    def emit_regular_function(self, graph, codegen, pyname):
+        with self._scope(codegen, pyname, actual_args=graph.args):
             emit_function_code(graph, self, codegen)
         codegen.emit()
 
     @contextmanager
-    def _scope(self, codegen, pyname, method=False, extra_args=None):
+    def _scope(self, codegen, pyname, method=False, actual_args=None):
         # extra_args is a list of tuples (name, typ)
-        args = self.args
-        if extra_args:
-            args = args[:]
-            for name, _ in extra_args:
-                args.append(name)
+        if actual_args is not None:
+            args = [arg.name for arg in actual_args]
+        else:
+            args = self.args
         if not method:
             first = "def %s(machine, %s):" % (pyname, ", ".join(args))
         else:
@@ -625,9 +624,9 @@ class __extend__(parse.Function):
             codegen.add_local('return', 'return_', typ.restype, self)
             for i, arg in enumerate(self.args):
                 codegen.add_local(arg, arg, typ.argtype.elements[i], self)
-            if extra_args:
-                for name, typ in extra_args:
-                    codegen.add_local(name, name, typ, self)
+            if actual_args:
+                for arg in actual_args:
+                    codegen.add_local(arg.name, arg.name, arg.resolved_type, self)
             yield
 
     def _prepare_blocks(self):
@@ -770,77 +769,6 @@ class __extend__(parse.Function):
             current = blocks[index]
             process(index, current)
         return {k: v for k, v in res}
-
-    def _split_function(self, blocks, codegen):
-        from pydrofoil.ir import build_ssa
-        from pydrofoil import optimize
-        blocks = {pc: ops[:] for (pc, ops) in blocks.iteritems()}
-        with self._scope(codegen, self.pyname):
-            args = self.args
-            func_name = self.pyname + "_next_0"
-            codegen.emit("return %s(machine, %s)" % (func_name, ", ".join(args)))
-        args = self.args
-        prev_extra_args = []
-        startpc = 0
-        while len(blocks) > 150: # 150 / 120
-            g1, g2, transferpc = optimize.split_graph(blocks, 120, start_node=startpc)
-            codegen.print_debug_msg("previous size", len(blocks), "afterwards:", len(g1), len(g2))
-            # compute the local variables that are declared in g1 and used in g2,
-            # they become extra arguments
-            declared_variables_g1 = {}
-            for blockpc, op in iterblockops(g1):
-                if isinstance(op, parse.LocalVarDeclaration):
-                    declared_variables_g1[op.name] = op.typ.resolve_type(codegen)
-            for argname, typ in prev_extra_args:
-                declared_variables_g1[argname] = typ
-            needed_args = set()
-            assignment_targets = set()
-            for blockpc, op in iterblockops(g2):
-                needed_args.update(op.find_used_vars())
-                if isinstance(op, parse.Assignment):
-                    assignment_targets.add(op.result)
-                if isinstance(op, parse.Operation):
-                    assignment_targets.add(op.result)
-            extra_args_names = sorted(needed_args.intersection(declared_variables_g1))
-            extra_args = [(name, declared_variables_g1[name]) for name in extra_args_names]
-
-            # which variables are declared in g1, and also assigned to in g2,
-            # but aren't arguments?
-            need_declaration = assignment_targets.intersection(declared_variables_g1) - set(args) - set(extra_args_names)
-            if need_declaration:
-                raise optimize.CantSplitError
-            # make a copy to not mutate blocks
-            #transferstartblock = g2[transferpc] = g2[transferpc][:]
-            #for declvar in need_declaration:
-            #    transferstartblock.insert(0, declared_variables_g1[declvar])
-            callargs = args + extra_args_names
-            next_func_name = self.pyname + "_next_" + str(transferpc)
-            g1[transferpc] = [parse.Operation("return", next_func_name, [parse.Var(name) for name in callargs]),
-                              parse.End()]
-            functyp = codegen.globalnames[self.name].typ
-            argtyps = list(functyp.argtype.elements)
-            for _, typ in extra_args:
-                argtyps.append(typ)
-            codegen.add_global(next_func_name, next_func_name, types.Function(types.Tuple(tuple(argtyps)), functyp.restype))
-
-            origname = self.name
-            self.name += "_%s" % (startpc, )
-            graph1 = build_ssa(g1, self, self.args, codegen, startpc, prev_extra_args)
-            self.name = origname
-            codegen.add_graph(graph1, self.emit_regular_function, func_name, extra_args=prev_extra_args)
-            if codegen.program_entrypoints:
-                codegen.program_entrypoints.append(graph1.name)
-            prev_extra_args = extra_args
-            blocks = g2
-            startpc = transferpc
-            func_name = next_func_name
-        origname = self.name
-        self.name += "_%s" % (transferpc, )
-        graph2 = build_ssa(g2, self, self.args, codegen, transferpc, extra_args)
-        self.name = origname
-        codegen.add_graph(graph2, self.emit_regular_function, next_func_name, extra_args=extra_args)
-        if codegen.program_entrypoints:
-            codegen.program_entrypoints.append(graph2.name)
 
     def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
         UNUSED

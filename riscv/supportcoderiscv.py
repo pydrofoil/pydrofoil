@@ -518,6 +518,8 @@ def _main(argv, *machineclasses):
             print "invalid jit option"
             return 1
 
+    disable_vext = parse_flag(argv, "--disable-vext")
+
     verbose = parse_flag(argv, "--verbose")
 
     print_kips = parse_flag(argv, "--print-kips")
@@ -551,7 +553,6 @@ def _main(argv, *machineclasses):
     if check_file_missing(file):
         return -1
 
-    disable_vext = parse_flag(argv, "--disable-vext")
 
     if disable_vext:
         machine.g.rv_enable_vext = False

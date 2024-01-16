@@ -567,7 +567,6 @@ class __extend__(parse.Function):
     def make_code(self, codegen):
         from pydrofoil.ir import construct_ir, should_inline
         from pydrofoil.specialize import Specializer, usefully_specializable
-        from pydrofoil import optimize
         from pydrofoil.splitgraph import split_completely
         pyname = codegen.getname(self.name)
         assert pyname.startswith("func_")

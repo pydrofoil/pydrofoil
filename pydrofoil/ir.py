@@ -186,7 +186,10 @@ class SSABuilder(object):
             self.variable_map['return'] = None
 
         elif len(entry) == 1:
-            self.variable_map = self.variable_maps_at_end[entry[0]].copy()
+            variable_map = self.variable_maps_at_end[entry[0]]
+            if len(self.nextblocks[entry[0]]) > 1:
+                variable_map = variable_map.copy()
+            self.variable_map = variable_map
         elif not loopblock:
             assert len(entry) >= 2
             # merge
@@ -1929,13 +1932,19 @@ class BaseOptimizer(object):
         prev_blocks = self.entrymap[block]
         if prev_blocks:
             if len(prev_blocks) == 1:
-                available_in_block = self.cse_op_available[prev_blocks[0]].copy()
+                prev_block, = prev_blocks
+                nextblocks_of_prevblock = self.nextblocks[prev_block]
+                available_in_block = self.cse_op_available[prev_blocks[0]]
+                if len(nextblocks_of_prevblock) > 1:
+                    available_in_block = available_in_block.copy()
             else:
                 # intersection of what's available in the previous blocks
-                prev_cse_dicts = [self.cse_op_available.get(prev_block, {}) for prev_block in prev_blocks]
-                for prev_cse_dict in prev_cse_dicts:
-                    if len(prev_cse_dict) == 0:
+                prev_cse_dicts = []
+                for prev_block in prev_blocks:
+                    prev_cse_dict = self.cse_op_available.get(prev_block, None)
+                    if not prev_cse_dict:
                         break # one of the available dicts is empty, no need to intersect
+                    prev_cse_dicts.append(prev_cse_dict)
                 else:
                     prev_cse_dicts.sort(key=len)
                     smallest_dict = prev_cse_dicts.pop(0)

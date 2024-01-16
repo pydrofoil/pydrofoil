@@ -582,6 +582,7 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, codegen)
             return
+        codegen.print_debug_msg("making SSA IR")
         graph = construct_ir(self, codegen)
         inlinable = should_inline(graph, codegen.should_inline)
         if inlinable:

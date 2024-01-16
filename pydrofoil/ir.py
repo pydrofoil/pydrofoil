@@ -1396,6 +1396,7 @@ repeat.debug_list = None
 
 def light_simplify(graph, codegen):
     # in particular, don't specialize
+    codegen.print_debug_msg("simplifying ssa")
     res = _optimize(graph, codegen)
     if res:
         graph.check()

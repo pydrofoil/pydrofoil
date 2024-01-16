@@ -674,7 +674,7 @@ class Graph(object):
             for op in block.operations:
                 yield op, block
 
-    def iterblocks_breadth_first(self):
+    def iterblocks_breadth_first(self, start=None):
         from collections import deque
         if start is None:
             start = self.startblock

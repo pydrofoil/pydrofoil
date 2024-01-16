@@ -1660,10 +1660,6 @@ def duplicate_end_blocks(graph, codegen):
     # not used by default, but graph splitting needs it
     changed = False
     entrymap = graph.make_entrymap()
-    block_replacements = {block: block for block in entrymap}
-    replacements = {op: op for block in entrymap for op in block.operations}
-    for arg in graph.args:
-        replacements[arg] = arg
     for block, preds in entrymap.iteritems():
         if len(block.next.next_blocks()) > 0:
             continue
@@ -1671,19 +1667,35 @@ def duplicate_end_blocks(graph, codegen):
             continue
         changed = True
         next = block.next
-        for predblock in preds[1:]:
-            ops = block.copy_operations(replacements, block_replacements)
-            newblock = Block(ops)
+        for predblock in preds:
+            ops = []
+            replacements = {}
+            for op in block.operations:
+                if isinstance(op, Phi):
+                    index = op.prevblocks.index(predblock)
+                    value = op.prevvalues[index]
+                    replacements[op] = value
+                else:
+                    assert isinstance(op, Operation)
+                    newop = Operation(op.name, [replacements.get(arg, arg) for arg in op.args], op.resolved_type, op.sourcepos, op.varname_hint)
+                    newop.__class__ = op.__class__
+                    replacements[op] = newop
+                    ops.append(newop)
+            if isinstance(predblock.next, Goto):
+                # just put the operations in the previous block
+                predblock.operations.extend(ops)
+                newblock = predblock
+            else:
+                newblock = Block(ops)
+                predblock.next.replace_next(block, newblock)
             if isinstance(next, Return):
                 newblock.next = Return(replacements.get(next.value, next.value), next.sourcepos)
             elif isinstance(next, Raise):
                 newblock.next = Raise(replacements.get(next.kind, next.kind), next.sourcepos)
             else:
                 assert 0, "unreachable"
-            predblock.next.replace_next(block, newblock)
     if changed:
-        _remove_unreachable_phi_prevvalues(graph)
-        join_blocks(graph, codegen)
+        graph.check()
     return changed
 
 

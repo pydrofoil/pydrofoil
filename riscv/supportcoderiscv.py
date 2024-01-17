@@ -552,18 +552,18 @@ def _main(argv, *machineclasses):
         machine.g._create_dtb()
     if check_file_missing(file):
         return -1
-
+    print "Running file", file
 
     if disable_vext:
         machine.g.rv_enable_vext = False
 
-    entry = load_sail(machine, file)
-    init_sail(machine, entry)
     if not verbose:
         machine.g.config_print_instr = False
         machine.g.config_print_reg = False
         machine.g.config_print_mem_access = False
         machine.g.config_print_platform = False
+    entry = load_sail(machine, file)
+    init_sail(machine, entry)
     if dump_file:
         if check_file_missing(dump_file):
             return -1
@@ -611,7 +611,7 @@ def load_sail(machine, fn):
     g.rv_htif_tohost = r_uint(img.get_symbol('tohost'))
     print "tohost located at 0x%x" % g.rv_htif_tohost
 
-    print "entrypoint 0x%x" % entrypoint
+    print "ELF entry @ 0x%x" % entrypoint
     assert entrypoint == 0x80000000 # XXX for now
     return entrypoint
 

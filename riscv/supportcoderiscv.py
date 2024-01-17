@@ -623,12 +623,24 @@ def print_string(prefix, msg):
     return ()
 
 def print_instr(machine, s):
-    print s
+    if machine.g.config_print_instr:
+        print s
     return ()
 
-print_reg = print_instr
-print_mem_access = print_reg
-print_platform = print_reg
+def print_reg(machine, s):
+    if machine.g.config_print_reg:
+        print s
+    return ()
+
+def print_mem_access(machine, s):
+    if machine.g.config_print_mem_access:
+        print s
+    return ()
+
+def print_platform(machine, s):
+    if machine.g.config_print_platform:
+        print s
+    return ()
 
 def get_config_print_instr(machine, _):
     return machine.g.config_print_instr

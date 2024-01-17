@@ -611,7 +611,7 @@ def load_sail(machine, fn):
     g.rv_htif_tohost = r_uint(img.get_symbol('tohost'))
     print "tohost located at 0x%x" % g.rv_htif_tohost
 
-    print "ELF entry @ 0x%x" % entrypoint
+    print "ELF Entry @ 0x%x" % entrypoint
     assert entrypoint == 0x80000000 # XXX for now
     return entrypoint
 
@@ -775,7 +775,7 @@ def get_main(outriscv, rv64):
             elif self._reg_zhtif_exit_code == 0:
                 print "SUCCESS"
             else:
-                print "FAILURE", self._reg_zhtif_exit_code
+                print "FAILURE:", self._reg_zhtif_exit_code
                 if not we_are_translated():
                     raise ValueError
             print "Instructions: %s" % (step_no, )

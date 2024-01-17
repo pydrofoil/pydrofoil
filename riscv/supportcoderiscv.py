@@ -746,10 +746,6 @@ def get_main(outriscv, rv64):
                     step_no += 1
                     if rv_insns_per_tick:
                         insn_cnt += 1
-                if g.config_print_instr:
-                    # there's an extra newline in the C emulator that I don't know
-                    # where from, add it here to ease diffing
-                    print
 
                 tick_cond = (do_show_times and (step_no & 0xffffffff) == 0) | (
                         rv_insns_per_tick and insn_cnt == rv_insns_per_tick)

@@ -824,6 +824,8 @@ def test_op_int():
                     assert a.add(b).tolong() == v1 + v2
                     assert a.sub(b).tolong() == v1 - v2
                     assert a.mul(b).tolong() == v1 * v2
+                    if v2 >= 0 and v2 < 1000:
+                        assert a.pow(b).tolong() == v1 ** v2
                     if v2 and v1 != MININT and v2 != MININT:
                         assert c1(abs(v1)).tdiv(c2(abs(v2))).tolong() == abs(v1) // abs(v2)
                         assert c1(abs(v1)).tmod(c2(abs(v2))).tolong() == abs(v1) % abs(v2)
@@ -843,6 +845,7 @@ def test_op_int():
                     c1(v1).tmod(c2(0))
 
 @given(wrapped_ints, wrapped_ints)
+@example(SmallInteger(0), SmallInteger(0))
 def test_op_int_hypothesis(a, b):
     v1 = a.tolong()
     v2 = b.tolong()
@@ -856,6 +859,10 @@ def test_op_int_hypothesis(a, b):
         # (a/b) * b + a%b == a
         assert a.tdiv(b).mul(b).add(a.tmod(b)).eq(a)
 
+    if 0 <= v2 <= 200:
+        assert a.pow(b).tolong() == v1 ** v2
+
+    assert a.eq(b) == (v1 == v2)
     assert a.eq(a)
     assert b.eq(b)
     if v1 and v2:

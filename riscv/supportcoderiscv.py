@@ -120,6 +120,8 @@ class Globals(object):
         self.rv_enable_fdext                = True
         self.rv_enable_dirty_update         = False
         self.rv_enable_misaligned           = False
+        self.rv_enable_vext                 = True
+        self.rv_enable_writable_fiom        = True
         self.rv_mtval_has_illegal_inst_bits = False
 
         self.rv_ram_base = r_uint(0x80000000)
@@ -258,6 +260,13 @@ def plat_rom_base(machine, _):
 
 def plat_rom_size(machine, _):
     return machine.g.rv_rom_size
+
+def sys_enable_vext(machine, _):
+    return machine.g.rv_enable_vext
+
+def sys_enable_writable_fiom(machine, _):
+    return machine.g.rv_enable_writable_fiom
+
 
 # Provides entropy for the scalar cryptography extension.
 def plat_get_16_random_bits(machine, _):
@@ -423,6 +432,7 @@ Run the Pydrofoil RISC-V emulator on elf_file.
 --jit <options>                 set JIT options (try --jit help for details)
 --dump <file>                   load elf file disassembly from file
 -b/--device-tree-blob <file>    load dtb from file (usually not needed, Pydrofoil has a dtb built-in)
+--disable-vext                  disable vector extension
 --version                       print the version of pydrofoil-riscv
 --help                          print this information and exit
 """
@@ -508,6 +518,8 @@ def _main(argv, *machineclasses):
             print "invalid jit option"
             return 1
 
+    disable_vext = parse_flag(argv, "--disable-vext")
+
     verbose = parse_flag(argv, "--verbose")
 
     print_kips = parse_flag(argv, "--print-kips")
@@ -540,6 +552,11 @@ def _main(argv, *machineclasses):
         machine.g._create_dtb()
     if check_file_missing(file):
         return -1
+
+
+    if disable_vext:
+        machine.g.rv_enable_vext = False
+
     entry = load_sail(machine, file)
     init_sail(machine, entry)
     if not verbose:
@@ -625,6 +642,8 @@ def get_config_print_platform(machine, _):
 def get_main(outriscv, rv64):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
+
+    Globals._pydrofoil_enum_read_ifetch_value = outriscv.Enum_zread_kind.zRead_ifetch
 
     if rv64:
         prefix = "rv64"

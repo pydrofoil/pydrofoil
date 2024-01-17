@@ -442,7 +442,8 @@ def decimal_string_of_bits(machine, sbits):
 def uint64c(machine, num):
     if not objectmodel.we_are_translated():
         import pdb; pdb.set_trace()
-    return bitvector.from_ruint(64, r_uint(num))
+    assert num == r_uint(0)
+    return bitvector.from_ruint(0, r_uint(num))
 
 @unwrap("i")
 @purefunction
@@ -767,6 +768,8 @@ def shr_mach_int(machine, i, shift):
 def abs_int(machine, i):
     return i.abs()
 
+def pow_int(machine, i, j):
+    return i.pow(j)
 
 # real
 
@@ -900,6 +903,18 @@ def helper_vector_update_inplace_o_i_o(machine, vec, index, element):
 @objectmodel.specialize.argtype(2)
 def undefined_vector(machine, size, element):
     return [element] * size.toint()
+
+def vec_gbv_to_vec_bv8(machine, vector):
+    assert isinstance(vector, list)
+    if not objectmodel.we_are_translated():
+        import pdb; pdb.set_trace()
+    return [x.touint(8) for x in vector]
+
+def vec_gbv_to_vec_bv16(machine, vector):
+    assert isinstance(vector, list)
+    if not objectmodel.we_are_translated():
+        import pdb; pdb.set_trace()
+    return [x.touint(16) for x in vector]
 
 
 def elf_tohost(machine, _):

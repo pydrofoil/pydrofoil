@@ -108,13 +108,15 @@ def construct_ir(functionast, codegen, singleblock=False):
     return build_ssa(blocks, functionast, args, codegen)
 
 
-def compute_entryblocks(blocks):
+def compute_entryblocks_nextblocks(blocks):
     entryblocks = defaultdict(list)
+    nextblocks = defaultdict(set)
     for pc, block in blocks.iteritems():
         for op in block:
             if isinstance(op, (parse.Goto, parse.ConditionalJump)):
                 entryblocks[op.target].append(pc)
-    return entryblocks
+                nextblocks[pc].add(op.target)
+    return entryblocks, nextblocks
 
 class SSABuilder(object):
     def __init__(self, blocks, functionast, functionargs, codegen, startpc=0, extra_args=None):
@@ -122,7 +124,7 @@ class SSABuilder(object):
         self.functionast = functionast
         self.functionargs = functionargs
         self.codegen = codegen
-        self.entryblocks = compute_entryblocks(blocks)
+        self.entryblocks, self.nextblocks = compute_entryblocks_nextblocks(blocks)
         self.variable_map = None # {name: Value}
         self.variable_maps_at_end = {} # {pc: variable_map}
         self.has_loop = False
@@ -184,7 +186,10 @@ class SSABuilder(object):
             self.variable_map['return'] = None
 
         elif len(entry) == 1:
-            self.variable_map = self.variable_maps_at_end[entry[0]].copy()
+            variable_map = self.variable_maps_at_end[entry[0]]
+            if len(self.nextblocks[entry[0]]) > 1:
+                variable_map = variable_map.copy()
+            self.variable_map = variable_map
         elif not loopblock:
             assert len(entry) >= 2
             # merge
@@ -236,6 +241,13 @@ class SSABuilder(object):
                     if index == 0:
                         continue
                     self.patch_phis[otherprevpc].append((phi, index, var))
+        if not self.has_loop:
+            for prevpc in entry:
+                nextblocks_of_prevpc = self.nextblocks[prevpc]
+                nextblocks_of_prevpc.remove(pc)
+                if not nextblocks_of_prevpc:
+                    # don't keep all the variable maps alive, they are huge
+                    del self.variable_maps_at_end[prevpc]
 
     def _build_block(self, block, ssablock):
         for index, op in enumerate(block):
@@ -487,6 +499,9 @@ class Block(object):
                 res = op.prevblocks
         return res
 
+    def next_blocks(self):
+        return self.next.next_blocks()
+
     def copy_operations(self, replacements, block_replacements=None, patch_phis=None):
         def replace(arg, is_phi=False):
             if isinstance(arg, Constant):
@@ -513,7 +528,7 @@ class Block(object):
             res.append(newop)
         return res
 
-    def _dot(self, dotgen, seen, print_varnames, codegen, backedges, maxblocks):
+    def _dot(self, dotgen, seen, print_varnames, codegen, backedges):
         if codegen is None:
             builtin_names = {}
         else:
@@ -552,10 +567,7 @@ class Block(object):
             fillcolor=fillcolor,
         )
         for index, nextblock in enumerate(nextblocks):
-            if len(seen) <= maxblocks:
-                nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
-            else:
-                nextid = str(id(next))
+            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges)
             label = ''
             if len(nextblocks) > 1:
                 label = str(bool(index))
@@ -595,13 +607,23 @@ class Graph(object):
         assert isinstance(node, Block)
         return node.next.next_blocks()
 
-    def view(self, codegen=None, maxblocks=sys.maxint):
+    def view(self, codegen=None, maxblocks=None):
         from rpython.translator.tool.make_dot import DotGen
         from dotviewer import graphclient
         import pytest
+        import os
         dotgen = DotGen('G')
         print_varnames = self._dot(dotgen, codegen, maxblocks)
-        GraphPage(dotgen.generate(target=None), print_varnames, self.args).display()
+        if self.has_more_than_n_blocks(200) and maxblocks is None:
+            p = pytest.ensuretemp("pyparser").join("temp.dot")
+            p.write(dotgen.generate(target=None))
+            p2 = p.new(ext=".plain")
+            # twopi is a mess and the wrong tool, but it *will* show you really
+            # huge graphs quickly and not crash
+            os.system("twopi -Tplain %s > %s" % (p, p2))
+            graphclient.display_dot_file(str(p2))
+        else:
+            GraphPage(dotgen.generate(target=None), print_varnames, self.args).display()
 
     def _dot(self, dotgen, codegen, maxblocks):
         name = "graph" + self.name
@@ -617,9 +639,12 @@ class Graph(object):
             backedges = set(find_backedges(self))
         else:
             backedges = set()
-        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
-        for block in topo_order_best_attempt(self)[:maxblocks]:
-            block._dot(dotgen, seen, print_varnames, codegen, backedges, maxblocks)
+        if maxblocks is not None:
+            seen = set(self.iterblocks())
+            blocks = list(self.iterblocks_breadth_first())[:maxblocks]
+            for block in blocks:
+                seen.remove(block)
+        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges)
         dotgen.emit_edge(name, firstid)
         return print_varnames
 
@@ -633,6 +658,14 @@ class Graph(object):
             yield block
             seen.add(block)
             todo.extend(block.next.next_blocks())
+
+    def has_more_than_n_blocks(self, maxblocks):
+        count = 0
+        for _ in self.iterblocks():
+            count += 1
+            if count > maxblocks:
+                return True
+        return False
 
     def iteredges(self):
         todo = [self.startblock]
@@ -654,6 +687,22 @@ class Graph(object):
         for block in self.iterblocks():
             for op in block.operations:
                 yield op, block
+
+    def iterblocks_breadth_first(self, start=None):
+        from collections import deque
+        if start is None:
+            start = self.startblock
+        todo = deque([start])
+        seen = set()
+        res = []
+        while todo:
+            block = todo.popleft()
+            if block in seen:
+                continue
+            seen.add(block)
+            todo.extend(block.next.next_blocks())
+            res.append(block)
+        return res
 
     def make_entrymap(self):
         todo = [self.startblock]
@@ -1350,6 +1399,7 @@ repeat.debug_list = None
 
 def light_simplify(graph, codegen):
     # in particular, don't specialize
+    codegen.print_debug_msg("simplifying ssa")
     res = _optimize(graph, codegen)
     if res:
         graph.check()
@@ -1619,6 +1669,63 @@ def convert_sail_assert_to_exception(graph, codegen):
             break
     return res
 
+def duplicate_end_blocks(graph, codegen):
+    assert not graph.has_loop
+    # make sure that all end blocks have exactly one predecessor.
+    # not used by default, but graph splitting needs it
+    def should_duplicate(block):
+        return len(block.next.next_blocks()) == 0 and len(entrymap[block]) > 1
+
+    num_duplicated = 0
+    num_ops_duplicated = 0
+    entrymap = graph.make_entrymap()
+    candidates = [block for block in entrymap if should_duplicate(block)]
+    while candidates:
+        block = candidates.pop()
+        preds = entrymap[block]
+        assert should_duplicate(block)
+        del entrymap[block] # the block won't be reachable at all any more
+        next = block.next
+        for predblock in preds:
+            num_duplicated += 1
+            # copy operations of the end block, removing phis (they can be
+            # removed because we will only have a single predecessor)
+            ops = []
+            replacements = {}
+            for op in block.operations:
+                if isinstance(op, Phi):
+                    index = op.prevblocks.index(predblock)
+                    value = op.prevvalues[index]
+                    replacements[op] = value
+                else:
+                    assert isinstance(op, Operation)
+                    newop = Operation(op.name, [replacements.get(arg, arg) for arg in op.args], op.resolved_type, op.sourcepos, op.varname_hint)
+                    newop.__class__ = op.__class__
+                    replacements[op] = newop
+                    ops.append(newop)
+                    num_ops_duplicated += 1
+            if isinstance(predblock.next, Goto):
+                # just put the operations in the previous block
+                predblock.operations.extend(ops)
+                newblock = predblock
+                if 1 < len(entrymap[predblock]) < 8:
+                    # the previous block needs duplication too
+                    candidates.append(predblock)
+            else:
+                # need a new block, the previous block has several successors
+                newblock = Block(ops)
+                predblock.next.replace_next(block, newblock)
+            if isinstance(next, Return):
+                newblock.next = Return(replacements.get(next.value, next.value), next.sourcepos)
+            elif isinstance(next, Raise):
+                newblock.next = Raise(replacements.get(next.kind, next.kind), next.sourcepos)
+            else:
+                assert 0, "unreachable"
+    if num_duplicated:
+        graph.check()
+    return num_duplicated
+
+
 class defaultdict_with_key_arg(dict):
     def __init__(self, factory):
         self.factory = factory
@@ -1752,6 +1859,10 @@ class BaseOptimizer(object):
         self.changed = False
         self.anticipated_casts = find_anticipated_casts(graph)
         self.entrymap = graph.make_entrymap()
+        self.nextblocks = defaultdict(set)
+        for block, entry in self.entrymap.iteritems():
+            for prevblock in entry:
+                self.nextblocks[prevblock].add(block)
         self.do_double_casts = do_double_casts
         self.current_block = self.graph.startblock
         self._dead_blocks = False
@@ -1790,18 +1901,7 @@ class BaseOptimizer(object):
 
     def optimize_block(self, block):
         # prepare CSE
-        available_in_block = {}
-        prev_blocks = self.entrymap[block]
-        if prev_blocks:
-            if len(prev_blocks) == 1:
-                available_in_block = self.cse_op_available[prev_blocks[0]].copy()
-            else:
-                # intersection of what's available in the previous blocks
-                for key, prev_op in self.cse_op_available.get(prev_blocks[0], {}).iteritems():
-                    if not all(self.cse_op_available.get(prev_block, {}).get(key, None) == prev_op
-                               for prev_block in prev_blocks):
-                        continue
-                    available_in_block[key] = prev_op
+        available_in_block = self._compute_available_in_block_from_predecessors(block)
         self.cse_op_available[block] = available_in_block
         self.cse_op_available_in_block = available_in_block
 
@@ -1826,6 +1926,41 @@ class BaseOptimizer(object):
         block.operations = self.newoperations
         self.newoperations = None
         self.cse_op_available_in_block = None
+
+    def _compute_available_in_block_from_predecessors(self, block):
+        available_in_block = {}
+        prev_blocks = self.entrymap[block]
+        if prev_blocks:
+            if len(prev_blocks) == 1:
+                prev_block, = prev_blocks
+                nextblocks_of_prevblock = self.nextblocks[prev_block]
+                available_in_block = self.cse_op_available[prev_blocks[0]]
+                if len(nextblocks_of_prevblock) > 1:
+                    available_in_block = available_in_block.copy()
+            else:
+                # intersection of what's available in the previous blocks
+                prev_cse_dicts = []
+                for prev_block in prev_blocks:
+                    prev_cse_dict = self.cse_op_available.get(prev_block, None)
+                    if not prev_cse_dict:
+                        break # one of the available dicts is empty, no need to intersect
+                    prev_cse_dicts.append(prev_cse_dict)
+                else:
+                    prev_cse_dicts.sort(key=len)
+                    smallest_dict = prev_cse_dicts.pop(0)
+                    for key, prev_op in smallest_dict.iteritems():
+                        for prev_cse_dict in prev_cse_dicts:
+                            if prev_cse_dict.get(key, None) is not prev_op:
+                                break
+                        else:
+                            available_in_block[key] = prev_op
+            for prevblock in prev_blocks:
+                nextblocks_of_prevblock = self.nextblocks[prevblock]
+                nextblocks_of_prevblock.discard(block)
+                if not nextblocks_of_prevblock and prevblock in self.cse_op_available:
+                    # don't keep all the cse info alive, it's way too huge
+                    del self.cse_op_available[prevblock]
+        return available_in_block
 
     def _known_boolean_value(self, op):
         op = self._get_op_replacement(op)
@@ -2181,8 +2316,11 @@ class LocalOptimizer(BaseOptimizer):
             # XXX this shows the need for phis to point to their "home" block
             correct_block = self._try_find_phi_home_block(phi)
             if correct_block:
-                correct_block.operations.insert(0, newphi)
-                return newphi
+                if len(correct_block.operations) < 50:
+                    # weird heuristic, triggers some super strange restriction
+                    # in the GC(!) if we add too many phis
+                    correct_block.operations.insert(0, newphi)
+                    return newphi
             return None
 
     def _try_find_phi_home_block(self, phi):
@@ -3749,6 +3887,9 @@ class LocalOptimizer(BaseOptimizer):
 
 @repeat
 def inline(graph, codegen):
+    # don't add blocks to functions that are already really big and need to be
+    # split later
+    really_huge_function = graph.has_more_than_n_blocks(1000)
     changed = False
     for block in graph.iterblocks():
         index = 0
@@ -3765,7 +3906,7 @@ def inline(graph, codegen):
                         index = 0
                         changed = True
                         continue
-                elif not subgraph.has_loop:
+                elif not really_huge_function and not subgraph.has_loop:
                     # complicated case
                     _inline(graph, codegen, block, index, subgraph)
                     remove_empty_blocks(graph, codegen)
@@ -4075,14 +4216,10 @@ def cse_global_reads(graph, codegen):
             else:
                 continue
             if key in available_in_block:
-                #if not isinstance(available_in_block[key], GlobalRead):
-                #    import pdb;pdb.set_trace()
                 block.operations[index] = None
                 replacements[op] = available_in_block[key]
             else:
                 available_in_block[key] = op
-    #if graph.name == 'zexecute_aarch32_instrs_SADD16_Op_A_txt':
-    #    import pdb;pdb.set_trace()
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]
@@ -4091,7 +4228,6 @@ def cse_global_reads(graph, codegen):
             changed = graph.replace_ops(replacements)
             if not changed:
                 break
-        graph.check()
         return True
     return False
 

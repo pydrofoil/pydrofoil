@@ -250,7 +250,7 @@ class SmallBitVector(BitVector):
             if self.read_bit(size - 1):
                 return GenericBitVector._sign_extend(size, [self.val], i)
             else:
-                return SparseBitVector(i, self.val) 
+                return SparseBitVector(i, self.val)
         m = r_uint(1) << (self.size() - 1)
         return SmallBitVector(i, (self.val ^ m) - m, True)
 
@@ -1278,6 +1278,17 @@ class SmallInteger(Integer):
             assert isinstance(other, BigInteger)
             return other.mul(self)
 
+    def pow(self, other):
+        from pypy.objspace.std.intobject import _pow_nomod as pow_int
+        if isinstance(other, SmallInteger):
+            try:
+                return SmallInteger(pow_int(self.val, other.val))
+            except OverflowError:
+                jit.jit_debug("SmallInteger.pow ovf")
+                return Integer.from_bigint(self.tobigint().int_pow(other.val))
+        jit.jit_debug("SmallInteger.pow")
+        return Integer.from_bigint(self.tobigint().pow(other.tobigint()))
+
     def int_mul(self, other):
         return SmallInteger.mul_i_i(self.val, other)
 
@@ -1667,6 +1678,12 @@ class BigInteger(Integer):
             return self.lshift(shift)
         jit.jit_debug("BigInteger.int_mul")
         return Integer.from_bigint(self.tobigint().int_mul(other))
+
+    def pow(self, other):
+        jit.jit_debug("BigInteger.pow")
+        if isinstance(other, SmallInteger):
+            return Integer.from_bigint(self.tobigint().int_pow(other.val))
+        return Integer.from_bigint(self.tobigint().pow(other.tobigint()))
 
     def tdiv(self, other):
         # rounds towards zero, like in C, not like in python

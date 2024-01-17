@@ -10,6 +10,9 @@ class FakeCodeGen:
     specialization_functions = {}
     inline_dependencies = defaultdict(set)
 
+    def print_debug_msg(*args):
+        pass
+
 fakecodegen = FakeCodeGen()
 
 def check_optimize(graph, expected):

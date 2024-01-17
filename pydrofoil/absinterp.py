@@ -666,6 +666,8 @@ class IntOpOptimizer(ir.LocalOptimizer):
 def optimize_with_range_info(graph, codegen):
     if graph.has_loop:
         return False
+    if graph.has_more_than_n_blocks(1000):
+        return False
     absinterp = AbstractInterpreter(graph, codegen)
     absinterp.analyze()
     opt = IntOpOptimizer(graph, codegen, absinterp)

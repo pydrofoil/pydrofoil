@@ -1184,15 +1184,24 @@ class SmallInteger(Integer):
         return rbigint.fromint(self.val)
 
     def slice(self, len, start):
-        n = self.val >> start
-        if len > 64:
-            if n > 0:
-                return SparseBitVector(len, r_uint(n))
-            jit.jit_debug("SmallInteger.slice large width negative case")
-            return from_bigint(len, rbigint.fromint(n))
-        return from_ruint(len, r_uint(n))
+        if len <= 64:
+            return from_ruint(len, self.slice_unwrapped_res(len, start))
+        if start >= 64:
+            if self.val >= 0:
+                return SparseBitVector(len, r_uint(0))
+            n = -1
+        else:
+            n = self.val >> start
+        if n > 0:
+            return SparseBitVector(len, r_uint(n))
+        jit.jit_debug("SmallInteger.slice large width negative case")
+        return from_bigint(len, rbigint.fromint(n))
 
     def slice_unwrapped_res(self, len, start):
+        if start >= 64:
+            if self.val >= 0:
+                return r_uint(0)
+            return ruint_mask(len, r_uint(-1))
         return ruint_mask(len, r_uint(self.val >> start))
 
     def set_slice_int(self, len, start, bv):

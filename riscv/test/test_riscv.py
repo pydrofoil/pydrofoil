@@ -109,7 +109,7 @@ def test_dis_instructions(riscvmain):
         "addi a1, t0, 32",
         "csrrs a0, mhartid, zero",
         "ld t0, 24(t0)",
-        "jalr zero, t0, 0",
+        "jalr zero, 0(t0)",
         "jal zero, 76",
         "csrrs a0, mhartid, zero",
         "bne a0, zero, 0"

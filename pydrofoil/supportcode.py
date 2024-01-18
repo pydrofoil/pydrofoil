@@ -112,17 +112,10 @@ make_dummy('string_drop')
 make_dummy('string_take')
 make_dummy('string_startswith')
 make_dummy('sub_nat')
-make_dummy('undefined_int')
 make_dummy("wakeup_request")
 make_dummy("set_slice_int")
 make_dummy("undefined_range")
 
-make_dummy("softfloat_f16lt_quiet")
-make_dummy("softfloat_f32lt_quiet")
-make_dummy("softfloat_f64lt_quiet")
-make_dummy("softfloat_f16le_quiet")
-make_dummy("softfloat_f32le_quiet")
-make_dummy("softfloat_f64le_quiet")
 make_dummy("softfloat_f16roundToInt")
 make_dummy("softfloat_f32roundToInt")
 make_dummy("softfloat_f64roundToInt")
@@ -1210,6 +1203,36 @@ def softfloat_f64le(machine, v1, v2):
 
 def softfloat_f64lt(machine, v1, v2):
     machine._reg_zfloat_result = softfloat.f64lt(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16le_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16le_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16lt_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16lt_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32le_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32le_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32lt_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32lt_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64le_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64le_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64lt_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64lt_quiet(v1, v2)
     machine._reg_zfloat_fflags = softfloat.get_exception_flags()
     return 0
 

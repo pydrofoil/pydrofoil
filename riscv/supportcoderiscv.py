@@ -552,18 +552,18 @@ def _main(argv, *machineclasses):
         machine.g._create_dtb()
     if check_file_missing(file):
         return -1
-
+    print "Running file", file
 
     if disable_vext:
         machine.g.rv_enable_vext = False
 
-    entry = load_sail(machine, file)
-    init_sail(machine, entry)
     if not verbose:
         machine.g.config_print_instr = False
         machine.g.config_print_reg = False
         machine.g.config_print_mem_access = False
         machine.g.config_print_platform = False
+    entry = load_sail(machine, file)
+    init_sail(machine, entry)
     if dump_file:
         if check_file_missing(dump_file):
             return -1
@@ -611,7 +611,7 @@ def load_sail(machine, fn):
     g.rv_htif_tohost = r_uint(img.get_symbol('tohost'))
     print "tohost located at 0x%x" % g.rv_htif_tohost
 
-    print "entrypoint 0x%x" % entrypoint
+    print "ELF Entry @ 0x%x" % entrypoint
     assert entrypoint == 0x80000000 # XXX for now
     return entrypoint
 
@@ -623,12 +623,24 @@ def print_string(prefix, msg):
     return ()
 
 def print_instr(machine, s):
-    print s
+    if machine.g.config_print_instr:
+        print s
     return ()
 
-print_reg = print_instr
-print_mem_access = print_reg
-print_platform = print_reg
+def print_reg(machine, s):
+    if machine.g.config_print_reg:
+        print s
+    return ()
+
+def print_mem_access(machine, s):
+    if machine.g.config_print_mem_access:
+        print s
+    return ()
+
+def print_platform(machine, s):
+    if machine.g.config_print_platform:
+        print s
+    return ()
 
 def get_config_print_instr(machine, _):
     return machine.g.config_print_instr
@@ -734,10 +746,6 @@ def get_main(outriscv, rv64):
                     step_no += 1
                     if rv_insns_per_tick:
                         insn_cnt += 1
-                if g.config_print_instr:
-                    # there's an extra newline in the C emulator that I don't know
-                    # where from, add it here to ease diffing
-                    print
 
                 tick_cond = (do_show_times and (step_no & 0xffffffff) == 0) | (
                         rv_insns_per_tick and insn_cnt == rv_insns_per_tick)
@@ -763,7 +771,7 @@ def get_main(outriscv, rv64):
             elif self._reg_zhtif_exit_code == 0:
                 print "SUCCESS"
             else:
-                print "FAILURE", self._reg_zhtif_exit_code
+                print "FAILURE:", self._reg_zhtif_exit_code
                 if not we_are_translated():
                     raise ValueError
             print "Instructions: %s" % (step_no, )

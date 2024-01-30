@@ -3801,6 +3801,8 @@ class LocalOptimizer(BaseOptimizer):
             return BooleanConstant.TRUE
         if isinstance(arg0, MachineIntConstant) and isinstance(arg1, MachineIntConstant):
             return BooleanConstant.frombool(arg0.number == arg1.number)
+        if isinstance(arg0, EnumConstant) and isinstance(arg1, EnumConstant):
+            return BooleanConstant.frombool(arg0.variant == arg1.variant)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
             import pdb;pdb.set_trace()
 

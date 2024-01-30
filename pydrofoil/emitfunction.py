@@ -254,6 +254,21 @@ class CodeEmitter(object):
         self._op_helper(op, op.resolved_type.uninitialized_value)
 
     def emit_op_RefOf(self, op):
+        if not isinstance(op.resolved_type.typ, types.Struct):
+            # only support references of 64 bit registers
+            assert op.resolved_type.typ is types.SmallFixedBitVector(64)
+            arg, = op.args
+            assert isinstance(arg, ir.GlobalRead)
+            regname = arg.name
+            register = self.codegen.all_registers[regname]
+            name = "ref_%s" % (regname, )
+            with self.codegen.cached_declaration(regname, name) as pyname:
+                with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
+                    with self.codegen.emit_indent("def deref(self, machine):"):
+                        self.codegen.emit("return machine.%s" % (register.pyname, ))
+                self.codegen.emit("%s = %s() # singleton" % (pyname, pyname))
+            return self._op_helper(op, pyname)
+        # for structs it's just the identity
         return self._op_helper(op, self._get_arg(op.args[0]))
 
     def emit_op_VectorInit(self, op):

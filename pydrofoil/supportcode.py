@@ -838,6 +838,8 @@ def undefined_real(machine, _):
 
 @objectmodel.specialize.argtype(1)
 def reg_deref(machine, s):
+    if isinstance(s, RegRef):
+        return s.deref(machine)
     return s
 
 @objectmodel.always_inline
@@ -1350,3 +1352,5 @@ class Globals(object):
         from pydrofoil import mem as mem_mod
         self.mem = mem_mod.BlockMemory()
 
+class RegRef(object):
+    pass

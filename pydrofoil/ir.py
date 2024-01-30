@@ -183,7 +183,10 @@ class SSABuilder(object):
                     for var, typ in self.extra_args:
                         arg = self.variable_map[var] = Argument(var, typ)
                         self.args.append(arg)
-            self.variable_map['return'] = None
+            if isinstance(self.functionast.resolved_type, types.Function):
+                self.variable_map['return'] = DefaultValue(self.functionast.resolved_type.restype)
+            else:
+                self.variable_map['return'] = None
 
         elif len(entry) == 1:
             variable_map = self.variable_maps_at_end[entry[0]]

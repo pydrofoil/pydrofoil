@@ -547,9 +547,8 @@ class __extend__(parse.Register):
             write_pyname = "%s = %%s.pack()" % (names, )
         codegen.all_registers[self.name] = self
         codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
-        #with codegen.emit_code_type("declarations"):
-        #    codegen.emit("# %s" % (self, ))
-        #    codegen.write_to(self.name, typ.uninitialized_value)
+        with codegen.emit_code_type("declarations"):
+            codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
 
         if self.body is None:
             return

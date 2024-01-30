@@ -1271,8 +1271,8 @@ def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
             value = value.append(nextbyte)
     return value
 
+@unwrap("o o o o i o")
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
-    n = n.toint()
     assert addr_size in (64, 32)
     assert data.size() == n * 8
     mem = jit.promote(machine.g).mem

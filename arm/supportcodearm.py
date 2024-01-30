@@ -35,7 +35,7 @@ JIT_HELP = "\n".join(JIT_HELP)
 
 
 def get_main(outarm):
-    Globals._pydrofoil_enum_read_ifetch_value = outarm.Enum_zread_kind.zRead_ifetch
+    #Globals._pydrofoil_enum_read_ifetch_value = outarm.Enum_zread_kind.zRead_ifetch
 
     Machine = outarm.Machine
     def get_printable_location(pc):
@@ -302,3 +302,46 @@ def get_cycle_count(machine, _):
 
 def sail_get_verbosity(machine, _):
     return machine.g.sail_verbosity
+
+make_dummy("emulator_read_tag")
+make_dummy("emulator_write_tag")
+
+@unwrap("o o o i")
+def read_mem_ifetch(machine, request, addr_size, addr, n):
+    assert addr_size in (64, 32)
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        res = mem.read(addr, n, executable_flag=True)
+        return bitvector.SmallBitVector(n*8, res)
+    else:
+        return _platform_read_mem_slowpath(machine, mem, 0, addr, n)
+
+@unwrap("o o o i")
+def read_mem_exclusive(machine, request, addr_size, addr, n):
+    return read_mem_o_o_o_i(machine, request, addr_size, addr, n)
+
+@unwrap("o o o i")
+def read_mem(machine, request, addr_size, addr, n):
+    assert addr_size in (64, 32)
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        res = mem.read(addr, n, executable_flag=False)
+        return bitvector.SmallBitVector(n*8, res)
+    else:
+        return _platform_read_mem_slowpath(machine, mem, 0, addr, n)
+
+@unwrap("o o o i o")
+def write_mem(machine, request, addr_size, addr, n, data):
+    assert addr_size in (64, 32)
+    assert data.size() == n * 8
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        mem.write(addr, n, data.touint())
+    else:
+        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
+    return ()
+
+write_mem_exclusive = write_mem

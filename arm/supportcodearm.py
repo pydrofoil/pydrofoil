@@ -71,8 +71,8 @@ def get_main(outarm):
             cycle_count(machine, ())
     outarm.func_zstep_model = jitstep
 
-    setinstr = outarm.func_z__SetThisInstr
-    def jitsetinstr(machine, opcode):
+    setinstr = outarm.func_z__SetThisInstrDetails
+    def jitsetinstr(machine, enc, opcode, cond):
         # approach: promote the top 12 bits of opcode, but do it 4 bits at a
         # time, to make sure we don't just get a linear search. start from the
         # highest bits, because that's where the instruction-specific bits are
@@ -87,8 +87,8 @@ def get_main(outarm):
         #jit.promote(opcode & 0x00000f00)
         #jit.promote(opcode & 0x000000f0)
         #jit.promote(opcode & 0x0000000f)
-        return setinstr(machine, opcode)
-    outarm.func_z__SetThisInstr = jitsetinstr
+        return setinstr(machine, enc, opcode, cond)
+    outarm.func_z__SetThisInstrDetails = jitsetinstr
 
     for name, func in outarm.__dict__.iteritems():
         if "IMPDEF" in name:

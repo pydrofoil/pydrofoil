@@ -1184,6 +1184,12 @@ class Raise(Next):
     def getargs(self):
         return [self.kind]
 
+    def replace_ops(self, replacements):
+        if self.kind in replacements:
+            self.kind = replacements[self.kind]
+            return True
+        return False
+
     def _repr(self, print_varnames, blocknames=None):
         return "Raise(%s, %r)" % (self.kind, self.sourcepos)
 

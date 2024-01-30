@@ -308,6 +308,7 @@ make_dummy("emulator_write_tag")
 
 @unwrap("o o o i")
 def read_mem_ifetch(machine, request, addr_size, addr, n):
+    from pydrofoil.supportcode import _platform_read_mem_slowpath
     assert addr_size in (64, 32)
     mem = jit.promote(machine.g).mem
     addr = addr.touint()
@@ -323,6 +324,7 @@ def read_mem_exclusive(machine, request, addr_size, addr, n):
 
 @unwrap("o o o i")
 def read_mem(machine, request, addr_size, addr, n):
+    from pydrofoil.supportcode import _platform_read_mem_slowpath
     assert addr_size in (64, 32)
     mem = jit.promote(machine.g).mem
     addr = addr.touint()
@@ -334,6 +336,7 @@ def read_mem(machine, request, addr_size, addr, n):
 
 @unwrap("o o o i o")
 def write_mem(machine, request, addr_size, addr, n, data):
+    from pydrofoil.supportcode import _platform_write_mem_slowpath
     assert addr_size in (64, 32)
     assert data.size() == n * 8
     mem = jit.promote(machine.g).mem

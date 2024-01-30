@@ -213,15 +213,19 @@ def get_main(outarm):
             machine.g.cycle_count = 0
             if objectmodel.we_are_translated():
                 rsignal.pypysig_setflag(rsignal.SIGINT)
-                t1 = time.time()
-                try:
-                    outarm.func_zmain(machine, ())
-                except CycleLimitReached:
-                    if i == repeats - 1:
-                        raise
-                finally:
-                    t2 = time.time()
-                    print "ran for %s(s), %s instructions, KIPS: %s" % (t2 - t1, machine.g.cycle_count, machine.g.cycle_count / (t2 - t1) / 1000)
+            t1 = time.time()
+            try:
+                outarm.func_zmain(machine, ())
+            except CycleLimitReached:
+                if i == repeats - 1:
+                    raise
+            except Exception as e:
+                if not objectmodel.we_are_translated():
+                    import pdb;pdb.xpm()
+                raise
+            finally:
+                t2 = time.time()
+                print "ran for %s(s), %s instructions, KIPS: %s" % (t2 - t1, machine.g.cycle_count, machine.g.cycle_count / (t2 - t1) / 1000)
         return 0
     main.mod = outarm
     return main

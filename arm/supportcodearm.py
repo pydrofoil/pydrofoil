@@ -113,7 +113,7 @@ def get_main(outarm):
         if "instrs_integer_arithmetic" in name:
             jit.unroll_safe(func)
         if "ArchitectureReset" in name:
-            jit.unroll_safe(func)
+            jit.dont_look_inside(func)
 
     def main(argv):
         try:

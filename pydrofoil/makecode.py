@@ -506,6 +506,7 @@ class __extend__(parse.GlobalVal):
                 else:
                     import pdb; pdb.set_trace()
             if name == "not": name = "not_"
+            if name == "print": name = "print_"
             funcname = "supportcode.%s" % (name, )
 
             if name == "cons":

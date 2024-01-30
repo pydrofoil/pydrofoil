@@ -853,6 +853,10 @@ def print_endline(machine, s):
     print s
     return ()
 
+def print_(machine, s):
+    os.write(STDOUT, s)
+    return ()
+
 def prerr_endline(machine, s):
     os.write(STDERR, s + "\n")
     return ()

@@ -3849,7 +3849,8 @@ class LocalOptimizer(BaseOptimizer):
         assert arg2.resolved_type is types.SmallFixedBitVector(1)
         arg0, typ = self._extract_smallfixedbitvector(arg0)
         if isinstance(arg1, MachineIntConstant):
-            assert 0 <= arg1.number < typ.width
+            if not 0 <= arg1.number < typ.width:
+                return None # usually means unreachable
         return self.newcast(
             self.newop(
                 '$zupdate_fbits',

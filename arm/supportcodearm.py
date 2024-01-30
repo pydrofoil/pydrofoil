@@ -344,7 +344,7 @@ def write_mem(machine, request, addr_size, addr, n, data):
     if n == 1 or n == 2 or n == 4 or n == 8:
         mem.write(addr, n, data.touint())
     else:
-        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
-    return ()
+        _platform_write_mem_slowpath(machine, mem, 0, addr, n, data)
+    return True
 
 write_mem_exclusive = write_mem

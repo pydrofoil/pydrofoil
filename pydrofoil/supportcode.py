@@ -49,7 +49,7 @@ def unwrap(spec):
             return func(machine, *newargs)
         wrappedfunc.__dict__.update(func.__dict__)
         unwrapped_name = func.func_name + "_" + "_".join(argspecs)
-        globals()[unwrapped_name] = func
+        func.func_globals[unwrapped_name] = func
         if func.func_name in purefunctions:
             purefunctions[func.func_name] = wrappedfunc
             purefunctions[unwrapped_name] = func

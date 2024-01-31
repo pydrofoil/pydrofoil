@@ -76,7 +76,8 @@ def get_main(outarm):
         # approach: promote the top 12 bits of opcode, but do it 4 bits at a
         # time, to make sure we don't just get a linear search. start from the
         # highest bits, because that's where the instruction-specific bits are
-        jit.jit_debug("arm-opcode", opcode)
+        from rpython.rlib.rarithmetic import intmask
+        jit.jit_debug("arm-opcode", intmask(opcode))
         jit.promote(opcode & 0xf0000000)
         jit.promote(opcode & 0x0f000000)
         jit.promote(opcode & 0x00f00000)
@@ -94,9 +95,9 @@ def get_main(outarm):
         if "IMPDEF" in name:
             func = objectmodel.specialize.arg(1)(func)
             objectmodel.always_inline(func)
-        if "func_zMem_read__1" in name:
+        if "func_zMem_read" in name:
             jit.unroll_safe(func)
-        if "func_zMem_set__1" in name:
+        if "func_zMem_set" in name:
             jit.unroll_safe(func)
         if "MemSingle_" in name:
             jit.unroll_safe(func)
@@ -111,6 +112,14 @@ def get_main(outarm):
         if "DataMemZero" in name:
             jit.unroll_safe(func)
         if "instrs_integer_arithmetic" in name:
+            jit.unroll_safe(func)
+        if "PMUEvent" in name:
+            jit.unroll_safe(func)
+        if "PMUCycle" in name:
+            jit.unroll_safe(func)
+        if "SPECycle" in name:
+            jit.unroll_safe(func)
+        if "SPEPostExecution" in name:
             jit.unroll_safe(func)
         if "ArchitectureReset" in name:
             jit.dont_look_inside(func)

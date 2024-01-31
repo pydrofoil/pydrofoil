@@ -31,7 +31,7 @@ def should_inline(name):
         return True
     if "extzzv" in name:
         return True
-    if "IMPDEF" in name or "ImpDef" in name:
+    if "IMPDEF" in name or "ImpDef" in name or "IsFeatureImplemented" in name:
         return True
     if "num_of_Feature" in name:
         return True
@@ -55,8 +55,8 @@ def should_inline(name):
         return True
     if "zAArch64_PAMax" in name:
         return True # risky, several callers
-    #if name == "z__SetThisInstr":
-    #    return False # hook for the JIT
+    if name == "z__SetThisInstrDetails":
+        return False # hook for the JIT
 
 
 def _make_code(regen=True):

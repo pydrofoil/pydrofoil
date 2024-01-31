@@ -132,8 +132,8 @@ class SmallBitVector(BitVector):
     def __init__(self, size, val, normalize=False):
         BitVector.__init__(self, size)
         assert isinstance(val, r_uint)
-        if normalize and size != 64:
-            val = val & ((r_uint(1) << size) - 1)
+        if normalize:
+            val = ruint_mask(size, val)
         if not normalize:
             # XXX disable after translation, later
             if size < 64:
@@ -420,7 +420,11 @@ class SparseBitVector(BitVector):
         return self._to_generic().sub_int(i)
 
     def lshift(self, i):
+        if i < 0:
+            raise ValueError
         if i < 64:
+            if i == 0:
+                return self
             if (self.val >> (64 - i)) == 0:
                 return SparseBitVector(self.size(), self.val << i)
         return self._to_generic().lshift(i)

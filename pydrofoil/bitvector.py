@@ -524,7 +524,7 @@ class SparseBitVector(BitVector):
                     generic = True
         if generic:
             return self._to_generic().update_subrange(n, m ,s)
-        mask = ~(((r_uint(1) << width) - 1) << m)
+        mask = ~(ruint_mask(width, r_uint(-1)) << m)
         return SparseBitVector(self.size(), (self.val & mask) | (sval << m))
 
     def signed(self):
@@ -1193,6 +1193,10 @@ class SmallInteger(Integer):
         return from_ruint(len, r_uint(n))
 
     def slice_unwrapped_res(self, len, start):
+        if start >= 64:
+            if self.val >= 0:
+                return r_uint(0)
+            return ruint_mask(len, r_uint(-1))
         return ruint_mask(len, r_uint(self.val >> start))
 
     def set_slice_int(self, len, start, bv):

@@ -1420,10 +1420,8 @@ class BigInteger(Integer):
 
     def hex(self):
         from rpython.rlib.rstring import StringBuilder
-        res = ['0'] * (len(self.data) * 16 + (self.sign == -1) + 3)
+        res = ['0'] * (len(self.data) * 16 + (self.sign == -1) + 2)
         next_digit_index = len(res) - 1
-        res[next_digit_index] = 'L'
-        next_digit_index -= 1
         for digitindex, digit in enumerate(self.data):
             for i in range(16):
                 nibble = digit & 0xf

@@ -1914,7 +1914,7 @@ def test_hypothesis_fromlong(i):
 @example(-12144 ** 20)
 def test_hypothesis_int_str(i):
     assert Integer.fromlong(i).str() == str(i)
-    assert Integer.fromlong(i).hex() == hex(i)
+    assert Integer.fromlong(i).hex() == hex(i).rstrip("L")
 
 @given(uints)
 def test_hypothesis_int_from_ruint_to_uint_roundtrips(ui):

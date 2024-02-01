@@ -29,7 +29,7 @@ class __extend__(pairtype(types.GenericBitVector, types.BigFixedBitVector)):
 
 class __extend__(pairtype(types.BigFixedBitVector, types.GenericBitVector)):
     def convert((from_, to), expr, codegen):
-        return expr
+        return "%s.tell_jit_size_and_return(%s)" % (expr, from_.width)
 
 class __extend__(pairtype(types.Int, types.SmallFixedBitVector)):
     def convert((from_, to), expr, codegen):

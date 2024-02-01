@@ -86,6 +86,10 @@ class BitVector(object):
             raise ValueError
         return self
 
+    def tell_jit_size_and_return(self, known_size):
+        jit.record_exact_value(self.size(), known_size)
+        return self
+
     def size_as_int(self):
         return Integer.fromint(self.size())
 

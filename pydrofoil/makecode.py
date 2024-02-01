@@ -264,7 +264,7 @@ class Codegen(specialize.FixpointSpecializer):
                     self.emit("self.%s = %s # %s" % (arg, arg, fieldtyp))
                     uninit_arg.append(fieldtyp.uninitialized_value)
             with self.emit_indent("def copy_into(self, res=None):"):
-                self.emit("if res is None: res = type(self)()")
+                self.emit("if res is None: res = objectmodel.instantiate(self.__class__)")
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
                     self.emit("res.%s = self.%s" % (arg, arg))
                 self.emit("return res")

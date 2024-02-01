@@ -42,6 +42,10 @@ class CodeEmitter(object):
         if len(self.blocks) == 1:
             self.emit_block_ops(self.blocks[0])
             return
+        for arg in self.graph.args:
+            if isinstance(arg.resolved_type, types.Struct) and not arg.resolved_type.tuplestruct:
+                # copy all struct arguments
+                codegen.emit("%s = %s.copy_into()" % (arg.name, arg.name))
         # first give out variable names
         for block in self.blocks:
             for index, op in enumerate(block.operations):

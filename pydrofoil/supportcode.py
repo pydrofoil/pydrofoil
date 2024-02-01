@@ -1242,7 +1242,7 @@ def read_mem(machine, address):
 
 def write_mem(machine, address, data):
     machine.g.mem.write(address, 1, data)
-    return ()
+    return True
 
 @unwrap("o o o i")
 def platform_read_mem(machine, read_kind, addr_size, addr, n):
@@ -1281,7 +1281,7 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
         mem.write(addr, n, data.touint())
     else:
         _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
-    return ()
+    return True
 
 @jit.unroll_safe
 def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):

@@ -32,6 +32,16 @@ def test_softfloat_f16lt():
     supportcode.softfloat_f16lt(machine, 0b0011100000000000, 0b0011100000000000)
     assert machine._reg_zfloat_result == 0
 
+def test_softfloat_f16le_quiet():
+    machine = DummyMachine()
+    supportcode.softfloat_f16le_quiet(machine, 0b0011100000000000, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 1
+
+def test_softfloat_f16lt_quiet():
+    machine = DummyMachine()
+    supportcode.softfloat_f16lt_quiet(machine, 0b0011100000000000, 0b0011100000000000)
+    assert machine._reg_zfloat_result == 0
+
 def test_softfloat_f16mul():
     machine = DummyMachine()
     supportcode.softfloat_f16mul(machine, 0, 0b0011110000000000, 0b0011100000000000)
@@ -77,6 +87,16 @@ def test_softfloat_f32lt():
     supportcode.softfloat_f32lt(machine, 0b00111111000000000000000000000000, 0b00111111000000000000000000000000)
     assert machine._reg_zfloat_result == 0
 
+def test_softfloat_f32le_quiet():
+    machine = DummyMachine()
+    supportcode.softfloat_f32le_quiet(machine, 0b00111111000000000000000000000000, 0b00111111000000000000000000000000)
+    assert machine._reg_zfloat_result == 1
+
+def test_softfloat_f32lt_quiet():
+    machine = DummyMachine()
+    supportcode.softfloat_f32lt_quiet(machine, 0b00111111000000000000000000000000, 0b00111111000000000000000000000000)
+    assert machine._reg_zfloat_result == 0
+
 def test_softfloat_f32mul():
     machine = DummyMachine()
     supportcode.softfloat_f32mul(machine, 0, 0b00111111100000000000000000000000, 0b01000000000000000000000000000000)
@@ -120,6 +140,16 @@ def test_softfloat_f64le():
 def test_softfloat_f64lt():
     machine = DummyMachine()
     supportcode.softfloat_f64lt(machine, 0b0011111111100000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 0
+
+def test_softfloat_f64le_quiet():
+    machine = DummyMachine()
+    supportcode.softfloat_f64le_quiet(machine, 0b0011111111100000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
+    assert machine._reg_zfloat_result == 1
+
+def test_softfloat_f64lt_quiet():
+    machine = DummyMachine()
+    supportcode.softfloat_f64lt_quiet(machine, 0b0011111111100000000000000000000000000000000000000000000000000000, 0b0011111111100000000000000000000000000000000000000000000000000000)
     assert machine._reg_zfloat_result == 0
 
 def test_softfloat_f64mul():

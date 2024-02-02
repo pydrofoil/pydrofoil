@@ -1,15 +1,14 @@
 import time
 from rpython.rlib import jit
 from rpython.rlib import rsignal
+from rpython.rlib.rarithmetic import string_to_int
+from rpython.rlib.rstring import (
+    ParseStringError, ParseStringOverflowError)
 from pydrofoil import mem as mem_mod
 from pydrofoil.supportcode import *
 from pydrofoil.supportcode import Globals as BaseGlobals
 
 def parseint(s):
-    from rpython.rlib.rarithmetic import string_to_int
-    from rpython.rlib.rstring import (
-        ParseStringError, ParseStringOverflowError)
-
     try:
         return string_to_int(s, 0, no_implicit_octal=True,
                              allow_underscores=True)

@@ -29,7 +29,6 @@ endif
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` && cd $(RISCVMODELCHECKOUT) && \
 		isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		model/prelude.sail \
-		model/prelude_mapping.sail \
 		model/riscv_xlen64.sail \
 		model/riscv_flen_D.sail \
 		model/riscv_vlen.sail \
@@ -117,7 +116,6 @@ endif
 		&& \
 		${PWD}/isla/isla-sail/isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		model/prelude.sail \
-		model/prelude_mapping.sail \
 		model/riscv_xlen32.sail \
 		model/riscv_flen_D.sail \
 		model/riscv_vlen.sail \

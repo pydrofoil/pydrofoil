@@ -7,8 +7,18 @@ from pydrofoil.supportcode import Globals as BaseGlobals
 
 def parseint(s):
     from rpython.rlib.rarithmetic import string_to_int
-    return string_to_int(s, 0, no_implicit_octal=True,
-                         allow_underscores=True)
+    from rpython.rlib.rstring import (
+        ParseStringError, ParseStringOverflowError)
+
+    try:
+        return string_to_int(s, 0, no_implicit_octal=True,
+                             allow_underscores=True)
+    except ParseStringError as e:
+        e.msg = "couldn't parse number %s: %s" % (s, e.msg)
+        raise
+    except ParseStringOverflowError as e:
+        raise ParseStringError("couldn't parse number %s: too large" % (s, ))
+
 
 # globals etc
 
@@ -166,6 +176,9 @@ def get_main(outarm):
                 return -3
             else:
                 raise
+        except ParseStringError as e:
+            print e.msg
+            return -4
 
     def _main(argv):
         from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
@@ -220,6 +233,12 @@ def get_main(outarm):
             outarm.func_zinitializze_registers(machine, ())
             machine.g.mem.__init__()
             for binary in binaries:
+                if "," not in binary:
+                    print "could not parse binary parameter:", binary
+                    print "must be of the form <offset>,<filename> where <filename> is a path"
+                    print "to a file to be loaded at <offset> (which is a number)"
+                    return -1
+
                 offset, filename = binary.split(',', 2)
                 offset = parseint(offset)
                 if check_file_missing(filename):
@@ -227,6 +246,12 @@ def get_main(outarm):
                 print "loading binary blob", filename, "at offset", hex(offset)
                 load_raw_single(machine, r_uint(offset), filename)
             for config in configs:
+                if "=" not in config:
+                    print "could not parse config parameter:", config
+                    print "must be of the form <parameter>=<value>, where <value> is a number."
+                    print "documented <parameter>s are:"
+                    outarm.func_z__ListConfig(machine, ())
+                    return -1
                 configname, value = config.split('=', 2)
                 value = parseint(value)
                 print "setting config value", configname, "to", hex(value)
@@ -375,3 +400,10 @@ def write_mem(machine, request, addr_size, addr, n, data):
     return True
 
 write_mem_exclusive = write_mem
+
+def print_endline(machine, s):
+    # hack, because there is a quoting problem on one of the levels in __ListConfig
+    if "\\n" in s and "default" in s:
+        s = s.replace("\\n", "\n")
+    print s
+    return ()

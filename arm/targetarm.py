@@ -57,6 +57,8 @@ def should_inline(name):
         return True # risky, several callers
     if name == "z__SetThisInstrDetails":
         return False # hook for the JIT
+    if name == "z__CheckForEmulatorTermination":
+        return False # for cleanly exiting
 
 
 def _make_code(regen=True):

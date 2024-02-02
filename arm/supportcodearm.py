@@ -91,6 +91,17 @@ def get_main(outarm):
         return setinstr(machine, enc, opcode, cond)
     outarm.func_z__SetThisInstrDetails = jitsetinstr
 
+    def ourcheck(machine, enc, instr):
+        # we do the check ourselves to be able to terminate the VM cleanly
+        eto = machine._reg_z__emulator_termination_opcode
+        if isinstance(eto, outarm.Union_zoptionzIbzK_zSomezIbzK):
+            opcode = outarm.Union_zoptionzIbzK_zSomezIbzK.convert(eto)
+            if opcode.touint() == instr:
+                print "[Sail] reached emulator termination opcode 0x%x at PC 0x%x" % (instr, machine._reg_z_PC)
+                raise ExecutedTerminationOpcode()
+        return ()
+    outarm.func_z__CheckForEmulatorTermination = ourcheck
+
     for name, func in outarm.__dict__.iteritems():
         if "IMPDEF" in name:
             func = objectmodel.specialize.arg(1)(func)
@@ -131,6 +142,8 @@ def get_main(outarm):
             return 0
         except CtrlCPressed:
             return 1
+        except ExecutedTerminationOpcode:
+            return 0
         except OSError as e:
             errno = e.errno
             try:
@@ -228,6 +241,8 @@ def get_main(outarm):
             except CycleLimitReached:
                 if i == repeats - 1:
                     raise
+            except ExecutedTerminationOpcode:
+                raise
             except Exception as e:
                 if not objectmodel.we_are_translated():
                     import pdb;pdb.xpm()
@@ -290,6 +305,9 @@ class CycleLimitReached(Exception):
     pass
 
 class CtrlCPressed(Exception):
+    pass
+
+class ExecutedTerminationOpcode(Exception):
     pass
 
 def cycle_count(machine, _):

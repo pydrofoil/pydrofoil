@@ -1296,6 +1296,18 @@ def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
         start += 8
     assert start == data.size()
 
+# isla stuff
+
+@objectmodel.always_inline
+def branch_announce(machine, addrsize, addr):
+    return ()
+
+@objectmodel.always_inline
+def monomorphize(machine, addr):
+    return addr
+
+make_dummy("read_register_from_vector")
+make_dummy("write_register_from_vector")
 
 # argument handling
 

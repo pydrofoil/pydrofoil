@@ -215,13 +215,13 @@ pydrofoil-test-arm: pypy2/rpython/bin/rpython pypy_binary/bin/python pypy2/rpyth
 pydrofoil-arm: pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py
 
-sail-arm/arm-v9.3-a/src/v8_base.sail: ## Clone the sail-arm submodule
+sail-arm/arm-v9.4-a/src/v8_base.sail: ## Clone the sail-arm submodule
 	git submodule update --init --depth 1
 
 .PHONY: regen-arm-ir-files
-regen-arm-ir-files: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build ARM IR
-	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.3-a/ gen_ir
-	mv sail-arm/arm-v9.3-a/ir/armv9.ir arm/
+regen-arm-ir-files: sail-arm/arm-v9.4-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build ARM IR
+	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.4-a/ gen_ir
+	mv sail-arm/arm-v9.4-a/ir/armv9.ir arm/
 
 
 ## Housekeeping targets:
@@ -261,6 +261,8 @@ clean:  ## remove build artifacts.
 	rm -rf pydrofoil-riscv-tests.xml
 	make -C pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/ clean
 	rm -rf pydrofoil-arm
+	rm -rf sail/_opam
+	rm -rf isla/isla-sail/plugin.cmxs
 
 help:   ## Show this help.
 	@echo "\nHelp for various make targets"

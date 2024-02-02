@@ -14,7 +14,7 @@ reuses all its optimizations, backends, etc. The emulator is complete enough to
 [boot](https://docs.pydrofoil.org/en/latest/using_pydrofoil.html#booting-linux-under-pydrofoil)
 (an old version of) Linux up to the login prompt.
 
-It also contains an even more experimental emulator for Aarch64 version 9.3,
+It also contains an even more experimental emulator for Aarch64 version 9.4,
 based on the [Sail ARM ISA model](https://github.com/rems-project/sail-arm),
 which is itself [automatically
 generated](https://github.com/rems-project/asl_to_sail) from the

@@ -1,7 +1,6 @@
 import time
 from rpython.rlib import jit
 from rpython.rlib import rsignal
-from rpython.rlib.rarithmetic import string_to_int
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 from pydrofoil import mem as mem_mod
@@ -9,6 +8,7 @@ from pydrofoil.supportcode import *
 from pydrofoil.supportcode import Globals as BaseGlobals
 
 def parseint(s):
+    from rpython.rlib.rarithmetic import string_to_int
     try:
         return string_to_int(s, 0, no_implicit_octal=True,
                              allow_underscores=True)
@@ -401,8 +401,9 @@ def write_mem(machine, request, addr_size, addr, n, data):
 write_mem_exclusive = write_mem
 
 def print_endline(machine, s):
+    from rpython.rlib.rstring import replace
     # hack, because there is a quoting problem on one of the levels in __ListConfig
     if "\\n" in s and "default" in s:
-        s = s.replace("\\n", "\n")
+        s = replace(s, "\\n", "\n")
     print s
     return ()

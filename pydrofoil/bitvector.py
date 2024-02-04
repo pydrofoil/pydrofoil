@@ -86,6 +86,10 @@ class BitVector(object):
             raise ValueError
         return self
 
+    def tell_jit_size_and_return(self, known_size):
+        jit.record_exact_value(self.size(), known_size)
+        return self
+
     def size_as_int(self):
         return Integer.fromint(self.size())
 
@@ -132,8 +136,8 @@ class SmallBitVector(BitVector):
     def __init__(self, size, val, normalize=False):
         BitVector.__init__(self, size)
         assert isinstance(val, r_uint)
-        if normalize and size != 64:
-            val = val & ((r_uint(1) << size) - 1)
+        if normalize:
+            val = ruint_mask(size, val)
         if not normalize:
             # XXX disable after translation, later
             if size < 64:
@@ -420,7 +424,11 @@ class SparseBitVector(BitVector):
         return self._to_generic().sub_int(i)
 
     def lshift(self, i):
+        if i < 0:
+            raise ValueError
         if i < 64:
+            if i == 0:
+                return self
             if (self.val >> (64 - i)) == 0:
                 return SparseBitVector(self.size(), self.val << i)
         return self._to_generic().lshift(i)
@@ -524,7 +532,7 @@ class SparseBitVector(BitVector):
                     generic = True
         if generic:
             return self._to_generic().update_subrange(n, m ,s)
-        mask = ~(((r_uint(1) << width) - 1) << m)
+        mask = ~(ruint_mask(width, r_uint(-1)) << m)
         return SparseBitVector(self.size(), (self.val & mask) | (sval << m))
 
     def signed(self):
@@ -1425,10 +1433,8 @@ class BigInteger(Integer):
 
     def hex(self):
         from rpython.rlib.rstring import StringBuilder
-        res = ['0'] * (len(self.data) * 16 + (self.sign == -1) + 3)
+        res = ['0'] * (len(self.data) * 16 + (self.sign == -1) + 2)
         next_digit_index = len(res) - 1
-        res[next_digit_index] = 'L'
-        next_digit_index -= 1
         for digitindex, digit in enumerate(self.data):
             for i in range(16):
                 nibble = digit & 0xf

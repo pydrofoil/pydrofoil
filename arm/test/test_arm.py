@@ -30,3 +30,16 @@ def test_stuff(armmain):
     from arm import supportcodearm
     machine = armmain.mod.Machine()
     armmain("exe -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0  -l 100 -v 0b11".split())
+
+def test_termination_opcode(armmain):
+    from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
+    from arm import supportcodearm
+    machine = armmain.mod.Machine()
+    # just a random early opcode
+    armmain("exe -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0  -C emulator.termination_opcode=0x910003fd -v 0b11".split())
+
+def test_list_config(armmain):
+    from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
+    from arm import supportcodearm
+    machine = armmain.mod.Machine()
+    armmain.mod.func_z__ListConfig(machine, ())

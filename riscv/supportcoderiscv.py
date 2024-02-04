@@ -30,10 +30,10 @@ def write_mem(machine, addr, content): # write a single byte
 
 @always_inline
 @unwrap("o o o i")
-def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
+def platform_read_mem(machine, read_kind, addr_size, addr, n):
     assert n <= 8
     addr = addr.touint()
-    res = jit.promote(machine.g).mem.read(addr, n, executable_flag)
+    res = jit.promote(machine.g).mem.read(addr, n)
     return bitvector.SmallBitVector(n*8, res) # breaking abstracting a bit, but much more efficient
 
 def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
@@ -325,9 +325,6 @@ def plat_term_write_impl(c):
 def init_sail(machine, elf_entry):
     machine.init_model()
     init_sail_reset_vector(machine, elf_entry)
-    if not machine.g.rv_enable_rvc:
-        # this is probably unnecessary now; remove
-        machine.set_Misa_C(machine._reg_zmisa, 0)
 
 @specialize.argtype(0)
 def is_32bit_model(machine):
@@ -696,9 +693,6 @@ def get_main(outriscv, rv64):
 
         def init_model(self):
             return outriscv.func_zinit_model(self, ())
-
-        def set_Misa_C(self, *args):
-            return outriscv.func_z_set_Misa_C(self, *args)
 
         def step(self, *args):
             return outriscv.func_zstep(self, *args)

@@ -31,7 +31,9 @@ def should_inline(name):
         return True
     if "extzzv" in name:
         return True
-    if "IMPDEF" in name:
+    if "IMPDEF" in name or "ImpDef" in name or "IsFeatureImplemented" in name:
+        return True
+    if "num_of_Feature" in name:
         return True
     if "undefined" in name:
         return True
@@ -53,8 +55,10 @@ def should_inline(name):
         return True
     if "zAArch64_PAMax" in name:
         return True # risky, several callers
-    #if name == "z__SetThisInstr":
-    #    return False # hook for the JIT
+    if name == "z__SetThisInstrDetails":
+        return False # hook for the JIT
+    if name == "z__CheckForEmulatorTermination":
+        return False # for cleanly exiting
 
 
 def _make_code(regen=True):
@@ -63,7 +67,7 @@ def _make_code(regen=True):
     if regen:
         with open(armir, "rb") as f:
             s = f.read()
-        entrypoints = "zstep_model z__SetThisInstr zmain z__SetConfig".split()
+        entrypoints = "zstep_model z__SetThisInstrDetails zmain z__SetConfig z__ListConfig".split()
         support_code = "from arm import supportcodearm as supportcode"
         res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS,
                                   should_inline=should_inline,

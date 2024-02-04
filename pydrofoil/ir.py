@@ -183,7 +183,10 @@ class SSABuilder(object):
                     for var, typ in self.extra_args:
                         arg = self.variable_map[var] = Argument(var, typ)
                         self.args.append(arg)
-            self.variable_map['return'] = None
+            if isinstance(self.functionast.resolved_type, types.Function):
+                self.variable_map['return'] = DefaultValue(self.functionast.resolved_type.restype)
+            else:
+                self.variable_map['return'] = None
 
         elif len(entry) == 1:
             variable_map = self.variable_maps_at_end[entry[0]]
@@ -1180,6 +1183,12 @@ class Raise(Next):
 
     def getargs(self):
         return [self.kind]
+
+    def replace_ops(self, replacements):
+        if self.kind in replacements:
+            self.kind = replacements[self.kind]
+            return True
+        return False
 
     def _repr(self, print_varnames, blocknames=None):
         return "Raise(%s, %r)" % (self.kind, self.sourcepos)
@@ -3792,6 +3801,8 @@ class LocalOptimizer(BaseOptimizer):
             return BooleanConstant.TRUE
         if isinstance(arg0, MachineIntConstant) and isinstance(arg1, MachineIntConstant):
             return BooleanConstant.frombool(arg0.number == arg1.number)
+        if isinstance(arg0, EnumConstant) and isinstance(arg1, EnumConstant):
+            return BooleanConstant.frombool(arg0.variant == arg1.variant)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
             import pdb;pdb.set_trace()
 
@@ -3846,7 +3857,8 @@ class LocalOptimizer(BaseOptimizer):
         assert arg2.resolved_type is types.SmallFixedBitVector(1)
         arg0, typ = self._extract_smallfixedbitvector(arg0)
         if isinstance(arg1, MachineIntConstant):
-            assert 0 <= arg1.number < typ.width
+            if not 0 <= arg1.number < typ.width:
+                return None # usually means unreachable
         return self.newcast(
             self.newop(
                 '$zupdate_fbits',

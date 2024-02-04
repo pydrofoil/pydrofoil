@@ -49,7 +49,7 @@ def unwrap(spec):
             return func(machine, *newargs)
         wrappedfunc.__dict__.update(func.__dict__)
         unwrapped_name = func.func_name + "_" + "_".join(argspecs)
-        globals()[unwrapped_name] = func
+        func.func_globals[unwrapped_name] = func
         if func.func_name in purefunctions:
             purefunctions[func.func_name] = wrappedfunc
             purefunctions[unwrapped_name] = func
@@ -831,6 +831,8 @@ def undefined_real(machine, _):
 
 @objectmodel.specialize.argtype(1)
 def reg_deref(machine, s):
+    if isinstance(s, RegRef):
+        return s.deref(machine)
     return s
 
 @objectmodel.always_inline
@@ -842,6 +844,10 @@ def sail_assert(machine, cond, st):
 
 def print_endline(machine, s):
     print s
+    return ()
+
+def print_(machine, s):
+    os.write(STDOUT, s)
     return ()
 
 def prerr_endline(machine, s):
@@ -1259,7 +1265,7 @@ def read_mem(machine, address):
 
 def write_mem(machine, address, data):
     machine.g.mem.write(address, 1, data)
-    return ()
+    return True
 
 @unwrap("o o o i")
 def platform_read_mem(machine, read_kind, addr_size, addr, n):
@@ -1288,8 +1294,8 @@ def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
             value = value.append(nextbyte)
     return value
 
+@unwrap("o o o i o")
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
-    n = n.toint()
     assert addr_size in (64, 32)
     assert data.size() == n * 8
     mem = jit.promote(machine.g).mem
@@ -1298,7 +1304,7 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
         mem.write(addr, n, data.touint())
     else:
         _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
-    return ()
+    return True
 
 @jit.unroll_safe
 def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
@@ -1313,6 +1319,18 @@ def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
         start += 8
     assert start == data.size()
 
+# isla stuff
+
+@objectmodel.always_inline
+def branch_announce(machine, addrsize, addr):
+    return ()
+
+@objectmodel.always_inline
+def monomorphize(machine, addr):
+    return addr
+
+make_dummy("read_register_from_vector")
+make_dummy("write_register_from_vector")
 
 # argument handling
 
@@ -1373,3 +1391,5 @@ class Globals(object):
         from pydrofoil import mem as mem_mod
         self.mem = mem_mod.BlockMemory()
 
+class RegRef(object):
+    pass

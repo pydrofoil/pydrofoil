@@ -846,6 +846,8 @@ def test_op_int():
 
 @given(wrapped_ints, wrapped_ints)
 @example(SmallInteger(0), SmallInteger(0))
+@example(BigInteger.fromlong(3316158518186977171087283760642741158699936149735704467159471849921418683482035763477878926564345847729145083728966646356210626353328840324989147544629059746554141479347263264595425816446455256534872353644097455203319930608430165174159005378955830171087831965898486080345430665055936553487340789901656166618033483630075818541056), SmallInteger(97))
+@settings(deadline=None)
 def test_op_int_hypothesis(a, b):
     v1 = a.tolong()
     v2 = b.tolong()
@@ -1913,7 +1915,7 @@ def test_hypothesis_fromlong(i):
 @example(-12144 ** 20)
 def test_hypothesis_int_str(i):
     assert Integer.fromlong(i).str() == str(i)
-    assert Integer.fromlong(i).hex() == hex(i)
+    assert Integer.fromlong(i).hex() == hex(i).rstrip("L")
 
 @given(uints)
 def test_hypothesis_int_from_ruint_to_uint_roundtrips(ui):

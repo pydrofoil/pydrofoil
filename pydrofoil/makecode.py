@@ -264,7 +264,7 @@ class Codegen(specialize.FixpointSpecializer):
                     self.emit("self.%s = %s # %s" % (arg, arg, fieldtyp))
                     uninit_arg.append(fieldtyp.uninitialized_value)
             with self.emit_indent("def copy_into(self, res=None):"):
-                self.emit("if res is None: res = type(self)()")
+                self.emit("if res is None: res = objectmodel.instantiate(self.__class__)")
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
                     self.emit("res.%s = self.%s" % (arg, arg))
                 self.emit("return res")
@@ -506,6 +506,7 @@ class __extend__(parse.GlobalVal):
                 else:
                     import pdb; pdb.set_trace()
             if name == "not": name = "not_"
+            if name == "print": name = "print_"
             funcname = "supportcode.%s" % (name, )
 
             if name == "cons":
@@ -547,9 +548,8 @@ class __extend__(parse.Register):
             write_pyname = "%s = %%s.pack()" % (names, )
         codegen.all_registers[self.name] = self
         codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
-        #with codegen.emit_code_type("declarations"):
-        #    codegen.emit("# %s" % (self, ))
-        #    codegen.write_to(self.name, typ.uninitialized_value)
+        with codegen.emit_code_type("declarations"):
+            codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
 
         if self.body is None:
             return

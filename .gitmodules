@@ -1,6 +1,3 @@
-[submodule "pypy"]
-	path = pypy
-	url = https://github.com/pydrofoil/pypy
 [submodule "isla"]
 	path = isla
 	url = https://github.com/rems-project/isla.git
@@ -10,3 +7,6 @@
 [submodule "sail"]
 	path = sail
 	url = https://github.com/rems-project/sail
+[submodule "pypy2"]
+	path = pypy2
+	url = https://github.com/pypy/pypy

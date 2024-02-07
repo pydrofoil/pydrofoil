@@ -64,7 +64,7 @@ def _init_register_names(cls, _all_register_names):
     register_info = []
     applevel_register_info = []
     for (attrname, name, convert_to_pypy, convert_from_pypy, sailrepr) in _all_register_names:
-        name = name.lower().lstrip("z")
+        name = name.lower()
         getter = make_getter(attrname, name, convert_to_pypy)
         setter = make_setter(attrname, name, convert_from_pypy)
         register_info.append((attrname, name, getter, setter, sailrepr))

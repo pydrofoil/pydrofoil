@@ -11,8 +11,12 @@ from rpython.rlib.jit import JitDriver, promote
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from rpython.rlib.rrandom import Random
 from rpython.rlib import jit
+from rpython.rlib import rsignal
 
 import time
+
+class ExitNow(Exception):
+    pass
 
 VERSION = "0.0.1-alpha0"
 
@@ -25,12 +29,15 @@ def write_mem(machine, addr, content): # write a single byte
     return True
 
 @always_inline
-def platform_read_mem(machine, executable_flag, read_kind, addr_size, addr, n):
-    n = n.toint()
+@unwrap("o o o i")
+def platform_read_mem(machine, read_kind, addr_size, addr, n):
     assert n <= 8
     addr = addr.touint()
-    res = jit.promote(machine.g).mem.read(addr, n, executable_flag)
+    res = jit.promote(machine.g).mem.read(addr, n)
     return bitvector.SmallBitVector(n*8, res) # breaking abstracting a bit, but much more efficient
+
+def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
+    return jit.promote(machine.g).mem.read(addr, n)
 
 @always_inline
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
@@ -113,6 +120,8 @@ class Globals(object):
         self.rv_enable_fdext                = True
         self.rv_enable_dirty_update         = False
         self.rv_enable_misaligned           = False
+        self.rv_enable_vext                 = True
+        self.rv_enable_writable_fiom        = True
         self.rv_mtval_has_illegal_inst_bits = False
 
         self.rv_ram_base = r_uint(0x80000000)
@@ -252,6 +261,13 @@ def plat_rom_base(machine, _):
 def plat_rom_size(machine, _):
     return machine.g.rv_rom_size
 
+def sys_enable_vext(machine, _):
+    return machine.g.rv_enable_vext
+
+def sys_enable_writable_fiom(machine, _):
+    return machine.g.rv_enable_writable_fiom
+
+
 # Provides entropy for the scalar cryptography extension.
 def plat_get_16_random_bits(machine, _):
     return rv_16_random_bits(machine)
@@ -309,11 +325,6 @@ def plat_term_write_impl(c):
 def init_sail(machine, elf_entry):
     machine.init_model()
     init_sail_reset_vector(machine, elf_entry)
-    if not machine.g.rv_enable_rvc:
-        # this is probably unnecessary now; remove
-        machine.set_Misa_C(machine._reg_zmisa, 0)
-    machine.g._init_ranges()
-
 
 @specialize.argtype(0)
 def is_32bit_model(machine):
@@ -405,9 +416,6 @@ def parse_dump_file(fn):
                 dump[intaddress] = "%s %s %s" % (section, function, res)
     return dump
 
-def parse_flag(argv, flagname):
-    return bool(parse_args(argv, flagname, want_arg=False))
-
 helptext = """
 Usage: %s [options] <elf_file>
 
@@ -418,9 +426,10 @@ Run the Pydrofoil RISC-V emulator on elf_file.
 --instructions-per-tick <num>   tick the emulated clock every num instructions (default: 100)
 --verbose                       print a detailed trace of every instruction executed
 --print-kips                    print kip/s every 2**20 instructions
---jit <options>                 set JIT options
+--jit <options>                 set JIT options (try --jit help for details)
 --dump <file>                   load elf file disassembly from file
 -b/--device-tree-blob <file>    load dtb from file (usually not needed, Pydrofoil has a dtb built-in)
+--disable-vext                  disable vector extension
 --version                       print the version of pydrofoil-riscv
 --help                          print this information and exit
 """
@@ -463,6 +472,8 @@ def main(argv, *machineclasses):
     except IOError as e:
         print "ERROR [errno %s] %s" % (e.errno, e.strerror or '')
         return -2
+    except ExitNow:
+        return -4
     except BaseException as e:
         if we_are_translated():
             from rpython.rlib.debug import debug_print_traceback
@@ -504,6 +515,8 @@ def _main(argv, *machineclasses):
             print "invalid jit option"
             return 1
 
+    disable_vext = parse_flag(argv, "--disable-vext")
+
     verbose = parse_flag(argv, "--verbose")
 
     print_kips = parse_flag(argv, "--print-kips")
@@ -537,13 +550,18 @@ def _main(argv, *machineclasses):
         machine.g._create_dtb()
     if check_file_missing(file):
         return -1
-    entry = load_sail(machine, file)
-    init_sail(machine, entry)
+    print "Running file", file
+
+    if disable_vext:
+        machine.g.rv_enable_vext = False
+
     if not verbose:
         machine.g.config_print_instr = False
         machine.g.config_print_reg = False
         machine.g.config_print_mem_access = False
         machine.g.config_print_platform = False
+    entry = load_sail(machine, file)
+    init_sail(machine, entry)
     if dump_file:
         if check_file_missing(dump_file):
             return -1
@@ -553,6 +571,9 @@ def _main(argv, *machineclasses):
         ipt = int(per_tick)
         machine.g.rv_insns_per_tick = ipt
 
+    # prepare SIGINT signal handler
+    if we_are_translated():
+        rsignal.pypysig_setflag(rsignal.SIGINT)
 
     for i in range(iterations):
         machine.run_sail(limit, print_kips)
@@ -592,7 +613,7 @@ def load_sail(machine, fn):
     g.rv_htif_tohost = r_uint(img.get_symbol('tohost'))
     print "tohost located at 0x%x" % g.rv_htif_tohost
 
-    print "entrypoint 0x%x" % entrypoint
+    print "ELF Entry @ 0x%x" % entrypoint
     assert entrypoint == 0x80000000 # XXX for now
     return entrypoint
 
@@ -604,12 +625,24 @@ def print_string(prefix, msg):
     return ()
 
 def print_instr(machine, s):
-    print s
+    if machine.g.config_print_instr:
+        print s
     return ()
 
-print_reg = print_instr
-print_mem_access = print_reg
-print_platform = print_reg
+def print_reg(machine, s):
+    if machine.g.config_print_reg:
+        print s
+    return ()
+
+def print_mem_access(machine, s):
+    if machine.g.config_print_mem_access:
+        print s
+    return ()
+
+def print_platform(machine, s):
+    if machine.g.config_print_platform:
+        print s
+    return ()
 
 def get_config_print_instr(machine, _):
     return machine.g.config_print_instr
@@ -623,6 +656,8 @@ def get_config_print_platform(machine, _):
 def get_main(outriscv, rv64):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
+
+    Globals._pydrofoil_enum_read_ifetch_value = outriscv.Enum_zread_kind.zRead_ifetch
 
     if rv64:
         prefix = "rv64"
@@ -663,9 +698,6 @@ def get_main(outriscv, rv64):
 
         def init_model(self):
             return outriscv.func_zinit_model(self, ())
-
-        def set_Misa_C(self, *args):
-            return outriscv.func_z_set_Misa_C(self, *args)
 
         def step(self, *args):
             return outriscv.func_zstep(self, *args)
@@ -711,31 +743,39 @@ def get_main(outriscv, rv64):
                     step_no += 1
                     if rv_insns_per_tick:
                         insn_cnt += 1
-                if g.config_print_instr:
-                    # there's an extra newline in the C emulator that I don't know
-                    # where from, add it here to ease diffing
-                    print
 
                 tick_cond = (do_show_times and (step_no & 0xffffffff) == 0) | (
                         rv_insns_per_tick and insn_cnt == rv_insns_per_tick)
                 if tick_cond:
                     tick = True
                 elif prev_pc >= self._reg_zPC: # backward jump
+                    if we_are_translated():
+                        p = rsignal.pypysig_getaddr_occurred()
+                        if p.c_value < 0:
+                            # ctrl-c was pressed
+                            break
                     driver.can_enter_jit(pc=self._reg_zPC, tick=tick,
                             insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
                             do_show_times=do_show_times, machine=self, g=g)
             # loop end
 
             interval_end = time.time()
-            if self._reg_zhtif_exit_code == 0:
+            p = rsignal.pypysig_getaddr_occurred()
+            ctrlc = False
+            if we_are_translated() and p.c_value < 0:
+                print "CTRL-C was pressed"
+                ctrlc = True
+            elif self._reg_zhtif_exit_code == 0:
                 print "SUCCESS"
             else:
-                print "FAILURE", self._reg_zhtif_exit_code
+                print "FAILURE:", self._reg_zhtif_exit_code
                 if not we_are_translated():
                     raise ValueError
             print "Instructions: %s" % (step_no, )
             print "Total time (s): %s" % (interval_end - self.g.total_start)
             print "Perf: %s Kips" % (step_no / 1000. / (interval_end - self.g.total_start), )
+            if ctrlc:
+                raise ExitNow
 
 
     Machine.rv64 = rv64
@@ -746,9 +786,10 @@ def get_main(outriscv, rv64):
     bound_main._machinecls = Machine
 
     # a bit of micro-optimization
-    always_inline(outriscv.func_zread_ram)
-    always_inline(outriscv.func_zphys_mem_read)
-    always_inline(outriscv.func_zwrite_ram)
-    always_inline(outriscv.func_zphys_mem_write)
-    always_inline(outriscv.func_zwithin_phys_mem)
+    # XXX add back later
+    #always_inline(outriscv.func_zread_ram)
+    #always_inline(outriscv.func_zphys_mem_read)
+    #always_inline(outriscv.func_zwrite_ram)
+    #always_inline(outriscv.func_zphys_mem_write)
+    #always_inline(outriscv.func_zwithin_phys_mem)
     return bound_main

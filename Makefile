@@ -1,16 +1,16 @@
-RPYTHON_DIR ?= pypy/rpython
+RPYTHON_DIR ?= pypy2/rpython
 
 ALL: pydrofoil-riscv
 
 ## RISC-V targets:
 
-pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build the Pydrofoil RISC-V emulator
+.PHONY: pydrofoil-riscv
+pydrofoil-riscv: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build the pydrofoil RISC-V emulator
 	pkg-config libffi # if this fails, libffi development headers arent installed
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
-
-pydrofoil-test: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the Pydrofoil implementation-level unit tests
-	./pypy_binary/bin/python pypy/pytest.py -v pydrofoil/ riscv/
+pydrofoil-test: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the pydrofoil implementation-level unit tests
+	./pypy_binary/bin/python pypy2/pytest.py -v pydrofoil/ riscv/
 
 .PHONY: pypy-c-pydrofoil-riscv
 
@@ -31,9 +31,9 @@ endif
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` && cd $(RISCVMODELCHECKOUT) && \
 		isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		model/prelude.sail \
-		model/prelude_mapping.sail \
 		model/riscv_xlen64.sail \
 		model/riscv_flen_D.sail \
+		model/riscv_vlen.sail \
 		model/prelude_mem_metadata.sail \
 		model/prelude_mem.sail \
 		model/riscv_types_common.sail \
@@ -51,7 +51,10 @@ endif
 		model/riscv_addr_checks_common.sail \
 		model/riscv_addr_checks.sail \
 		model/riscv_misa_ext.sail \
+		model/riscv_vreg_type.sail \
+		model/riscv_vext_regs.sail \
 		model/riscv_csr_map.sail \
+		model/riscv_vext_control.sail \
 		model/riscv_next_regs.sail \
 		model/riscv_sys_exceptions.sail \
 		model/riscv_sync_exception.sail \
@@ -94,6 +97,14 @@ endif
 		model/riscv_insts_zbkb.sail \
 		model/riscv_insts_zbkx.sail \
 		model/riscv_insts_zicond.sail \
+		model/riscv_insts_vext_utils.sail \
+		model/riscv_insts_vext_vset.sail \
+		model/riscv_insts_vext_arith.sail \
+		model/riscv_insts_vext_fp.sail \
+		model/riscv_insts_vext_mem.sail \
+		model/riscv_insts_vext_mask.sail \
+		model/riscv_insts_vext_vm.sail \
+		model/riscv_insts_vext_red.sail \
 		model/riscv_jalr_seq.sail \
 		model/riscv_insts_end.sail \
 		model/riscv_step_common.sail \
@@ -107,9 +118,9 @@ endif
 		&& \
 		${PWD}/isla/isla-sail/isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		model/prelude.sail \
-		model/prelude_mapping.sail \
 		model/riscv_xlen32.sail \
 		model/riscv_flen_D.sail \
+		model/riscv_vlen.sail \
 		model/prelude_mem_metadata.sail \
 		model/prelude_mem.sail \
 		model/riscv_types_common.sail \
@@ -127,7 +138,10 @@ endif
 		model/riscv_addr_checks_common.sail \
 		model/riscv_addr_checks.sail \
 		model/riscv_misa_ext.sail \
+		model/riscv_vreg_type.sail \
+		model/riscv_vext_regs.sail \
 		model/riscv_csr_map.sail \
+		model/riscv_vext_control.sail \
 		model/riscv_next_regs.sail \
 		model/riscv_sys_exceptions.sail \
 		model/riscv_sync_exception.sail \
@@ -169,6 +183,14 @@ endif
 		model/riscv_insts_zbkb.sail \
 		model/riscv_insts_zbkx.sail \
 		model/riscv_insts_zicond.sail \
+		model/riscv_insts_vext_utils.sail \
+		model/riscv_insts_vext_vset.sail \
+		model/riscv_insts_vext_arith.sail \
+		model/riscv_insts_vext_fp.sail \
+		model/riscv_insts_vext_mem.sail \
+		model/riscv_insts_vext_mask.sail \
+		model/riscv_insts_vext_vm.sail \
+		model/riscv_insts_vext_red.sail \
 		model/riscv_jalr_seq.sail \
 		model/riscv_insts_end.sail \
 		model/riscv_step_common.sail \
@@ -185,14 +207,14 @@ pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o:
 
 ## PyPy Pydrofoil RISC-V plugin targets:
 
-pypy-c-pydrofoil-riscv: pypy_binary/bin/python pypy/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build PyPy with Pydrofoil RISC-V plugin
+pypy-c-pydrofoil-riscv: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build PyPy with Pydrofoil RISC-V plugin
 	pkg-config libffi # if this fails, libffi development headers arent installed
-	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --no-shared --output=pypy-c-pydrofoil-riscv pypy/pypy/goal/targetpypystandalone.py --ext=riscv.pypymodule
+	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --no-shared --output=pypy-c-pydrofoil-riscv pypy2/pypy/goal/targetpypystandalone.py --ext=riscv.pypymodule
 	mv pypy-c-pydrofoil-riscv pypy/pypy/goal/
 	ln -s pypy/pypy/goal/pypy-c-pydrofoil-riscv pypy-c-pydrofoil-riscv
 	pypy/pypy/goal/pypy-c-pydrofoil-riscv pypy/lib_pypy/pypy_tools/build_cffi_imports.py
 
-pypy/lib/pypy3.9/site-packages/pytest/__init__.py: pypy-c-pydrofoil-riscv
+pypy2/lib/pypy3.9/site-packages/pytest/__init__.py: pypy-c-pydrofoil-riscv
 	./pypy-c-pydrofoil-riscv -m ensurepip
 	./pypy-c-pydrofoil-riscv -m pip install pytest pdbpp
 
@@ -202,16 +224,21 @@ plugin-riscv-tests: pypy-c-pydrofoil-riscv pypy/lib/pypy3.9/site-packages/pytest
 
 ## ARM model targets
 
-pydrofoil-arm: pypy_binary/bin/python pypy/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
+.PHONY: pydrofoil-arm-test
+pydrofoil-test-arm: pypy2/rpython/bin/rpython pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir ## Run the ARM emulator unit tests
+	PYTHONPATH=. ./pypy_binary/bin/python pypy2/pytest.py -v arm/
+
+.PHONY: pydrofoil-arm
+pydrofoil-arm: pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py
 
-sail-arm/arm-v9.3-a/src/v8_base.sail: ## Clone the sail-arm submodule
+sail-arm/arm-v9.4-a/src/v8_base.sail: ## Clone the sail-arm submodule
 	git submodule update --init --depth 1
 
 .PHONY: regen-arm-ir-files
-regen-arm-ir-files: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build arm IR
-	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.3-a/ gen_ir
-	mv sail-arm/arm-v9.3-a/ir/armv9.ir arm/
+regen-arm-ir-files: sail-arm/arm-v9.4-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build ARM IR
+	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.4-a/ gen_ir
+	mv sail-arm/arm-v9.4-a/ir/armv9.ir arm/
 
 
 ## Housekeeping targets:
@@ -222,9 +249,9 @@ pypy_binary/bin/python:  ## Download a PyPy binary
 	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
 	rm pypy.tar.bz2
 	./pypy_binary/bin/python -m ensurepip
-	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5
 
-pypy/rpython/bin/rpython: ## Clone the PyPy submodule
+pypy2/rpython/bin/rpython: ## Clone the PyPy submodule
 	git submodule update --init --depth 1
 
 isla/isla-sail/Makefile: ## Clone the isla submodule
@@ -251,6 +278,8 @@ clean:  ## remove build artifacts.
 	rm -rf pydrofoil-riscv-tests.xml
 	make -C pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/ clean
 	rm -rf pydrofoil-arm
+	rm -rf sail/_opam
+	rm -rf isla/isla-sail/plugin.cmxs
 
 help:   ## Show this help.
 	@echo "\nHelp for various make targets"

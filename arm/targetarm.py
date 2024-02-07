@@ -20,13 +20,58 @@ def make_code(regen=True):
     outarm = _make_code(regen)
     return supportcodearm.get_main(outarm)
 
+def should_inline(name):
+    if "step_model" in name:
+        return False
+    if "subrange_subrange" in name:
+        return True
+    if "slice_mask" in name:
+        return True
+    if "sail_mask" in name:
+        return True
+    if "extzzv" in name:
+        return True
+    if "IMPDEF" in name or "ImpDef" in name or "IsFeatureImplemented" in name:
+        return True
+    if "num_of_Feature" in name:
+        return True
+    if "undefined" in name:
+        return True
+    if "TGxGranuleBits" in name:
+        return True
+    if "fdiv_int" in name:
+        return True
+    if "Align__1" in name:
+        return True
+    if name == "zAlign":
+        return True
+    if "TTBaseAddress" in name:
+        return True
+    if "zAArch64_S1StartLevel" in name:
+        return True
+    if "zAArch64_S2StartLevel" in name:
+        return True # risky, several callers
+    if "zAArch64_PhysicalAddressSizze" in name:
+        return True
+    if "zAArch64_PAMax" in name:
+        return True # risky, several callers
+    if name == "z__SetThisInstrDetails":
+        return False # hook for the JIT
+    if name == "z__CheckForEmulatorTermination":
+        return False # for cleanly exiting
+
+
 def _make_code(regen=True):
     print "making python code"
+
     if regen:
         with open(armir, "rb") as f:
             s = f.read()
+        entrypoints = "zstep_model z__SetThisInstrDetails zmain z__SetConfig z__ListConfig".split()
         support_code = "from arm import supportcodearm as supportcode"
-        res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS)
+        res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS,
+                                  should_inline=should_inline,
+                                  entrypoints=entrypoints)
         with open(outarm, "w") as f:
             f.write(res)
         print "written file", outarm, "importing now"
@@ -37,6 +82,10 @@ def _make_code(regen=True):
     return mod
 
 def target(driver, cmdlineargs):
+    if driver is not None:
+        driver.config.translation.suggest(jit_opencoder_model="big")
+        driver.config.translation.suggest(withsmallfuncsets=0)
+        driver.config.translation.suggest(output="pydrofoil-arm")
     main = make_code(regen="--no-arm-regen" not in cmdlineargs)
     print "translating to C!"
     return main
@@ -46,5 +95,6 @@ if __name__ == '__main__':
     try:
         target(None, [])(sys.argv)
     except:
-        import pdb;pdb.xpm()
+        if os.getenv("GITHUB_ACTIONS") is None:
+            import pdb; pdb.xpm()
         raise

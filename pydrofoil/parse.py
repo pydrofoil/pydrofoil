@@ -384,6 +384,7 @@ class Operation(StatementWithSourcePos):
 
 class TemplatedOperation(StatementWithSourcePos):
     def __init__(self, result, name, templateparam, args, sourcepos=None, resolved_type=None):
+        import pdb; pdb.set_trace()
         self.result = result
         self.name = name
         self.templateparam = templateparam
@@ -537,6 +538,9 @@ class Arbitrary(FunctionEndingStatement):
     def replace_var(self, var, expr):
         xxx
 
+class JustStop(FunctionEndingStatement):
+    end_of_block = True
+
 class Expression(BaseAst):
     resolved_type = None
 
@@ -627,8 +631,10 @@ class RefOf(Expression):
         return RefOf(self.expr.replace_var(var, expr))
 
 class String(Expression):
-    def __init__(self, string):
+    def __init__(self, string, resolved_type=None):
         self.string = string
+        if resolved_type:
+            self.resolved_type = resolved_type
 
     def find_used_vars(self):
         return set()

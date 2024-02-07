@@ -3,12 +3,22 @@ from rpython.tool.pairtype import extendabletype
 def unique(cls):
     instances = {}
     def __new__(cls, *args):
-        if args in instances:
-            return instances[args]
+        res = instances.get(args, None)
+        if res is not None:
+            return res
         res = object.__new__(cls, *args)
         instances[args] = res
         return res
     cls.__new__ = staticmethod(__new__)
+    return cls
+
+def singleton(cls):
+    cls._INSTANCE = cls()
+
+    def __new__(cls):
+        return cls._INSTANCE
+    cls.__new__ = staticmethod(__new__)
+
     return cls
 
 class Type(object):
@@ -24,36 +34,58 @@ class Type(object):
 
 @unique
 class Union(Type):
-    def __init__(self, ast):
-        self.ast = ast
+    def __init__(self, name, names, typs):
+        self.name = name
+        self.names = names
+        self.typs = typs
+        assert len(self.names) == len(self.typs)
+        self.variants = {}
+        for name, typ in zip(names, typs):
+            self.variants[name] = typ
 
     def __repr__(self):
-        return "%s(<%s>)" % (type(self).__name__, self.ast.name)
+        return "%s(%r, %s, %s)" % (type(self).__name__, self.name, self.names, self.typs)
+
 
 @unique
 class Enum(Type):
-    def __init__(self, ast):
-        self.ast = ast
+    uninitialized_value = '-1'
+
+    def __init__(self, name, elements):
+        self.name = name
+        self.elements = elements
 
     def sail_repr(self):
-        return "enum %s" % (self.ast.name.lstrip('z'), )
+        return "enum %s" % (self.name.lstrip('z'), )
 
     def __repr__(self):
-        return "%s(<%s>)" % (type(self).__name__, self.ast.name)
+        return "%s(%r, %r)" % (type(self).__name__, self.name, self.elements)
+
 
 @unique
 class Struct(Type):
-    def __init__(self, ast):
-        self.ast = ast
+    def __init__(self, name, names, typs, tuplestruct=False):
+        assert isinstance(name, str)
+        self.name = name
+        self.names = names
+        self.typs = typs
+        self.fieldtyps = {}
+        assert len(names) == len(typs)
+        for name, typ in zip(names, typs):
+            self.fieldtyps[name] = typ
+        self.tuplestruct = tuplestruct
 
     def sail_repr(self):
-        ast = self.ast
-        if len(ast.names) == 1 and isinstance(self.fieldtyps[ast.names[0]], SmallFixedBitVector):
-            return "bitfield %s" % self.ast.name.lstrip('z')
+        from pydrofoil.mangle import demangle
+        if len(self.names) == 1 and isinstance(self.fieldtyps[self.names[0]], SmallFixedBitVector):
+            return "bitfield %s" % demangle(self.name)
         return Type.sail_repr(self)
 
     def __repr__(self):
-        return "%s(<%s>)" % (type(self).__name__, self.ast.name)
+        extra = ''
+        if self.tuplestruct:
+            extra = ', True'
+        return "%s(%r, %r, %r%s)" % (type(self).__name__, self.name, self.names, self.typs, extra)
 
 @unique
 class Ref(Type):
@@ -117,7 +149,7 @@ class List(Type):
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.typ)
 
-@unique
+@singleton
 class NullType(Type):
     uninitialized_value = "None"
 
@@ -133,7 +165,7 @@ class SmallFixedBitVector(Type):
 
     def __init__(self, width):
         # size known at compile time
-        assert width <= 64
+        assert 0 <= width <= 64
         self.width = width
         self.convert_to_pypy = "supportcode.generate_convert_to_pypy_bitvector_ruint(%s)" % width
         self.convert_from_pypy = "supportcode.generate_convert_from_pypy_bitvector_ruint(%s)" % width
@@ -147,12 +179,12 @@ class SmallFixedBitVector(Type):
 
 @unique
 class BigFixedBitVector(Type):
-    uninitialized_value = "rbigint.fromint(0)"
 
     def __init__(self, width):
         # size known at compile time
         assert width > 64
         self.width = width
+        self.uninitialized_value = "bitvector.SparseBitVector(%s, r_uint(0))" % width
 
     def sail_repr(self):
         return "bits(%s)" % (self.width, )
@@ -161,33 +193,28 @@ class BigFixedBitVector(Type):
         return "BigFixedBitVector(%s)" % (self.width, )
 
 
-@unique
+@singleton
 class GenericBitVector(Type):
     uninitialized_value = "bitvector.UNITIALIZED_BV"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
+@singleton
 class MachineInt(Type):
     uninitialized_value = "-0xfefe"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
+@singleton
 class Int(Type):
     uninitialized_value = "UninitInt"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
-class Real(Type):
-    def __repr__(self):
-        return "%s()" % (type(self).__name__, )
-
-@unique
+@singleton
 class Bool(Type):
     uninitialized_value = "False"
     convert_to_pypy = "supportcode.convert_to_pypy_bool"
@@ -199,30 +226,23 @@ class Bool(Type):
     def sail_repr(self):
         return 'bool'
 
-@unique
+@singleton
 class Unit(Type):
     uninitialized_value = "()"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
-class Bit(Type):
-    uninitialized_value = "r_uint(0)"
-    convert_to_pypy = "supportcode.generate_convert_to_pypy_bitvector_ruint(1)"
-    convert_from_pypy = "supportcode.generate_convert_from_pypy_bitvector_ruint(1)"
+Bit = lambda : SmallFixedBitVector(1)
 
-    def __repr__(self):
-        return "%s()" % (type(self).__name__, )
-
-@unique
+@singleton
 class String(Type):
     uninitialized_value = "None"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
-@unique
+@singleton
 class Real(Type):
     uninitialized_value = "None"
 

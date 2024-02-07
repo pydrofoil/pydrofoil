@@ -1,24 +1,29 @@
+import os
 import sys
+import time
 from contextlib import contextmanager
 from rpython.tool.pairtype import pair
 
-from pydrofoil import parse, types, binaryop, operations, supportcode
+from pydrofoil import parse, types, binaryop, operations, supportcode, specialize
+from pydrofoil.emitfunction import emit_function_code
 
 
 assert sys.maxint == 2 ** 63 - 1, "only 64 bit platforms are supported!"
 
 class NameInfo(object):
-    def __init__(self, pyname, typ, ast):
+    def __init__(self, pyname, typ, ast, write_pyname=None):
         self.pyname = pyname
         self.typ = typ
         self.ast = ast
+        self.write_pyname = write_pyname
 
     def __repr__(self):
-        return "NameInfo(%r, %r, %r)" % (self.pyname, self.typ, self.ast)
+        return "NameInfo(%r, %r, %r, %r)" % (self.pyname, self.typ, self.ast, self.write_pyname)
 
 
-class Codegen(object):
-    def __init__(self, promoted_registers=frozenset()):
+class Codegen(specialize.FixpointSpecializer):
+    def __init__(self, promoted_registers=frozenset(), should_inline=None, entrypoints=None):
+        specialize.FixpointSpecializer.__init__(self, entrypoints=entrypoints)
         self.declarations = []
         self.runtimeinit = []
         self.code = []
@@ -27,6 +32,9 @@ class Codegen(object):
         self.globalnames = {}
         self.builtin_names = {}
         self.namedtypes = {}
+        self.tuplestruct = {}
+        # seen typs
+        self.seen_typs = set()
         self.declarationcache = {}
         self.gensym = {} # prefix -> number
         self.localnames = None
@@ -36,16 +44,35 @@ class Codegen(object):
         self.add_global("true", "True", types.Bool())
         self.add_global("bitzero", "r_uint(0)", types.Bit())
         self.add_global("bitone", "r_uint(1)", types.Bit())
-        self.add_global("$zupdate_fbits", "supportcode.update_fbits")
+        self.add_global("$zupdate_fbits", "supportcode.zupdate_fbits")
         self.add_global("@vector_subrange_fixed_bv_i_i", "supportcode.vector_subrange_fixed_bv_i_i")
+        self.add_global("@vector_update_subrange_fixed_bv_i_i_bv", "supportcode.vector_update_subrange_fixed_bv_i_i_bv")
         self.add_global("@slice_fixed_bv_i_i", "supportcode.slice_fixed_bv_i_i")
         self.add_global("@vector_subrange_o_i_i_unwrapped_res", "supportcode.vector_subrange_o_i_i_unwrapped_res")
         self.add_global("@vector_slice_o_i_i_unwrapped_res", "supportcode.vector_slice_o_i_i_unwrapped_res")
+        self.add_global("@helper_vector_update_inplace_o_i_o", "supportcode.helper_vector_update_inplace_o_i_o")
+        self.add_global("@eq_bits", "supportcode.eq_bits")
         self.add_global("@eq_bits_bv_bv", "supportcode.eq_bits_bv_bv")
         self.add_global("@neq_bits_bv_bv", "supportcode.neq_bits_bv_bv")
+        self.add_global("@eq_int_o_i", "supportcode.eq_int_o_i")
         self.add_global("@eq_int_i_i", "supportcode.eq_int_i_i")
         self.add_global("@add_i_i_wrapped_res", "supportcode.add_i_i_wrapped_res")
+        self.add_global("@add_i_i_must_fit", "supportcode.add_i_i_must_fit")
+        self.add_global("@add_o_i_wrapped_res", "supportcode.add_o_i_wrapped_res")
         self.add_global("@sub_i_i_wrapped_res", "supportcode.sub_i_i_wrapped_res")
+        self.add_global("@sub_i_i_must_fit", "supportcode.sub_i_i_must_fit")
+        self.add_global("@sub_o_i_wrapped_res", "supportcode.sub_o_i_wrapped_res")
+        self.add_global("@sub_i_o_wrapped_res", "supportcode.sub_i_o_wrapped_res")
+        self.add_global("@mult_i_i_wrapped_res", "supportcode.mult_i_i_wrapped_res")
+        self.add_global("@mult_i_i_must_fit", "supportcode.mult_i_i_must_fit")
+        self.add_global("@mult_o_i_wrapped_res", "supportcode.mult_o_i_wrapped_res")
+        self.add_global("@ediv_int_i_ipos", "supportcode.ediv_int_i_ipos")
+        self.add_global("@tdiv_int_i_i", "supportcode.tdiv_int_i_i")
+        self.add_global("@unsigned_bv64_rshift_int_result", "supportcode.unsigned_bv64_rshift_int_result")
+        self.add_global("@shl_int_i_i_wrapped_res", "supportcode.shl_int_i_i_wrapped_res")
+        self.add_global("@shl_int_i_i_must_fit", "supportcode.shl_int_i_i_must_fit")
+        self.add_global("@get_slice_int_i_o_i_unwrapped_res", "supportcode.get_slice_int_i_o_i_unwrapped_res")
+        self.add_global("@get_slice_int_i_i_i", "supportcode.get_slice_int_i_i_i")
         self.add_global("@xor_vec_bv_bv", "supportcode.xor_vec_bv_bv")
         self.add_global("@or_vec_bv_bv", "supportcode.or_vec_bv_bv")
         self.add_global("@and_vec_bv_bv", "supportcode.and_vec_bv_bv")
@@ -55,28 +82,42 @@ class Codegen(object):
         self.add_global("@unsigned_bv_wrapped_res", "supportcode.unsigned_bv_wrapped_res")
         self.add_global("@unsigned_bv", "supportcode.unsigned_bv")
         self.add_global("@zero_extend_bv_i_i", "supportcode.zero_extend_bv_i_i")
+        self.add_global("@zero_extend_o_i_unwrapped_res", "supportcode.zero_extend_o_i_unwrapped_res")
+        self.add_global("@sign_extend_bv_i_i", "supportcode.sign_extend_bv_i_i")
+        self.add_global("@sign_extend_o_i_unwrapped_res", "supportcode.sign_extend_o_i_unwrapped_res")
         self.add_global("@vector_access_bv_i", "supportcode.vector_access_bv_i")
         self.add_global("@add_bits_bv_bv", "supportcode.add_bits_bv_bv")
         self.add_global("@add_bits_int_bv_i", "supportcode.add_bits_int_bv_i")
         self.add_global("@sub_bits_bv_bv", "supportcode.sub_bits_bv_bv")
+        self.add_global("@sub_bits_int_bv_i", "supportcode.sub_bits_int_bv_i")
         self.add_global("@shiftl_bv_i", "supportcode.shiftl_bv_i")
+        self.add_global("@shiftr_bv_i", "supportcode.shiftr_bv_i")
+        self.add_global("@arith_shiftr_bv_i", "supportcode.arith_shiftr_bv_i")
         self.add_global("@length_unwrapped_res", "supportcode.length_unwrapped_res")
-        self.add_global("have_exception", "machine.have_exception", types.Bool())
-        self.add_global("throw_location", "machine.throw_location", types.String())
+        self.add_global("@truncate_bv_i", "supportcode.truncate_bv_i")
+        self.add_global("@replicate_bv_i_i", "supportcode.replicate_bv_i_i")
+        self.add_global("@platform_read_mem_o_i_bv_i", "supportcode.platform_read_mem_o_i_bv_i")
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("UINT64_C", "supportcode.uint64c")
         self.add_global("NULL", "None")
+        self.add_global("have_exception", "machine.have_exception", types.Bool(), write_pyname="machine.have_exception")
+        self.add_global("throw_location", "machine.throw_location", types.String(), write_pyname="machine.throw_location")
         self.promoted_registers = promoted_registers
         self.all_registers = {}
         self.inlinable_functions = {}
+        # a function that returns True, False or None
+        self.should_inline = should_inline if should_inline is not None else lambda name: None
+        self.let_values = {}
+        # (graphs, funcs, args, kwargs) to emit at the end
+        self._all_graphs = []
 
-    def add_global(self, name, pyname, typ=None, ast=None):
+    def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
         assert isinstance(typ, types.Type) or typ is None
         if name in self.globalnames:
             assert isinstance(ast, parse.GlobalVal)
             assert ast == self.globalnames[name].ast
             return
-        self.globalnames[name] = NameInfo(pyname, typ, ast)
+        self.globalnames[name] = NameInfo(pyname, typ, ast, write_pyname)
 
     def add_named_type(self, name, pyname, typ, ast):
         assert isinstance(typ, types.Type)
@@ -88,7 +129,7 @@ class Codegen(object):
 
     def add_local(self, name, pyname, typ, ast):
         assert isinstance(typ, types.Type)
-        self.localnames[name] = NameInfo(pyname, typ, ast)
+        self.localnames[name] = NameInfo(pyname, typ, ast, pyname)
 
     def getname(self, name):
         if self.localnames is None or name not in self.localnames:
@@ -96,17 +137,18 @@ class Codegen(object):
         return name
 
     def getinfo(self, name):
-        if name in self.localnames:
+        if self.localnames is not None and name in self.localnames:
             return self.localnames[name]
         else:
             return self.globalnames[name]
 
-    def gettarget(self, name):
-        res = self.getinfo(name).pyname
-        # XXX stupid hack
-        if res.startswith("jit.promote("):
-            return res[len('jit.promote('):-1]
-        return res
+    def write_to(self, name, result):
+        target = self.getinfo(name).write_pyname
+        assert target is not None
+        if "%" not in target:
+            self.emit("%s = %s" % (target, result))
+        else:
+            self.emit(target % (result, ))
 
     def gettyp(self, name):
         return self.getinfo(name).typ
@@ -121,8 +163,9 @@ class Codegen(object):
         self.localnames = old_localnames
 
     @contextmanager
-    def emit_indent(self, line):
-        self.emit(line)
+    def emit_indent(self, line=None):
+        if line is not None:
+            self.emit(line)
         self.level += 1
         yield
         self.level -= 1
@@ -164,18 +207,99 @@ class Codegen(object):
                 yield name
 
     def getcode(self):
+        self.finish_graphs()
         res = ["\n".join(self.declarations)]
-        self.runtimeinit.append("func_zinitializze_registers(machine, ())")
-        res.append("@jit.dont_look_inside\ndef model_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
+        res.append("def let_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
+        res.append("let_init(Machine)")
         res.append("\n".join(self.code))
         return "\n\n".join(res)
 
+    def emit_extra_graph(self, graph, functyp):
+        pyname = "func_" + graph.name
+        self.add_global(graph.name, pyname, functyp)
+        args = [arg.name for arg in graph.args]
+        first = "def %s(machine, %s):" % (pyname, ", ".join(args))
+        def emit_extra(graph, codegen):
+            with self.emit_indent(first):
+                emit_function_code(graph, None, codegen)
+        self.add_graph(graph, emit_extra)
 
-def parse_and_make_code(s, support_code, promoted_registers=set()):
+    def add_graph(self, graph, emit_function, *args, **kwargs):
+        self.schedule_graph_specialization(graph)
+        self._all_graphs.append((graph, emit_function, args, kwargs))
+
+    def finish_graphs(self):
+        self.print_persistent_msg("============== FINISHING ==============")
+        from pydrofoil.ir import print_stats
+        t1 = time.time()
+        self.specialize_all()
+        unspecialized_graphs = []
+        if self.program_entrypoints is None:
+            program_entrypoints = [g for g, _, _, _ in self._all_graphs]
+        else:
+            program_entrypoints = self.program_entrypoints + ["zinitializze_registers"]
+            program_entrypoints = [self.all_graph_by_name[name] for name in program_entrypoints]
+        extra_graphs = self.extract_needed_extra_graphs(program_entrypoints)
+        graphs_to_emit = set(program_entrypoints)
+        for graph, typ in extra_graphs:
+            if typ is not None:
+                self.emit_extra_graph(graph, typ)
+            graphs_to_emit.add(graph)
+        for graph, func, args, kwargs in self._all_graphs:
+            if graph in graphs_to_emit:
+                func(graph, self, *args, **kwargs)
+        t2 = time.time()
+        self.print_persistent_msg("DONE, took seconds", round(t2 - t1, 2))
+        print_stats()
+
+    def add_struct_type(self, name, pyname, structtyp, ast=None):
+        if structtyp in self.seen_typs:
+            return
+        self.seen_typs.add(structtyp)
+        self.add_named_type(name, pyname, structtyp, ast)
+        uninit_arg = []
+        with self.emit_code_type("declarations"), self.emit_indent("class %s(supportcode.ObjectBase):" % pyname):
+            with self.emit_indent("def __init__(self, %s):" % ", ".join(structtyp.names)):
+                for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
+                    self.emit("self.%s = %s # %s" % (arg, arg, fieldtyp))
+                    uninit_arg.append(fieldtyp.uninitialized_value)
+            with self.emit_indent("def copy_into(self, res=None):"):
+                self.emit("if res is None: res = objectmodel.instantiate(self.__class__)")
+                for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
+                    self.emit("res.%s = self.%s" % (arg, arg))
+                self.emit("return res")
+            self.emit("@objectmodel.always_inline")
+            with self.emit_indent("def eq(self, other):"):
+                self.emit("assert isinstance(other, %s)" % (pyname, ))
+                for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
+                    self.emit("if %s: return False" % (
+                        fieldtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (fieldtyp, fieldtyp), types.Bool())))
+                self.emit("return True")
+            if len(structtyp.names) == 1: # for now
+                fieldtyp = structtyp.fieldtyps[structtyp.names[0]]
+                self.emit("_convert_from = staticmethod(%s)" % fieldtyp.convert_from_pypy)
+                self.emit("_convert_to = staticmethod(%s)" % fieldtyp.convert_to_pypy)
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_to_pypy(space, self):"):
+                    self.emit("return %s._convert_to(space, self.%s)" % (pyname, structtyp.names[0]))
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_from_pypy(space, w_value):"):
+                    self.emit("return %s(%s._convert_from(space, w_value))" % (pyname, pyname))
+                structtyp.convert_to_pypy = "%s.convert_to_pypy" % pyname
+                structtyp.convert_from_pypy = "%s.convert_from_pypy" % pyname
+        structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
+
+
+def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
     from pydrofoil.infer import infer
+    t1 = time.time()
     ast = parse.parser.parse(parse.lexer.lex(s))
+    t2 = time.time()
+    print "parsing took", round(t2 - t1, 2)
     context = infer(ast)
-    c = Codegen(promoted_registers)
+    t3 = time.time()
+    print "infer took", round(t3 - t2, 2)
+    c = Codegen(promoted_registers, should_inline=should_inline, entrypoints=entrypoints)
     with c.emit_code_type("declarations"):
         c.emit("from rpython.rlib import jit")
         c.emit("from rpython.rlib.rbigint import rbigint")
@@ -189,15 +313,12 @@ def parse_and_make_code(s, support_code, promoted_registers=set()):
         c.emit("class Machine(supportcode.RegistersBase):")
         c.emit("    _immutable_fields_ = ['g']")
         c.emit("    _all_register_names = []")
+        c.emit("    l = Lets()")
         c.emit("    def __init__(self):")
-        c.emit("        self.l = Lets(); model_init(self)")
+        c.emit("        self.l  = Machine.l; func_zinitializze_registers(self, ())")
         c.emit("        self.g = supportcode.Globals()")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
-    try:
-        ast.make_code(c)
-    except Exception:
-        print c.getcode()[:1024*1024*1024]
-        raise
+    ast.make_code(c)
     return c.getcode()
 
 
@@ -212,34 +333,41 @@ class __extend__(parse.File):
     def make_code(self, codegen):
         import traceback
         failure_count = 0
+        t1 = time.time()
         for index, decl in enumerate(self.declarations):
-            print "\033[1K\rMAKING CODE FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl),
-            sys.stdout.flush()
+            codegen.print_highlevel_task("MAKING IR FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl))
             try:
                 decl.make_code(codegen)
             except Exception as e:
-                import pdb; pdb.xpm()
+                import pdb
+                if os.getenv("GITHUB_ACTIONS") is None and hasattr(pdb, 'xpm'):
+                    pdb.xpm()
                 print failure_count, "COULDN'T GENERATE CODE FOR", index, getattr(decl, "name", decl)
                 print(traceback.format_exc())
                 failure_count += 1
                 codegen.level = 0
             codegen.emit()
+        t2 = time.time()
+        codegen.print_persistent_msg("AST WALKING DONE, took seconds:", round(t2 - t1, 2))
 
 class __extend__(parse.Declaration):
     def make_code(self, codegen):
         raise NotImplementedError("abstract base class")
 
 class __extend__(parse.Enum):
+    def resolve_type(self, codegen):
+        return types.Enum(self.name, tuple(self.names))
+
     def make_code(self, codegen):
         name = "Enum_" + self.name
+        typ = self.resolve_type(codegen)
         self.pyname = name
         with codegen.emit_code_type("declarations"):
             with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
                 for index, name in enumerate(self.names, start=codegen.last_enum):
-                    codegen.add_global(name, "%s.%s" % (self.pyname, name), types.Enum(self), self)
+                    codegen.add_global(name, "%s.%s" % (self.pyname, name), typ, self)
                     codegen.emit("%s = %s" % (name, index))
                 codegen.last_enum += len(self.names) + 1 # gap of 1
-                typ = types.Enum(self)
                 codegen.add_named_type(self.name, self.pyname, typ, self)
                 typ.uninitialized_value = "-1"
                 codegen.emit("@staticmethod")
@@ -262,8 +390,8 @@ class __extend__(parse.Union):
     def make_code(self, codegen):
         name = "Union_" + self.name
         self.pyname = name
-        for typ in self.types:
-            typ.resolve_type(codegen) # pre-declare the types
+        # pre-declare the types
+        rtyps = [typ.resolve_type(codegen) for typ in self.types]
         with codegen.emit_code_type("declarations"):
             with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
                 codegen.emit("@objectmodel.always_inline")
@@ -271,7 +399,9 @@ class __extend__(parse.Union):
                     codegen.emit("return False")
             codegen.emit("%s.singleton = %s()" % (name, name))
             self.pynames = []
-            uniontyp = types.Union(self)
+            names = tuple(self.names)
+            names = tuple(self.names)
+            uniontyp = types.Union(self.name, names, tuple(rtyps))
             uniontyp.uninitialized_value = "%s.singleton" % (name, )
             codegen.add_named_type(self.name, self.pyname, uniontyp, self)
             for name, typ in zip(self.names, self.types):
@@ -293,20 +423,20 @@ class __extend__(parse.Union):
                     codegen.emit("%s.singleton = %s(())" % (pyname, pyname))
                 if type(rtyp) is types.Enum:
                     # for enum union options, we make singletons
-                    for enum_value in rtyp.ast.names:
+                    for enum_value in rtyp.elements:
                         subclassname = "%s_%s" % (pyname, enum_value)
                         with codegen.emit_indent("class %s(%s):" % (subclassname, pyname)):
                             codegen.emit("a = %s" % (codegen.getname(enum_value), ))
                         codegen.emit("%s.singleton = %s()" % (subclassname, subclassname))
         if self.name == "zexception":
-            codegen.add_global("current_exception", "machine.current_exception", uniontyp, self)
+            codegen.add_global("current_exception", "machine.current_exception", uniontyp, self, "machine.current_exception")
 
     def make_init(self, codegen, rtyp, typ, pyname):
         if type(rtyp) is types.Enum:
             codegen.emit("@staticmethod")
             codegen.emit("@objectmodel.specialize.arg_or_var(0)")
             with codegen.emit_indent("def construct(a):"):
-                for enum_value in rtyp.ast.names:
+                for enum_value in rtyp.elements:
                     codegen.emit("if a == %s: return %s_%s.singleton" % (codegen.getname(enum_value), pyname, enum_value))
                 codegen.emit("raise ValueError")
             return
@@ -374,47 +504,14 @@ class __extend__(parse.Union):
 
 class __extend__(parse.Struct):
     def make_code(self, codegen):
-        name = "Struct_" + self.name
-        self.pyname = name
-        structtyp = types.Struct(self)
-        structtyp.fieldtyps = {}
-        uninit_arg = []
-        codegen.add_named_type(self.name, self.pyname, structtyp, self)
-        for typ in self.types:
-            typ.resolve_type(codegen) # pre-declare the types
-        with codegen.emit_code_type("declarations"), codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
-            with codegen.emit_indent("def __init__(self, %s):" % ", ".join(self.names)):
-                for arg, typ in zip(self.names, self.types):
-                    codegen.emit("self.%s = %s # %s" % (arg, arg, typ))
-                    fieldtyp = structtyp.fieldtyps[arg] = typ.resolve_type(codegen)
-                    uninit_arg.append(fieldtyp.uninitialized_value)
-            with codegen.emit_indent("def copy_into(self, res=None):"):
-                codegen.emit("if res is None: res = type(self)()")
-                for arg, typ in zip(self.names, self.types):
-                    codegen.emit("res.%s = self.%s # %s" % (arg, arg, typ))
-                codegen.emit("return res")
-            codegen.emit("@objectmodel.always_inline")
-            with codegen.emit_indent("def eq(self, other):"):
-                codegen.emit("assert isinstance(other, %s)" % (self.pyname, ))
-                for arg, typ in zip(self.names, self.types):
-                    rtyp = typ.resolve_type(codegen)
-                    codegen.emit("if %s: return False # %s" % (
-                        rtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (rtyp, rtyp), types.Bool()), typ))
-                codegen.emit("return True")
-            if len(self.names) == 1: # for now
-                fieldtyp = structtyp.fieldtyps[self.names[0]]
-                codegen.emit("_convert_from = staticmethod(%s)" % fieldtyp.convert_from_pypy)
-                codegen.emit("_convert_to = staticmethod(%s)" % fieldtyp.convert_to_pypy)
-                codegen.emit("@staticmethod")
-                with codegen.emit_indent("def convert_to_pypy(space, self):"):
-                    codegen.emit("return %s._convert_to(space, self.%s)" % (name, self.names[0]))
-                codegen.emit("@staticmethod")
-                with codegen.emit_indent("def convert_from_pypy(space, w_value):"):
-                    codegen.emit("return %s(%s._convert_from(space, w_value))" % (name, name))
-                structtyp.convert_to_pypy = "%s.convert_to_pypy" % name
-                structtyp.convert_from_pypy = "%s.convert_from_pypy" % name
-
-        structtyp.uninitialized_value = "%s(%s)" % (self.pyname, ", ".join(uninit_arg))
+        name = self.name
+        pyname = "Struct_" + name
+        self.pyname = pyname
+        # predeclare types
+        typs = [typ.resolve_type(codegen) for typ in self.types]
+        tuplestruct = name in codegen.tuplestruct
+        structtyp = types.Struct(name, tuple(self.names), tuple(typs), tuplestruct)
+        codegen.add_struct_type(name, pyname, structtyp, ast=self)
 
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
@@ -430,10 +527,18 @@ class __extend__(parse.GlobalVal):
                     name = "string_to_int"
                 elif name == "%string->%real":
                     name = "string_to_real"
+                elif name == "%vec(%bv)->%vec(%bv8)":
+                    name = "vec_gbv_to_vec_bv8"
+                elif name == "%vec(%bv)->%vec(%bv16)":
+                    name = "vec_gbv_to_vec_bv16"
                 else:
                     import pdb; pdb.set_trace()
             if name == "not": name = "not_"
+            if name == "print": name = "print_"
             funcname = "supportcode.%s" % (name, )
+
+            if name == "cons":
+                funcname = self.resolved_type.restype.pyname
             codegen.add_global(self.name, funcname, typ, self)
             codegen.builtin_names[self.name] = name
         else:
@@ -451,32 +556,38 @@ class __extend__(parse.Abstract):
 
 class __extend__(parse.Register):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks
+        from pydrofoil.ir import construct_ir
+        from pydrofoil.mangle import demangle
         self.pyname = "_reg_%s" % (self.name, )
         typ = self.typ.resolve_type(codegen)
+        read_pyname = write_pyname = "machine.%s" % self.pyname
         if self.name in codegen.promoted_registers:
-            pyname = "jit.promote(machine.%s)" % self.pyname
-        else:
-            pyname = "machine.%s" % self.pyname
+            read_pyname = "jit.promote(%s)" % write_pyname
+        elif isinstance(typ, types.GenericBitVector):
+            names = "(%s_width, %s_val, %s_rval)" % (read_pyname, read_pyname, read_pyname)
+            read_pyname = "bitvector.BitVector.unpack" + names
+            write_pyname = "%s = %%s.pack()" % (names, )
+        elif isinstance(typ, types.BigFixedBitVector):
+            names = "(%s_val, %s_rval)" % (read_pyname, read_pyname)
+            read_pyname = "bitvector.BitVector.unpack(%s, *%s)" % (typ.width, names)
+            write_pyname = "%s = %%s.pack()[1:]" % (names, )
+        elif isinstance(typ, types.Int):
+            names = "(%s_val, %s_rval)" % (read_pyname, read_pyname)
+            read_pyname = "bitvector.Integer.unpack" + names
+            write_pyname = "%s = %%s.pack()" % (names, )
         codegen.all_registers[self.name] = self
-        codegen.add_global(self.name, pyname, typ, self)
+        codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
         with codegen.emit_code_type("declarations"):
-            codegen.emit("# %s" % (self, ))
             codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
             codegen.emit("Machine._all_register_names.append((%r, %r, %s, %s, %r))" % (
-                self.pyname, self.name, typ.convert_to_pypy, typ.convert_from_pypy,
+                self.pyname, demangle(self.name), typ.convert_to_pypy, typ.convert_from_pypy,
                 typ.sail_repr()))
 
         if self.body is None:
             return
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
-            codegen.emit(" # register %s : %s" % (self.name, self.typ, ))
-            blocks = {0: self.body[:]}
-            optimize_blocks(blocks, codegen)
-            for i, op in enumerate(blocks[0]):
-                codegen.emit("# %s" % (op, ))
-                op.make_op_code(codegen)
-            codegen.emit()
+            graph = construct_ir(self, codegen, singleblock=True)
+            emit_function_code(graph, self, codegen)
 
 def iterblockops(blocks):
     for blockpc, block in sorted(blocks.items()):
@@ -486,62 +597,53 @@ def iterblockops(blocks):
 
 class __extend__(parse.Function):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks, CollectSourceVisitor, view_blocks
-        from pydrofoil import optimize
-        #vbefore = CollectSourceVisitor()
-        #vbefore.visit(self)
+        from pydrofoil.ir import construct_ir, should_inline
+        from pydrofoil.specialize import Specializer, usefully_specializable
+        from pydrofoil.splitgraph import split_completely
         pyname = codegen.getname(self.name)
         assert pyname.startswith("func_")
         #if codegen.globalnames[self.name].pyname is not None:
         #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
         #    return
         self.pyname = pyname
-        blocks = self._prepare_blocks()
-        inlinable = len(blocks) == 1 and len(blocks[0]) <= 40
         typ = codegen.globalnames[self.name].ast.typ
-        predefined = {arg: typ.argtype.elements[i] for i, arg in enumerate(self.args)}
-        predefined["return"] = typ.restype
-        optimize_blocks(blocks, codegen, predefined, codegen.all_registers)
-        #vafter = CollectSourceVisitor()
-        #for pc, block in blocks.iteritems():
-        #    for op in block:
-        #        vafter.visit(op)
-        #if vafter.seen != vbefore.seen:
-        #    import pdb; pdb.set_trace()
-        if inlinable:
-            codegen.inlinable_functions[self.name] = self, blocks
-        entrycounts = self._compute_entrycounts(blocks)
-        if self.detect_union_switch(blocks[0]) and entrycounts[0] == 1:
-            print "making method!", self.name
+        blocks = self._prepare_blocks()
+        if self.detect_union_switch(blocks[0]):
+            codegen.print_debug_msg("making method!", self.name)
             with self._scope(codegen, pyname):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
-            self._emit_methods(blocks, entrycounts, codegen)
+            self._emit_methods(blocks, codegen)
             return
-        if len(blocks) > 340:
-            print "splitting", self.name
-            try:
-                self._split_function(blocks, entrycounts, codegen)
-                codegen.emit()
-                return
-            except optimize.CantSplitError:
-                print "didn't manage"
+        codegen.print_debug_msg("making SSA IR")
+        graph = construct_ir(self, codegen)
+        inlinable = should_inline(graph, codegen.should_inline)
+        if inlinable:
+            codegen.inlinable_functions[self.name] = graph
+        elif not graph.has_loop and graph.has_more_than_n_blocks(150):
+            codegen.print_debug_msg("splitting", self.name)
+            functyp = codegen.globalnames[self.name].typ
+            for graph2, graph2typ in split_completely(graph, self, functyp, codegen):
+                codegen.add_global(graph2.name, graph2.name, graph2typ)
+                codegen.add_graph(graph2, self.emit_regular_function, graph2.name)
+        else:
+            if usefully_specializable(graph):
+                codegen.specialization_functions[self.name] = Specializer(graph, codegen)
 
-        with self._scope(codegen, pyname):
-            if entrycounts == {0: 1}:
-                assert self.body[-1].end_of_block
-                self.emit_block_ops(blocks[0], codegen)
-            else:
-                self._emit_blocks(blocks, codegen, entrycounts, )
+        codegen.add_graph(graph, self.emit_regular_function, pyname)
+        del self.body # save memory, don't need to keep the parse tree around
+
+    def emit_regular_function(self, graph, codegen, pyname):
+        with self._scope(codegen, pyname, actual_args=graph.args):
+            emit_function_code(graph, self, codegen)
         codegen.emit()
 
     @contextmanager
-    def _scope(self, codegen, pyname, method=False, extra_args=None):
+    def _scope(self, codegen, pyname, method=False, actual_args=None):
         # extra_args is a list of tuples (name, typ)
-        args = self.args
-        if extra_args:
-            args = args[:]
-            for name, _ in extra_args:
-                args.append(name)
+        if actual_args is not None:
+            args = [arg.name for arg in actual_args]
+        else:
+            args = self.args
         if not method:
             first = "def %s(machine, %s):" % (pyname, ", ".join(args))
         else:
@@ -554,9 +656,9 @@ class __extend__(parse.Function):
             codegen.add_local('return', 'return_', typ.restype, self)
             for i, arg in enumerate(self.args):
                 codegen.add_local(arg, arg, typ.argtype.elements[i], self)
-            if extra_args:
-                for name, typ in extra_args:
-                    codegen.add_local(name, name, typ, self)
+            if actual_args:
+                for arg in actual_args:
+                    codegen.add_local(arg.name, arg.name, arg.resolved_type, self)
             yield
 
     def _prepare_blocks(self):
@@ -566,6 +668,9 @@ class __extend__(parse.Function):
 
         # first check which ops can be jumped to
         jumptargets = {getattr(op, 'target', 0) for op in self.body}
+        for i, op in enumerate(self.body):
+            if isinstance(op, parse.ConditionalJump):
+                jumptargets.add(i + 1)
 
         # now split into blocks
         blocks = {}
@@ -615,7 +720,8 @@ class __extend__(parse.Function):
                 isinstance(op.condition.var, parse.Var) and
                 op.condition.var.name == self.args[0])
 
-    def _emit_methods(self, blocks, entrycounts, codegen):
+    def _emit_methods(self, blocks, codegen):
+        from pydrofoil.ir import build_ssa
         typ = codegen.globalnames[self.name].typ
         uniontyp = typ.argtype.elements[0]
         switches = []
@@ -634,7 +740,7 @@ class __extend__(parse.Function):
                 clsname = codegen.getname(cond.condition.variant)
                 known_cls = cond.condition.variant
             else:
-                clsname = uniontyp.ast.pyname
+                clsname = codegen.namedtypes[uniontyp.name].pyname
                 known_cls = None
             if clsname in generated_for_class:
                 continue
@@ -649,12 +755,21 @@ class __extend__(parse.Function):
                 del b[block.index(cond)]
             copyblock.extend(b)
             local_blocks = self._find_reachable(copyblock, oldpc, blocks, known_cls)
-            # recompute entrycounts
-            local_entrycounts = self._compute_entrycounts(local_blocks)
-            pyname = self.name + "_" + (cond.condition.variant if cond else "default")
-            with self._scope(codegen, pyname, method=True):
-                self._emit_blocks(local_blocks, codegen, local_entrycounts, startpc=oldpc)
-            codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
+            propername = self.name
+            try:
+                self.name += "_" + (cond.condition.variant if cond else "default")
+                graph = build_ssa(local_blocks, self, self.args, codegen, startpc=oldpc)
+                pyname = self.name
+            finally:
+                self.name = propername
+            codegen.add_graph(graph, self.emit_method, pyname, clsname)
+            if codegen.program_entrypoints:
+                codegen.program_entrypoints.append(graph.name)
+
+    def emit_method(self, graph, codegen, pyname, clsname):
+        with self._scope(codegen, pyname, method=True):
+            emit_function_code(graph, self, codegen)
+        codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
 
     def _find_reachable(self, block, blockpc, blocks, known_cls=None):
         # return all the blocks reachable from "block", where self.args[0] is
@@ -687,58 +802,8 @@ class __extend__(parse.Function):
             process(index, current)
         return {k: v for k, v in res}
 
-    def _split_function(self, blocks, entrycounts, codegen):
-        from pydrofoil import optimize
-        blocks = {pc: ops[:] for (pc, ops) in blocks.iteritems()}
-        with self._scope(codegen, self.pyname):
-            args = self.args
-            next_func_name = self.pyname + "_next_0"
-            codegen.emit("return %s(machine, %s)" % (next_func_name, ", ".join(args)))
-        args = self.args
-        prev_extra_args = []
-        startpc = 0
-        while len(blocks) > 150:
-            g1, g2, transferpc = optimize.split_graph(blocks, 120, start_node=startpc)
-            print "previous size", len(blocks), "afterwards:", len(g1), len(g2)
-            # compute the local variables that are declared in g1 and used in g2,
-            # they become extra arguments
-            declared_variables_g1 = {}
-            for blockpc, op in iterblockops(g1):
-                if isinstance(op, parse.LocalVarDeclaration):
-                    declared_variables_g1[op.name] = op.typ.resolve_type(codegen)
-            for argname, typ in prev_extra_args:
-                declared_variables_g1[argname] = typ
-            needed_args = set()
-            assignment_targets = set()
-            for blockpc, op in iterblockops(g2):
-                needed_args.update(op.find_used_vars())
-                if isinstance(op, parse.Assignment):
-                    assignment_targets.add(op.result)
-            extra_args_names = sorted(needed_args.intersection(declared_variables_g1))
-            extra_args = [(name, declared_variables_g1[name]) for name in extra_args_names]
-
-            # which variables are declared in g1, and also assigned to in g2,
-            # but aren't arguments?
-            need_declaration = assignment_targets.intersection(declared_variables_g1) - set(args) - set(extra_args_names)
-            assert not need_declaration
-            # make a copy to not mutate blocks
-            #transferstartblock = g2[transferpc] = g2[transferpc][:]
-            #for declvar in need_declaration:
-            #    transferstartblock.insert(0, declared_variables_g1[declvar])
-
-            with self._scope(codegen, next_func_name, extra_args=prev_extra_args):
-                callargs = args + extra_args_names
-                next_func_name = self.pyname + "_next_" + str(transferpc)
-                next_call = "return %s(machine, %s)" % (next_func_name, ", ".join(callargs))
-                g1[transferpc] = [next_call]
-                self._emit_blocks(g1, codegen, entrycounts, startpc=startpc)
-            prev_extra_args = extra_args
-            blocks = g2
-            startpc = transferpc
-        with self._scope(codegen, next_func_name, extra_args=extra_args):
-            self._emit_blocks(g2, codegen, entrycounts, startpc=transferpc)
-
     def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
+        UNUSED
         codegen.emit("pc = %s" % startpc)
         with codegen.emit_indent("while 1:"):
             prefix = ''
@@ -753,6 +818,7 @@ class __extend__(parse.Function):
             #    codegen.emit("assert 0, 'should be unreachable'")
 
     def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
+        UNUSED
         if isinstance(block[0], str):
             # bit hacky: just emit it
             assert len(block) == 1
@@ -793,6 +859,9 @@ class __extend__(parse.Function):
 class __extend__(parse.Pragma):
     def make_code(self, codegen):
         codegen.emit("# %s" % (self, ))
+        if self.name == 'tuplestruct':
+            codegen.tuplestruct[self.content[0]] = self
+
 
 class __extend__(parse.Files):
     def make_code(self, codegen):
@@ -800,11 +869,17 @@ class __extend__(parse.Files):
 
 class __extend__(parse.Let):
     def make_code(self, codegen):
-        from pydrofoil.optimize import optimize_blocks
-        codegen.emit("# %s" % (self, ))
-        codegen.add_global(self.name, "machine.l.%s" % self.name, self.typ.resolve_type(codegen), self)
+        from pydrofoil.ir import construct_ir, extract_global_value
+        pyname = "machine.l.%s" % self.name
+        codegen.add_global(self.name, pyname, self.typ.resolve_type(codegen), self, pyname)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
+            graph = construct_ir(self, codegen, singleblock=True)
+            emit_function_code(graph, self, codegen)
+            value = extract_global_value(graph, self.name)
+            if value is not None:
+                codegen.let_values[self.name] = value
+            return
             blocks = {0: self.body[:]}
             optimize_blocks(blocks, codegen)
             for i, op in enumerate(blocks[0]):
@@ -812,335 +887,6 @@ class __extend__(parse.Let):
                 op.make_op_code(codegen)
             codegen.emit()
 
-# ____________________________________________________________
-# operations
-
-class __extend__(parse.Statement):
-    def make_op_code(self, codegen):
-        raise NotImplementedError
-
-    def make_op_jump(self, codegen, i):
-        pass
-
-
-class __extend__(parse.LocalVarDeclaration):
-    def make_op_code(self, codegen, need_default_init=True):
-        codegen.emit("# %s: %s" % (self.name, self.typ))
-        typ = self.typ.resolve_type(codegen)
-        codegen.add_local(self.name, self.name, typ, self)
-        if self.value is not None:
-            result = codegen.gettarget(self.name)
-            othertyp = self.value.gettyp(codegen)
-            rhs = pair(othertyp, typ).convert(self.value, codegen)
-            codegen.emit("%s = %s" % (result, rhs))
-        elif need_default_init:
-            assert self.value is None
-            # need to make a tuple instance
-            result = codegen.gettarget(self.name)
-            codegen.emit("%s = %s" % (result, typ.uninitialized_value))
-
-class __extend__(parse.Operation):
-    def make_op_code(self, codegen):
-        name = self.name
-        assert name == "$zinternal_vector_update"
-        result = codegen.gettarget(self.result)
-        sargs = [arg.to_code(codegen) for arg in self.args]
-        codegen.emit("%s = supportcode.vector_update_inplace(machine, %s, %s, %s, %s)" % (result, result, sargs[0], sargs[1], sargs[2]))
-
-class __extend__(parse.ConditionalJump):
-    def make_op_code(self, codegen):
-        pass
-
-    def make_op_jump(self, codegen, i):
-        with codegen.emit_indent("if %s:" % (self.condition.to_code(codegen))):
-            codegen.emit("pc = %s" % (self.target, ))
-            codegen.emit("continue")
-
-class __extend__(parse.Goto):
-    def make_op_code(self, codegen):
-        pass
-
-    def make_op_jump(self, codegen, i):
-        codegen.emit("pc = %s" % (self.target, ))
-        if self.target < i:
-            codegen.emit("continue")
-
-class __extend__(parse.Assignment):
-    def make_op_code(self, codegen):
-        result = codegen.gettarget(self.result)
-        typ = codegen.gettyp(self.result)
-        othertyp = self.value.gettyp(codegen)
-        rhs = pair(othertyp, typ).convert(self.value, codegen)
-        # hack to make array updates not do a copy
-        if rhs.startswith("supportcode.helper_vector_update_list_o_i_o(machine, " + result):
-            assert rhs.endswith(")")
-            rhs = rhs[:-1] + ", res=%s)" % (result, )
-            codegen.emit(rhs) # the function mutates, no need to do the assignment
-        else:
-            codegen.emit("%s = %s" % (result, rhs))
-
-class __extend__(parse.StructElementAssignment):
-    def make_op_code(self, codegen):
-        typ = self.obj.gettyp(codegen)
-        for field in self.fields:
-            typ = typ.fieldtyps[field]
-        othertyp = self.value.gettyp(codegen)
-        rhs = pair(othertyp, typ).convert(self.value, codegen)
-        codegen.emit("%s.%s = %s" % (self.obj.to_code(codegen), ".".join(self.fields), rhs))
-
-class __extend__(parse.RefAssignment):
-    def make_op_code(self, codegen):
-        # XXX think long and hard about refs!
-        codegen.emit("%s.copy_into(%s)" % (self.value.to_code(codegen), self.ref.to_code(codegen)))
-
-class __extend__(parse.End):
-    def make_op_code(self, codegen):
-        codegen.emit("return return_")
-
-    def make_op_jump(self, codegen, i):
-        pass
-
-class __extend__(parse.Exit):
-    def make_op_code(self, codegen):
-        codegen.emit("raise TypeError")
-
-    def make_op_jump(self, codegen, i):
-        pass
-
-class __extend__(parse.Arbitrary):
-    def make_op_jump(self, codegen, i):
-        pass
-
-class __extend__(parse.TemplatedOperation):
-    def make_op_code(self, codegen):
-        typ = self.args[0].gettyp(codegen)
-        name = self.name
-        result = codegen.gettarget(self.result)
-        if name == '$zcons':
-            restyp = codegen.gettyp(self.result)
-            sargs = [arg.to_code(codegen) for arg in self.args]
-            codegen.emit("%s = %s(%s, %s)" % (result, restyp.pyname, sargs[0], sargs[1]))
-        else:
-            import pdb; pdb.set_trace()
-            codegen.emit("XXX")
-
-# ____________________________________________________________
-# expressions
-
-class __extend__(parse.Expression):
-    def to_code(self, codegen):
-        raise NotImplementedError
-
-    def gettyp(self, codegen):
-        raise NotImplementedError
-
-
-class __extend__(parse.Var):
-    def to_code(self, codegen):
-        return codegen.getname(self.name)
-
-    def gettyp(self, codegen):
-        return codegen.gettyp(self.name)
-
-class __extend__(parse.Number):
-    def is_constant(self, codegen):
-        return True
-
-    def to_code(self, codegen):
-        return str(self.number)
-
-    def gettyp(self, codegen):
-        return types.MachineInt()
-
-class __extend__(parse.BitVectorConstant):
-    def is_constant(self, codegen):
-        return True
-
-    def to_code(self, codegen):
-        return "r_uint(%s)" % (self.constant, )
-
-    def gettyp(self, codegen):
-        if self.constant.startswith("0b"):
-            size = len(self.constant) - 2
-        else:
-            assert self.constant.startswith("0x")
-            size = (len(self.constant) - 2) * 4
-        if size <= 64:
-            return types.SmallFixedBitVector(size)
-        else:
-            return types.BigFixedBitVector(size)
-
-class __extend__(parse.Unit):
-    def to_code(self, codegen):
-        return '()'
-
-    def gettyp(self, codegen):
-        return types.Unit()
-
-class __extend__(parse.Undefined):
-    def to_code(self, codegen):
-        return 'xxx'
-
-    def gettyp(self, codegen):
-        return self.typ.resolve_type(codegen)
-
-
-class __extend__(parse.StructConstruction):
-    def to_code(self, codegen):
-        typ = self.gettyp(codegen)
-        ast_type = typ.ast
-        sargs = []
-        for name, arg in zip(self.fieldnames, self.fieldvalues):
-            fieldtyp = typ.fieldtyps[name]
-            valuetyp = arg.gettyp(codegen)
-            sargs.append(pair(valuetyp, fieldtyp).convert(arg, codegen))
-        assert self.fieldnames == ast_type.names
-        return "%s(%s)" % (ast_type.pyname, ", ".join(sargs))
-
-    def gettyp(self, codegen):
-        return codegen.get_named_type(self.name)
-
-class __extend__(parse.FieldAccess):
-    def to_code(self, codegen):
-        obj = self.obj
-        if isinstance(self.obj, parse.StructConstruction):
-            index = self.obj.fieldnames.index(self.element)
-            return self.obj.fieldvalues[index].to_code(codegen)
-        if isinstance(obj, parse.Cast):
-            return "%s.convert_%s(%s)" % (codegen.getname(obj.variant), self.element, obj.expr.to_code(codegen))
-        objtyp = obj.gettyp(codegen)
-        res = "%s.%s" % (self.obj.to_code(codegen), self.element)
-        if isinstance(objtyp, types.Struct) and self.element in codegen.promoted_registers:
-            return "jit.promote(%s)" % res
-        return res
-
-    def gettyp(self, codegen):
-        if isinstance(self.obj, parse.StructConstruction):
-            index = self.obj.fieldnames.index(self.element)
-            return self.obj.fieldvalues[index].gettyp(codegen)
-        objtyp = self.obj.gettyp(codegen)
-        return objtyp.fieldtyps[self.element]
-
-class __extend__(parse.Cast):
-    def to_code(self, codegen):
-        expr = self.expr.to_code(codegen)
-        return "%s.convert(%s)" % (codegen.getname(self.variant), expr)
-
-    def gettyp(self, codegen):
-        # XXX clean up
-        unionast = self.expr.gettyp(codegen).ast
-        index = unionast.names.index(self.variant)
-        typ = unionast.types[index].resolve_type(codegen)
-        return typ
-
-class __extend__(parse.RefOf):
-    def to_code(self, codegen):
-        expr = self.expr.to_code(codegen)
-        if isinstance(self.expr.gettyp(codegen), types.Struct):
-            return expr
-        assert isinstance(self.expr, parse.Var)
-        return repr("crashmenow")
-
-    def gettyp(self, codegen):
-        return types.Ref(self.expr.gettyp(codegen))
-
-class __extend__(parse.String):
-    def to_code(self, codegen):
-        return self.string
-
-    def gettyp(self, codegen):
-        return types.String()
-
-class __extend__(parse.OperationExpr):
-    def gettyp(self, codegen):
-        return self.resolved_type
-
-    def to_code(self, codegen):
-        name = self.name
-        sargs = [arg.to_code(codegen) for arg in self.args]
-        argtyps = [arg.gettyp(codegen) for arg in self.args]
-        restyp = self.gettyp(codegen)
-        if name in codegen.globalnames:
-            n = codegen.globalnames[name].pyname
-            if "eq_string" in name:
-                name = "@eq"
-            elif name == "znot_bool":
-                name = "@not"
-            elif n == "supportcode.eq_anything":
-                name = "@eq"
-            elif n == "supportcode.cons":
-                return "%s(%s, %s)" % (restyp.pyname, sargs[0], sargs[1])
-
-
-        if name.startswith("@"):
-            meth = getattr(argtyps[0], "make_op_code_special_" + name[1:], None)
-            if meth:
-                return meth(self, sargs, argtyps, restyp)
-        elif name.startswith("$zinternal_vector_init"): # magic vector stuff
-            oftyp = restyp.typ
-            return "[%s] * %s" % (oftyp.uninitialized_value, sargs[0])
-
-        if not sargs:
-            args = '()'
-        else:
-            args = ", ".join(sargs)
-        op = codegen.getname(name)
-        info = codegen.getinfo(name)
-        if isinstance(info.typ, types.Function):
-            if (op.startswith("supportcode.") and
-                    all(arg.is_constant(codegen) for arg in self.args) and
-                    can_constfold(op)):
-                folded_result = constfold(op, sargs, self, codegen)
-                return folded_result
-            else:
-                # pass machine, even to supportcode functions
-                return "%s(machine, %s)" % (op, args)
-        elif isinstance(info.typ, types.Union):
-            return info.ast.constructor(info, op, args, argtyps)
-        elif name.startswith(("@", "$")):
-            return "%s(machine, %s)" % (op, args)
-        else:
-            # constructors etc don't get machine passed (yet)
-            return "%s(%s)" % (op, args)
-
-class __extend__(parse.CastExpr):
-    def gettyp(self, codegen):
-        return self.resolved_type
-
-    def to_code(self, codegen):
-        typ = self.gettyp(codegen)
-        expr = self.expr
-        while isinstance(expr, parse.CastExpr):
-            expr = expr.expr
-        othertyp = expr.gettyp(codegen)
-        return pair(othertyp, typ).convert(expr, codegen)
-
-# ____________________________________________________________
-# conditions
-
-class __extend__(parse.Condition):
-    def to_code(self, codegen):
-        raise NotImplementedError
-
-class __extend__(parse.ExprCondition):
-    def to_code(self, codegen):
-        return self.expr.to_code(codegen)
-
-class __extend__(parse.Comparison):
-    def to_code(self, codegen):
-        op = self.operation
-        if op.startswith("@"):
-            sargs = [arg.to_code(codegen) for arg in self.args]
-            argtyps = [arg.gettyp(codegen) for arg in self.args]
-            if hasattr(argtyps[0], "make_op_code_special_" + op[1:]):
-                return getattr(argtyps[0], "make_op_code_special_" + op[1:])(self, sargs, argtyps, types.Bool())
-            print "didn't find", op, argtyps, sargs
-            op = "XXX_cmp_" + op[1:]
-        return "%s(%s)" % (op, ", ".join([arg.to_code(codegen) for arg in self.args]))
-
-class __extend__(parse.UnionVariantCheck):
-    def to_code(self, codegen):
-        return "not isinstance(%s, %s)" % (self.var.to_code(codegen), codegen.getname(self.variant))
 
 # ____________________________________________________________
 # types
@@ -1195,7 +941,7 @@ class __extend__(parse.ListType):
         with codegen.cached_declaration(typ, "List") as pyname:
             with codegen.emit_indent("class %s(supportcode.ObjectBase): # %s" % (pyname, self)):
                 codegen.emit("_immutable_fields_ = ['head', 'tail']")
-                codegen.emit("def __init__(self, head, tail): self.head, self.tail = head, tail")
+                codegen.emit("def __init__(self, machine, head, tail): self.head, self.tail = head, tail")
             typ.pyname = pyname
         return typ
 

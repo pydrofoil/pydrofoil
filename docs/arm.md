@@ -1,7 +1,7 @@
 # Emulating ARM
 
 Pydrofoil can also – even more experimentally – be used to build an emulator
-for ARM, based on the [ARM Sail
+for ARM (version 9.4), based on the [ARM Sail
 model](https://github.com/rems-project/sail-arm). This model is itself
 automatically generated from [ASL](https://github.com/rems-project/asl_to_sail).
 

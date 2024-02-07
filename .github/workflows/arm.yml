@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# Limit tests to latest commit on branches other than main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   build:
 
@@ -49,12 +54,19 @@ jobs:
         path: arm/armv9.ir
         key: ${{ steps.cache-ir-restore.outputs.cache-primary-key }}
 
+    - name: Run ARM unit test
+      run: |
+        make pydrofoil-test-arm
 
     - name: build ARM
       run: |
-        make pydrofoil-arm
+        make pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir
+        PYTHONPATH=. pypy_binary/bin/python pypy2/rpython/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py --no-arm-regen
 
     - name: boot linux
       run: |
-        ./pydrofoil-arm -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0  -l 1_000_000 2> /dev/null
+        PYPYLOG=jit-summary:summary ./pydrofoil-arm -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0  -l 23_000_000 2> /dev/null
 
+    - name: show jit summary booting
+      run: |
+        cat summary

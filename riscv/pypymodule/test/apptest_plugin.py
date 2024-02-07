@@ -74,15 +74,15 @@ def test_step_monitor_mem_read():
     cpu = _pydrofoil.RISCV64(addielf)
     mem_accesses = cpu.step_monitor_mem()
     assert mem_accesses == [
-        ("read_executable", 0x0000000000001000, 2, 0x0297),
-        ("read_executable", 0x0000000000001002, 2, 0x0),
+        ("read", 0x0000000000001000, 2, 0x0297),
+        ("read", 0x0000000000001002, 2, 0x0),
     ]
     cpu.step()
     cpu.step()
     mem_accesses = cpu.step_monitor_mem()
     assert mem_accesses == [
-        ("read_executable", 0x000000000000100C, 2, 0xB283),
-        ("read_executable", 0x000000000000100E, 2, 0x0182),
+        ("read", 0x000000000000100C, 2, 0xB283),
+        ("read", 0x000000000000100E, 2, 0x0182),
         ("read", 0x0000000000001018, 8, 0x0000000080000000),
     ]
 
@@ -92,8 +92,8 @@ def test_step_monitor_mem_write():
         cpu.step()
     mem_accesses = cpu.step_monitor_mem()
     assert mem_accesses == [
-        ("read_executable", 0x0000000080002914, 2, 0xB823),
-        ("read_executable", 0x0000000080002916, 2, 0x6ED8),
+        ("read", 0x0000000080002914, 2, 0xB823),
+        ("read", 0x0000000080002916, 2, 0x6ED8),
         ("write", 0x0000000080004000, 8, 0x0000000020001401),
     ]
 
@@ -112,7 +112,7 @@ def test_various_registers():
     assert cpu.read_register("htif_done") == False
     cpu.write_register("htif_done", 12)
     assert cpu.read_register("htif_done") == True
-    assert cpu.read_register("misa") == 0x800000000014112d
+    assert cpu.read_register("misa") == 0x800000000034112d
 
 def test_register_info():
     cpu = _pydrofoil.RISCV64()

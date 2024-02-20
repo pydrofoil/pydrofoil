@@ -105,14 +105,14 @@ def test_dis_instructions(riscvmain):
     m.g.config_print_platform = False
 
     expected = [
-        "auipc t0, 0",
-        "addi a1, t0, 32",
+        "auipc t0, 0x0",
+        "addi a1, t0, 0x20",
         "csrrs a0, mhartid, zero",
-        "ld t0, 24(t0)",
-        "jalr zero, t0, 0",
-        "jal zero, 76",
+        "ld t0, 0x18(t0)",
+        "jalr zero, 0x0(t0)",
+        "jal zero, 0x4c",
         "csrrs a0, mhartid, zero",
-        "bne a0, zero, 0"
+        "bne a0, zero, 0x0"
     ]
     for instr in expected:
         m.run_sail(1, False)

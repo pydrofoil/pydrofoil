@@ -41,7 +41,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         repository: riscv/sail-riscv
-        ref: 861bd6f65593013381c905d7a54e538e5382bf31
+        ref: 23f18200b771174e601fb58e7a857291fb32d063
 
     - uses: actions/checkout@v3
       with:

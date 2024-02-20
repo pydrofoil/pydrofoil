@@ -29,9 +29,9 @@ endif
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` && cd $(RISCVMODELCHECKOUT) && \
 		isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		model/prelude.sail \
-		model/prelude_mapping.sail \
 		model/riscv_xlen64.sail \
 		model/riscv_flen_D.sail \
+		model/riscv_vlen.sail \
 		model/prelude_mem_metadata.sail \
 		model/prelude_mem.sail \
 		model/riscv_types_common.sail \
@@ -49,7 +49,10 @@ endif
 		model/riscv_addr_checks_common.sail \
 		model/riscv_addr_checks.sail \
 		model/riscv_misa_ext.sail \
+		model/riscv_vreg_type.sail \
+		model/riscv_vext_regs.sail \
 		model/riscv_csr_map.sail \
+		model/riscv_vext_control.sail \
 		model/riscv_next_regs.sail \
 		model/riscv_sys_exceptions.sail \
 		model/riscv_sync_exception.sail \
@@ -92,6 +95,14 @@ endif
 		model/riscv_insts_zbkb.sail \
 		model/riscv_insts_zbkx.sail \
 		model/riscv_insts_zicond.sail \
+		model/riscv_insts_vext_utils.sail \
+		model/riscv_insts_vext_vset.sail \
+		model/riscv_insts_vext_arith.sail \
+		model/riscv_insts_vext_fp.sail \
+		model/riscv_insts_vext_mem.sail \
+		model/riscv_insts_vext_mask.sail \
+		model/riscv_insts_vext_vm.sail \
+		model/riscv_insts_vext_red.sail \
 		model/riscv_jalr_seq.sail \
 		model/riscv_insts_end.sail \
 		model/riscv_step_common.sail \
@@ -105,9 +116,9 @@ endif
 		&& \
 		${PWD}/isla/isla-sail/isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		model/prelude.sail \
-		model/prelude_mapping.sail \
 		model/riscv_xlen32.sail \
 		model/riscv_flen_D.sail \
+		model/riscv_vlen.sail \
 		model/prelude_mem_metadata.sail \
 		model/prelude_mem.sail \
 		model/riscv_types_common.sail \
@@ -125,7 +136,10 @@ endif
 		model/riscv_addr_checks_common.sail \
 		model/riscv_addr_checks.sail \
 		model/riscv_misa_ext.sail \
+		model/riscv_vreg_type.sail \
+		model/riscv_vext_regs.sail \
 		model/riscv_csr_map.sail \
+		model/riscv_vext_control.sail \
 		model/riscv_next_regs.sail \
 		model/riscv_sys_exceptions.sail \
 		model/riscv_sync_exception.sail \
@@ -167,6 +181,14 @@ endif
 		model/riscv_insts_zbkb.sail \
 		model/riscv_insts_zbkx.sail \
 		model/riscv_insts_zicond.sail \
+		model/riscv_insts_vext_utils.sail \
+		model/riscv_insts_vext_vset.sail \
+		model/riscv_insts_vext_arith.sail \
+		model/riscv_insts_vext_fp.sail \
+		model/riscv_insts_vext_mem.sail \
+		model/riscv_insts_vext_mask.sail \
+		model/riscv_insts_vext_vm.sail \
+		model/riscv_insts_vext_red.sail \
 		model/riscv_jalr_seq.sail \
 		model/riscv_insts_end.sail \
 		model/riscv_step_common.sail \
@@ -191,13 +213,13 @@ pydrofoil-test-arm: pypy2/rpython/bin/rpython pypy_binary/bin/python pypy2/rpyth
 pydrofoil-arm: pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py
 
-sail-arm/arm-v9.3-a/src/v8_base.sail: ## Clone the sail-arm submodule
+sail-arm/arm-v9.4-a/src/v8_base.sail: ## Clone the sail-arm submodule
 	git submodule update --init --depth 1
 
 .PHONY: regen-arm-ir-files
-regen-arm-ir-files: sail-arm/arm-v9.3-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build ARM IR
-	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.3-a/ gen_ir
-	mv sail-arm/arm-v9.3-a/ir/armv9.ir arm/
+regen-arm-ir-files: sail-arm/arm-v9.4-a/src/v8_base.sail isla/isla-sail/plugin.cmxs ## Build ARM IR
+	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` &&  make -C sail-arm/arm-v9.4-a/ gen_ir
+	mv sail-arm/arm-v9.4-a/ir/armv9.ir arm/
 
 
 ## Housekeeping targets:
@@ -237,6 +259,8 @@ clean:  ## remove build artifacts.
 	rm -rf pydrofoil-riscv-tests.xml
 	make -C pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/ clean
 	rm -rf pydrofoil-arm
+	rm -rf sail/_opam
+	rm -rf isla/isla-sail/plugin.cmxs
 
 help:   ## Show this help.
 	@echo "\nHelp for various make targets"

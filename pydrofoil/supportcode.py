@@ -49,7 +49,7 @@ def unwrap(spec):
             return func(machine, *newargs)
         wrappedfunc.__dict__.update(func.__dict__)
         unwrapped_name = func.func_name + "_" + "_".join(argspecs)
-        globals()[unwrapped_name] = func
+        func.func_globals[unwrapped_name] = func
         if func.func_name in purefunctions:
             purefunctions[func.func_name] = wrappedfunc
             purefunctions[unwrapped_name] = func
@@ -112,17 +112,10 @@ make_dummy('string_drop')
 make_dummy('string_take')
 make_dummy('string_startswith')
 make_dummy('sub_nat')
-make_dummy('undefined_int')
 make_dummy("wakeup_request")
 make_dummy("set_slice_int")
 make_dummy("undefined_range")
 
-make_dummy("softfloat_f16lt_quiet")
-make_dummy("softfloat_f32lt_quiet")
-make_dummy("softfloat_f64lt_quiet")
-make_dummy("softfloat_f16le_quiet")
-make_dummy("softfloat_f32le_quiet")
-make_dummy("softfloat_f64le_quiet")
 make_dummy("softfloat_f16roundToInt")
 make_dummy("softfloat_f32roundToInt")
 make_dummy("softfloat_f64roundToInt")
@@ -442,7 +435,8 @@ def decimal_string_of_bits(machine, sbits):
 def uint64c(machine, num):
     if not objectmodel.we_are_translated():
         import pdb; pdb.set_trace()
-    return bitvector.from_ruint(64, r_uint(num))
+    assert num == r_uint(0)
+    return bitvector.from_ruint(0, r_uint(num))
 
 @unwrap("i")
 @purefunction
@@ -767,6 +761,8 @@ def shr_mach_int(machine, i, shift):
 def abs_int(machine, i):
     return i.abs()
 
+def pow_int(machine, i, j):
+    return i.pow(j)
 
 # real
 
@@ -836,6 +832,8 @@ def undefined_real(machine, _):
 
 @objectmodel.specialize.argtype(1)
 def reg_deref(machine, s):
+    if isinstance(s, RegRef):
+        return s.deref(machine)
     return s
 
 @objectmodel.always_inline
@@ -847,6 +845,10 @@ def sail_assert(machine, cond, st):
 
 def print_endline(machine, s):
     print s
+    return ()
+
+def print_(machine, s):
+    os.write(STDOUT, s)
     return ()
 
 def prerr_endline(machine, s):
@@ -901,6 +903,18 @@ def helper_vector_update_inplace_o_i_o(machine, vec, index, element):
 @objectmodel.specialize.argtype(2)
 def undefined_vector(machine, size, element):
     return [element] * size.toint()
+
+def vec_gbv_to_vec_bv8(machine, vector):
+    assert isinstance(vector, list)
+    if not objectmodel.we_are_translated():
+        import pdb; pdb.set_trace()
+    return [x.touint(8) for x in vector]
+
+def vec_gbv_to_vec_bv16(machine, vector):
+    assert isinstance(vector, list)
+    if not objectmodel.we_are_translated():
+        import pdb; pdb.set_trace()
+    return [x.touint(16) for x in vector]
 
 
 def elf_tohost(machine, _):
@@ -1199,6 +1213,36 @@ def softfloat_f64lt(machine, v1, v2):
     machine._reg_zfloat_fflags = softfloat.get_exception_flags()
     return 0
 
+def softfloat_f16le_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16le_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f16lt_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f16lt_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32le_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32le_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f32lt_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f32lt_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64le_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64le_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
+def softfloat_f64lt_quiet(machine, v1, v2):
+    machine._reg_zfloat_result = softfloat.f64lt_quiet(v1, v2)
+    machine._reg_zfloat_fflags = softfloat.get_exception_flags()
+    return 0
+
 def softfloat_f16muladd(machine, rm, v1, v2, v3):
     machine._reg_zfloat_result = softfloat.f16muladd(rm, v1, v2, v3)
     machine._reg_zfloat_fflags = softfloat.get_exception_flags()
@@ -1222,7 +1266,7 @@ def read_mem(machine, address):
 
 def write_mem(machine, address, data):
     machine.g.mem.write(address, 1, data)
-    return ()
+    return True
 
 @unwrap("o o o i")
 def platform_read_mem(machine, read_kind, addr_size, addr, n):
@@ -1251,8 +1295,8 @@ def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
             value = value.append(nextbyte)
     return value
 
+@unwrap("o o o i o")
 def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
-    n = n.toint()
     assert addr_size in (64, 32)
     assert data.size() == n * 8
     mem = jit.promote(machine.g).mem
@@ -1261,7 +1305,7 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
         mem.write(addr, n, data.touint())
     else:
         _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
-    return ()
+    return True
 
 @jit.unroll_safe
 def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
@@ -1276,6 +1320,18 @@ def _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data):
         start += 8
     assert start == data.size()
 
+# isla stuff
+
+@objectmodel.always_inline
+def branch_announce(machine, addrsize, addr):
+    return ()
+
+@objectmodel.always_inline
+def monomorphize(machine, addr):
+    return addr
+
+make_dummy("read_register_from_vector")
+make_dummy("write_register_from_vector")
 
 # argument handling
 
@@ -1336,3 +1392,5 @@ class Globals(object):
         from pydrofoil import mem as mem_mod
         self.mem = mem_mod.BlockMemory()
 
+class RegRef(object):
+    pass

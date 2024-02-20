@@ -417,6 +417,48 @@ uint64_t f64lt(uint64_t v1, uint64_t v2) {
     return (uint64_t)f64_lt(fv1, fv2);
 }
 
+uint64_t f16le_quiet(uint64_t v1, uint64_t v2) {
+    softfloat_exceptionFlags = 0;
+    float16_t fv1 = { (uint16_t)v1 };
+    float16_t fv2 = { (uint16_t)v2 };
+    return (uint64_t)f16_le_quiet(fv1, fv2) & 0xffff;
+}
+
+uint64_t f16lt_quiet(uint64_t v1, uint64_t v2) {
+    softfloat_exceptionFlags = 0;
+    float16_t fv1 = { (uint16_t)v1 };
+    float16_t fv2 = { (uint16_t)v2 };
+    return (uint64_t)f16_lt_quiet(fv1, fv2) & 0xffff;
+}
+
+uint64_t f32le_quiet(uint64_t v1, uint64_t v2) {
+    softfloat_exceptionFlags = 0;
+    float32_t fv1 = { (uint32_t)v1 };
+    float32_t fv2 = { (uint32_t)v2 };
+    return (uint64_t)f32_le_quiet(fv1, fv2) & 0xffffffff;
+}
+
+uint64_t f32lt_quiet(uint64_t v1, uint64_t v2) {
+    softfloat_exceptionFlags = 0;
+    float32_t fv1 = { (uint32_t)v1 };
+    float32_t fv2 = { (uint32_t)v2 };
+    return (uint64_t)f32_lt_quiet(fv1, fv2) & 0xffffffff;
+}
+
+uint64_t f64le_quiet(uint64_t v1, uint64_t v2) {
+    softfloat_exceptionFlags = 0;
+    float64_t fv1 = { (uint64_t)v1 };
+    float64_t fv2 = { (uint64_t)v2 };
+    return (uint64_t)f64_le_quiet(fv1, fv2);
+}
+
+uint64_t f64lt_quiet(uint64_t v1, uint64_t v2) {
+    softfloat_exceptionFlags = 0;
+    float64_t fv1 = { (uint64_t)v1 };
+    float64_t fv2 = { (uint64_t)v2 };
+    return (uint64_t)f64_lt_quiet(fv1, fv2);
+}
+
 uint64_t f16muladd(uint64_t rm, uint64_t v1, uint64_t v2, uint64_t v3) {
     softfloat_exceptionFlags = 0;
     softfloat_roundingMode = (uint_fast8_t)rm;

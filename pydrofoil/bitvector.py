@@ -88,6 +88,9 @@ class BitVector(object):
 
     def tell_jit_size_and_return(self, known_size):
         jit.record_exact_value(self.size(), known_size)
+        if type(self) is GenericBitVector:
+            arraysize = GenericBitVector._data_size(known_size)
+            jit.record_exact_value(len(self.data), arraysize)
         return self
 
     def size_as_int(self):

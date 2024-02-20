@@ -1226,15 +1226,13 @@ class SmallInteger(Integer):
         if isinstance(other, SmallInteger):
             return self.val <= other.val
         assert isinstance(other, BigInteger)
-        jit.jit_debug("SmallInteger.le")
-        return other.tobigint().int_ge(self.val)
+        return other.ge(self)
 
     def gt(self, other):
         if isinstance(other, SmallInteger):
             return self.val > other.val
         assert isinstance(other, BigInteger)
-        jit.jit_debug("SmallInteger.gt")
-        return other.tobigint().int_lt(self.val)
+        return other.lt(self)
 
     def ge(self, other):
         if isinstance(other, SmallInteger):

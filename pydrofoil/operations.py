@@ -8,7 +8,19 @@ class __extend__(types.Type):
         return "not (%s)" % (self.make_op_code_special_eq(ast, sargs, argtyps, restyp), )
 
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
-        return "supportcode.raise_type_error() + %r + %r" % (sarg1, sarg2)
+        return "supportcode.raise_type_error() + %r + %r + %r" % (sarg1, sarg2, str(self))
+
+    def packed_field_read(self, sarg):
+        assert "." in sarg
+        return sarg
+
+    def packed_field_write(self, lhs, rhs):
+        return "%s = %s" % (lhs, rhs)
+
+    def packed_field_copy(self, lhs, rhs):
+        # suboptimal default implementation
+        return self.packed_field_write(lhs, self.packed_field_read(rhs))
+
 
 def ruint_mask(s, width):
     if width == 64:
@@ -29,6 +41,39 @@ class __extend__(types.GenericBitVector):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
         assert restyp is types.Bool()
         return "%s.eq(%s)" % (sarg1, sarg2)
+
+    def packed_field_read(self, sarg):
+        assert "." in sarg
+        names = "(%s_width, %s_val, %s_data)" % (sarg, sarg, sarg)
+        return "bitvector.BitVector.unpack" + names
+
+    def packed_field_write(self, lhs, rhs):
+        names = "(%s_width, %s_val, %s_data)" % (lhs, lhs, lhs)
+        return "%s = %s.pack()" % (names, rhs)
+
+    def packed_field_copy(self, lhs, rhs):
+        names = "(%s_width, %s_val, %s_data)"
+        return "%s = %s" % (names % (lhs, lhs, lhs), names % (rhs, rhs, rhs))
+
+
+class __extend__(types.BigFixedBitVector):
+    def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
+        assert restyp is types.Bool()
+        return "%s.eq(%s)" % (sarg1, sarg2)
+
+    def packed_field_read(self, sarg):
+        assert "." in sarg
+        names = "(%s, %s_val, %s_data)" % (self.width, sarg, sarg)
+        return "bitvector.BitVector.unpack" + names
+
+    def packed_field_write(self, lhs, rhs):
+        names = "(%s_val, %s_data)" % (lhs, lhs)
+        return "%s = %s.pack()[1:]" % (names, rhs)
+
+    def packed_field_copy(self, lhs, rhs):
+        names = "(%s_val, %s_data)"
+        return "%s = %s" % (names % (lhs, lhs), names % (rhs, rhs))
+
 
 class __extend__(types.MachineInt):
     def machineintop(self, template, sargs, argtyps):
@@ -66,6 +111,20 @@ class __extend__(types.Int):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
         assert restyp is types.Bool()
         return "%s.eq(%s)" % (sarg1, sarg2)
+
+    def packed_field_read(self, sarg):
+        assert "." in sarg
+        names = "(%s_val_or_sign, %s_data)" % (sarg, sarg)
+        return "bitvector.Integer.unpack" + names
+
+    def packed_field_write(self, lhs, rhs):
+        names = "(%s_val_or_sign, %s_data)" % (lhs, lhs)
+        return "%s = %s.pack()" % (names, rhs)
+
+    def packed_field_copy(self, lhs, rhs):
+        names = "(%s_val_or_sign, %s_data)"
+        return "%s = %s" % (names % (lhs, lhs), names % (rhs, rhs))
+
 
 class __extend__(types.List):
     def make_op_code_special_hd(self, ast, sargs, argtyps, restyp):

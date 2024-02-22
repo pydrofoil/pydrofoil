@@ -245,10 +245,13 @@ class CodeEmitter(object):
         self._op_helper(op, arg)
 
     def emit_op_FieldAccess(self, op):
-        return self._op_helper(op, "%s.%s" % (self._get_arg(op.args[0]), op.name))
+        read = op.resolved_type.packed_field_read("%s.%s" % (self._get_arg(op.args[0]), op.name))
+        return self._op_helper(op, read)
 
     def emit_op_FieldWrite(self, op):
-        self.codegen.emit("%s.%s = %s" % (self._get_arg(op.args[0]), op.name, self._get_arg(op.args[1])))
+        lhs = "%s.%s" % (self._get_arg(op.args[0]), op.name)
+        write = op.args[1].resolved_type.packed_field_write(lhs, self._get_arg(op.args[1]))
+        self.codegen.emit(write)
 
     def emit_op_RefAssignment(self, op):
         # XXX think long and hard about refs!

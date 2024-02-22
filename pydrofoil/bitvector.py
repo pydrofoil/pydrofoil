@@ -2,7 +2,7 @@ import sys
 from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, \
         _divrem1, intsign, int_in_valid_range
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
-        int_c_div, int_c_mod, r_ulonglong
+        int_c_div, int_c_mod, r_ulonglong, uint_mul_high
 from rpython.rlib.objectmodel import always_inline, specialize, \
         we_are_translated, is_annotation_constant, not_rpython
 from rpython.rlib.rstring import (
@@ -88,12 +88,16 @@ class BitVector(object):
 
     def tell_jit_size_and_return(self, known_size):
         jit.record_exact_value(self.size(), known_size)
+        if type(self) is GenericBitVector:
+            arraysize = GenericBitVector._data_size(known_size)
+            jit.record_exact_value(len(self.data), arraysize)
         return self
 
     def size_as_int(self):
         return Integer.fromint(self.size())
 
     def string_of_bits(self):
+        jit.jit_debug("BitVector.string_of_bits")
         if self.size() % 4 == 0:
             res = self.tobigint().format("0123456789ABCDEF")
             return "0x%s%s" % ("0" * max(0, self.size() // 4 - len(res)), res)
@@ -1242,15 +1246,13 @@ class SmallInteger(Integer):
         if isinstance(other, SmallInteger):
             return self.val <= other.val
         assert isinstance(other, BigInteger)
-        jit.jit_debug("SmallInteger.le")
-        return other.tobigint().int_ge(self.val)
+        return other.ge(self)
 
     def gt(self, other):
         if isinstance(other, SmallInteger):
             return self.val > other.val
         assert isinstance(other, BigInteger)
-        jit.jit_debug("SmallInteger.gt")
-        return other.tobigint().int_lt(self.val)
+        return other.lt(self)
 
     def ge(self, other):
         if isinstance(other, SmallInteger):
@@ -1285,15 +1287,7 @@ class SmallInteger(Integer):
         return SmallInteger(-self.val)
 
     def mul(self, other):
-        if isinstance(other, SmallInteger):
-            try:
-                return SmallInteger(ovfcheck(self.val * other.val))
-            except OverflowError:
-                jit.jit_debug("SmallInteger.mul ovf")
-                return Integer.from_bigint(self.tobigint().int_mul(other.val))
-        else:
-            assert isinstance(other, BigInteger)
-            return other.mul(self)
+        return other.int_mul(self.val)
 
     def pow(self, other):
         from pypy.objspace.std.intobject import _pow_nomod as pow_int
@@ -1339,24 +1333,28 @@ class SmallInteger(Integer):
         return Integer.from_bigint(rem)
 
     def ediv(self, other):
+        if other.int_eq(0):
+            raise ZeroDivisionError
+        if self.val == 0:
+            return INT_ZERO
         if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
             jit.jit_debug("SmallInteger.ediv")
             return Integer.from_bigint(self.tobigint()).ediv(other)
         other = other.val
-        if other == 0:
-            raise ZeroDivisionError
         if other > 0:
             return SmallInteger(self.val // other)
         else:
             return SmallInteger(-(self.val // -other))
 
     def emod(self, other):
+        if other.int_eq(0):
+            raise ZeroDivisionError
+        if self.val == 0:
+            return INT_ZERO
         if not isinstance(other, SmallInteger) or other.val == MININT or self.val == MININT:
             jit.jit_debug("SmallInteger.emod")
             return Integer.from_bigint(self.tobigint()).emod(other)
         other = other.val
-        if other == 0:
-            raise ZeroDivisionError
         res = self.val % other
         if res < 0:
             res -= other
@@ -1408,7 +1406,10 @@ class SmallInteger(Integer):
         try:
             return SmallInteger(ovfcheck(a * b))
         except OverflowError:
-            return Integer.from_bigint(rbigint.fromint(a).int_mul(b))
+            selfdigit, selfsign = _digit_and_sign_from_int(a)
+            otherdigit, othersign = _digit_and_sign_from_int(b)
+            resdata = [selfdigit * otherdigit, uint_mul_high(selfdigit, otherdigit)]
+            return Integer.from_data_and_sign(resdata, selfsign * othersign)
 
     def pack(self):
         return (self.val, None)
@@ -1614,12 +1615,7 @@ class BigInteger(Integer):
     @staticmethod
     def _add_int(selfdata, selfsign, other):
         assert other
-        if other > 0:
-            othersign = 1
-            otherdigit = r_uint(other)
-        else:
-            othersign = -1
-            otherdigit = -r_uint(other)
+        otherdigit, othersign = _digit_and_sign_from_int(other)
         if selfsign == othersign:
             resultdata, sign = _data_add1(selfdata, otherdigit)
         else:
@@ -1661,12 +1657,7 @@ class BigInteger(Integer):
     def _sub_int(selfdata, selfsign, other):
         assert selfsign
         assert other
-        if other > 0:
-            othersign = 1
-            otherdigit = r_uint(other)
-        else:
-            othersign = -1
-            otherdigit = -r_uint(other)
+        otherdigit, othersign = _digit_and_sign_from_int(other)
         if selfsign == othersign:
             resultdata, sign = _data_sub1(selfdata, otherdigit)
         else:
@@ -1684,15 +1675,16 @@ class BigInteger(Integer):
         return Integer.from_bigint(self.tobigint().mul(other.tobigint()))
 
     def int_mul(self, other):
-        if not other:
+        if not other or self.sign == 0:
             return INT_ZERO
         if other == 1:
             return self
         if other & (other - 1) == 0:
             shift = self._shift_amount(other)
             return self.lshift(shift)
-        jit.jit_debug("BigInteger.int_mul")
-        return Integer.from_bigint(self.tobigint().int_mul(other))
+        otherdigit, othersign = _digit_and_sign_from_int(other)
+        resdata = _data_mul1(self.data, otherdigit)
+        return Integer.from_data_and_sign(resdata, self.sign * othersign)
 
     def pow(self, other):
         jit.jit_debug("BigInteger.pow")
@@ -1713,9 +1705,11 @@ class BigInteger(Integer):
             div, rem = bigint_divrem1(self.tobigint(), other)
             return Integer.from_bigint(div)
         jit.jit_debug("BigInteger.tdiv")
-        other = other.tobigint()
-        if other.get_sign() == 0:
+        if other.int_eq(0):
             raise ZeroDivisionError
+        if not self.sign:
+            return INT_ZERO
+        other = other.tobigint()
         div, rem = bigint_divrem(self.tobigint(), other)
         return Integer.from_bigint(div)
 
@@ -1842,6 +1836,16 @@ def _data_and_sign_from_int(value):
         return [], 0
     sign = intsign(value)
     return [r_uint(sign) * r_uint(value)], sign
+
+@always_inline
+def _digit_and_sign_from_int(value):
+    if not value:
+        return r_uint(0), 0
+    if value > 0:
+        return r_uint(value), 1
+    else:
+        return -r_uint(value), -1
+
 
 @jit.unroll_safe
 def _data_add(selfdata, otherdata):
@@ -1999,3 +2003,15 @@ def _data_lt1(selfdata, selfsign, otherdigit, othersign):
         return othersign > 0
     return False
 
+@jit.unroll_safe
+def _data_mul1(selfdata, otherdigit):
+    resdata = [r_uint(0)] * (len(selfdata) + 1)
+    carry = r_uint(0)
+    for index, selfdigit in enumerate(selfdata):
+        low = selfdigit * otherdigit
+        high = uint_mul_high(selfdigit, otherdigit)
+        low += carry
+        carry = r_uint(low < carry) + high
+        resdata[index] = low
+    resdata[len(selfdata)] = carry
+    return resdata

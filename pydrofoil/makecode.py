@@ -261,22 +261,24 @@ class Codegen(specialize.FixpointSpecializer):
         with self.emit_code_type("declarations"), self.emit_indent("class %s(supportcode.ObjectBase):" % pyname):
             with self.emit_indent("def __init__(self, %s):" % ", ".join(structtyp.names)):
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
-                    self.emit("self.%s = %s # %s" % (arg, arg, fieldtyp))
+                    fieldname = "self." + arg
+                    self.emit(fieldtyp.packed_field_write(fieldname, arg))
                     uninit_arg.append(fieldtyp.uninitialized_value)
             with self.emit_indent("def copy_into(self, res=None):"):
                 self.emit("if res is None: res = objectmodel.instantiate(self.__class__)")
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
-                    self.emit("res.%s = self.%s" % (arg, arg))
+                    self.emit(fieldtyp.packed_field_copy("res.%s" % arg, "self.%s" % arg))
                 self.emit("return res")
             self.emit("@objectmodel.always_inline")
             with self.emit_indent("def eq(self, other):"):
                 self.emit("assert isinstance(other, %s)" % (pyname, ))
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
+                    leftfield = fieldtyp.packed_field_read('self.%s' % arg)
+                    rightfield = fieldtyp.packed_field_read('other.%s' % arg)
                     self.emit("if %s: return False" % (
-                        fieldtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (fieldtyp, fieldtyp), types.Bool())))
+                        fieldtyp.make_op_code_special_neq(None, (leftfield, rightfield), (fieldtyp, fieldtyp), types.Bool())))
                 self.emit("return True")
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
-
 
 def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
     from pydrofoil.infer import infer
@@ -384,7 +386,7 @@ class __extend__(parse.Union):
                     # default field values
                     if type(rtyp) is types.Struct:
                         for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
-                            codegen.emit("%s = %s" % (fieldname, fieldtyp.uninitialized_value))
+                            codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                     self.make_init(codegen, rtyp, typ, pyname)
@@ -416,8 +418,8 @@ class __extend__(parse.Union):
                 codegen.emit("pass")
             elif type(rtyp) is types.Struct:
                 codegen.emit("# %s" % typ)
-                for fieldname, fieldtyp in sorted(sorted(rtyp.fieldtyps.iteritems())):
-                    codegen.emit("self.%s = a.%s" % (fieldname, fieldname))
+                for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
+                    codegen.emit(fieldtyp.packed_field_copy("self.%s" % fieldname, "a.%s" % (fieldname, )))
             else:
                 codegen.emit("self.a = a # %s" % (typ, ))
 
@@ -434,7 +436,7 @@ class __extend__(parse.Union):
                     codegen.emit("if %s: return False" % (
                         fieldtyp.make_op_code_special_neq(
                             None,
-                            ('self.%s' % fieldname, 'other.%s' % fieldname),
+                            (rtyp.packed_field_read('self.%s' % fieldname), rtyp.packed_field_read('other.%s' % fieldname)),
                             (fieldtyp, fieldtyp), types.Bool())))
             else:
                 codegen.emit("if %s: return False # %s" % (
@@ -451,20 +453,12 @@ class __extend__(parse.Union):
                 elif type(rtyp) is types.Struct:
                     codegen.emit("res = %s" % rtyp.uninitialized_value)
                     for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
-                        codegen.emit("res.%s = inst.%s" % (fieldname, fieldname))
+                        codegen.emit(fieldtyp.packed_field_copy("res.%s" % fieldname, "inst.%s" % (fieldname, )))
                     codegen.emit("return res")
                 else:
                     codegen.emit("return inst.a")
             with codegen.emit_indent("else:"):
                 codegen.emit("raise TypeError")
-        if type(rtyp) is types.Struct:
-            for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
-                codegen.emit("@staticmethod")
-                with codegen.emit_indent("def convert_%s(inst):" % fieldname):
-                    with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
-                        codegen.emit("return inst.%s" % (fieldname, ))
-                    with codegen.emit_indent("else:"):
-                        codegen.emit("raise TypeError")
 
     def constructor(self, info, op, args, argtyps):
         if len(argtyps) == 1 and type(argtyps[0]) is types.Enum:
@@ -534,18 +528,10 @@ class __extend__(parse.Register):
         read_pyname = write_pyname = "machine.%s" % self.pyname
         if self.name in codegen.promoted_registers:
             read_pyname = "jit.promote(%s)" % write_pyname
-        elif isinstance(typ, types.GenericBitVector):
-            names = "(%s_width, %s_val, %s_rval)" % (read_pyname, read_pyname, read_pyname)
-            read_pyname = "bitvector.BitVector.unpack" + names
-            write_pyname = "%s = %%s.pack()" % (names, )
-        elif isinstance(typ, types.BigFixedBitVector):
-            names = "(%s_val, %s_rval)" % (read_pyname, read_pyname)
-            read_pyname = "bitvector.BitVector.unpack(%s, *%s)" % (typ.width, names)
-            write_pyname = "%s = %%s.pack()[1:]" % (names, )
-        elif isinstance(typ, types.Int):
-            names = "(%s_val, %s_rval)" % (read_pyname, read_pyname)
-            read_pyname = "bitvector.Integer.unpack" + names
-            write_pyname = "%s = %%s.pack()" % (names, )
+        else:
+            read_pyname = typ.packed_field_read(read_pyname)
+            write_pyname = typ.packed_field_write(write_pyname, '%s') # bit too much string processing magic
+
         codegen.all_registers[self.name] = self
         codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
         with codegen.emit_code_type("declarations"):

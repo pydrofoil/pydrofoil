@@ -42,8 +42,12 @@ class CodeEmitter(object):
         if len(self.blocks) == 1:
             self.emit_block_ops(self.blocks[0])
             return
+        safe_structtypes = identify_safe_structs(self.graph)
         for arg in self.graph.args:
-            if isinstance(arg.resolved_type, types.Struct) and not arg.resolved_type.tuplestruct:
+            if (isinstance(arg.resolved_type, types.Struct) and not
+                arg.resolved_type.tuplestruct and
+                arg.resolved_type not in safe_structtypes
+            ):
                 # copy all struct arguments
                 codegen.emit("%s = %s.copy_into()" % (arg.name, arg.name))
         # first give out variable names
@@ -384,3 +388,26 @@ def count_uses(graph):
         for arg in block.next.getargs():
             uses[arg] += 1
     return uses
+
+def identify_safe_structs(graph):
+    safe_structtypes = set()
+    for arg in graph.args:
+        if (isinstance(arg.resolved_type, types.Struct) and not
+            arg.resolved_type.tuplestruct
+        ):
+            safe_structtypes.add(arg.resolved_type)
+    if not safe_structtypes:
+        return safe_structtypes
+    for block in graph.iterblocks():
+        for op in block.operations:
+            # a struct type is safe if it's not used in a FieldWrite nor in a
+            # RefAssignment
+            if isinstance(op, ir.FieldWrite):
+                safe_structtypes.discard(op.args[0].resolved_type)
+                if not safe_structtypes:
+                    return safe_structtypes
+            if isinstance(op, ir.RefAssignment):
+                safe_structtypes.discard(op.args[0].resolved_type)
+                if not safe_structtypes:
+                    return safe_structtypes
+    return safe_structtypes

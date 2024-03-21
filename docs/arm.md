@@ -22,8 +22,10 @@ missing.
 To boot Linux on the ARM emulator run the following:
 
 ```
-./pydrofoil-arm -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0  -l 24612127 2> /dev/null
+./pydrofoil-arm -b 0x80000000,arm/bootloader.bin -b 0x81000000,arm/sail.dtb -b 0x82080000,arm/Image -C cpu.cpu0.RVBAR=0x80000000 -C cpu.has_tlb=0x0 -C emulator.termination_opcode=0xfee1dead 2> /dev/null
 ```
 
-This will boot Linux up to the point where the `init` process is started, which
-fails right now.
+This will boot Linux up to the point where the `init` process is started. The
+init process itself is a dummy program that contains the instruction
+`0xfee1dead` which shuts down the VM due to the last configuration option
+given on the command line, so execution will stop at this point.

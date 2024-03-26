@@ -144,3 +144,12 @@ def test_linux():
     cpu = _pydrofoil.RISCV64(linuxbbl, dtb=True)
     cpu.run(100)
     assert cpu.read_register("x15") == 0x0000000030030000
+
+def test_dis_last_instruction():
+    cpu = _pydrofoil.RISCV64(linuxbbl, dtb=True)
+    cpu.step()
+    res = cpu.disassemble_last_instruction()
+    assert res == 'auipc t0, 0x0'
+    cpu.step()
+    res = cpu.disassemble_last_instruction()
+    assert res == "addi a1, t0, 0x20"

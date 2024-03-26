@@ -245,6 +245,8 @@ class AbstractBase(object):
         self.machine.g.config_print_mem_access = verbosity
         self.machine.g.config_print_platform = verbosity
 
+    def disassemble_last_instruction(self):
+        return self.space.newtext(self.machine.disassemble_last_instruction())
 
 class MemoryObserver(mem_mod.MemBase):
     _immutable_fields_ = ['wrapped']
@@ -304,6 +306,7 @@ W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     memory_info = interp2app(W_RISCV64.memory_info),
     run = interp2app(W_RISCV64.run),
     set_verbosity = interp2app(W_RISCV64.set_verbosity),
+    disassemble_last_instruction = interp2app(W_RISCV64.disassemble_last_instruction),
 )
 
 
@@ -336,4 +339,5 @@ W_RISCV32.typedef = TypeDef("_pydrofoil.RISCV32",
     memory_info = interp2app(W_RISCV32.memory_info),
     run = interp2app(W_RISCV32.run),
     set_verbosity = interp2app(W_RISCV32.set_verbosity),
+    disassemble_last_instruction = interp2app(W_RISCV32.disassemble_last_instruction),
 )

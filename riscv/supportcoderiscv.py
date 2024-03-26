@@ -702,6 +702,12 @@ def get_main(outriscv, rv64):
         def step(self, *args):
             return outriscv.func_zstep(self, *args)
 
+        def disassemble_last_instruction(self):
+            return outriscv.func_zassembly_forwards(
+                self,
+                outriscv.func_zext_decode(
+                    self, self._reg_zinstbits))
+
         def run_sail(self, insn_limit, do_show_times):
             step_no = 0
             insn_cnt = 0

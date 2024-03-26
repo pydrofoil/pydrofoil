@@ -153,3 +153,8 @@ def test_dis_last_instruction():
     cpu.step()
     res = cpu.disassemble_last_instruction()
     assert res == "addi a1, t0, 0x20"
+    for i in range(100):
+        cpu.step()
+        res = cpu.disassemble_last_instruction()
+        print(i, res)
+        assert not res.startswith("illegal")

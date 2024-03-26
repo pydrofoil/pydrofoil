@@ -703,10 +703,15 @@ def get_main(outriscv, rv64):
             return outriscv.func_zstep(self, *args)
 
         def disassemble_last_instruction(self):
+            instbits = self._reg_zinstbits
+            if instbits & 0b11 != 0b11: # compressed
+                ast = outriscv.func_zencdec_compressed_backwards(
+                    self, instbits)
+            else:
+                ast = outriscv.func_zext_decode(
+                    self, instbits)
             return outriscv.func_zassembly_forwards(
-                self,
-                outriscv.func_zext_decode(
-                    self, self._reg_zinstbits))
+                self, ast)
 
         def run_sail(self, insn_limit, do_show_times):
             step_no = 0

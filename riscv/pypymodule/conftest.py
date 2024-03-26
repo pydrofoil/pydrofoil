@@ -1,3 +1,5 @@
+from rpython.rlib.rsre import rsre_constants
+rsre_constants.V37 = False # horrible hack, circumvent weird skip
 from pypy.tool.pytest.apptest2 import AppTestModule
 APPLEVEL_FN = 'apptest_*.py'
 

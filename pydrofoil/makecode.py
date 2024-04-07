@@ -315,6 +315,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline
         c.emit("    _immutable_fields_ = ['g']")
         c.emit("    _all_register_names = []")
         c.emit("    _all_type_names = []")
+        c.emit("    _all_functions = []")
         c.emit("    l = Lets()")
         c.emit("    def __init__(self):")
         c.emit("        self.l  = Machine.l; func_zinitializze_registers(self, ())")
@@ -649,8 +650,16 @@ class __extend__(parse.Function):
         del self.body # save memory, don't need to keep the parse tree around
 
     def emit_regular_function(self, graph, codegen, pyname):
+        from pydrofoil.ir import Return
         with self._scope(codegen, pyname, actual_args=graph.args):
             emit_function_code(graph, self, codegen)
+        argument_converters = "[" + ", ".join([arg.resolved_type.convert_from_pypy for arg in graph.args]) + "]"
+        result_converter = None
+        for block in graph.iterblocks():
+            if isinstance(block.next, Return):
+                result_converter = block.next.value.resolved_type.convert_to_pypy
+        codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s))" % (
+            pyname, demangle(graph.name), pyname, argument_converters, result_converter))
         codegen.emit()
 
     @contextmanager

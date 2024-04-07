@@ -30,6 +30,8 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None):
     _init_register_names(W_RISCV32, machinecls32._all_register_names)
     _init_types(W_RISCV64, machinecls64._all_type_names)
     _init_types(W_RISCV32, machinecls32._all_type_names)
+    _init_functions(W_RISCV64, machinecls64._all_functions)
+    _init_functions(W_RISCV32, machinecls32._all_functions)
 
 def wrap_fn(fn):
     def wrapped_fn(space, *args):
@@ -166,6 +168,7 @@ def _make_union_new(space, subcls, name):
             for index, fieldname, convert in unroll_fields:
                 setattr(self, fieldname, convert(space, args_w[index]))
             return self
+    descr_new.func_name += "_" + name
     return interp2app(descr_new)
 
 def _make_union_len(space, subcls):
@@ -185,6 +188,75 @@ def _make_union_getitem(space, subcls):
                 return convert(space, getattr(self, fieldname))
         raise oefmt(space.w_IndexError, "index out of bound")
     return interp2app(descr_getitem.__get__(None, subcls))
+
+
+class W_SailFunction(W_Root):
+    def __init__(self, w_machine, func):
+        self.func = func
+        self.w_machine = w_machine
+
+    def descr_call(self, space, args_w):
+        return self.func(space, self.w_machine, args_w)
+
+W_SailFunction.typedef = TypeDef("sail-function",
+    __call__ = interp2app(W_SailFunction.descr_call),
+)
+
+def _init_functions(machinecls, functions):
+    d = {}
+    for function_info in functions:
+        _make_function(function_info, d, machinecls)
+
+    def get_sail_func(name):
+        return d.get(name, None)
+
+    class W_Lowlevel(W_Root):
+        def __init__(self, space, w_machine):
+            assert isinstance(w_machine, machinecls)
+            self.w_machine = w_machine
+
+        def descr_getattr(self, space, w_name):
+            name = space.text_w(w_name)
+            func = get_sail_func(name)
+            if func is None:
+                raise oefmt_attribute_error(self, w_name, "type object %N has no attribute %R")
+            return W_SailFunction(self.w_machine, func)
+
+        def descr_dir(self, space):
+            return space.newlist([space.newtext(name) for name in d])
+    l = ["Exports the Sail functions of the model directly. The following functions are exported:"]
+    l.extend(sorted(d))
+    W_Lowlevel.typedef = TypeDef("lowlevel",
+        __getattr__ = interp2app(W_Lowlevel.descr_getattr),
+        __dir__ = interp2app(W_Lowlevel.descr_dir),
+    )
+    W_Lowlevel.typedef.doc = "\n".join(l)
+    machinecls.W_Lowlevel = W_Lowlevel
+
+def _make_function(function_info, d, machinecls):
+    pyname, sail_name, func, argument_converters, result_converter = function_info
+    num_args = len(argument_converters)
+    converters = unrolling_iterable(argument_converters)
+    def call(space, w_machine, args_w):
+        if len(args_w) != num_args:
+            raise oefmt(space.w_TypeError, "Sail function %s takes exactly %d arguments, got %d",
+                        sail_name, num_args, len(args_w))
+        args = (w_machine.machine, )
+        i = 0
+        for conv in converters:
+            args += (conv(space, args_w[i]), )
+            i += 1
+        try:
+            res = func(*args)
+        except Exception as e:
+            if not objectmodel.we_are_translated():
+                import pdb; pdb.xpm()
+            raise oefmt(space.w_SystemError, "internal error, please report a bug: %s", str(e))
+        if w_machine.machine.have_exception:
+            raise oefmt(space.w_SystemError, "sail exception")
+        return result_converter(space, res)
+    d[sail_name] = call
+
 
 class MachineAbstractBase(object):
     def __init__(self, space, elf=None, dtb=False):
@@ -328,6 +400,9 @@ class MachineAbstractBase(object):
     def descr_get_types(self, space):
         return space.fromcache(self.TypesCache).w_mod
 
+    def descr_get_lowlevel(self, space):
+        return self.W_Lowlevel(space, self)
+
 
 class MemoryObserver(mem_mod.MemBase):
     _immutable_fields_ = ['wrapped']
@@ -389,6 +464,7 @@ W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     set_verbosity = interp2app(W_RISCV64.set_verbosity),
     disassemble_last_instruction = interp2app(W_RISCV64.disassemble_last_instruction),
     types = GetSetProperty(W_RISCV64.descr_get_types),
+    lowlevel = GetSetProperty(W_RISCV64.descr_get_lowlevel),
 )
 
 
@@ -423,4 +499,5 @@ W_RISCV32.typedef = TypeDef("_pydrofoil.RISCV32",
     set_verbosity = interp2app(W_RISCV32.set_verbosity),
     disassemble_last_instruction = interp2app(W_RISCV32.disassemble_last_instruction),
     types = GetSetProperty(W_RISCV32.descr_get_types),
+    lowlevel = GetSetProperty(W_RISCV32.descr_get_lowlevel),
 )

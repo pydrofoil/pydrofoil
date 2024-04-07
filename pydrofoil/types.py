@@ -229,6 +229,8 @@ class Bool(Type):
 @singleton
 class Unit(Type):
     uninitialized_value = "()"
+    convert_to_pypy = "supportcode.convert_to_pypy_unit"
+    convert_from_pypy = "supportcode.convert_from_pypy_unit"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
@@ -238,6 +240,8 @@ Bit = lambda : SmallFixedBitVector(1)
 @singleton
 class String(Type):
     uninitialized_value = "None"
+    convert_to_pypy = "supportcode.convert_to_pypy_string"
+    convert_from_pypy = "supportcode.convert_from_pypy_string"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )

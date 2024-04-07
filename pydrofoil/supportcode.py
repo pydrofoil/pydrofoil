@@ -1461,3 +1461,16 @@ def convert_to_pypy_bool(space, val):
 
 def convert_from_pypy_bool(space, w_val):
     return space.is_true(w_val)
+
+def convert_to_pypy_string(space, val):
+    return space.newtext(val)
+
+def convert_from_pypy_string(space, w_val):
+    return space.text_w(w_val)
+
+def convert_to_pypy_unit(space, val):
+    return space.newtuple([])
+
+def convert_from_pypy_unit(space, w_val):
+    # just accept everything
+    return ()

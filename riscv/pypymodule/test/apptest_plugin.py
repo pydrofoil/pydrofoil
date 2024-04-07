@@ -166,7 +166,6 @@ def test_union_types_exist():
     _pydrofoil.RISCV64().types.ast
 
 
-# aspirational tests:
 
 def test_union():
     m = _pydrofoil.RISCV64()
@@ -204,3 +203,27 @@ def test_struct():
     tlb.age = 12
     assert tlb.age == 12
 
+
+# functions
+
+def test_call_function():
+    m = _pydrofoil.RISCV64()
+    assert m.lowlevel.privLevel_to_bits("User")       == 0b00
+    assert m.lowlevel.privLevel_to_bits("Machine")    == 0b11
+    assert m.lowlevel.privLevel_to_bits("Supervisor") == 0b01
+
+def test_call_function_writeCSR():
+    m = _pydrofoil.RISCV64()
+    old = m.read_register("misa")
+    new = old | (0b111 << 27)
+    m.lowlevel.writeCSR(0x301, new)
+    val = m.read_register("misa")
+    assert val == old
+
+def test_lowlevel_docstring():
+    doc = _pydrofoil.RISCV64().lowlevel.__doc__
+    print(doc)
+    assert "legalize_satp64" in doc
+
+def test_lowlevel_dir():
+    assert "legalize_xepc" in dir(_pydrofoil.RISCV64().lowlevel)

@@ -177,6 +177,13 @@ def test_union():
     assert b == 3
     assert c == 5
 
+def test_union_enum():
+    m = _pydrofoil.RISCV64()
+    clsname = 'Some<Eread_kind%>'
+    SomeReadKind = getattr(m.types, clsname)
+    s = SomeReadKind('Read_plain')
+    assert s[0] == 'Read_plain'
+
 #def test_union_pattern_matching():
 #    ast = _pydrofoil.RISCV64.types.ADDIW(2045, 3, 5)
 #    match ast:

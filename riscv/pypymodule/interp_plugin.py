@@ -127,14 +127,11 @@ def is_valid_identifier(s):
  
 def invent_python_cls(space, w_mod, type_info):
     pyname, sail_name, cls, sail_type = type_info
-    if sail_name.startswith("option<"):
-        return # XXX later
     assert pyname.startswith("Union_")
     cls.typedef = TypeDef(sail_name,
     )
+    cls.typedef.acceptable_as_base_class = False
     space.setattr(w_mod, space.newtext(sail_name), space.gettypefor(cls))
-    if sail_name == 'ast':
-        import pdb;pdb.set_trace()
     for subclass_info in cls._all_subclasses:
         sub_pyname, sub_sail_name, subcls = subclass_info
         subcls.typedef = TypeDef(sub_sail_name,
@@ -143,21 +140,32 @@ def invent_python_cls(space, w_mod, type_info):
             __len__=_make_union_len(space, subcls),
             __getitem__=_make_union_getitem(space, subcls),
         )
+        subcls.typedef.acceptable_as_base_class = False
         space.setattr(w_mod, space.newtext(sub_sail_name), space.gettypefor(subcls))
 
 def _make_union_new(space, subcls, name):
     length = len(subcls._field_info)
-    def descr_new(space, w_typ, args_w):
-        self = space.allocate_instance(subcls, w_typ)
-        if len(args_w) != length:
-            raise oefmt(space.w_TypeError,
-                        "expected exactly %s arguments, got %%s" % (length, ),
-                        len(args_w))
-        for index, fieldname, convert in unroll_fields:
-            setattr(self, fieldname, convert(space, args_w[index]))
-        return self
-    unroll_fields = unrolling_iterable(
-        [(index, info[0], info[2]) for index, info in enumerate(subcls._field_info)])
+    if length == 1 and hasattr(subcls, 'construct'):
+        convert = subcls._field_info[0][2]
+        def descr_new(space, w_typ, args_w):
+            if len(args_w) != length:
+                raise oefmt(space.w_TypeError,
+                            "expected exactly %s arguments, got %%s" % (length, ),
+                            len(args_w))
+            enum_value = convert(space, args_w[0])
+            return subcls.construct(enum_value)
+    else:
+        unroll_fields = unrolling_iterable(
+            [(index, info[0], info[2]) for index, info in enumerate(subcls._field_info)])
+        def descr_new(space, w_typ, args_w):
+            if len(args_w) != length:
+                raise oefmt(space.w_TypeError,
+                            "expected exactly %s arguments, got %%s" % (length, ),
+                            len(args_w))
+            self = objectmodel.instantiate(subcls)
+            for index, fieldname, convert in unroll_fields:
+                setattr(self, fieldname, convert(space, args_w[index]))
+            return self
     return interp2app(descr_new)
 
 def _make_union_len(space, subcls):

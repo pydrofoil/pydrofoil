@@ -185,9 +185,11 @@ def test_union_enum():
     assert s[0] == 'Read_plain'
 
 #def test_union_pattern_matching():
-#    ast = _pydrofoil.RISCV64.types.ADDIW(2045, 3, 5)
+#    m = _pydrofoil.RISCV64()
+#    ADDIW = m.types.ADDIW
+#    ast = ADDIW(2045, 3, 5)
 #    match ast:
-#        case _pydrofoil.RISCV64.types.ADDIW(a, b, c):
+#        case ADDIW(a, b, c):
 #            pass
 #        case _:
 #            assert 0

@@ -1,7 +1,5 @@
 import sys
 sys.setrecursionlimit(2**31-1)
-from rpython.rlib.rsre import rsre_constants
-rsre_constants.V37 = False # horrible hack, circumvent weird skip
 
 from pydrofoil.makecode import *
 

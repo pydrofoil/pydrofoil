@@ -6,6 +6,7 @@ from pypy.interpreter.error import oefmt
 from pypy.interpreter.typedef import (TypeDef, interp2app, GetSetProperty,
     descr_get_dict, make_weakref_descr)
 from pypy.interpreter.gateway import unwrap_spec
+from pypy.interpreter.module import Module
 
 from riscv import supportcoderiscv
 
@@ -26,6 +27,8 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None):
     globals()["machinecls32"] = machinecls32
     _init_register_names(W_RISCV64, machinecls64._all_register_names)
     _init_register_names(W_RISCV32, machinecls32._all_register_names)
+    _init_types(W_RISCV64, machinecls64._all_type_names)
+    _init_types(W_RISCV32, machinecls32._all_type_names)
 
 def wrap_fn(fn):
     def wrapped_fn(space, *args):
@@ -48,7 +51,7 @@ def run_sail(machine, insn_limit, do_show_times):
 
 
 def _init_register_names(cls, _all_register_names):
-    assert cls is not AbstractBase
+    assert cls is not MachineAbstractBase
     """ NOT_RPYTHON """
     from rpython.rlib.unroll import unrolling_iterable
     def make_getter(attrname, name, convert_to_pypy):
@@ -108,8 +111,37 @@ def _init_register_names(cls, _all_register_names):
         return space.fromcache(State).w_register_info
     cls._get_register_info = _get_register_info
 
+def _init_types(cls, all_type_info):
+    class TypesCache(object):
+        def __init__(self, space):
+            self.all_type_info = all_type_info
+            w_mod = Module(space, space.newtext("<%s.types>" % cls.__name__[2:]))
+            for type_info in all_type_info:
+                invent_python_cls(space, w_mod, type_info)
+            self.w_mod = w_mod
+    cls.TypesCache = TypesCache
 
-class AbstractBase(object):
+def is_valid_identifier(s):
+    from pypy.objspace.std.unicodeobject import _isidentifier
+    return _isidentifier(s)
+ 
+def invent_python_cls(space, w_mod, type_info):
+    pyname, sail_name, cls, sail_type = type_info
+    if sail_name.startswith("option<"):
+        return # XXX later
+    assert pyname.startswith("Union_")
+    cls.typedef = TypeDef(sail_name,
+    )
+    space.setattr(w_mod, space.newtext(sail_name), cls)
+    for subclass_info in cls._all_subclasses:
+        sub_pyname, sub_sail_name, subcls = subclass_info
+        subcls.typedef = TypeDef(sub_sail_name,
+            cls.typedef,
+        )
+        space.setattr(w_mod, space.newtext(sub_sail_name), subcls)
+
+
+class MachineAbstractBase(object):
     def __init__(self, space, elf=None, dtb=False):
         self._init_machine()
         self.space = space
@@ -248,6 +280,10 @@ class AbstractBase(object):
     def disassemble_last_instruction(self):
         return self.space.newtext(self.machine.disassemble_last_instruction())
 
+    def descr_get_types(self, space):
+        return space.fromcache(self.TypesCache).w_mod
+
+
 class MemoryObserver(mem_mod.MemBase):
     _immutable_fields_ = ['wrapped']
 
@@ -279,7 +315,7 @@ class MemoryObserver(mem_mod.MemBase):
 
 class W_RISCV64(W_Root):
     """ Emulator for a RISC-V 64-bit CPU """
-    objectmodel.import_from_mixin(AbstractBase)
+    objectmodel.import_from_mixin(MachineAbstractBase)
 
     def _init_machine(self):
         self.machine = machinecls64()
@@ -307,12 +343,13 @@ W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     run = interp2app(W_RISCV64.run),
     set_verbosity = interp2app(W_RISCV64.set_verbosity),
     disassemble_last_instruction = interp2app(W_RISCV64.disassemble_last_instruction),
+    types = GetSetProperty(W_RISCV64.descr_get_types),
 )
 
 
 class W_RISCV32(W_Root):
     """ Emulator for a RISC-V 32-bit CPU """
-    objectmodel.import_from_mixin(AbstractBase)
+    objectmodel.import_from_mixin(MachineAbstractBase)
 
     def _init_machine(self):
         self.machine = machinecls32()
@@ -340,4 +377,5 @@ W_RISCV32.typedef = TypeDef("_pydrofoil.RISCV32",
     run = interp2app(W_RISCV32.run),
     set_verbosity = interp2app(W_RISCV32.set_verbosity),
     disassemble_last_instruction = interp2app(W_RISCV32.disassemble_last_instruction),
+    types = GetSetProperty(W_RISCV32.descr_get_types),
 )

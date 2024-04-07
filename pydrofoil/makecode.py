@@ -6,6 +6,7 @@ from rpython.tool.pairtype import pair
 
 from pydrofoil import parse, types, binaryop, operations, supportcode, specialize
 from pydrofoil.emitfunction import emit_function_code
+from pydrofoil.mangle import demangle
 
 
 assert sys.maxint == 2 ** 63 - 1, "only 64 bit platforms are supported!"
@@ -313,6 +314,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline
         c.emit("class Machine(supportcode.RegistersBase):")
         c.emit("    _immutable_fields_ = ['g']")
         c.emit("    _all_register_names = []")
+        c.emit("    _all_type_names = []")
         c.emit("    l = Lets()")
         c.emit("    def __init__(self):")
         c.emit("        self.l  = Machine.l; func_zinitializze_registers(self, ())")
@@ -394,6 +396,7 @@ class __extend__(parse.Union):
         rtyps = [typ.resolve_type(codegen) for typ in self.types]
         with codegen.emit_code_type("declarations"):
             with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
+                codegen.emit("_all_subclasses = []")
                 codegen.emit("@objectmodel.always_inline")
                 with codegen.emit_indent("def eq(self, other):"):
                     codegen.emit("return False")
@@ -404,6 +407,8 @@ class __extend__(parse.Union):
             uniontyp = types.Union(self.name, names, tuple(rtyps))
             uniontyp.uninitialized_value = "%s.singleton" % (name, )
             codegen.add_named_type(self.name, self.pyname, uniontyp, self)
+            codegen.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
+                name, demangle(self.name), name, uniontyp.sail_repr()))
             for name, typ in zip(self.names, self.types):
                 rtyp = typ.resolve_type(codegen)
                 pyname = self.pyname + "_" + name
@@ -428,6 +433,9 @@ class __extend__(parse.Union):
                         with codegen.emit_indent("class %s(%s):" % (subclassname, pyname)):
                             codegen.emit("a = %s" % (codegen.getname(enum_value), ))
                         codegen.emit("%s.singleton = %s()" % (subclassname, subclassname))
+                codegen.emit("%s._all_subclasses.append((%r, %r, %s))" % (
+                    self.pyname, pyname, demangle(name), pyname))
+
         if self.name == "zexception":
             codegen.add_global("current_exception", "machine.current_exception", uniontyp, self, "machine.current_exception")
 
@@ -557,7 +565,6 @@ class __extend__(parse.Abstract):
 class __extend__(parse.Register):
     def make_code(self, codegen):
         from pydrofoil.ir import construct_ir
-        from pydrofoil.mangle import demangle
         self.pyname = "_reg_%s" % (self.name, )
         typ = self.typ.resolve_type(codegen)
         read_pyname = write_pyname = "machine.%s" % self.pyname

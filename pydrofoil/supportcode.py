@@ -1,5 +1,7 @@
 import os
 
+from pypy.interpreter.baseobjspace import W_Root
+
 from rpython.rlib import objectmodel, unroll, jit
 from rpython.rlib.rbigint import rbigint, ONERBIGINT
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
@@ -1376,7 +1378,7 @@ class RegistersBase(object):
     def __init__(self):
         pass
 
-class ObjectBase(object):
+class ObjectBase(W_Root):
     _attrs_ = []
 
 class LetsBase(object):

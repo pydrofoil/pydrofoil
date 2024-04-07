@@ -1,4 +1,4 @@
-from pytest import raises
+from pytest import raises, skip
 
 import os
 from os.path import dirname
@@ -158,3 +158,40 @@ def test_dis_last_instruction():
         res = cpu.disassemble_last_instruction()
         print(i, res)
         assert not res.startswith("illegal")
+
+# types
+
+def test_union_types_exist():
+    _pydrofoil.RISCV64().types.ADDIW
+    _pydrofoil.RISCV64().types.ast
+
+
+# aspirational tests:
+
+def test_union():
+    skip("later")
+    ast = _pydrofoil.RISCV64.types.ADDIW(2045, 3, 5)
+    assert isinstance(ast, _pydrofoil.RISCV64.types.ast)
+    a, b, c = ast
+    assert a == 2045
+    assert b == 3
+    assert c == 5
+
+#def test_union_pattern_matching():
+#    ast = _pydrofoil.RISCV64.types.ADDIW(2045, 3, 5)
+#    match ast:
+#        case _pydrofoil.RISCV64.types.ADDIW(a, b, c):
+#            pass
+#        case _:
+#            assert 0
+#    assert a == 2045
+#    assert b == 3
+#    assert c == 5
+
+def test_struct():
+    skip("later")
+    tlb = _pydrofoil.RISCV64.types.TLB_Entry(1, 2, False, 3, 4, 5, 6, 7, 8)
+    assert tlb.age == 8
+    tlb.age = 12
+    assert tlb.age == 12
+

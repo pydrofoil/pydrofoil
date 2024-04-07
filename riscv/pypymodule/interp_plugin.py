@@ -1,6 +1,7 @@
 from rpython.rlib import jit
 from rpython.rlib import objectmodel
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
+from rpython.rlib.unroll import unrolling_iterable
 from pypy.interpreter.baseobjspace import W_Root
 from pypy.interpreter.error import oefmt
 from pypy.interpreter.typedef import (TypeDef, interp2app, GetSetProperty,
@@ -53,7 +54,6 @@ def run_sail(machine, insn_limit, do_show_times):
 def _init_register_names(cls, _all_register_names):
     assert cls is not MachineAbstractBase
     """ NOT_RPYTHON """
-    from rpython.rlib.unroll import unrolling_iterable
     def make_getter(attrname, name, convert_to_pypy):
         def getter(space, machine):
             return convert_to_pypy(space, getattr(machine, attrname))
@@ -132,14 +132,51 @@ def invent_python_cls(space, w_mod, type_info):
     assert pyname.startswith("Union_")
     cls.typedef = TypeDef(sail_name,
     )
-    space.setattr(w_mod, space.newtext(sail_name), cls)
+    space.setattr(w_mod, space.newtext(sail_name), space.gettypefor(cls))
+    if sail_name == 'ast':
+        import pdb;pdb.set_trace()
     for subclass_info in cls._all_subclasses:
         sub_pyname, sub_sail_name, subcls = subclass_info
         subcls.typedef = TypeDef(sub_sail_name,
             cls.typedef,
+            __new__=_make_union_new(space, subcls, sub_sail_name),
+            __len__=_make_union_len(space, subcls),
+            __getitem__=_make_union_getitem(space, subcls),
         )
-        space.setattr(w_mod, space.newtext(sub_sail_name), subcls)
+        space.setattr(w_mod, space.newtext(sub_sail_name), space.gettypefor(subcls))
 
+def _make_union_new(space, subcls, name):
+    length = len(subcls._field_info)
+    def descr_new(space, w_typ, args_w):
+        self = space.allocate_instance(subcls, w_typ)
+        if len(args_w) != length:
+            raise oefmt(space.w_TypeError,
+                        "expected exactly %s arguments, got %%s" % (length, ),
+                        len(args_w))
+        for index, fieldname, convert in unroll_fields:
+            setattr(self, fieldname, convert(space, args_w[index]))
+        return self
+    unroll_fields = unrolling_iterable(
+        [(index, info[0], info[2]) for index, info in enumerate(subcls._field_info)])
+    return interp2app(descr_new)
+
+def _make_union_len(space, subcls):
+    length = len(subcls._field_info)
+    # XXX should cache functions
+    def descr_len(self, space):
+        return space.newint(length)
+    return interp2app(descr_len.__get__(None, subcls))
+
+def _make_union_getitem(space, subcls):
+    unroll_get_fields = unrolling_iterable(
+        [(index, info[0], info[1]) for index, info in enumerate(subcls._field_info)])
+    @unwrap_spec(index='index')
+    def descr_getitem(self, space, index):
+        for i, fieldname, convert in unroll_get_fields:
+            if index == i:
+                return convert(space, getattr(self, fieldname))
+        raise oefmt(space.w_IndexError, "index out of bound")
+    return interp2app(descr_getitem.__get__(None, subcls))
 
 class MachineAbstractBase(object):
     def __init__(self, space, elf=None, dtb=False):

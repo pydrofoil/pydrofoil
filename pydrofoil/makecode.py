@@ -416,11 +416,20 @@ class __extend__(parse.Union):
                 self.pynames.append(pyname)
                 with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                     # default field values
+                    codegen.emit("_field_info = []")
                     if type(rtyp) is types.Struct:
                         for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                             codegen.emit("%s = %s" % (fieldname, fieldtyp.uninitialized_value))
+                            codegen.emit("_field_info.append((%r, %s, %s, %r))" % (
+                                fieldname, fieldtyp.convert_to_pypy,
+                                fieldtyp.convert_from_pypy,
+                                fieldtyp.sail_repr()))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
+                        codegen.emit("_field_info.append(('a', %s, %s, %r))" % (
+                            rtyp.convert_to_pypy,
+                            rtyp.convert_from_pypy,
+                            rtyp.sail_repr()))
                     self.make_init(codegen, rtyp, typ, pyname)
                     self.make_eq(codegen, rtyp, typ, pyname)
                     self.make_convert(codegen, rtyp, typ, pyname)

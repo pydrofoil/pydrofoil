@@ -169,9 +169,9 @@ def test_union_types_exist():
 # aspirational tests:
 
 def test_union():
-    skip("later")
-    ast = _pydrofoil.RISCV64.types.ADDIW(2045, 3, 5)
-    assert isinstance(ast, _pydrofoil.RISCV64.types.ast)
+    m = _pydrofoil.RISCV64()
+    ast = m.types.ADDIW(2045, 3, 5)
+    assert isinstance(ast, m.types.ast)
     a, b, c = ast
     assert a == 2045
     assert b == 3

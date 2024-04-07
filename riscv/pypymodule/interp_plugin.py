@@ -3,7 +3,7 @@ from rpython.rlib import objectmodel
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from rpython.rlib.unroll import unrolling_iterable
 from pypy.interpreter.baseobjspace import W_Root
-from pypy.interpreter.error import oefmt
+from pypy.interpreter.error import oefmt, oefmt_attribute_error
 from pypy.interpreter.typedef import (TypeDef, interp2app, GetSetProperty,
     descr_get_dict, make_weakref_descr)
 from pypy.interpreter.gateway import unwrap_spec
@@ -41,6 +41,8 @@ def wrap_fn(fn):
             if not objectmodel.we_are_translated():
                 import pdb; pdb.xpm()
             raise oefmt(space.w_SystemError, "internal error, please report a bug: %s", str(e))
+        if w_machine.machine.have_exception:
+            raise oefmt(space.w_SystemError, "sail exception")
     wrapped_fn.func_name = "wrap_" + fn.func_name
     return wrapped_fn
 
@@ -119,7 +121,7 @@ def _init_types(cls, all_type_info):
             self.all_type_info = all_type_info
             w_mod = Module(space, space.newtext("<%s.types>" % cls.__name__[2:]))
             for type_info in all_type_info:
-                invent_python_cls(space, w_mod, type_info)
+                invent_python_cls(space, w_mod, type_info, cls)
             self.w_mod = w_mod
     cls.TypesCache = TypesCache
 
@@ -127,7 +129,7 @@ def is_valid_identifier(s):
     from pypy.objspace.std.unicodeobject import _isidentifier
     return _isidentifier(s)
  
-def invent_python_cls(space, w_mod, type_info):
+def invent_python_cls(space, w_mod, type_info, machinecls):
     pyname, sail_name, cls, sail_type = type_info
     assert pyname.startswith("Union_")
     cls.typedef = TypeDef(sail_name,
@@ -138,21 +140,29 @@ def invent_python_cls(space, w_mod, type_info):
         sub_pyname, sub_sail_name, subcls = subclass_info
         subcls.typedef = TypeDef(sub_sail_name,
             cls.typedef,
-            __new__=_make_union_new(space, subcls, sub_sail_name),
-            __len__=_make_union_len(space, subcls),
-            __getitem__=_make_union_getitem(space, subcls),
+            __new__=_make_union_new(space, machinecls, subcls, sub_sail_name),
+            __len__=_make_union_len(space, machinecls, subcls),
+            __getitem__=_make_union_getitem(space, machinecls, subcls),
         )
         subcls.typedef.acceptable_as_base_class = False
         space.setattr(w_mod, space.newtext(sub_sail_name), space.gettypefor(subcls))
 
-def _make_union_new(space, subcls, name):
+def _interp2app_unique_name(func, machinecls, *strings):
+    func.func_name += "_".join(['', machinecls.__name__] + list(strings))
+    return interp2app(func)
+
+def _interp2app_unique_name_as_method(func, machinecls, subcls, *strings):
+    func.func_name += "_".join(['', machinecls.__name__, subcls.__name__] + list(strings))
+    return interp2app(func.__get__(None, subcls))
+
+def _make_union_new(space, machinecls, subcls, name):
     length = len(subcls._field_info)
     if length == 1 and hasattr(subcls, 'construct'):
         convert = subcls._field_info[0][2]
         def descr_new(space, w_typ, args_w):
             if len(args_w) != length:
                 raise oefmt(space.w_TypeError,
-                            "expected exactly %s arguments, got %%s" % (length, ),
+                            "expected exactly %d arguments, got %d", length,
                             len(args_w))
             enum_value = convert(space, args_w[0])
             return subcls.construct(enum_value)
@@ -162,23 +172,22 @@ def _make_union_new(space, subcls, name):
         def descr_new(space, w_typ, args_w):
             if len(args_w) != length:
                 raise oefmt(space.w_TypeError,
-                            "expected exactly %s arguments, got %%s" % (length, ),
+                            "expected exactly %d arguments, got %d", length,
                             len(args_w))
             self = objectmodel.instantiate(subcls)
             for index, fieldname, convert in unroll_fields:
                 setattr(self, fieldname, convert(space, args_w[index]))
             return self
-    descr_new.func_name += "_" + name
-    return interp2app(descr_new)
+    return _interp2app_unique_name(descr_new, machinecls, name)
 
-def _make_union_len(space, subcls):
+def _make_union_len(space, machinecls, subcls):
     length = len(subcls._field_info)
     # XXX should cache functions
     def descr_len(self, space):
         return space.newint(length)
-    return interp2app(descr_len.__get__(None, subcls))
+    return _interp2app_unique_name_as_method(descr_len, machinecls, subcls)
 
-def _make_union_getitem(space, subcls):
+def _make_union_getitem(space, machinecls, subcls):
     unroll_get_fields = unrolling_iterable(
         [(index, info[0], info[1]) for index, info in enumerate(subcls._field_info)])
     @unwrap_spec(index='index')
@@ -187,7 +196,7 @@ def _make_union_getitem(space, subcls):
             if index == i:
                 return convert(space, getattr(self, fieldname))
         raise oefmt(space.w_IndexError, "index out of bound")
-    return interp2app(descr_getitem.__get__(None, subcls))
+    return _interp2app_unique_name_as_method(descr_getitem, machinecls, subcls)
 
 
 class W_SailFunction(W_Root):
@@ -207,6 +216,7 @@ def _init_functions(machinecls, functions):
     for function_info in functions:
         _make_function(function_info, d, machinecls)
 
+    @jit.elidable
     def get_sail_func(name):
         return d.get(name, None)
 
@@ -219,18 +229,21 @@ def _init_functions(machinecls, functions):
             name = space.text_w(w_name)
             func = get_sail_func(name)
             if func is None:
-                raise oefmt_attribute_error(self, w_name, "type object %N has no attribute %R")
+                raise oefmt_attribute_error(space, self, w_name, "type object %N has no attribute %R")
             return W_SailFunction(self.w_machine, func)
+        descr_getattr.func_name += "_" + machinecls.__name__
 
         def descr_dir(self, space):
             return space.newlist([space.newtext(name) for name in d])
+        descr_dir.func_name += "_" + machinecls.__name__
     l = ["Exports the Sail functions of the model directly. The following functions are exported:"]
     l.extend(sorted(d))
+    doc = "\n".join(l)
     W_Lowlevel.typedef = TypeDef("lowlevel",
         __getattr__ = interp2app(W_Lowlevel.descr_getattr),
         __dir__ = interp2app(W_Lowlevel.descr_dir),
     )
-    W_Lowlevel.typedef.doc = "\n".join(l)
+    W_Lowlevel.typedef.doc = doc
     machinecls.W_Lowlevel = W_Lowlevel
 
 def _make_function(function_info, d, machinecls):
@@ -238,6 +251,7 @@ def _make_function(function_info, d, machinecls):
     num_args = len(argument_converters)
     converters = unrolling_iterable(argument_converters)
     def call(space, w_machine, args_w):
+        assert isinstance(w_machine, machinecls)
         if len(args_w) != num_args:
             raise oefmt(space.w_TypeError, "Sail function %s takes exactly %d arguments, got %d",
                         sail_name, num_args, len(args_w))

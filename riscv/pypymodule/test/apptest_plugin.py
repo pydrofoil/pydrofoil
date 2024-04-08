@@ -227,3 +227,15 @@ def test_lowlevel_docstring():
 
 def test_lowlevel_dir():
     assert "legalize_xepc" in dir(_pydrofoil.RISCV64().lowlevel)
+
+def test_call_assembly_forwards():
+    m = _pydrofoil.RISCV64()
+    ast = m.types.ADDIW(2045, 3, 5)
+    res = m.lowlevel.assembly_forwards(ast)
+    assert res == 'addiw t0, gp, 0x7fd'
+
+def test_call_encdec_backwards():
+    m = _pydrofoil.RISCV64()
+    ast = m.lowlevel.encdec_backwards(0x7793)
+    res = m.lowlevel.assembly_forwards(ast)
+    assert res == 'andi a5, zero, 0x0'

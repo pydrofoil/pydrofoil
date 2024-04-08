@@ -633,6 +633,10 @@ class __extend__(parse.Function):
             codegen.print_debug_msg("making method!", self.name)
             with self._scope(codegen, pyname):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
+            argument_converters = "[" + ", ".join([arg.convert_from_pypy for arg in self.resolved_type.argtype.elements]) + "]"
+            result_converter = self.resolved_type.restype.convert_to_pypy
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s))" % (
+                pyname, demangle(self.name), pyname, argument_converters, result_converter))
             self._emit_methods(blocks, codegen)
             return
         codegen.print_debug_msg("making SSA IR")

@@ -407,6 +407,10 @@ class __extend__(parse.Union):
             names = tuple(self.names)
             uniontyp = types.Union(self.name, names, tuple(rtyps))
             uniontyp.uninitialized_value = "%s.singleton" % (name, )
+            with codegen.emit_indent("def convert_from_pypy_%s(space, w_arg):" % self.name):
+                codegen.emit("return space.interp_w(%s, w_arg)" % (name, ))
+            with codegen.emit_indent("def convert_to_pypy_%s(space, arg):" % self.name):
+                codegen.emit("return arg")
             codegen.add_named_type(self.name, self.pyname, uniontyp, self)
             codegen.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
                 name, demangle(self.name), name, uniontyp.sail_repr()))

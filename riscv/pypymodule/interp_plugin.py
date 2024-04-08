@@ -3,7 +3,7 @@ from rpython.rlib import objectmodel
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from rpython.rlib.unroll import unrolling_iterable
 from pypy.interpreter.baseobjspace import W_Root
-from pypy.interpreter.error import oefmt, oefmt_attribute_error
+from pypy.interpreter.error import oefmt, oefmt_attribute_error, OperationError
 from pypy.interpreter.typedef import (TypeDef, interp2app, GetSetProperty,
     descr_get_dict, make_weakref_descr)
 from pypy.interpreter.gateway import unwrap_spec
@@ -199,16 +199,16 @@ def _make_union_getitem(space, machinecls, subcls):
     return _interp2app_unique_name_as_method(descr_getitem, machinecls, subcls)
 
 
-class W_SailFunction(W_Root):
+class W_BoundSailFunction(W_Root):
     def __init__(self, w_machine, func):
-        self.func = func
+        self.func = func # an insance of SailFunctionAdaptor
         self.w_machine = w_machine
 
     def descr_call(self, space, args_w):
-        return self.func(space, self.w_machine, args_w)
+        return self.func.call(space, self.w_machine, args_w)
 
-W_SailFunction.typedef = TypeDef("sail-function",
-    __call__ = interp2app(W_SailFunction.descr_call),
+W_BoundSailFunction.typedef = TypeDef("sail-function",
+    __call__ = interp2app(W_BoundSailFunction.descr_call),
 )
 
 def _init_functions(machinecls, functions):
@@ -230,15 +230,17 @@ def _init_functions(machinecls, functions):
             func = get_sail_func(name)
             if func is None:
                 raise oefmt_attribute_error(space, self, w_name, "type object %N has no attribute %R")
-            return W_SailFunction(self.w_machine, func)
+            return W_BoundSailFunction(self.w_machine, func)
         descr_getattr.func_name += "_" + machinecls.__name__
 
         def descr_dir(self, space):
             return space.newlist([space.newtext(name) for name in d])
         descr_dir.func_name += "_" + machinecls.__name__
+
     l = ["Exports the Sail functions of the model directly. The following functions are exported:"]
     l.extend(sorted(d))
     doc = "\n".join(l)
+
     W_Lowlevel.typedef = TypeDef("lowlevel",
         __getattr__ = interp2app(W_Lowlevel.descr_getattr),
         __dir__ = interp2app(W_Lowlevel.descr_dir),
@@ -248,28 +250,62 @@ def _init_functions(machinecls, functions):
 
 def _make_function(function_info, d, machinecls):
     pyname, sail_name, func, argument_converters, result_converter = function_info
-    num_args = len(argument_converters)
-    converters = unrolling_iterable(argument_converters)
-    def call(space, w_machine, args_w):
-        assert isinstance(w_machine, machinecls)
-        if len(args_w) != num_args:
-            raise oefmt(space.w_TypeError, "Sail function %s takes exactly %d arguments, got %d",
-                        sail_name, num_args, len(args_w))
-        args = (w_machine.machine, )
-        i = 0
-        for conv in converters:
-            args += (conv(space, args_w[i]), )
-            i += 1
-        try:
-            res = func(*args)
-        except Exception as e:
-            if not objectmodel.we_are_translated():
-                import pdb; pdb.xpm()
-            raise oefmt(space.w_SystemError, "internal error, please report a bug: %s", str(e))
-        if w_machine.machine.have_exception:
-            raise oefmt(space.w_SystemError, "sail exception")
+    adaptor_class = _make_function_adaptor(argument_converters, machinecls)
+    def py(space, *args):
+        res = func(*args)
         return result_converter(space, res)
-    d[sail_name] = call
+    py.func_name += pyname
+    d[sail_name] = adaptor_class(py, sail_name)
+
+
+class SailFunctionAdaptor(object):
+    num_args = -1
+    sail_name = ''
+    _immutable_ = True
+    _attrs_ = ['num_args', 'sail_name']
+
+    def call(self, space, w_machine, args_w):
+        if len(args_w) != self.num_args:
+            raise oefmt(space.w_TypeError, "Sail function %s takes exactly %d arguments, got %d",
+                        self.sail_name, self.num_args, len(args_w))
+        return self._call(space, w_machine, args_w)
+
+def _make_function_adaptor(argument_converters, machinecls, cache={}):
+    key = tuple(argument_converters + [machinecls])
+
+    if key in cache:
+        return cache[key]
+
+    converters = unrolling_iterable(argument_converters)
+
+    class Adaptor(SailFunctionAdaptor):
+        _immutable_ = True
+        num_args = len(argument_converters)
+
+        def __init__(self, func, sail_name):
+            self.func = func
+            self.sail_name = sail_name
+
+        def _call(self, space, w_machine, args_w):
+            assert isinstance(w_machine, machinecls)
+            args = (w_machine.machine, )
+            i = 0
+            for conv in converters:
+                args += (conv(space, args_w[i]), )
+                i += 1
+            try:
+                return self.func(space, *args)
+            except OperationError:
+                raise
+            except Exception as e:
+                if not objectmodel.we_are_translated():
+                    import pdb; pdb.xpm()
+                raise oefmt(space.w_SystemError, "internal error, please report a bug: %s", str(e))
+            if w_machine.machine.have_exception:
+                raise oefmt(space.w_SystemError, "sail exception")
+
+    cache[key] = Adaptor
+    return Adaptor
 
 
 class MachineAbstractBase(object):

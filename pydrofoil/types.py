@@ -36,6 +36,8 @@ class Type(object):
 class Union(Type):
     def __init__(self, name, names, typs):
         self.name = name
+        self.convert_to_pypy = 'convert_to_pypy_%s' % name
+        self.convert_from_pypy = 'convert_from_pypy_%s' % name
         self.names = names
         self.typs = typs
         assert len(self.names) == len(self.typs)

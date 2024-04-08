@@ -104,6 +104,9 @@ class Vec(Type):
         assert isinstance(typ, Type)
         self.typ = typ
 
+    def sail_repr(self):
+        return "vector(?, %s)" % (self.typ.sail_repr(), )
+
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.typ)
 
@@ -115,6 +118,9 @@ class FVec(Type):
         assert isinstance(typ, Type)
         self.number = number
         self.typ = typ
+
+    def sail_repr(self):
+        return "vector(%s, %s)" % (self.number, self.typ.sail_repr())
 
     def __repr__(self):
         return "%s(%s, %r)" % (type(self).__name__, self.number, self.typ)
@@ -199,12 +205,18 @@ class BigFixedBitVector(Type):
 class GenericBitVector(Type):
     uninitialized_value = "bitvector.UNITIALIZED_BV"
 
+    def sail_repr(self):
+        return 'bits(?)'
+
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
 @singleton
 class MachineInt(Type):
     uninitialized_value = "-0xfefe"
+
+    def sail_repr(self):
+        return 'int'
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
@@ -234,6 +246,9 @@ class Unit(Type):
     convert_to_pypy = "supportcode.convert_to_pypy_unit"
     convert_from_pypy = "supportcode.convert_from_pypy_unit"
 
+    def sail_repr(self):
+        return 'unit'
+
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
@@ -245,12 +260,18 @@ class String(Type):
     convert_to_pypy = "supportcode.convert_to_pypy_string"
     convert_from_pypy = "supportcode.convert_from_pypy_string"
 
+    def sail_repr(self):
+        return 'string'
+
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
 @singleton
 class Real(Type):
     uninitialized_value = "None"
+
+    def sail_repr(self):
+        return 'real'
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )

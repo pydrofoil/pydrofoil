@@ -132,16 +132,18 @@ def is_valid_identifier(s):
 def invent_python_cls(space, w_mod, type_info, machinecls):
     pyname, sail_name, cls, sail_type = type_info
     assert pyname.startswith("Union_")
+    cls._pypy_union_number_fields = -1
     cls.typedef = TypeDef(sail_name,
+        __len__=_make_union_len(space, machinecls, cls),
     )
     cls.typedef.acceptable_as_base_class = False
     space.setattr(w_mod, space.newtext(sail_name), space.gettypefor(cls))
     for subclass_info in cls._all_subclasses:
         sub_pyname, sub_sail_name, subcls = subclass_info
+        subcls._pypy_union_number_fields = len(subcls._field_info)
         subcls.typedef = TypeDef(sub_sail_name,
             cls.typedef,
             __new__=_make_union_new(space, machinecls, subcls, sub_sail_name),
-            __len__=_make_union_len(space, machinecls, subcls),
             __getitem__=_make_union_getitem(space, machinecls, subcls),
         )
         subcls.typedef.acceptable_as_base_class = False
@@ -175,17 +177,16 @@ def _make_union_new(space, machinecls, subcls, name):
                             "expected exactly %d arguments, got %d", length,
                             len(args_w))
             self = objectmodel.instantiate(subcls)
+            # XXX can reuse the adaptors probably? with a function that does the setting
             for index, fieldname, convert in unroll_fields:
                 setattr(self, fieldname, convert(space, args_w[index]))
             return self
     return _interp2app_unique_name(descr_new, machinecls, name)
 
-def _make_union_len(space, machinecls, subcls):
-    length = len(subcls._field_info)
-    # XXX should cache functions
+def _make_union_len(space, machinecls, basecls):
     def descr_len(self, space):
-        return space.newint(length)
-    return _interp2app_unique_name_as_method(descr_len, machinecls, subcls)
+        return space.newint(self._pypy_union_number_fields)
+    return _interp2app_unique_name_as_method(descr_len, machinecls, basecls)
 
 def _make_union_getitem(space, machinecls, subcls):
     unroll_get_fields = unrolling_iterable(

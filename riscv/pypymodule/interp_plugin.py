@@ -135,6 +135,7 @@ def invent_python_cls(space, w_mod, type_info, machinecls):
     cls._pypy_union_number_fields = -1
     cls.typedef = TypeDef(sail_name,
         __len__=_make_union_len(space, machinecls, cls),
+        __repr__=_make_union_repr(space, machinecls, cls),
     )
     cls.typedef.acceptable_as_base_class = False
     space.setattr(w_mod, space.newtext(sail_name), space.gettypefor(cls))
@@ -187,6 +188,13 @@ def _make_union_len(space, machinecls, basecls):
     def descr_len(self, space):
         return space.newint(self._pypy_union_number_fields)
     return _interp2app_unique_name_as_method(descr_len, machinecls, basecls)
+
+def _make_union_repr(space, machinecls, basecls):
+    def descr_repr(self, space):
+        w_tup = space.call_function(space.w_tuple, self)
+        w_name = space.getattr(space.type(self), space.newtext("__name__"))
+        return space.add(w_name, space.repr(w_tup))
+    return _interp2app_unique_name_as_method(descr_repr, machinecls, basecls)
 
 def _make_union_getitem(space, machinecls, subcls):
     unroll_get_fields = unrolling_iterable(

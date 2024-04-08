@@ -176,6 +176,11 @@ def test_union():
     assert b == 3
     assert c == 5
 
+def test_union_repr():
+    m = _pydrofoil.RISCV64()
+    ast = m.types.ADDIW(2045, 3, 5)
+    assert repr(ast) == "ADDIW(2045, 3, 5)"
+
 def test_union_enum():
     m = _pydrofoil.RISCV64()
     clsname = 'Some<Eread_kind%>'

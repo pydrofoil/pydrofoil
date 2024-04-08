@@ -181,6 +181,14 @@ def test_union_repr():
     ast = m.types.ADDIW(2045, 3, 5)
     assert repr(ast) == "ADDIW(2045, 3, 5)"
 
+def test_union_eq():
+    m = _pydrofoil.RISCV64()
+    ast1 = m.types.ADDIW(2045, 3, 5)
+    ast2 = m.types.ADDIW(2045, 3, 5)
+    ast3 = m.types.ADDIW(2045, 3, 6)
+    assert ast1 == ast2
+    assert ast1 != ast3
+
 def test_union_enum():
     m = _pydrofoil.RISCV64()
     clsname = 'Some<Eread_kind%>'

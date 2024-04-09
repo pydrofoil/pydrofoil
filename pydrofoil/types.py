@@ -81,6 +81,8 @@ class Struct(Type):
         from pydrofoil.mangle import demangle
         if len(self.names) == 1 and isinstance(self.fieldtyps[self.names[0]], SmallFixedBitVector):
             return "bitfield %s" % demangle(self.name)
+        if self.tuplestruct:
+            return '(%s)' % (", ".join([typ.sail_repr() for typ in self.typs]), )
         return Type.sail_repr(self)
 
     def __repr__(self):

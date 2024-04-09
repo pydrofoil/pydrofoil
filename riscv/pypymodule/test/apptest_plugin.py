@@ -210,12 +210,15 @@ def test_union_enum():
 #    assert c == 5
 
 def test_struct():
-    skip("later")
-    tlb = _pydrofoil.RISCV64.types.TLB_Entry(1, 2, False, 3, 4, 5, 6, 7, 8)
+    skip("bitvector support missing")
+    tlb = _pydrofoil.RISCV64().types.TLB_Entry(1, 2, False, 3, 4, 5, 6, 7, 8)
     assert tlb.age == 8
     tlb.age = 12
     assert tlb.age == 12
 
+def test_tuplestruct():
+    m = _pydrofoil.RISCV64()
+    assert m.lowlevel.encdec_mul_op_backwards(3) == (True, False, False)
 
 # functions
 

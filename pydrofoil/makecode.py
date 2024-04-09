@@ -260,6 +260,11 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_named_type(name, pyname, structtyp, ast)
         uninit_arg = []
         with self.emit_code_type("declarations"), self.emit_indent("class %s(supportcode.ObjectBase):" % pyname):
+            self.emit("_field_info = []")
+            for fieldname, fieldtyp in zip(structtyp.names, structtyp.typs):
+                self.emit("_field_info.append((%r, %s, %s, %r, %r))" % (
+                    fieldname, fieldtyp.convert_to_pypy, fieldtyp.convert_from_pypy,
+                    fieldtyp.sail_repr(), demangle(fieldname)))
             with self.emit_indent("def __init__(self, %s):" % ", ".join(structtyp.names)):
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
                     self.emit("self.%s = %s # %s" % (arg, arg, fieldtyp))
@@ -276,6 +281,7 @@ class Codegen(specialize.FixpointSpecializer):
                     self.emit("if %s: return False" % (
                         fieldtyp.make_op_code_special_neq(None, ('self.%s' % arg, 'other.%s' % arg), (fieldtyp, fieldtyp), types.Bool())))
                 self.emit("return True")
+            emit_pypy_typ = False
             if len(structtyp.names) == 1: # for now
                 fieldtyp = structtyp.fieldtyps[structtyp.names[0]]
                 self.emit("_convert_from = staticmethod(%s)" % fieldtyp.convert_from_pypy)
@@ -288,6 +294,33 @@ class Codegen(specialize.FixpointSpecializer):
                     self.emit("return %s(%s._convert_from(space, w_value))" % (pyname, pyname))
                 structtyp.convert_to_pypy = "%s.convert_to_pypy" % pyname
                 structtyp.convert_from_pypy = "%s.convert_from_pypy" % pyname
+            elif structtyp.tuplestruct:
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_to_pypy(space, self):"):
+                    self.emit("return space.newtuple([")
+                    for name in structtyp.names:
+                        fieldtyp = structtyp.fieldtyps[name]
+                        self.emit("    %s(space, self.%s)," % (
+                            fieldtyp.convert_to_pypy, name))
+                    self.emit("])")
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_from_pypy(space, w_value):"):
+                    self.emit("args = space.unpackiterable_unroll(w_value, %s)" % (len(structtyp.names), ))
+                    self.emit("return %s(" % pyname)
+                    for index, name in enumerate(structtyp.names):
+                        fieldtyp = structtyp.fieldtyps[name]
+                        self.emit("    %s(space, args[%s])," % (
+                            fieldtyp.convert_from_pypy, index))
+                    self.emit(")")
+
+                structtyp.convert_to_pypy = "%s.convert_to_pypy" % pyname
+                structtyp.convert_from_pypy = "%s.convert_from_pypy" % pyname
+            else:
+                emit_pypy_typ = True
+        if emit_pypy_typ:
+            self.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
+                pyname, demangle(structtyp.name), pyname, structtyp.sail_repr()))
+
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
 
 
@@ -425,10 +458,10 @@ class __extend__(parse.Union):
                     if type(rtyp) is types.Struct:
                         for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                             codegen.emit("%s = %s" % (fieldname, fieldtyp.uninitialized_value))
-                            codegen.emit("_field_info.append((%r, %s, %s, %r))" % (
-                                fieldname, fieldtyp.convert_to_pypy,
-                                fieldtyp.convert_from_pypy,
-                                fieldtyp.sail_repr()))
+                            codegen.emit("_field_info.append((%r, %s, %s, %r, %r))" % (
+                                fieldname, fieldtyp.convert_to_pypy, fieldtyp.convert_from_pypy,
+                                fieldtyp.sail_repr(),
+                                demangle(fieldname)))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                         codegen.emit("_field_info.append(('a', %s, %s, %r))" % (

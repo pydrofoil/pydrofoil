@@ -121,7 +121,11 @@ def _init_types(cls, all_type_info):
             self.all_type_info = all_type_info
             w_mod = Module(space, space.newtext("<%s.types>" % cls.__name__[2:]))
             for type_info in all_type_info:
-                invent_python_cls(space, w_mod, type_info, cls)
+                if type_info[0].startswith("Union_"):
+                    invent_python_cls_union(space, w_mod, type_info, cls)
+                else:
+                    type_info[0].startswith("Struct_")
+                    invent_python_cls_struct(space, w_mod, type_info, cls)
             self.w_mod = w_mod
     cls.TypesCache = TypesCache
 
@@ -129,7 +133,7 @@ def is_valid_identifier(s):
     from pypy.objspace.std.unicodeobject import _isidentifier
     return _isidentifier(s)
  
-def invent_python_cls(space, w_mod, type_info, machinecls):
+def invent_python_cls_union(space, w_mod, type_info, machinecls):
     pyname, sail_name, cls, sail_type = type_info
     assert pyname.startswith("Union_")
     cls._pypy_union_number_fields = -1
@@ -151,6 +155,23 @@ def invent_python_cls(space, w_mod, type_info, machinecls):
         subcls.typedef.acceptable_as_base_class = False
         space.setattr(w_mod, space.newtext(sub_sail_name), space.gettypefor(subcls))
 
+def invent_python_cls_struct(space, w_mod, type_info, machinecls):
+    pyname, sail_name, cls, sail_type = type_info
+    descr_getitem = _make_union_getitem(space, machinecls, cls)
+    def bind(i):
+        def get_field(self, space):
+            return descr_getitem(self, space, i)
+        return get_field
+    kwargs = {}
+    for index, (fieldname, convert_from, convert_to, sail_repr, sail_fieldname) in enumerate(cls._field_info):
+        kwargs[sail_fieldname] = GetSetProperty(bind(index))
+    cls.typedef = TypeDef(sail_name,
+        __new__=_make_union_new(space, machinecls, cls, sail_type),
+        **kwargs
+    )
+    cls.typedef.acceptable_as_base_class = False
+    space.setattr(w_mod, space.newtext(sail_name), space.gettypefor(cls))
+
 def _interp2app_unique_name(func, machinecls, *strings):
     func.func_name += "_".join(['', machinecls.__name__] + list(strings))
     return interp2app(func)
@@ -163,12 +184,8 @@ def _make_union_new(space, machinecls, subcls, name):
     length = len(subcls._field_info)
     if length == 1 and hasattr(subcls, 'construct'):
         convert = subcls._field_info[0][2]
-        def descr_new(space, w_typ, args_w):
-            if len(args_w) != length:
-                raise oefmt(space.w_TypeError,
-                            "expected exactly %d arguments, got %d", length,
-                            len(args_w))
-            enum_value = convert(space, args_w[0])
+        def descr_new(space, w_typ, w_arg):
+            enum_value = convert(space, w_arg)
             return subcls.construct(enum_value)
     else:
         unroll_fields = unrolling_iterable(
@@ -209,6 +226,7 @@ def _make_union_getitem(space, machinecls, subcls):
         [(index, info[0], info[1]) for index, info in enumerate(subcls._field_info)])
     @unwrap_spec(index='index')
     def descr_getitem(self, space, index):
+        assert isinstance(self, subcls)
         for i, fieldname, convert in unroll_get_fields:
             if index == i:
                 return convert(space, getattr(self, fieldname))

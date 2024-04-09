@@ -15,7 +15,7 @@ outriscvpys = [os.path.join(thisdir, "generated/outriscv32.py"), os.path.join(th
 
 def _make_code(rv64=True):
     print "making python code"
-    if 0:
+    if 1:
         with open(riscvirs[rv64], "rb") as f:
             s = f.read()
         support_code = "from riscv import supportcoderiscv as supportcode"

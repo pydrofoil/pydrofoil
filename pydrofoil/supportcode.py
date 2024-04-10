@@ -1421,14 +1421,18 @@ def cache(func):
 @cache
 def generate_convert_to_pypy_bitvector_ruint(width):
     def c(space, val):
-        # TODO inefficient! always returns a long
-        return space.newint(val)
+        return bitvector.from_ruint(width, val)
     c.func_name = "convert_to_pypy_bitvector_ruint_%s" % width
     return c
 
 @cache
 def generate_convert_from_pypy_bitvector_ruint(width):
+    from pypy.interpreter.error import oefmt
     def c(space, w_val):
+        if isinstance(w_val, bitvector.BitVector):
+            if w_val.size() != width:
+                raise oefmt(space.w_ValueError, "expected bitvector of size %d, got size %d", width, w_val.size())
+            return w_val.touint(width)
         return _mask(width, space.uint_w(w_val))
     c.func_name = "convert_from_pypy_bitvector_ruint_%s" % width
     return c
@@ -1474,3 +1478,30 @@ def convert_to_pypy_unit(space, val):
 def convert_from_pypy_unit(space, w_val):
     # just accept everything
     return ()
+
+def convert_from_pypy_machineint(space, w_val):
+    return space.int_w(w_val)
+
+def convert_to_pypy_machineint(space, val):
+    return space.newint(val)
+
+def convert_from_pypy_int(space, w_val):
+    from pypy.interpreter.error import OperationError
+    try:
+        return Integer.fromint(space.int_w(w_val))
+    except OperationError as e:
+        if not e.matches(space.w_TypeError):
+            raise
+    return Integer.from_bigint(space.bigint_w(w_val))
+
+def convert_to_pypy_int(space, val):
+    if isinstance(val, bitvector.SmallInteger):
+        return space.newint(val.val)
+    return space.newlong(val.tobigint())
+
+def convert_from_pypy_bitvector(space, w_val):
+    return space.int_w(w_val)
+
+def convert_to_pypy_bitvector(space, val):
+    return space.newint(val)
+

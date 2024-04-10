@@ -9,6 +9,7 @@ class Module(MixedModule):
     interpleveldefs = {
         'RISCV64': 'interp_plugin.W_RISCV64',
         'RISCV32': 'interp_plugin.W_RISCV32',
+        'bitvector': 'interp_plugin.BitVector',
     }
 
     def __init__(self, space, w_name):

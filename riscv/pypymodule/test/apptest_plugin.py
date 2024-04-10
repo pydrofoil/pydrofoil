@@ -179,7 +179,7 @@ def test_union():
 def test_union_repr():
     m = _pydrofoil.RISCV64()
     ast = m.types.ADDIW(2045, 3, 5)
-    assert repr(ast) == "ADDIW(2045, 3, 5)"
+    assert repr(ast) == 'ADDIW(bitvector(12, 0x7FD), bitvector(5, 0b00011), bitvector(5, 0b00101))'
 
 def test_union_eq():
     m = _pydrofoil.RISCV64()
@@ -255,3 +255,15 @@ def test_call_encdec_backwards():
     ast = m.lowlevel.encdec_backwards(0x7793)
     res = m.lowlevel.assembly_forwards(ast)
     assert res == 'andi a5, zero, 0x0'
+
+def test_call_rx():
+    m = _pydrofoil.RISCV64()
+    assert m.lowlevel.rX(0) == 0
+
+
+# bitvectors
+
+def test_bv_create():
+    b0 = _pydrofoil.bitvector(2, 0)
+    assert b0 == _pydrofoil.bitvector(2, 0)
+    assert repr(b0) == "bitvector(2, 0b00)"

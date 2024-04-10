@@ -12,6 +12,7 @@ from pypy.interpreter.module import Module
 from riscv import supportcoderiscv
 
 from pydrofoil import mem as mem_mod
+from pydrofoil.bitvector import BitVector, ruint_mask
 
 def _patch_machineclasses(machinecls64=None, machinecls32=None):
     from riscv import supportcoderiscv
@@ -586,3 +587,93 @@ W_RISCV32.typedef = TypeDef("_pydrofoil.RISCV32",
     types = GetSetProperty(W_RISCV32.descr_get_types),
     lowlevel = GetSetProperty(W_RISCV32.descr_get_lowlevel),
 )
+
+# bitvector support
+
+class __extend__(BitVector):
+    def descr_repr(self, space):
+        s = "bitvector(%s, %s)" % (self.size(), self.string_of_bits())
+        return space.newutf8(s, len(s)) # ascii
+
+    def _pypy_coerce(self, space, w_other, masking_allowed=False):
+        """ coerce w_other to a BitVector with size of self. return None if not
+        possible. if mask=True too large ints will be masked """
+        if isinstance(w_other, BitVector):
+            if self.size() != w_other.size():
+                raise oefmt(space.w_ValueError, "can't operate on bitvectors with differing sizes %d and %d", self.size(), w_other.size())
+            return w_other
+        try:
+            w_other = space.index(w_other)
+        except OperationError as e:
+            if not e.match(space, space.w_TypeError):
+                raise
+            return None
+        try:
+            val = r_uint(space.int_w(w_other))
+        except OperationError as e:
+            if not e.match(space, space.w_OverflowError):
+                raise
+            value = space.bigint_w(w_other)
+            bv = BitVector.from_bigint(self.size(), value)
+            if masking_allowed or bv.tobigint().eq(value):
+                return bv
+        else:
+            masked_val = ruint_mask(self.size(), val)
+            if masking_allowed or masked_val == val:
+                return BitVector.from_ruint(self.size(), val)
+        return None
+
+    def descr_eq(self, space, w_other):
+        w_other = self._pypy_coerce(space, w_other)
+        if w_other is None:
+            return space.w_NotImplemented
+        if self.size() != w_other.size():
+            return False
+        return space.newbool(self.eq(w_other))
+
+    def descr_or(self, space, w_other):
+        w_other = self._pypy_coerce(space, w_other, masking_allowed=True)
+        if w_other is None:
+            return space.w_NotImplemented
+        return self.or_(w_other)
+
+    def descr_ror(self, space, w_other):
+        return self.descr_or(space, w_other)
+
+    def descr_and(self, space, w_other):
+        w_other = self._pypy_coerce(space, w_other, masking_allowed=True)
+        if w_other is None:
+            return space.w_NotImplemented
+        return self.and_(w_other)
+
+    def descr_rand(self, space, w_other):
+        return self.descr_and(space, w_other)
+
+    def descr_xor(self, space, w_other):
+        w_other = self._pypy_coerce(space, w_other, masking_allowed=True)
+        if w_other is None:
+            return space.w_NotImplemented
+        return self.xor(w_other)
+
+    def descr_rxor(self, space, w_other):
+        return self.descr_xor(space, w_other)
+
+
+@unwrap_spec(width=int, value=r_uint)
+def bitvector_descr_new(w_type, space, width, value):
+    return BitVector.from_ruint(width, value)
+
+
+BitVector.typedef = TypeDef("bitvector",
+    __new__ = interp2app(bitvector_descr_new),
+    __repr__ = interp2app(BitVector.descr_repr),
+    __eq__ = interp2app(BitVector.descr_eq),
+    __or__ = interp2app(BitVector.descr_or),
+    __ror__ = interp2app(BitVector.descr_ror),
+    __and__ = interp2app(BitVector.descr_and),
+    __rand__ = interp2app(BitVector.descr_rand),
+    __xor__ = interp2app(BitVector.descr_xor),
+    __rxor__ = interp2app(BitVector.descr_rxor),
+)
+
+BitVector.typedef.acceptable_as_base_class = False

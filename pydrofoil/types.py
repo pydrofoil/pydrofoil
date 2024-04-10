@@ -1,3 +1,5 @@
+from pypy.interpreter.baseobjspace import W_Root
+
 from rpython.tool.pairtype import extendabletype
 
 def unique(cls):
@@ -21,7 +23,7 @@ def singleton(cls):
 
     return cls
 
-class Type(object):
+class Type(W_Root):
     __metaclass__ = extendabletype
     uninitialized_value = '"uninitialized_value"' # often fine for rpython!
 
@@ -216,6 +218,9 @@ class GenericBitVector(Type):
 @singleton
 class MachineInt(Type):
     uninitialized_value = "-0xfefe"
+    convert_to_pypy = "supportcode.convert_to_pypy_machineint"
+    convert_from_pypy = "supportcode.convert_from_pypy_machineint"
+
 
     def sail_repr(self):
         return 'int'
@@ -226,6 +231,8 @@ class MachineInt(Type):
 @singleton
 class Int(Type):
     uninitialized_value = "UninitInt"
+    convert_to_pypy = "supportcode.convert_to_pypy_int"
+    convert_from_pypy = "supportcode.convert_from_pypy_int"
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )

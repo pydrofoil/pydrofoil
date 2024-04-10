@@ -159,13 +159,13 @@ def invent_python_cls_union(space, w_mod, type_info, machinecls):
 def invent_python_cls_struct(space, w_mod, type_info, machinecls):
     pyname, sail_name, cls, sail_type = type_info
     descr_getitem = _make_union_getitem(space, machinecls, cls)
-    def bind(i):
+    def bind(convert, fieldname):
         def get_field(self, space):
-            return descr_getitem(self, space, i)
+            return convert(space, getattr(self, fieldname))
         return get_field
     kwargs = {}
-    for index, (fieldname, convert_from, convert_to, sail_repr, sail_fieldname) in enumerate(cls._field_info):
-        kwargs[sail_fieldname] = GetSetProperty(bind(index))
+    for index, (fieldname, convert_to, convert_from, sail_repr, sail_fieldname) in enumerate(cls._field_info):
+        kwargs[sail_fieldname] = GetSetProperty(bind(convert_to, fieldname), cls=cls)
     cls.typedef = TypeDef(sail_name,
         __new__=_make_union_new(space, machinecls, cls, sail_type),
         **kwargs
@@ -635,7 +635,8 @@ class __extend__(BitVector):
             start, stop, step, slicelength =  w_index.adjust_indices(start, stop, step, self.size())
             assert slicelength >= 0
             if slicelength == 0:
-                return make_empty_list(space)
+                # XXX support me
+                raise oefmt(space.w_ValueError, "slice result would have length 0")
             return self.subrange(stop-1, start)
         index = space.getindex_w(w_index, space.w_IndexError, "bitvector")
         if index < 0:

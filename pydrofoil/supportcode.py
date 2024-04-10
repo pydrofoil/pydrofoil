@@ -1407,25 +1407,37 @@ def convert_to_pypy_error(space, val):
 def convert_from_pypy_error(space, w_val):
     raise ValueError
 
-def cache(func):
+def cache1(func):
     cache = {}
-    @objectmodel.not_rpython
-    def cached_func(*args):
-        if args in cache:
-            return cache[args]
-        res = func(*args)
-        cache[args] = res
+    @objectmodel.specialize.memo()
+    def cached_func(arg):
+        if arg in cache:
+            return cache[arg]
+        res = func(arg)
+        cache[arg] = res
         return res
     return cached_func
 
-@cache
+def cache2(func):
+    cache = {}
+    @objectmodel.specialize.memo()
+    def cached_func(arg, arg2):
+        if (arg, arg2) in cache:
+            return cache[arg, arg2]
+        res = func(arg, arg2)
+        cache[arg, arg2] = res
+        return res
+    return cached_func
+
+@cache1
 def generate_convert_to_pypy_bitvector_ruint(width):
+
     def c(space, val):
         return bitvector.from_ruint(width, val)
     c.func_name = "convert_to_pypy_bitvector_ruint_%s" % width
     return c
 
-@cache
+@cache1
 def generate_convert_from_pypy_bitvector_ruint(width):
     from pypy.interpreter.error import oefmt
     def c(space, w_val):
@@ -1437,7 +1449,7 @@ def generate_convert_from_pypy_bitvector_ruint(width):
     c.func_name = "convert_from_pypy_bitvector_ruint_%s" % width
     return c
 
-@cache
+@cache2
 def generate_convert_to_pypy_enum(cls, name):
     from pypy.interpreter.error import oefmt
     def c(space, val):
@@ -1449,7 +1461,7 @@ def generate_convert_to_pypy_enum(cls, name):
     c.func_name = "convert_to_pypy_enum_" + name
     return c
 
-@cache
+@cache2
 def generate_convert_from_pypy_enum(cls, name):
     from pypy.interpreter.error import oefmt
     def c(space, w_val):
@@ -1490,14 +1502,14 @@ def convert_from_pypy_int(space, w_val):
     try:
         return Integer.fromint(space.int_w(w_val))
     except OperationError as e:
-        if not e.matches(space.w_TypeError):
+        if not e.match(space, space.w_TypeError):
             raise
     return Integer.from_bigint(space.bigint_w(w_val))
 
 def convert_to_pypy_int(space, val):
     if isinstance(val, bitvector.SmallInteger):
         return space.newint(val.val)
-    return space.newlong(val.tobigint())
+    return space.newlong_from_rbigint(val.tobigint())
 
 def convert_from_pypy_bitvector(space, w_val):
     return space.int_w(w_val)

@@ -508,6 +508,7 @@ class __extend__(parse.Union):
     def make_eq(self, codegen, rtyp, typ, pyname):
         codegen.emit("@objectmodel.always_inline")
         with codegen.emit_indent("def eq(self, other):"):
+            codegen.emit("if not isinstance(other, %s): return False" % pyname)
             codegen.emit("if type(self) is not type(other): return False")
             if rtyp is types.Unit():
                 codegen.emit("return True")

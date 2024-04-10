@@ -623,12 +623,36 @@ class __extend__(BitVector):
                 return BitVector.from_ruint(self.size(), val)
         return None
 
+    def descr_len(self, space):
+        return space.newint(self.size())
+
+    def descr_getitem(self, space, w_index):
+        from pypy.objspace.std.sliceobject import W_SliceObject
+        if isinstance(w_index, W_SliceObject):
+            start, stop, step = w_index.unpack(space)
+            if step > 1:
+                raise oefmt(space.w_ValueError, "slice length %d > 1 not supported yet", step)
+            start, stop, step, slicelength =  w_index.adjust_indices(start, stop, step, self.size())
+            assert slicelength >= 0
+            if slicelength == 0:
+                return make_empty_list(space)
+            return self.subrange(stop-1, start)
+        index = space.getindex_w(w_index, space.w_IndexError, "bitvector")
+        if index < 0:
+            index += self.size()
+        if not 0 <= index < self.size():
+            raise oefmt(space.w_IndexError, "bitvector index out of range")
+        if self.read_bit(index):
+            return space.newint(1)
+        else:
+            return space.newint(0)
+
     def descr_eq(self, space, w_other):
         w_other = self._pypy_coerce(space, w_other)
         if w_other is None:
             return space.w_NotImplemented
         if self.size() != w_other.size():
-            return False
+            return space.w_False
         return space.newbool(self.eq(w_other))
 
     def descr_or(self, space, w_other):
@@ -658,7 +682,6 @@ class __extend__(BitVector):
     def descr_rxor(self, space, w_other):
         return self.descr_xor(space, w_other)
 
-
 @unwrap_spec(width=int, value=r_uint)
 def bitvector_descr_new(w_type, space, width, value):
     return BitVector.from_ruint(width, value)
@@ -667,6 +690,9 @@ def bitvector_descr_new(w_type, space, width, value):
 BitVector.typedef = TypeDef("bitvector",
     __new__ = interp2app(bitvector_descr_new),
     __repr__ = interp2app(BitVector.descr_repr),
+    __len__ = interp2app(BitVector.descr_len),
+    __getitem__ = interp2app(BitVector.descr_getitem),
+
     __eq__ = interp2app(BitVector.descr_eq),
     __or__ = interp2app(BitVector.descr_or),
     __ror__ = interp2app(BitVector.descr_ror),

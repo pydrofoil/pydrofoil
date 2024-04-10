@@ -263,7 +263,15 @@ def test_call_rx():
 
 # bitvectors
 
-def test_bv_create():
+def test_bv_basics():
     b0 = _pydrofoil.bitvector(2, 0)
     assert b0 == _pydrofoil.bitvector(2, 0)
     assert repr(b0) == "bitvector(2, 0b00)"
+    assert len(b0) == 2
+
+def test_bv_getitem():
+    b0 = _pydrofoil.bitvector(6, 0b110100)
+    assert b0[0] == 0
+    assert b0[1] == 0
+    assert b0[2] == 1
+    assert b0[1:3] == _pydrofoil.bitvector(2, 0b10)

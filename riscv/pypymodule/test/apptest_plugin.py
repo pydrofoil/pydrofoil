@@ -260,6 +260,11 @@ def test_call_rx():
     m = _pydrofoil.RISCV64()
     assert m.lowlevel.rX(0) == 0
 
+def test_call_rx_crash():
+    m = _pydrofoil.RISCV64()
+    with raises(_pydrofoil.SailAssertionError):
+        m.lowlevel.rX(100)
+
 
 # bitvectors
 

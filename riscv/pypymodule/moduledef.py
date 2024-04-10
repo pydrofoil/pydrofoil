@@ -4,6 +4,8 @@ class Module(MixedModule):
     applevel_name = '_pydrofoil'
 
     appleveldefs = {
+        'SailAssertionError': 'app_plugin.SailAssertionError',
+        'SailException': 'app_plugin.SailException',
     }
 
     interpleveldefs = {

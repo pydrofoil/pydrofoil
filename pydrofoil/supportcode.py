@@ -1396,6 +1396,10 @@ class Globals(object):
 class RegRef(object):
     pass
 
+class SailError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
 
 # some helper functions for interfacing with PyPy, completely optional for
 # almost everything except the plugin

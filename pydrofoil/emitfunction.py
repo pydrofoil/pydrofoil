@@ -319,7 +319,7 @@ class CodeEmitter(object):
 
     def emit_next_Raise(self, next):
         res = self._get_arg(next.kind)
-        self._emit_next_helper(next, "assert 0, %s" % (res, ))
+        self._emit_next_helper(next, "raise supportcode.SailError(%s)" % (res, ))
 
     def emit_next_Goto(self, next):
         self._emit_jump(next.target, next)

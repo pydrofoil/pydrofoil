@@ -38,6 +38,10 @@ def wrap_fn(fn):
     def wrapped_fn(space, *args):
         try:
             return fn(*args)
+        except supportcoderiscv.SailError as e:
+            w_module = space.getbuiltinmodule('_pydrofoil')
+            w_error = space.getattr(w_module, space.newtext('SailAssertionError'))
+            raise OperationError(w_error, space.newtext(e.msg))
         except Exception as e:
             if not objectmodel.we_are_translated():
                 import pdb; pdb.xpm()
@@ -331,6 +335,10 @@ def _make_function_adaptor(argument_converters, machinecls, cache={}):
                 i += 1
             try:
                 return self.func(space, *args)
+            except supportcoderiscv.SailError as e:
+                w_module = space.getbuiltinmodule('_pydrofoil')
+                w_error = space.getattr(w_module, space.newtext('SailAssertionError'))
+                raise OperationError(w_error, space.newtext(e.msg))
             except OperationError:
                 raise
             except Exception as e:

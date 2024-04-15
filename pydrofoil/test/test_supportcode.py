@@ -829,6 +829,8 @@ def test_op_int():
                     if v2 and v1 != MININT and v2 != MININT:
                         assert c1(abs(v1)).tdiv(c2(abs(v2))).tolong() == abs(v1) // abs(v2)
                         assert c1(abs(v1)).tmod(c2(abs(v2))).tolong() == abs(v1) % abs(v2)
+                        assert c1(abs(v1)).ediv(c2(abs(v2))).tolong() == abs(v1) // abs(v2)
+                        assert c1(abs(v1)).emod(c2(abs(v2))).tolong() == abs(v1) % abs(v2)
                         # (a/b) * b + a%b == a
                         assert a.tdiv(b).mul(b).add(a.tmod(b)).eq(a)
                     assert a.int_add(v2).tolong() == v1 + v2
@@ -843,6 +845,10 @@ def test_op_int():
                     c1(v1).tdiv(c2(0))
                 with pytest.raises(ZeroDivisionError):
                     c1(v1).tmod(c2(0))
+                with pytest.raises(ZeroDivisionError):
+                    c1(v1).ediv(c2(0))
+                with pytest.raises(ZeroDivisionError):
+                    c1(v1).emod(c2(0))
 
 @given(wrapped_ints, wrapped_ints)
 @example(SmallInteger(0), SmallInteger(0))
@@ -1837,6 +1843,12 @@ def test_array_and_sign_from_to_rbigint_roundtrip(value):
 def test_data_and_sign_from_int(value):
     data, sign = bitvector._data_and_sign_from_int(value)
     assert bitvector.rbigint_from_array_and_sign(data, sign).tolong() == value
+
+@given(ints)
+@example(0)
+def test_digit_and_sign_from_int(value):
+    digit, sign = bitvector._digit_and_sign_from_int(value)
+    assert value == intmask(sign * digit)
 
 # more hypothesis tests for ints
 

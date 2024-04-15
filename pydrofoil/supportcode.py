@@ -822,6 +822,7 @@ def print_real(machine, s, r):
     return ()
 
 def to_real(machine, i):
+    jit.jit_debug("integer to_real")
     return Real(i.tobigint(), ONERBIGINT, normalized=True)
 
 @purefunction

@@ -20,7 +20,7 @@ which is itself [automatically
 generated](https://github.com/rems-project/asl_to_sail) from the
 [ASL](https://developer.arm.com/downloads/-/exploration-tools) code that ARM
 provides. Booting Linux on that emulator [is
-possible](https://docs.pydrofoil.org/en/latest/arm.html#booting-linux), but due
-to a bug in the Sail model it crashes when starting the init process.
+possible](https://docs.pydrofoil.org/en/latest/arm.html#booting-linux), at least
+up to the point where the init process starts.
 
 See https://docs.pydrofoil.org for the complete documentation

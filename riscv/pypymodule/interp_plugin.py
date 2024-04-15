@@ -712,6 +712,12 @@ class __extend__(BitVector):
             return space.w_NotImplemented
         return w_other.sub(space, self)
 
+    def descr_matmul(self, space, w_other):
+        """ Concatenate two bitvectors """
+        if not isinstance(w_other, BitVector):
+            return space.w_NotImplemented
+        return self.append(w_other)
+
     def descr_invert(self, space):
         return self.invert()
 
@@ -726,6 +732,17 @@ class __extend__(BitVector):
         unsigned integer."""
         res = self.unsigned()
         return supportcoderiscv.convert_to_pypy_int(space, res)
+
+    @unwrap_spec(target_size=int)
+    def descr_zero_extend(self, space, target_size):
+        """ Zero-extend the bitvector to width target_size. """
+        return self.zero_extend(target_size)
+
+    @unwrap_spec(target_size=int)
+    def descr_sign_extend(self, space, target_size):
+        """ Sign-extend the bitvector to width target_size. """
+        return self.sign_extend(target_size)
+
 
 @unwrap_spec(width=int, value=r_uint)
 def bitvector_descr_new(w_type, space, width, value):
@@ -751,9 +768,14 @@ BitVector.typedef = TypeDef("bitvector",
     __sub__ = interp2app(BitVector.descr_sub),
     __rsub__ = interp2app(BitVector.descr_rsub),
 
+    __matmul__ = interp2app(BitVector.descr_matmul),
+
     __invert__ = interp2app(BitVector.descr_invert),
 
     signed = interp2app(BitVector.descr_signed),
     unsigned = interp2app(BitVector.descr_unsigned),
+
+    zero_extend = interp2app(BitVector.descr_zero_extend),
+    sign_extend = interp2app(BitVector.descr_sign_extend),
 )
 BitVector.typedef.acceptable_as_base_class = False

@@ -305,3 +305,15 @@ def test_bv_binary():
     assert b0 - 0b010010 == b0 - b1
 
     assert ~b0 == _pydrofoil.bitvector(6, 0b001011)
+
+def test_bv_extend():
+    b0 = _pydrofoil.bitvector(6, 0b110100)
+    assert b0.zero_extend(10) == _pydrofoil.bitvector(10, 0b110100)
+    b0 = _pydrofoil.bitvector(6, 0b110100)
+    assert b0.sign_extend(10) == _pydrofoil.bitvector(10, 0b1111110100)
+
+def test_append():
+    b0 = _pydrofoil.bitvector(6, 0b110100)
+    b1 = _pydrofoil.bitvector(4, 0b1100)
+    assert b0 @ b1 == _pydrofoil.bitvector(10, 0b1101001100)
+

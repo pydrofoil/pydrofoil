@@ -691,6 +691,42 @@ class __extend__(BitVector):
     def descr_rxor(self, space, w_other):
         return self.descr_xor(space, w_other)
 
+    def descr_add(self, space, w_other):
+        w_other = self._pypy_coerce(space, w_other, masking_allowed=True)
+        if w_other is None:
+            return space.w_NotImplemented
+        return self.add_bits(w_other)
+
+    def descr_radd(self, space, w_other):
+        return self.descr_add(space, w_other)
+
+    def descr_sub(self, space, w_other):
+        w_other = self._pypy_coerce(space, w_other, masking_allowed=True)
+        if w_other is None:
+            return space.w_NotImplemented
+        return self.sub_bits(w_other)
+
+    def descr_rsub(self, space, w_other):
+        w_other = self._pypy_coerce(space, w_other, masking_allowed=True)
+        if w_other is None:
+            return space.w_NotImplemented
+        return w_other.sub(space, self)
+
+    def descr_invert(self, space):
+        return self.invert()
+
+    def descr_signed(self, space):
+        """ Turn the bitvector into an integer by interpreting it as two's
+        complement. """
+        res = self.signed()
+        return supportcoderiscv.convert_to_pypy_int(space, res)
+
+    def descr_unsigned(self, space):
+        """ Turn the bitvector into an integer by interpreting it as an
+        unsigned integer."""
+        res = self.unsigned()
+        return supportcoderiscv.convert_to_pypy_int(space, res)
+
 @unwrap_spec(width=int, value=r_uint)
 def bitvector_descr_new(w_type, space, width, value):
     return BitVector.from_ruint(width, value)
@@ -709,6 +745,15 @@ BitVector.typedef = TypeDef("bitvector",
     __rand__ = interp2app(BitVector.descr_rand),
     __xor__ = interp2app(BitVector.descr_xor),
     __rxor__ = interp2app(BitVector.descr_rxor),
-)
 
+    __add__ = interp2app(BitVector.descr_add),
+    __radd__ = interp2app(BitVector.descr_radd),
+    __sub__ = interp2app(BitVector.descr_sub),
+    __rsub__ = interp2app(BitVector.descr_rsub),
+
+    __invert__ = interp2app(BitVector.descr_invert),
+
+    signed = interp2app(BitVector.descr_signed),
+    unsigned = interp2app(BitVector.descr_unsigned),
+)
 BitVector.typedef.acceptable_as_base_class = False

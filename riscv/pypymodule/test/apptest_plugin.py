@@ -280,3 +280,28 @@ def test_bv_getitem():
     assert b0[1] == 0
     assert b0[2] == 1
     assert b0[1:3] == _pydrofoil.bitvector(2, 0b10)
+
+def test_bv_signed_unsigned():
+    b0 = _pydrofoil.bitvector(6, 0b110100)
+    assert b0.unsigned() == 0b110100
+    assert b0.signed() == -12
+
+def test_bv_binary():
+    b0 = _pydrofoil.bitvector(6, 0b110100)
+    b1 = _pydrofoil.bitvector(6, 0b010010)
+    assert b0 & b1 == b1 & b0 == _pydrofoil.bitvector(6, 0b010000)
+    assert b0 & 0b010010 == 0b110100 & b1 == b0 & b1
+
+    assert b0 | b1 == b1 | b0 == _pydrofoil.bitvector(6, 0b110110)
+    assert b0 | 0b010010 == 0b110100 | b1 == b0 | b1
+
+    assert b0 ^ b1 == b1 ^ b0 == _pydrofoil.bitvector(6, 0b100110)
+    assert b0 ^ 0b010010 == 0b110100 ^ b1 == b0 ^ b1
+
+    assert b0 + b1 == b1 + b0 == _pydrofoil.bitvector(6, 0b000110)
+    assert b0 + 0b010010 == 0b110100 + b1 == b0 + b1
+
+    assert b0 - b1 == _pydrofoil.bitvector(6, 0b100010)
+    assert b0 - 0b010010 == b0 - b1
+
+    assert ~b0 == _pydrofoil.bitvector(6, 0b001011)

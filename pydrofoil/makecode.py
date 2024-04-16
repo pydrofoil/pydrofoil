@@ -655,8 +655,8 @@ class __extend__(parse.Function):
                 codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             argument_converters = "[" + ", ".join([arg.convert_from_pypy for arg in self.resolved_type.argtype.elements]) + "]"
             result_converter = self.resolved_type.restype.convert_to_pypy
-            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s))" % (
-                pyname, demangle(self.name), pyname, argument_converters, result_converter))
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+                pyname, demangle(self.name), pyname, argument_converters, result_converter, repr(self.resolved_type)))
             self._emit_methods(blocks, codegen)
             return
         codegen.print_debug_msg("making SSA IR")
@@ -686,8 +686,8 @@ class __extend__(parse.Function):
         for block in graph.iterblocks():
             if isinstance(block.next, Return):
                 result_converter = block.next.value.resolved_type.convert_to_pypy
-        codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s))" % (
-            pyname, demangle(graph.name), pyname, argument_converters, result_converter))
+        codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+            pyname, demangle(graph.name), pyname, argument_converters, result_converter, repr(self.resolved_type)))
         codegen.emit()
 
     @contextmanager

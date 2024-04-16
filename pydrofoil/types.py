@@ -140,6 +140,10 @@ class Function(Type):
     def __repr__(self):
         return "%s(%s, %r)" % (type(self).__name__, self.argtype, self.restype)
 
+    def sail_repr(self):
+        return "%s -> %s" % (self.argtype.sail_repr(), self.restype.sail_repr())
+
+
 @unique
 class Tuple(Type):
     def __init__(self, elements):
@@ -147,6 +151,9 @@ class Tuple(Type):
 
     def __repr__(self):
         return "%s(%r)" % (type(self).__name__, self.elements)
+
+    def sail_repr(self):
+        return "(%s)" % (", ".join([el.sail_repr() for el in self.elements]))
 
 
 @unique

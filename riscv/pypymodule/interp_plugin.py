@@ -6,13 +6,14 @@ from pypy.interpreter.baseobjspace import W_Root
 from pypy.interpreter.error import oefmt, oefmt_attribute_error, OperationError
 from pypy.interpreter.typedef import (TypeDef, interp2app, GetSetProperty,
     descr_get_dict, make_weakref_descr)
-from pypy.interpreter.gateway import unwrap_spec
+from pypy.interpreter.gateway import unwrap_spec, interpindirect2app
 from pypy.interpreter.module import Module
 
 from riscv import supportcoderiscv
 
 from pydrofoil import mem as mem_mod
 from pydrofoil.bitvector import BitVector, ruint_mask
+from pydrofoil import types
 
 def _patch_machineclasses(machinecls64=None, machinecls32=None):
     from riscv import supportcoderiscv
@@ -241,14 +242,26 @@ def _make_union_getitem(space, machinecls, subcls):
 
 class W_BoundSailFunction(W_Root):
     def __init__(self, w_machine, func):
-        self.func = func # an insance of SailFunctionAdaptor
+        self.func = func # an instance of SailFunctionAdaptor
         self.w_machine = w_machine
 
     def descr_call(self, space, args_w):
         return self.func.call(space, self.w_machine, args_w)
 
+    def descr_doc(self, space):
+        return space.newtext("""\
+Sail function
+%s
+""" % (self.func.sail_name, ))
+
+    def descr_sail_type(self, space):
+        return self.sail_type
+
+
 W_BoundSailFunction.typedef = TypeDef("sail-function",
     __call__ = interp2app(W_BoundSailFunction.descr_call),
+    __doc__ = GetSetProperty(W_BoundSailFunction.descr_doc),
+    sail_type = GetSetProperty(W_BoundSailFunction.descr_sail_type),
 )
 
 def _init_functions(machinecls, functions):
@@ -289,20 +302,21 @@ def _init_functions(machinecls, functions):
     machinecls.W_Lowlevel = W_Lowlevel
 
 def _make_function(function_info, d, machinecls):
-    pyname, sail_name, func, argument_converters, result_converter = function_info
+    pyname, sail_name, func, argument_converters, result_converter, sail_type_repr = function_info
     adaptor_class = _make_function_adaptor(argument_converters, machinecls)
     def py(space, *args):
         res = func(*args)
         return result_converter(space, res)
     py.func_name += pyname
-    d[sail_name] = adaptor_class(py, sail_name)
+    sail_type = eval(sail_type_repr, types.__dict__)
+    adaptor = d[sail_name] = adaptor_class(py, sail_name, sail_type)
 
 
 class SailFunctionAdaptor(object):
     num_args = -1
     sail_name = ''
     _immutable_ = True
-    _attrs_ = ['num_args', 'sail_name']
+    _attrs_ = ['num_args', 'sail_name', 'sail_type']
 
     def call(self, space, w_machine, args_w):
         if len(args_w) != self.num_args:
@@ -322,9 +336,10 @@ def _make_function_adaptor(argument_converters, machinecls, cache={}):
         _immutable_ = True
         num_args = len(argument_converters)
 
-        def __init__(self, func, sail_name):
+        def __init__(self, func, sail_name, sail_type):
             self.func = func
             self.sail_name = sail_name
+            self.sail_type = sail_type
 
         def _call(self, space, w_machine, args_w):
             assert isinstance(w_machine, machinecls)

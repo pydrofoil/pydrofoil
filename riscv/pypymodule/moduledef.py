@@ -1,5 +1,14 @@
 from pypy.interpreter.mixedmodule import MixedModule
 
+class TypesModule(MixedModule):
+    interpleveldefs = {
+        'SailType': 'interp_types.types.Type',
+        'Function': 'interp_types.types.Function',
+    }
+
+    appleveldefs = {}
+
+
 class Module(MixedModule):
     applevel_name = '_pydrofoil'
 
@@ -12,6 +21,10 @@ class Module(MixedModule):
         'RISCV64': 'interp_plugin.W_RISCV64',
         'RISCV32': 'interp_plugin.W_RISCV32',
         'bitvector': 'interp_plugin.BitVector',
+    }
+
+    submodules = {
+        "types": TypesModule,
     }
 
     def __init__(self, space, w_name):

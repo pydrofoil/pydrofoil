@@ -265,6 +265,16 @@ def test_call_rx_crash():
     with raises(_pydrofoil.SailAssertionError):
         m.lowlevel.rX(100)
 
+def test_sailfunction_doc():
+    m = _pydrofoil.RISCV64()
+    doc = m.lowlevel.encdec_backwards.__doc__
+    assert "encdec_backwards" in doc
+
+def test_sailfunction_type():
+    m = _pydrofoil.RISCV64()
+    typ = m.lowlevel.encdec_backwards.sail_type # exists
+    assert isinstance(typ, _pydrofoil.types.Function)
+
 
 # bitvectors
 

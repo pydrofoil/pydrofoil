@@ -37,11 +37,15 @@ class Type(W_Root):
 @unique
 class Union(Type):
     def __init__(self, name, names, typs):
+        from pydrofoil.mangle import demangle
         self.name = name
+        self.demangled_name = demangle(name)
         self.convert_to_pypy = 'convert_to_pypy_%s' % name
         self.convert_from_pypy = 'convert_from_pypy_%s' % name
         self.names = names
+        self.names_list = [demangle(name) for name in names]
         self.typs = typs
+        self.typs_list = list(typs)
         assert len(self.names) == len(self.typs)
         self.variants = {}
         for name, typ in zip(names, typs):
@@ -135,6 +139,7 @@ class Function(Type):
         assert isinstance(argtype, Type)
         assert isinstance(restype, Type)
         self.argtype = argtype
+        self.argument_list = list(self.argtype.elements)
         self.restype = restype
 
     def __repr__(self):

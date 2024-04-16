@@ -255,7 +255,7 @@ Sail function
 """ % (self.func.sail_name, ))
 
     def descr_sail_type(self, space):
-        return self.sail_type
+        return self.func.sail_type
 
 
 W_BoundSailFunction.typedef = TypeDef("sail-function",

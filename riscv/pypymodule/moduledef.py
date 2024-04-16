@@ -2,8 +2,11 @@ from pypy.interpreter.mixedmodule import MixedModule
 
 class TypesModule(MixedModule):
     interpleveldefs = {
-        'SailType': 'interp_types.types.Type',
-        'Function': 'interp_types.types.Function',
+        'SailType': 'interp_types.Type',
+        'Function': 'interp_types.Function',
+        'SmallFixedBitVector': 'interp_types.SmallFixedBitVector',
+        'Union': 'interp_types.Union',
+        'Struct': 'interp_types.Struct',
     }
 
     appleveldefs = {}

@@ -274,6 +274,15 @@ def test_sailfunction_type():
     m = _pydrofoil.RISCV64()
     typ = m.lowlevel.encdec_backwards.sail_type # exists
     assert isinstance(typ, _pydrofoil.types.Function)
+    assert len(typ.arguments) == 1
+    assert isinstance(typ.arguments[0], _pydrofoil.types.SmallFixedBitVector)
+    assert typ.arguments[0].width == 32
+    assert isinstance(typ.result, _pydrofoil.types.Union)
+    assert typ.result.name == "ast"
+    assert isinstance(typ.result.constructors, list)
+    name, typ = typ.result.constructors[0]
+    assert name == 'ADDIW'
+    assert isinstance(typ, _pydrofoil.types.Struct)
 
 
 # bitvectors

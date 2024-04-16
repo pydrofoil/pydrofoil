@@ -6,7 +6,10 @@ class TypesModule(MixedModule):
         'Function': 'interp_types.Function',
         'SmallFixedBitVector': 'interp_types.SmallFixedBitVector',
         'Union': 'interp_types.Union',
-        'Struct': 'interp_types.Struct',
+        'Struct': 'interp_types.RegularStruct',
+        'Tuple': 'interp_types.TupleStruct',
+        'Bool': 'interp_types.Bool',
+        'Enum': 'interp_types.Enum',
     }
 
     appleveldefs = {}

@@ -1,14 +1,16 @@
+from pydrofoil.mangle import demangle
 from pypy.interpreter.baseobjspace import W_Root
 
 from rpython.tool.pairtype import extendabletype
 
 def unique(cls):
     instances = {}
+    base_new = cls.__new__
     def __new__(cls, *args):
         res = instances.get(args, None)
         if res is not None:
             return res
-        res = object.__new__(cls, *args)
+        res = base_new(cls, *args)
         instances[args] = res
         return res
     cls.__new__ = staticmethod(__new__)
@@ -37,7 +39,6 @@ class Type(W_Root):
 @unique
 class Union(Type):
     def __init__(self, name, names, typs):
-        from pydrofoil.mangle import demangle
         self.name = name
         self.demangled_name = demangle(name)
         self.convert_to_pypy = 'convert_to_pypy_%s' % name
@@ -61,7 +62,9 @@ class Enum(Type):
 
     def __init__(self, name, elements):
         self.name = name
+        self.demangled_name = demangle(name)
         self.elements = elements
+        self.elements_list = [demangle(name) for name in elements]
 
     def sail_repr(self):
         return "enum %s" % (self.name.lstrip('z'), )
@@ -72,16 +75,26 @@ class Enum(Type):
 
 @unique
 class Struct(Type):
+    def __new__(cls, name, names, typs, tuplestruct=False):
+        if tuplestruct:
+            cls = TupleStruct
+        else:
+            cls = RegularStruct
+        return Type.__new__(cls, name, names, typs, tuplestruct)
+
     def __init__(self, name, names, typs, tuplestruct=False):
+        assert type(self) is not Struct
+        assert self.tuplestruct == tuplestruct
         assert isinstance(name, str)
         self.name = name
         self.names = names
+        self.names_list = [demangle(name) for name in names]
         self.typs = typs
+        self.typs_list = list(typs)
         self.fieldtyps = {}
         assert len(names) == len(typs)
         for name, typ in zip(names, typs):
             self.fieldtyps[name] = typ
-        self.tuplestruct = tuplestruct
 
     def sail_repr(self):
         from pydrofoil.mangle import demangle
@@ -96,6 +109,12 @@ class Struct(Type):
         if self.tuplestruct:
             extra = ', True'
         return "%s(%r, %r, %r%s)" % (type(self).__name__, self.name, self.names, self.typs, extra)
+
+class RegularStruct(Struct):
+    tuplestruct = False
+
+class TupleStruct(Struct):
+    tuplestruct = True
 
 @unique
 class Ref(Type):

@@ -76,41 +76,42 @@ def _init_register_names(cls, _all_register_names):
         return setter
     register_info = []
     applevel_register_info = []
-    for (attrname, name, convert_to_pypy, convert_from_pypy, sailrepr) in _all_register_names:
+    for (attrname, name, convert_to_pypy, convert_from_pypy, sail_type_repr) in _all_register_names:
+        sail_type = eval(sail_type_repr, types.__dict__)
         name = name.lower()
         getter = make_getter(attrname, name, convert_to_pypy)
         setter = make_setter(attrname, name, convert_from_pypy)
-        register_info.append((attrname, name, getter, setter, sailrepr))
-        applevel_register_info.append((name, sailrepr))
+        register_info.append((attrname, name, getter, setter, sail_type))
+        applevel_register_info.append((name, sail_type))
 
     unrolling_register_info = unrolling_iterable(register_info)
     @staticmethod
     @jit.elidable
     def lookup_register(space, name):
-        for attrname, pyname, getter, setter, sailrepr in unrolling_register_info:
+        for attrname, pyname, getter, setter, sail_type in unrolling_register_info:
             if pyname == name:
-                return getter, setter, sailrepr
+                return getter, setter, sail_type
         raise oefmt(space.w_ValueError, "register not found")
     cls._lookup_register = lookup_register
 
     def get_register_value(self, name):
         machine = self.machine
         space = self.space
-        getter, _, sailrepr = self._lookup_register(space, name)
+        getter, _, sail_type = self._lookup_register(space, name)
         try:
             return getter(space, self.machine)
         except ValueError:
-            raise oefmt(space.w_TypeError, "could not convert register value to Python object (Sail type %s)", sailrepr)
+            raise oefmt(space.w_TypeError, "could not convert register value to Python object (Sail type %S)", sail_type)
     cls._get_register_value = get_register_value
 
     def set_register_value(self, name, w_value):
         machine = self.machine
         space = self.space
-        _, setter, sailrepr = self._lookup_register(space, name)
+        _, setter, sail_type = self._lookup_register(space, name)
         try:
             setter(space, self.machine, w_value)
         except ValueError:
-            raise oefmt(space.w_TypeError, "could not convert Python object to register value (Sail type %s)", sailrepr)
+            raise oefmt(space.w_TypeError, "could not convert Python object to register value (Sail type %S)", sail_type)
     cls._set_register_value = set_register_value
 
     class State:

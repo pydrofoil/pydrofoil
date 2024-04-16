@@ -264,7 +264,7 @@ class Codegen(specialize.FixpointSpecializer):
             for fieldname, fieldtyp in zip(structtyp.names, structtyp.typs):
                 self.emit("_field_info.append((%r, %s, %s, %r, %r))" % (
                     fieldname, fieldtyp.convert_to_pypy, fieldtyp.convert_from_pypy,
-                    fieldtyp.sail_repr(), demangle(fieldname)))
+                    repr(fieldtyp), demangle(fieldname)))
             with self.emit_indent("def __init__(self, %s):" % ", ".join(structtyp.names)):
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
                     fieldname = "self." + arg
@@ -322,7 +322,7 @@ class Codegen(specialize.FixpointSpecializer):
                 emit_pypy_typ = True
         if emit_pypy_typ:
             self.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
-                pyname, demangle(structtyp.name), pyname, structtyp.sail_repr()))
+                pyname, demangle(structtyp.name), pyname, repr(structtyp)))
 
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
 
@@ -448,7 +448,7 @@ class __extend__(parse.Union):
                 codegen.emit("return arg")
             codegen.add_named_type(self.name, self.pyname, uniontyp, self)
             codegen.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
-                name, demangle(self.name), name, uniontyp.sail_repr()))
+                name, demangle(self.name), name, repr(uniontyp)))
             for name, typ in zip(self.names, self.types):
                 rtyp = typ.resolve_type(codegen)
                 pyname = self.pyname + "_" + name
@@ -457,19 +457,19 @@ class __extend__(parse.Union):
                 with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                     # default field values
                     codegen.emit("_field_info = []")
-                    if type(rtyp) is types.Struct:
+                    if isinstance(rtyp, types.Struct):
                         for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                             codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value))
                             codegen.emit("_field_info.append((%r, %s, %s, %r, %r))" % (
                                 fieldname, fieldtyp.convert_to_pypy, fieldtyp.convert_from_pypy,
-                                fieldtyp.sail_repr(),
+                                repr(fieldtyp),
                                 demangle(fieldname)))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                         codegen.emit("_field_info.append(('a', %s, %s, %r))" % (
                             rtyp.convert_to_pypy,
                             rtyp.convert_from_pypy,
-                            rtyp.sail_repr()))
+                            repr(rtyp)))
                     self.make_init(codegen, rtyp, typ, pyname)
                     self.make_eq(codegen, rtyp, typ, pyname)
                     self.make_convert(codegen, rtyp, typ, pyname)
@@ -500,7 +500,7 @@ class __extend__(parse.Union):
         with codegen.emit_indent("def __init__(self, a):"):
             if rtyp is types.Unit():
                 codegen.emit("pass")
-            elif type(rtyp) is types.Struct:
+            elif isinstance(rtyp, types.Struct):
                 codegen.emit("# %s" % typ)
                 for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                     codegen.emit(fieldtyp.packed_field_copy("self.%s" % fieldname, "a.%s" % (fieldname, )))
@@ -515,7 +515,7 @@ class __extend__(parse.Union):
             if rtyp is types.Unit():
                 codegen.emit("return True")
                 return
-            elif type(rtyp) is types.Struct:
+            elif isinstance(rtyp, types.Struct):
                 codegen.emit("# %s" % typ)
                 for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                     codegen.emit("if %s: return False" % (
@@ -535,7 +535,7 @@ class __extend__(parse.Union):
             with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
                 if rtyp is types.Unit():
                     codegen.emit("return ()")
-                elif type(rtyp) is types.Struct:
+                elif isinstance(rtyp, types.Struct):
                     codegen.emit("res = %s" % rtyp.uninitialized_value)
                     for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                         codegen.emit(fieldtyp.packed_field_copy("res.%s" % fieldname, "inst.%s" % (fieldname, )))
@@ -622,7 +622,7 @@ class __extend__(parse.Register):
             codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
             codegen.emit("Machine._all_register_names.append((%r, %r, %s, %s, %r))" % (
                 self.pyname, demangle(self.name), typ.convert_to_pypy, typ.convert_from_pypy,
-                typ.sail_repr()))
+                repr(typ)))
 
         if self.body is None:
             return

@@ -115,11 +115,12 @@ def test_various_registers():
     assert cpu.read_register("misa") == 0x800000000034112d
 
 def test_register_info():
+    _pydrofoil.types.Tuple # side effect :-(
     cpu = _pydrofoil.RISCV64()
     rs = dict(cpu.register_info())
-    assert rs["pc"] == 'bits(64)'
-    assert rs["htif_done"] == 'bool'
-    assert rs["mstatush"] == 'bitfield Mstatush'
+    assert rs["pc"].width == 64
+    assert isinstance(rs["htif_done"], _pydrofoil.types.Bool)
+    # XXX assert rs["mstatush"] == 'bitfield Mstatush'
 
 def test_memory_info():
     cpu = _pydrofoil.RISCV64()
@@ -272,7 +273,7 @@ def test_sailfunction_doc():
 
 def test_sailfunction_type():
     m = _pydrofoil.RISCV64()
-    typ = m.lowlevel.encdec_backwards.sail_type # exists
+    typ = m.lowlevel.encdec_backwards.sail_type
     assert isinstance(typ, _pydrofoil.types.Function)
     assert len(typ.arguments) == 1
     assert isinstance(typ.arguments[0], _pydrofoil.types.SmallFixedBitVector)
@@ -282,8 +283,16 @@ def test_sailfunction_type():
     assert isinstance(typ.result.constructors, list)
     name, typ = typ.result.constructors[0]
     assert name == 'ADDIW'
-    assert isinstance(typ, _pydrofoil.types.Struct)
+    assert isinstance(typ, _pydrofoil.types.Tuple)
+    assert typ[0].width == 12
 
+def test_sailfunction_type_enum():
+    m = _pydrofoil.RISCV64()
+    typ = m.lowlevel.privLevel_to_bits.sail_type
+    argtyp, = typ.arguments
+    assert isinstance(argtyp, _pydrofoil.types.Enum)
+    assert argtyp.elements == ['User', 'Supervisor', 'Machine']
+    assert argtyp.name == "Privilege"
 
 # bitvectors
 

@@ -87,6 +87,7 @@ class Struct(Type):
         assert self.tuplestruct == tuplestruct
         assert isinstance(name, str)
         self.name = name
+        self.demangled_name = demangle(name)
         self.names = names
         self.names_list = [demangle(name) for name in names]
         self.typs = typs
@@ -239,6 +240,8 @@ class BigFixedBitVector(Type):
 @singleton
 class GenericBitVector(Type):
     uninitialized_value = "bitvector.UNITIALIZED_BV"
+    convert_to_pypy = "supportcode.convert_to_pypy_bitvector"
+    convert_from_pypy = "supportcode.convert_from_pypy_bitvector"
 
     def sail_repr(self):
         return 'bits(?)'

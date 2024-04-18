@@ -41,14 +41,19 @@ Enum.typedef = TypeDef("_pydrofoil.types.Enum", Type.typedef,
 Enum.typedef.acceptable_as_base_class = False
 
 class __extend__(RegularStruct):
-    pass
+    def descr_get_fields(self, space):
+        res_w = [space.newtuple2(space.newtext(name), self.typs_list[index])
+                     for index, name in enumerate(self.names_list)]
+        return space.newlist(res_w)
 RegularStruct.typedef = TypeDef("_pydrofoil.types.Struct", Type.typedef,
+    name = interp_attrproperty("demangled_name", RegularStruct, "the name of the struct type", "newtext"),
+    fields = GetSetProperty(RegularStruct.descr_get_fields),
 )
 RegularStruct.typedef.acceptable_as_base_class = False
 
 class __extend__(TupleStruct):
     def descr_len(self, space):
-        return space.newitem(len(self.typs_list))
+        return space.newint(len(self.typs_list))
 
     @unwrap_spec(index=int)
     def descr_getitem(self, space, index):

@@ -1517,8 +1517,8 @@ def convert_to_pypy_int(space, val):
     return space.newlong_from_rbigint(val.tobigint())
 
 def convert_from_pypy_bitvector(space, w_val):
-    return space.int_w(w_val)
+    return space.interp_w(bitvector.BitVector, w_val)
 
 def convert_to_pypy_bitvector(space, val):
-    return space.newint(val)
+    return val
 

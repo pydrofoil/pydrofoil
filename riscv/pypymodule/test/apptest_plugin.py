@@ -115,11 +115,11 @@ def test_various_registers():
     assert cpu.read_register("misa") == 0x800000000034112d
 
 def test_register_info():
-    _pydrofoil.types.Tuple # side effect :-(
+    _pydrofoil.sailtypes.Tuple # side effect :-(
     cpu = _pydrofoil.RISCV64()
     rs = dict(cpu.register_info())
     assert rs["pc"].width == 64
-    assert isinstance(rs["htif_done"], _pydrofoil.types.Bool)
+    assert isinstance(rs["htif_done"], _pydrofoil.sailtypes.Bool)
     # XXX assert rs["mstatush"] == 'bitfield Mstatush'
 
 def test_memory_info():
@@ -166,6 +166,10 @@ def test_union_types_exist():
     _pydrofoil.RISCV64().types.ADDIW
     _pydrofoil.RISCV64().types.ast
 
+def test_union_types_have_sail_types():
+    cls = _pydrofoil.sailtypes.Union
+    assert isinstance(_pydrofoil.RISCV64().types.ast.sail_type, cls)
+    assert isinstance(_pydrofoil.RISCV64().types.ast.sail_type, cls)
 
 
 def test_union():
@@ -211,11 +215,20 @@ def test_union_enum():
 #    assert c == 5
 
 def test_struct():
-    skip("bitvector support missing")
-    tlb = _pydrofoil.RISCV64().types.TLB_Entry(1, 2, False, 3, 4, 5, 6, 7, 8)
-    assert tlb.age == 8
-    tlb.age = 12
-    assert tlb.age == 12
+    bv = _pydrofoil.bitvector(16, 0xf)
+    tlb = _pydrofoil.RISCV64().types.TLB_Entry(1, bv, False, bv, bv, bv, bv, bv, bv)
+    assert tlb.age == 1
+
+def test_struct_sail_type():
+    cls = _pydrofoil.sailtypes.Struct
+    typ = _pydrofoil.RISCV64().types.TLB_Entry.sail_type
+    assert isinstance(typ, cls)
+    assert typ.name == "TLB_Entry"
+    assert len(typ.fields) == 9
+    fields = dict(typ.fields)
+    assert isinstance(fields['age'], _pydrofoil.sailtypes.SmallFixedBitVector)
+    assert fields['age'].width == 64
+    assert isinstance(fields['asid'], _pydrofoil.sailtypes.GenericBitVector)
 
 def test_tuplestruct():
     m = _pydrofoil.RISCV64()
@@ -274,23 +287,23 @@ def test_sailfunction_doc():
 def test_sailfunction_type():
     m = _pydrofoil.RISCV64()
     typ = m.lowlevel.encdec_backwards.sail_type
-    assert isinstance(typ, _pydrofoil.types.Function)
+    assert isinstance(typ, _pydrofoil.sailtypes.Function)
     assert len(typ.arguments) == 1
-    assert isinstance(typ.arguments[0], _pydrofoil.types.SmallFixedBitVector)
+    assert isinstance(typ.arguments[0], _pydrofoil.sailtypes.SmallFixedBitVector)
     assert typ.arguments[0].width == 32
-    assert isinstance(typ.result, _pydrofoil.types.Union)
+    assert isinstance(typ.result, _pydrofoil.sailtypes.Union)
     assert typ.result.name == "ast"
     assert isinstance(typ.result.constructors, list)
     name, typ = typ.result.constructors[0]
     assert name == 'ADDIW'
-    assert isinstance(typ, _pydrofoil.types.Tuple)
+    assert isinstance(typ, _pydrofoil.sailtypes.Tuple)
     assert typ[0].width == 12
 
 def test_sailfunction_type_enum():
     m = _pydrofoil.RISCV64()
     typ = m.lowlevel.privLevel_to_bits.sail_type
     argtyp, = typ.arguments
-    assert isinstance(argtyp, _pydrofoil.types.Enum)
+    assert isinstance(argtyp, _pydrofoil.sailtypes.Enum)
     assert argtyp.elements == ['User', 'Supervisor', 'Machine']
     assert argtyp.name == "Privilege"
 

@@ -141,13 +141,15 @@ def is_valid_identifier(s):
     return _isidentifier(s)
  
 def invent_python_cls_union(space, w_mod, type_info, machinecls):
-    pyname, sail_name, cls, sail_type = type_info
+    pyname, sail_name, cls, sail_type_repr = type_info
+    sail_type = eval(sail_type_repr, types.__dict__)
     assert pyname.startswith("Union_")
     cls._pypy_union_number_fields = -1
     cls.typedef = TypeDef(sail_name,
         __len__=_make_union_len(space, machinecls, cls),
         __repr__=_make_union_repr(space, machinecls, cls),
         __eq__=_make_union_eq(space, machinecls, cls),
+        sail_type = sail_type
     )
     cls.typedef.acceptable_as_base_class = False
     space.setattr(w_mod, space.newtext(sail_name), space.gettypefor(cls))
@@ -163,17 +165,20 @@ def invent_python_cls_union(space, w_mod, type_info, machinecls):
         space.setattr(w_mod, space.newtext(sub_sail_name), space.gettypefor(subcls))
 
 def invent_python_cls_struct(space, w_mod, type_info, machinecls):
-    pyname, sail_name, cls, sail_type = type_info
+    pyname, sail_name, cls, sail_type_repr = type_info
+    sail_type = eval(sail_type_repr, types.__dict__)
     descr_getitem = _make_union_getitem(space, machinecls, cls)
     def bind(convert, fieldname):
         def get_field(self, space):
+            assert isinstance(self, cls)
             return convert(space, getattr(self, fieldname))
         return get_field
     kwargs = {}
     for index, (fieldname, convert_to, convert_from, sail_repr, sail_fieldname) in enumerate(cls._field_info):
         kwargs[sail_fieldname] = GetSetProperty(bind(convert_to, fieldname), cls=cls)
     cls.typedef = TypeDef(sail_name,
-        __new__=_make_union_new(space, machinecls, cls, sail_type),
+        __new__=_make_union_new(space, machinecls, cls, sail_type.name),
+        sail_type = sail_type,
         **kwargs
     )
     cls.typedef.acceptable_as_base_class = False
@@ -726,7 +731,7 @@ class __extend__(BitVector):
         w_other = self._pypy_coerce(space, w_other, masking_allowed=True)
         if w_other is None:
             return space.w_NotImplemented
-        return w_other.sub(space, self)
+        return w_other.sub_bits(self)
 
     def descr_matmul(self, space, w_other):
         """ Concatenate two bitvectors """

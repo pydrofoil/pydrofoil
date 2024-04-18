@@ -521,7 +521,7 @@ class __extend__(parse.Union):
                     codegen.emit("if %s: return False" % (
                         fieldtyp.make_op_code_special_neq(
                             None,
-                            (rtyp.packed_field_read('self.%s' % fieldname), rtyp.packed_field_read('other.%s' % fieldname)),
+                            (fieldtyp.packed_field_read('self.%s' % fieldname), fieldtyp.packed_field_read('other.%s' % fieldname)),
                             (fieldtyp, fieldtyp), types.Bool())))
             else:
                 codegen.emit("if %s: return False # %s" % (

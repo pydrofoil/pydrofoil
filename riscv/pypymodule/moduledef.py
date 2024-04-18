@@ -5,6 +5,8 @@ class TypesModule(MixedModule):
         'SailType': 'interp_types.Type',
         'Function': 'interp_types.Function',
         'SmallFixedBitVector': 'interp_types.SmallFixedBitVector',
+        'BigFixedBitVector': 'interp_types.BigFixedBitVector',
+        'GenericBitVector': 'interp_types.GenericBitVector',
         'Union': 'interp_types.Union',
         'Struct': 'interp_types.RegularStruct',
         'Tuple': 'interp_types.TupleStruct',
@@ -30,7 +32,7 @@ class Module(MixedModule):
     }
 
     submodules = {
-        "types": TypesModule,
+        "sailtypes": TypesModule,
     }
 
     def __init__(self, space, w_name):

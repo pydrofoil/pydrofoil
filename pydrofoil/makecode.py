@@ -223,6 +223,10 @@ class Codegen(specialize.FixpointSpecializer):
         def emit_extra(graph, codegen):
             with self.emit_indent(first):
                 emit_function_code(graph, None, codegen)
+            argument_converters = "[" + ", ".join([arg.resolved_type.convert_from_pypy for arg in graph.args]) + "]"
+            result_converter = functyp.restype.convert_to_pypy
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+                pyname, demangle(graph.name).replace('speciali\x8cd', 'specialized'), pyname, argument_converters, result_converter, repr(functyp)))
         self.add_graph(graph, emit_extra)
 
     def add_graph(self, graph, emit_function, *args, **kwargs):
@@ -1016,19 +1020,8 @@ class __extend__(parse.FVecType):
 
 class __extend__(parse.TupleType):
     def resolve_type(self, codegen):
+        # tuples are only used for FunctionType arguments now
         typ = types.Tuple(tuple([e.resolve_type(codegen) for e in self.elements]))
-        with codegen.cached_declaration(typ, "Tuple") as pyname:
-            with codegen.emit_indent("class %s(supportcode.ObjectBase): # %s" % (pyname, self)):
-                codegen.emit("@objectmodel.always_inline")
-                with codegen.emit_indent("def eq(self, other):"):
-                    codegen.emit("assert isinstance(other, %s)" % (pyname, ))
-                    for index, fieldtyp in enumerate(self.elements):
-                        rtyp = fieldtyp.resolve_type(codegen)
-                        codegen.emit("if %s: return False # %s" % (
-                            rtyp.make_op_code_special_neq(None, ('self.utup%s' % index, 'other.utup%s' % index), (rtyp, rtyp), types.Bool()), fieldtyp))
-                    codegen.emit("return True")
-            typ.pyname = pyname
-        typ.uninitialized_value = "%s()" % (pyname, )
         return typ
 
 

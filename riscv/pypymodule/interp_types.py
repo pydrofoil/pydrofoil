@@ -1,6 +1,6 @@
 from pypy.interpreter.error import oefmt
 from pypy.interpreter.typedef import (TypeDef, interp2app, GetSetProperty,
-    interp_attrproperty)
+    interp_attrproperty, interp_attrproperty_w)
 from pypy.interpreter.gateway import unwrap_spec
 
 from pydrofoil.mangle import demangle
@@ -72,18 +72,22 @@ TupleStruct.typedef.acceptable_as_base_class = False
 class __extend__(Ref):
     pass
 Ref.typedef = TypeDef("_pydrofoil.types.Ref", Type.typedef,
+    of = interp_attrproperty_w("typ", Ref)
 )
 Ref.typedef.acceptable_as_base_class = False
 
 class __extend__(Vec):
     pass
 Vec.typedef = TypeDef("_pydrofoil.types.Vec", Type.typedef,
+    of = interp_attrproperty_w("typ", Vec)
 )
 Vec.typedef.acceptable_as_base_class = False
 
 class __extend__(FVec):
     pass
 FVec.typedef = TypeDef("_pydrofoil.types.FVec", Type.typedef,
+    of = interp_attrproperty_w("typ", FVec),
+    length = interp_attrproperty("number", FVec, None, "newint"),
 )
 FVec.typedef.acceptable_as_base_class = False
 

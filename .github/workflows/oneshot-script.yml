@@ -32,7 +32,7 @@ jobs:
 
     - name: Add opam2 PPA and install opam (macos)
       run: |
-        brew install opam pkg-config z3
+        brew install opam pkg-config z3 zlib
       if: contains(matrix.os, 'macos')
 
     - name: Init opam

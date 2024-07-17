@@ -6,8 +6,12 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+import os
+import datetime
+year = datetime.now().year
+
 project = 'Pydrofoil'
-copyright = '2023, Pydrofoil Contributors'
+copyright = f'2023-{year}, Pydrofoil Contributors'
 author = 'Pydrofoil Contributors'
 
 # -- General configuration ---------------------------------------------------
@@ -28,3 +32,13 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'furo'
 html_static_path = ['_static']
+
+# Set canonical URL from the Read the Docs Domain
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
+html_context = {}
+
+# Tell Jinja2 templates the build is running on Read the Docs
+if os.environ.get("READTHEDOCS", "") == "True":
+    html_context["READTHEDOCS"] = True
+
+

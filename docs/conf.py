@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 import os
-import datetime
+from datetime import datetime
 year = datetime.now().year
 
 project = 'Pydrofoil'

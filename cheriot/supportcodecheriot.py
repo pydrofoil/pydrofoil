@@ -322,56 +322,11 @@ def plat_term_write_impl(c):
 @specialize.argtype(0)
 def init_sail(machine, elf_entry):
     machine.init_model()
-    init_sail_reset_vector(machine, elf_entry)
+    machine._reg_zPC = r_uint(elf_entry) # boot at elf entry
 
 @specialize.argtype(0)
 def is_32bit_model(machine):
     return True
-
-@specialize.argtype(0)
-def init_sail_reset_vector(machine, entry):
-    RST_VEC_SIZE = 8
-    reset_vec = [ # 32 bit entries
-        r_uint(0x297),                                      # auipc  t0,0x0
-        r_uint(0x28593 + (RST_VEC_SIZE * 4 << 20)),         # addi   a1, t0, &dtb
-        r_uint(0xf1402573),                                 # csrr   a0, mhartid
-        r_uint(0x0182a283)  # lw     t0,24(t0)
-        if is_32bit_model(machine) else
-        r_uint(0x0182b283), # ld     t0,24(t0)
-        r_uint(0x28067),                                    # jr     t0
-        r_uint(0),
-        r_uint(entry & 0xffffffff),
-        r_uint(entry >> 32),
-    ]
-
-
-    rv_rom_base = DEFAULT_RSTVEC
-    addr = r_uint(rv_rom_base)
-    for i, fourbytes in enumerate(reset_vec):
-        for j in range(4):
-            write_mem(machine, addr, fourbytes & 0xff) # little endian
-            addr += 1
-            fourbytes >>= 8
-        assert fourbytes == 0
-    if machine.g.dtb:
-        for i, char in enumerate(machine.g.dtb):
-            write_mem(machine, addr, r_uint(ord(char)))
-            addr += 1
-
-    align = 0x1000
-    # zero-fill to page boundary
-    rom_end = r_uint((addr + align - 1) / align * align)
-    for i in range(intmask(addr), rom_end):
-        write_mem(machine, addr, 0)
-        addr += 1
-
-    # set rom size
-    rv_rom_size = rom_end - rv_rom_base
-    if machine.g.rv_rom_size != rv_rom_size:
-        machine.g.rv_rom_size = rv_rom_size
-
-    # boot at reset vector
-    machine._reg_zPC = r_uint(rv_rom_base)
 
 def parse_dump_file(fn):
     with open(fn) as f:

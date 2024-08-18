@@ -137,6 +137,14 @@ class BitVector(object):
         cut_off = self.size() - i
         return self.subrange(self.size() - 1, cut_off)
 
+    def count_leading_zeros(self):
+        count = 0
+        for i in range(self.size() - 1, -1, -1):
+            if self.read_bit(i):
+                break
+            count += 1
+        return count
+
 
 class SmallBitVector(BitVector):
     _immutable_fields_ = ['val']

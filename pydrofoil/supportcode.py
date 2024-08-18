@@ -465,12 +465,18 @@ def sail_truncate(machine, bv, i):
     return bv.truncate(i)
 
 @unwrap("o i")
+@purefunction
 def sail_truncateLSB(machine, bv, i):
     return bv.truncate_lsb(i)
 
 @purefunction
 def truncate_bv_i(machine, bv, i):
     return _mask(i, bv)
+
+@unwrap("o")
+@purefunction
+def count_leading_zeros(machine, bv):
+    return bitvector.Integer.fromint(bv.count_leading_zeros())
 
 # integers
 

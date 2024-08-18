@@ -1014,8 +1014,22 @@ def test_hypothesis_truncate_lsb(bv, data):
     assert res.size() == truncatewidth
     otherres = bv.rshift(bitwidth - truncatewidth)
     assert otherres.tolong() == res.tolong()
-    print bv, truncatewidth, res, otherres
 
+def test_count_leading_zeros():
+    for c1 in gbv, bv:
+        res = c1(10, 0b1011010100).count_leading_zeros()
+        assert res == 0
+        res = c1(10, 0b0000010100).count_leading_zeros()
+        assert res == 5
+
+@given(bitvectors)
+def test_hypothesis_count_leading_zeros(bv):
+    bitwidth = bv.size()
+    res = bv.count_leading_zeros()
+    assert 0 <= res <= bitwidth
+    as_str = bin(bv.tolong())[2:].rjust(bitwidth, '0')
+    as_str_no_zeros = as_str.lstrip('0')
+    assert res == len(as_str) - len(as_str_no_zeros)
 
 def test_string_of_bits():
     for c in gbv, bv:

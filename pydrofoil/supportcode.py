@@ -107,7 +107,6 @@ make_dummy('platform_barrier')
 make_dummy('print_mem_access')
 make_dummy('print_platform')
 make_dummy('print_reg')
-make_dummy('print_string')
 make_dummy('string_drop')
 make_dummy('string_take')
 make_dummy('string_startswith')
@@ -279,6 +278,10 @@ def not_vec_bv(machine, bva, width):
 
 def print_bits(machine, s, b):
     print s + b.string_of_bits()
+    return ()
+
+def print_string(machine, *args):
+    print " ".join(args)
     return ()
 
 def prerr_bits(machine, s, b):

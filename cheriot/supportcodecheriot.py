@@ -598,10 +598,6 @@ def load_sail(machine, fn):
 # printing
 
 
-def print_string(prefix, msg):
-    print prefix, msg
-    return ()
-
 def print_instr(machine, s):
     if machine.g.config_print_instr:
         print s

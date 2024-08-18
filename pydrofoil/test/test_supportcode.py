@@ -981,6 +981,16 @@ def test_truncate():
         assert res.size() == 6
         assert res.touint() == 0b010100
 
+def test_truncateLSB():
+    for c1 in gbv, bv:
+        res = c1(10, 0b1011010100).truncate_lsb(2)
+        assert res.size() == 2
+        assert res.touint() == 0b10
+        res = c1(10, 0b1011010100).truncate_lsb(6)
+        assert res.size() == 6
+        assert res.touint() == 0b101101
+
+
 @given(bitvectors, strategies.data())
 def test_hypothesis_truncate(bv, data):
     bitwidth = bv.size()
@@ -993,6 +1003,19 @@ def test_hypothesis_truncate(bv, data):
     bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
     res = bv.truncate(truncatewidth)
     assert bin(bv.tolong())[2:].rjust(bitwidth, '0')[-truncatewidth:] == bin(res.tolong())[2:].rjust(truncatewidth, '0')
+
+@given(bitvectors, strategies.data())
+def test_hypothesis_truncate_lsb(bv, data):
+    bitwidth = bv.size()
+    if not data.draw(strategies.booleans()):
+        truncatewidth = data.draw(strategies.integers(1, min(64, bitwidth)))
+    else:
+        truncatewidth = data.draw(strategies.integers(1, bitwidth))
+    res = bv.truncate_lsb(truncatewidth)
+    assert res.size() == truncatewidth
+    otherres = bv.rshift(bitwidth - truncatewidth)
+    assert otherres.tolong() == res.tolong()
+    print bv, truncatewidth, res, otherres
 
 
 def test_string_of_bits():

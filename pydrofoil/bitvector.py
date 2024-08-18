@@ -133,6 +133,10 @@ class BitVector(object):
         else:
             return GenericBitVector(size, data)
 
+    def truncate_lsb(self, i):
+        cut_off = self.size() - i
+        return self.subrange(self.size() - 1, cut_off)
+
 
 class SmallBitVector(BitVector):
     _immutable_fields_ = ['val']

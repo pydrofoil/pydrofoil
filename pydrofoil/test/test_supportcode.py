@@ -999,8 +999,7 @@ def test_hypothesis_truncate(bv, data):
     else:
         truncatewidth = data.draw(strategies.integers(1, bitwidth))
     value = data.draw(strategies.integers(0, 2**bitwidth - 1))
-    as_bit_string = bin(value)[2:]
-    bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    as_bit_string = bin(bv.tolong())[2:]
     res = bv.truncate(truncatewidth)
     assert bin(bv.tolong())[2:].rjust(bitwidth, '0')[-truncatewidth:] == bin(res.tolong())[2:].rjust(truncatewidth, '0')
 

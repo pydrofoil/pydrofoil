@@ -163,12 +163,8 @@ class Globals(object):
 
     def _create_dtb(self):
         from pydrofoil.dtb import DeviceTree
-        if self.rv64:
-            isa_spec = b"rv64imac"
-            mmu_spec = b"sv39"
-        else:
-            isa_spec = b"rv32imac"
-            mmu_spec = b"sv32"
+        isa_spec = b"rv32imac"
+        mmu_spec = b"sv32"
         d = DeviceTree()
         with d.begin_node(b""):
             d.add_property_u32(b"#address-cells", 2)
@@ -262,6 +258,13 @@ def sys_enable_vext(machine, _):
 def sys_enable_writable_fiom(machine, _):
     return machine.g.rv_enable_writable_fiom
 
+def sys_pmp_count(machine, _):
+    return 0 # XXX
+
+def plat_uart_base(machine, _):
+    return 0x10000000 # XXX make configurable or something
+def plat_uart_size(machine, _):
+    return 0x100
 
 # Provides entropy for the scalar cryptography extension.
 def plat_get_16_random_bits(machine, _):
@@ -323,7 +326,7 @@ def init_sail(machine, elf_entry):
 
 @specialize.argtype(0)
 def is_32bit_model(machine):
-    return not machine.rv64
+    return True
 
 @specialize.argtype(0)
 def init_sail_reset_vector(machine, entry):

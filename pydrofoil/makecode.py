@@ -210,8 +210,8 @@ class Codegen(specialize.FixpointSpecializer):
         self.finish_graphs()
         res = ["\n".join(self.declarations)]
         res.append("def let_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
-        res.append("let_init(Machine)")
         res.append("\n".join(self.code))
+        res.append("let_init(Machine)")
         return "\n\n".join(res)
 
     def emit_extra_graph(self, graph, functyp):

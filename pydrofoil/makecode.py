@@ -825,7 +825,11 @@ class __extend__(parse.Let):
     def make_code(self, codegen):
         from pydrofoil.ir import construct_ir, extract_global_value
         pyname = "machine.l.%s" % self.name
-        codegen.add_global(self.name, pyname, self.typ.resolve_type(codegen), self, pyname)
+        if isinstance(self.resolved_type, types.Struct):
+            read_pyname = pyname + ".copy_into()"
+        else:
+            read_pyname = pyname
+        codegen.add_global(self.name, read_pyname, self.typ.resolve_type(codegen), self, pyname)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
             graph = construct_ir(self, codegen, singleblock=True)

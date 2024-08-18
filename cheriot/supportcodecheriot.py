@@ -45,6 +45,14 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
     jit.promote(machine.g).mem.write(addr.touint(), n, data.touint())
     return True
 
+@always_inline
+def read_tag_bool(machine, addr):
+    machine.g.mem.read_tag_bit(addr)
+
+@always_inline
+def write_tag_bool(machine, addr, tag):
+    machine.g.mem.write_tag_bit(addr, tag)
+
 # rough memory layout:
 # | rom | clint | .... | ram <htif inside> ram
 
@@ -534,9 +542,7 @@ def load_sail(machine, fn):
     oldmem = g.mem
     if oldmem:
         oldmem.close()
-    mem1 = mem_mod.FlatMemory(False)
-    mem2 = mem_mod.FlatMemory(False, g.rv_ram_size)
-    mem = mem_mod.SplitMemory(mem1, 0, mem1.size, mem2, g.rv_ram_base, g.rv_ram_size)
+    mem = mem_mod.TaggedBlockMemory()
     g.mem = mem
     with open(fn, "rb") as f:
         entrypoint = elf.elf_read_process_image(mem, f) # load process image

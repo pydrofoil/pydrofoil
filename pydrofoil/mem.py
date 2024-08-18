@@ -277,6 +277,53 @@ class BlockMemory(MemBase):
         block[block_offset] = (olddata & ~mask) | value
 
 
+class TaggedBlockMemory(BlockMemory):
+    def __init__(self):
+        BlockMemory.__init__(self)
+        self.tag_blocks = {}
+        self.last_block_tags = None
+
+    @always_inline
+    def _split_tag_addr(self, addr):
+        block_addr = addr >> self.ADDRESS_BITS_BLOCK
+        block = self.get_tag_block(block_addr)
+        addr = addr & self.BLOCK_MASK
+        block_offset = addr >> 6
+        inword_addr = addr & 0b111111
+        return block, block_offset, inword_addr
+
+    def get_tag_block(self, block_addr):
+        jit.conditional_call(
+            block_addr != self.last_block_tags,
+            TaggedBlockMemory._fetch_and_set_tag_block,
+            self,
+            block_addr
+        )
+        return self.last_block_tags
+
+    def _fetch_and_set_tag_block(self, block_addr):
+        block = self._get_tag_block(block_addr)
+        self.last_block_tags = block
+
+    @jit.elidable
+    def _get_tag_block(self, block_addr):
+        if block_addr in self.tag_blocks:
+            return self.tag_blocks[block_addr]
+        res = self.tag_blocks[block_addr] = [r_uint(0)] * (self.BLOCK_SIZE // 64)
+        return res
+
+    def read_tag_bit(self, addr):
+        block, block_offset, inword_addr = self._split_tag_addr(addr)
+        return bool((block[block_offset] >> inword_addr) & 0b1)
+
+    def write_tag_bit(self, addr, tag):
+        tag = int(bool(tag))
+        block, block_offset, inword_addr = self._split_tag_addr(addr)
+        mask = r_uint(1) << inword_addr
+        olddata = block[block_offset]
+        block[block_offset] = (olddata & ~mask) | (tag << inword_addr)
+
+
 class SplitMemory(MemBase):
     # XXX should be generalized to N segments and auto-generated
 

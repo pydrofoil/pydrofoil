@@ -11,8 +11,12 @@ class TBM(mem.BlockMemory):
     BLOCK_SIZE = 2 ** ADDRESS_BITS_BLOCK
     BLOCK_MASK = BLOCK_SIZE - 1
 
+class TagTBM(mem.TaggedBlockMemory):
+    ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints
+    BLOCK_SIZE = 2 ** ADDRESS_BITS_BLOCK
+    BLOCK_MASK = BLOCK_SIZE - 1
 
-@pytest.mark.parametrize("memcls", [TBM, mem.FlatMemory])
+@pytest.mark.parametrize("memcls", [TBM, TagTBM, mem.FlatMemory])
 def test_mem_write_read(memcls):
     mem = memcls()
     assert mem.read(r_uint(1), 1) == 0
@@ -37,6 +41,22 @@ def test_mem_write_read(memcls):
                 for offset in range(consec):
                     addr = r_uint(base_addr + offset * size)
                     assert mem.read(addr, size) == data[offset]
+    mem.close()
+
+def test_tag_write_read():
+    mem = TagTBM()
+    assert mem.read_tag_bit(r_uint(1)) == 0
+    addresses = range(100) + [TBM.BLOCK_MASK + i for i in range(-100, 100)]
+    # cleck little endianness
+    for base_addr in addresses:
+        for consec in range(1, 20):
+            data = [random.randrange(2) for _ in range(consec)]
+            for offset in range(consec):
+                addr = r_uint(base_addr + offset)
+                mem.write_tag_bit(addr, data[offset])
+            for offset in range(consec):
+                addr = r_uint(base_addr + offset)
+                assert mem.read_tag_bit(addr) == data[offset]
     mem.close()
 
 def test_invalidation_logic():

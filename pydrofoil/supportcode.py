@@ -281,8 +281,17 @@ def print_bits(machine, s, b):
     return ()
 
 def print_string(machine, *args):
-    print " ".join(args)
+    print _tup_join(*args)
     return ()
+
+def _tup_join(*args):
+    if len(args) == 0:
+        return ''
+    if len(args) == 1:
+        return args[0]
+    else:
+        return args[0] + _tup_join(*args[1:])
+
 
 def prerr_bits(machine, s, b):
     os.write(STDERR, "%s%s\n" % (s, b.string_of_bits()))

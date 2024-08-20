@@ -264,7 +264,7 @@ class Codegen(specialize.FixpointSpecializer):
                     fieldname = "self." + arg
                     self.emit(fieldtyp.packed_field_write(fieldname, arg))
                     uninit_arg.append(fieldtyp.uninitialized_value)
-            with self.emit_indent("def copy_into(self, res=None):"):
+            with self.emit_indent("def copy_into(self, machine, res=None):"):
                 self.emit("if res is None: res = objectmodel.instantiate(self.__class__)")
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
                     self.emit(fieldtyp.packed_field_copy("res.%s" % arg, "self.%s" % arg))
@@ -531,6 +531,8 @@ class __extend__(parse.Register):
         else:
             read_pyname = typ.packed_field_read(read_pyname)
             write_pyname = typ.packed_field_write(write_pyname, '%s') # bit too much string processing magic
+        if isinstance(self.resolved_type, types.Struct):
+            read_pyname += ".copy_into(machine)"
 
         codegen.all_registers[self.name] = self
         codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
@@ -826,7 +828,7 @@ class __extend__(parse.Let):
         from pydrofoil.ir import construct_ir, extract_global_value
         pyname = "machine.l.%s" % self.name
         if isinstance(self.resolved_type, types.Struct):
-            read_pyname = pyname + ".copy_into()"
+            read_pyname = pyname + ".copy_into(machine)"
         else:
             read_pyname = pyname
         codegen.add_global(self.name, read_pyname, self.typ.resolve_type(codegen), self, pyname)

@@ -106,6 +106,7 @@ class Globals(object):
     _immutable_fields_ = [
         'config_print_platform?', 'config_print_mem_access?',
         'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?',
+        'config_print_exception?',
         'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
         'rv_rom_base?', 'rv_rom_size?', 'mem?',
         'rv_insns_per_tick?',
@@ -154,6 +155,7 @@ class Globals(object):
         self.config_print_reg = True
         self.config_print_mem_access = True
         self.config_print_platform = True
+        self.config_print_exception = True
         self.config_print_rvfi = False
 
         self.cpu_hz = 1000000000 # 1 GHz

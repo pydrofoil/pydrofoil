@@ -268,6 +268,8 @@ def sys_enable_writable_fiom(machine, _):
 
 def sys_pmp_count(machine, _):
     return 0 # XXX
+def sys_pmp_grain(machine, _):
+    return 0 # XXX
 
 def plat_uart_base(machine, _):
     return 0x10000000 # XXX make configurable or something
@@ -505,6 +507,7 @@ def _main(argv, *machineclasses):
         machine.g.config_print_reg = False
         machine.g.config_print_mem_access = False
         machine.g.config_print_platform = False
+        machine.g.config_print_exception = False
     entry = load_sail(machine, file)
     init_sail(machine, entry)
     if dump_file:
@@ -587,6 +590,8 @@ def get_config_print_mem(machine, _):
     return machine.g.config_print_mem_access
 def get_config_print_platform(machine, _):
     return machine.g.config_print_platform
+def get_config_print_exception(machine, _):
+    return machine.g.config_print_exception
 
 def get_main(outriscv):
     if "g" not in RegistersBase._immutable_fields_:

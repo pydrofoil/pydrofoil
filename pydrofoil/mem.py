@@ -282,6 +282,7 @@ class TaggedBlockMemory(BlockMemory):
         BlockMemory.__init__(self)
         self.tag_blocks = {}
         self.last_block_tags = None
+        self.last_block_addr_tags = r_uint(-1)
 
     @always_inline
     def _split_tag_addr(self, addr):
@@ -294,7 +295,7 @@ class TaggedBlockMemory(BlockMemory):
 
     def get_tag_block(self, block_addr):
         jit.conditional_call(
-            block_addr != self.last_block_tags,
+            block_addr != self.last_block_addr_tags,
             TaggedBlockMemory._fetch_and_set_tag_block,
             self,
             block_addr
@@ -304,12 +305,13 @@ class TaggedBlockMemory(BlockMemory):
     def _fetch_and_set_tag_block(self, block_addr):
         block = self._get_tag_block(block_addr)
         self.last_block_tags = block
+        self.last_block_addr_tags = block_addr
 
     @jit.elidable
     def _get_tag_block(self, block_addr):
         if block_addr in self.tag_blocks:
             return self.tag_blocks[block_addr]
-        res = self.tag_blocks[block_addr] = [r_uint(0)] * (self.BLOCK_SIZE // 64)
+        res = self.tag_blocks[block_addr] = [r_uint(0)] * ((self.BLOCK_SIZE + 63) // 64)
         return res
 
     def read_tag_bit(self, addr):
@@ -317,7 +319,7 @@ class TaggedBlockMemory(BlockMemory):
         return bool((block[block_offset] >> inword_addr) & 0b1)
 
     def write_tag_bit(self, addr, tag):
-        tag = int(bool(tag))
+        tag = r_uint(bool(tag))
         block, block_offset, inword_addr = self._split_tag_addr(addr)
         mask = r_uint(1) << inword_addr
         olddata = block[block_offset]

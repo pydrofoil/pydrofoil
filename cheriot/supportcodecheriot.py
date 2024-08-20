@@ -47,11 +47,11 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
 
 @always_inline
 def read_tag_bool(machine, addr):
-    machine.g.mem.read_tag_bit(addr)
+    return machine.g.mem.read_tag_bit(addr)
 
 @always_inline
 def write_tag_bool(machine, addr, tag):
-    machine.g.mem.write_tag_bit(addr, tag)
+    return machine.g.mem.write_tag_bit(addr, tag)
 
 # rough memory layout:
 # | rom | clint | .... | ram <htif inside> ram

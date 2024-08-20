@@ -1,10 +1,14 @@
 import pytest
 
+import sys
 import os
 import random
+from collections import defaultdict
 from pydrofoil import mem
 from rpython.rlib.rarithmetic import r_uint, intmask
 
+from hypothesis import given, assume, strategies, settings
+from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule
 
 class TBM(mem.BlockMemory):
     ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints
@@ -12,7 +16,7 @@ class TBM(mem.BlockMemory):
     BLOCK_MASK = BLOCK_SIZE - 1
 
 class TagTBM(mem.TaggedBlockMemory):
-    ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints
+    ADDRESS_BITS_BLOCK = 4 # to flush out corner cases and have less massive prints
     BLOCK_SIZE = 2 ** ADDRESS_BITS_BLOCK
     BLOCK_MASK = BLOCK_SIZE - 1
 
@@ -58,6 +62,40 @@ def test_tag_write_read():
                 addr = r_uint(base_addr + offset)
                 assert mem.read_tag_bit(addr) == data[offset]
     mem.close()
+
+
+ints = strategies.integers(-sys.maxint-1, sys.maxint)
+uints = strategies.builds(
+        r_uint, ints)
+
+class MemComparison(RuleBasedStateMachine):
+    def __init__(self):
+        RuleBasedStateMachine.__init__(self)
+        self.mem = TagTBM()
+        self.model = defaultdict(bool)
+
+    addresses = Bundle("addresses")
+
+    @rule(target=addresses, addr=uints)
+    def add_address(self, addr):
+        return addr
+
+    @rule(addr=addresses)
+    def write_true_tag(self, addr):
+        self.model[addr] = True
+        self.mem.write_tag_bit(addr, True)
+
+    @rule(addr=addresses)
+    def write_false_tag(self, addr):
+        self.model[addr] = False
+        self.mem.write_tag_bit(addr, False)
+
+    @rule(addr=addresses)
+    def tagvalue_agrees(self, addr):
+        assert self.mem.read_tag_bit(addr) == self.model[addr]
+
+
+TestMem = MemComparison.TestCase
 
 def test_invalidation_logic():
     m = mem.FlatMemory()

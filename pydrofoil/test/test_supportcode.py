@@ -1551,7 +1551,7 @@ def test_sparse_hypothesis_truncate(data):
 @given(strategies.data())
 def test_sparse_hypothesis_vector_subrange(data):
     bitwidth = data.draw(strategies.integers(65, 10000))
-    # TODO m- n + 1 = 64 wont work
+    # TODO m- n + 1 = 64 won't work
     lower = data.draw(strategies.integers(0, 62))
     upper = data.draw(strategies.integers(lower, 62))
     value = data.draw(strategies.integers(0, 2**63 - 1))

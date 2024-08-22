@@ -38,12 +38,12 @@ jobs:
     - name: Init opam
       run: opam init --disable-sandboxing -y
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: riscv/sail-riscv
         ref: 23f18200b771174e601fb58e7a857291fb32d063
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         path: pydrofoil
       name: Pre-emptively checkout pydrofoil to get the correct branch

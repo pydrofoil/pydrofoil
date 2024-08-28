@@ -3992,6 +3992,21 @@ block0.next = Return(a, None)
 graph = Graph('f', [a], block0)
 ''')
 
+def test_truncate_unwrapped_res():
+    x = Argument('x', GenericBitVector())
+    block0 = Block()
+    i40 = block0.emit(Operation, '@sail_truncate_o_i', [x, MachineIntConstant(33)], GenericBitVector(), '`8 419:26-419:81', 'zz412')
+    i41 = block0.emit(Cast, '$cast', [i40], SmallFixedBitVector(33), '`8 419:26-419:81', 'zz49')
+    block0.next = Return(i41, None)
+    graph = Graph('g', [x], block0)
+    check_optimize(graph, """\
+x = Argument('x', GenericBitVector())
+block0 = Block()
+i1 = block0.emit(Operation, '@truncate_unwrapped_res', [x, MachineIntConstant(33)], SmallFixedBitVector(33), '`8 419:26-419:81', 'zz412')
+block0.next = Return(i1, None)
+graph = Graph('g', [x], block0)
+""")
+
 def test_getcapboundsbits():
     zc = Argument('zc', Struct('zCapability', ('zB', 'zE', 'zT', 'zaccess_system_regs', 'zaddress', 'zglobal', 'zotype', 'zperm_user0', 'zpermit_execute', 'zpermit_load', 'zpermit_load_global', 'zpermit_load_mutable', 'zpermit_load_store_cap', 'zpermit_seal', 'zpermit_store', 'zpermit_store_local_cap', 'zpermit_unseal', 'zreserved', 'ztag'), (SmallFixedBitVector(9), SmallFixedBitVector(5), SmallFixedBitVector(9), Bool(), SmallFixedBitVector(32), Bool(), SmallFixedBitVector(4), Bool(), Bool(), Bool(), Bool(), Bool(), Bool(), Bool(), Bool(), Bool(), Bool(), SmallFixedBitVector(1), Bool())))
     block0 = Block()

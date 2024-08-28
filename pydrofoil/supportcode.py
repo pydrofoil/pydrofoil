@@ -473,6 +473,10 @@ def undefined_bitvector(machine, num):
 def sail_truncate(machine, bv, i):
     return bv.truncate(i)
 
+@purefunction
+def truncate_unwrapped_res(machine, bv, length):
+    return bv.subrange_unwrapped_res(length - 1, 0)
+
 @unwrap("o i")
 @purefunction
 def sail_truncateLSB(machine, bv, i):

@@ -94,6 +94,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@shiftr_bv_i", "supportcode.shiftr_bv_i")
         self.add_global("@arith_shiftr_bv_i", "supportcode.arith_shiftr_bv_i")
         self.add_global("@length_unwrapped_res", "supportcode.length_unwrapped_res")
+        self.add_global("@truncate_unwrapped_res", "supportcode.truncate_unwrapped_res")
         self.add_global("@truncate_bv_i", "supportcode.truncate_bv_i")
         self.add_global("@replicate_bv_i_i", "supportcode.replicate_bv_i_i")
         self.add_global("@platform_read_mem_o_i_bv_i", "supportcode.platform_read_mem_o_i_bv_i")

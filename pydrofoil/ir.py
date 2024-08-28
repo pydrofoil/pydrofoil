@@ -3764,20 +3764,32 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_sail_truncate_o_i(self, op):
         arg0, arg1 = self._args(op)
-        arg0, typ = self._extract_smallfixedbitvector(arg0)
         num = self._extract_number(arg1)
-        if typ.width < num.number:
-            return
-        if typ.width == num.number:
-            newop = arg0
-        else:
+        try:
+            arg0, typ = self._extract_smallfixedbitvector(arg0)
+        except NoMatchException:
+            if num.number > 64:
+                return
             newop = self.newop(
-                "@truncate_bv_i",
+                "@truncate_unwrapped_res",
                 [arg0, num],
                 types.SmallFixedBitVector(num.number),
                 op.sourcepos,
                 op.varname_hint
             )
+        else:
+            if typ.width < num.number:
+                return
+            if typ.width == num.number:
+                newop = arg0
+            else:
+                newop = self.newop(
+                    "@truncate_bv_i",
+                    [arg0, num],
+                    types.SmallFixedBitVector(num.number),
+                    op.sourcepos,
+                    op.varname_hint
+                )
         return self.newcast(newop, op.resolved_type)
 
     @symmetric

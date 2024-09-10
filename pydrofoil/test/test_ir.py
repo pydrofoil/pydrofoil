@@ -4066,4 +4066,32 @@ def test_getcapboundsbits():
     block5.next = Goto(block4, None)
     block6.next = Goto(block2, None)
     graph = Graph('zgetCapBoundsBits', [zc], block0)
-    graph.view()
+    # notes:
+    # we can replace the append with:
+    # size1 = length_unwrapped_res(arg1)
+    # size2 = length_unwrapped_res(arg2)
+    # targetsize = add_i_i_must_fit(size1, size2)
+    # arg1e = zero_extend(arg1, targetsize)
+    # arg2e = zero_extend(arg2, targetsize)
+    # arg1eshifted = shiftl(arg1e, size2)
+    # res = or_bits(arg1eshifted, arg2e)
+
+    # in the current situation:
+    # 
+    # i23 = block4.emit(Operation, '@add_bits_int_bv_i', [i22, MachineIntConstant(32), i11], SmallFixedBitVector(32), '`8 418:37-418:48', 'zz435')
+    # i24 = block4.emit(Cast, '$cast', [i23], GenericBitVector(), None, None)
+    # i25 = block4.emit(FieldAccess, 'zB', [zc], SmallFixedBitVector(9), None, None)
+    # i26 = block4.emit(Comment, 'inlined zzzeros_implicit', [], Unit(), None, None)
+    # i27 = block4.emit(Operation, '@zeros_i', [i2], GenericBitVector(), '`4 99:30-99:43', 'return')
+    # i28 = block4.emit(Cast, '$cast', [i25], GenericBitVector(), '`8 418:52-418:66', 'zz431')
+    # replacing the append:
+    # i29 = block4.emit(Operation, 'append', [i28, i27], GenericBitVector(), '`8 418:52-418:66', 'zz427')
+    # we get size1 = 9 statically and size2 = i2, with 0 <= i2 < 32
+    # targetsize is 9 + i2, which is between 9 <= targetsize < 41
+    # i30 = block4.emit(Operation, 'append', [i24, i29], GenericBitVector(), '`8 418:36-418:66', 'zz423')
+    # i31 = block4.emit(Operation, '@sail_truncate_o_i', [i30, MachineIntConstant(32)], GenericBitVector(), '`8 418:27-418:83', 'zz425')
+    check_optimize(graph, """\
+zb = Argument('zb', SmallFixedBitVector(1))
+block0 = Block()
+block0.next = Return(zb, '')
+graph = Graph('f', [zb], block0)""")

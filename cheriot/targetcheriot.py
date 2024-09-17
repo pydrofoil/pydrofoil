@@ -31,7 +31,6 @@ def make_code():
 def target(driver, cmdlineargs):
     import py
     if driver is not None:
-        driver.config.translation.suggest(jit_opencoder_model="big")
         driver.config.translation.suggest(output="pydrofoil-cheriot")
     main = make_code()
     print "translating to C!"

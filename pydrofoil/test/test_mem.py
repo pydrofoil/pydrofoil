@@ -80,17 +80,6 @@ class MemComparison(RuleBasedStateMachine):
     addresses = Bundle("addresses")
     values = Bundle("values")
 
-    @initialize(cls=strategies.sampled_from([TagTBM]))
-    def init(self, cls):
-        RuleBasedStateMachine.__init__(self)
-        self.mem = cls()
-        self.model = defaultdict(r_uint)
-        self.tag_model = defaultdict(bool)
-
-    @rule(target=addresses, addr=uints)
-    def add_address(self, addr):
-        return addr
-
     @rule(target=values, value=memvalues())
     def add_values(self, value):
         return value
@@ -130,7 +119,34 @@ class MemComparison(RuleBasedStateMachine):
         assert value == self.mem.read(addr, size)
 
 
-TestMem = MemComparison.TestCase
+
+class BlockMemComparison(MemComparison):
+    def __init__(self):
+        RuleBasedStateMachine.__init__(self)
+        self.mem = TagTBM()
+        self.model = defaultdict(r_uint)
+        self.tag_model = defaultdict(bool)
+
+    @rule(target=MemComparison.addresses, addr=uints)
+    def add_address(self, addr):
+        return addr
+TestBlockMem = BlockMemComparison.TestCase
+
+class FlatMemComparison(MemComparison):
+    BASE = 0x80000000
+    SIZE = 256 * 1024 // 8 # 256KiB
+
+    def __init__(self):
+        RuleBasedStateMachine.__init__(self)
+        self.mem = mem.TaggedFlatMemory(size=self.SIZE, base_addr=self.BASE)
+        self.model = defaultdict(r_uint)
+        self.tag_model = defaultdict(bool)
+
+    @rule(target=MemComparison.addresses, addr=strategies.integers(BASE, BASE+SIZE-8-1))
+    def add_address(self, addr):
+        return addr
+TestFlatMem = FlatMemComparison.TestCase
+
 
 def test_invalidation_logic():
     m = mem.FlatMemory()

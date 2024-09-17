@@ -74,9 +74,9 @@ class FlatMemory(MemBase):
     PAGE_SIZE = 1 << 9
     PAGE_MASK = PAGE_SIZE - 1
 
-    _immutable_fields_ = ['mem?', 'version?', 'status']
+    _immutable_fields_ = ['mem?', 'version?', 'status', 'base_addr']
 
-    def __init__(self, mmap=False, size=SIZE):
+    def __init__(self, mmap=False, size=SIZE, base_addr=0):
         self.size = size
         if mmap:
             if we_are_translated():
@@ -97,6 +97,7 @@ class FlatMemory(MemBase):
         self.version = Version()
 
         self.mmap = mmap
+        self.base_addr = base_addr
 
     def close(self):
         if not self.mmap:
@@ -110,6 +111,7 @@ class FlatMemory(MemBase):
 
     @always_inline
     def _split_addr(self, start_addr, num_bytes):
+        start_addr -= self.base_addr
         mem_offset = start_addr >> 3
         inword_addr = start_addr & 0b111
         # little endian
@@ -186,6 +188,23 @@ class FlatMemory(MemBase):
             return
         #print "mark_word_immutable", mem_offset
         self.status[mem_offset] = MEM_STATUS_IMMUTABLE
+
+
+class TaggedFlatMemory(FlatMemory):
+    def __init__(self, mmap=False, size=FlatMemory.SIZE, base_addr=0):
+        FlatMemory.__init__(self, mmap, size, base_addr)
+        self.tags = ['\x00'] * len(self.mem)
+
+    def read_tag_bit(self, addr):
+        mem_offset, inword_addr, _ = self._split_addr(addr, 1)
+        data = ord(self.tags[mem_offset])
+        return bool((data >> inword_addr) & 1)
+
+    def write_tag_bit(self, addr, tag):
+        mem_offset, inword_addr, _ = self._split_addr(addr, 1)
+        mask = r_uint(1) << inword_addr
+        olddata = ord(self.tags[mem_offset])
+        self.tags[mem_offset] = chr((olddata & ~mask) | (tag << inword_addr))
 
 
 class BlockMemory(MemBase):

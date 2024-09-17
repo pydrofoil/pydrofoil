@@ -1819,6 +1819,16 @@ def test_prepend_small_hypothesis(a, b):
     assert res1.tolong() == res2.tolong()
     assert res1.size() == res2.size()
 
+@given(small_bitvectors, bitvectors, strategies.integers(1, 64))
+def test_prepend_small_then_truncate_hypothesis(a, b, targetsize):
+    sa = a.size()
+    ua = a.touint()
+    lb = b.tolong()
+    assume(sa + b.size() >= targetsize)
+    res1 = b.prepend_small_then_truncate_unwrapped_res(sa, ua, targetsize)
+    res2 = b.prepend_small(sa, ua).truncate(targetsize)
+    assert res1 == res2.touint()
+
 @given(bitvectors, uints)
 def test_append_64_hypothesis(a, b):
     la = a.tolong()

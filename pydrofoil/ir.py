@@ -3812,6 +3812,25 @@ class LocalOptimizer(BaseOptimizer):
                 )
         return self.newcast(newop, op.resolved_type)
 
+    def optimize_truncate_unwrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        if not isinstance(arg0, Operation) or not arg0.name == '@bitvector_concat_bv_gbv_wrapped_res':
+            return
+        arg1 = self._extract_number(arg1)
+        if arg1.number > 64:
+            return
+        subarg0, subarg1, subarg2 = self._args(arg0)
+        return self.newcast(
+            self.newop(
+                "@bitvector_concat_bv_gbv_truncate_to",
+                [subarg0, subarg1, subarg2, arg1],
+                types.SmallFixedBitVector(arg1.number),
+                arg0.sourcepos,
+                arg0.varname_hint,
+            ),
+            op.resolved_type
+        )
+
     @symmetric
     def optimize_eq_bool(self, op, arg0, arg1):
         if not isinstance(arg0, BooleanConstant):

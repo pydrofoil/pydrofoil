@@ -129,6 +129,15 @@ class BitVector(object):
         other = from_ruint(size, ui)
         return other.append(self)
 
+    def prepend_small_then_truncate_unwrapped_res(self, size, ui, targetsize):
+        # default implementation
+        assert targetsize <= 64
+        assert targetsize <= size + self.size()
+        other = from_ruint(size, ui)
+        res = other.append(self).truncate(targetsize)
+        assert isinstance(res, SmallBitVector)
+        return res.touint()
+
     def lshift_bits(self, other):
         return self.lshift(other.toint())
 
@@ -350,6 +359,14 @@ class SmallBitVector(BitVector):
         if ressize > 64:
             return BitVector.prepend_small(self, size, ui)
         return from_ruint(ressize, (ui << self.size()) | self.val)
+
+    def prepend_small_then_truncate_unwrapped_res(self, size, ui, targetsize):
+        ressize = size + self.size()
+        if ressize > 64:
+            return BitVector.prepend_small_then_truncate_unwrapped_res(self, size, ui, targetsize)
+        assert targetsize <= 64
+        assert targetsize <= ressize
+        return ruint_mask(targetsize, (ui << self.size()) | self.val)
 
     def replicate(self, i):
         size = self.size()

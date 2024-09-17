@@ -8,7 +8,7 @@ from pydrofoil import mem
 from rpython.rlib.rarithmetic import r_uint, intmask
 
 from hypothesis import given, assume, strategies, settings
-from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule
+from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule, initialize
 
 class TBM(mem.BlockMemory):
     ADDRESS_BITS_BLOCK = 7 # to flush out corner cases and have less massive prints
@@ -68,31 +68,66 @@ ints = strategies.integers(-sys.maxint-1, sys.maxint)
 uints = strategies.builds(
         r_uint, ints)
 
-class MemComparison(RuleBasedStateMachine):
-    def __init__(self):
-        RuleBasedStateMachine.__init__(self)
-        self.mem = TagTBM()
-        self.model = defaultdict(bool)
+sizes = strategies.sampled_from([1, 2, 4, 8])
 
+@strategies.composite
+def memvalues(draw):
+    size = draw(sizes)
+    value = r_uint(draw(strategies.integers(0, 2**(size * 8) - 1)))
+    return (size, value)
+
+class MemComparison(RuleBasedStateMachine):
     addresses = Bundle("addresses")
+    values = Bundle("values")
+
+    @initialize(cls=strategies.sampled_from([TagTBM]))
+    def init(self, cls):
+        RuleBasedStateMachine.__init__(self)
+        self.mem = cls()
+        self.model = defaultdict(r_uint)
+        self.tag_model = defaultdict(bool)
 
     @rule(target=addresses, addr=uints)
     def add_address(self, addr):
         return addr
 
+    @rule(target=values, value=memvalues())
+    def add_values(self, value):
+        return value
+
     @rule(addr=addresses)
     def write_true_tag(self, addr):
-        self.model[addr] = True
+        self.tag_model[addr] = True
         self.mem.write_tag_bit(addr, True)
 
     @rule(addr=addresses)
     def write_false_tag(self, addr):
-        self.model[addr] = False
+        self.tag_model[addr] = False
         self.mem.write_tag_bit(addr, False)
 
     @rule(addr=addresses)
     def tagvalue_agrees(self, addr):
-        assert self.mem.read_tag_bit(addr) == self.model[addr]
+        assert self.mem.read_tag_bit(addr) == self.tag_model[addr]
+
+    @rule(addr=addresses, value=values)
+    def write_value(self, addr, value):
+        size, value = value
+        self.mem.write(addr, size, value)
+        assert self.mem.read(addr, size) == value
+        for offset in range(size):
+            self.model
+        for i in range(size):
+            self.model[addr + i] = value & 0xff
+            value = value >> 8
+        assert not value
+
+    @rule(addr=addresses, size=sizes)
+    def value_agrees(self, addr, size):
+        value = r_uint(0)
+        for i in range(size - 1, -1, -1):
+            value = value << 8
+            value = value | self.model[addr + i]
+        assert value == self.mem.read(addr, size)
 
 
 TestMem = MemComparison.TestCase

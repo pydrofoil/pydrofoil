@@ -355,6 +355,10 @@ def bitvector_concat_bv_bv(machine, bv1, width, bv2):
     return (bv1 << width) | bv2
 
 @purefunction
+def bitvector_concat_bv_gbv_wrapped_res(machine, bv1, width, gbv):
+    return gbv.prepend_small(width, bv1)
+
+@purefunction
 def append_64(machine, bv, v):
     return bv.append_64(v)
 

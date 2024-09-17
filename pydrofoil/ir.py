@@ -2844,14 +2844,24 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_append(self, op):
         arg0, arg1 = self._args(op)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        reswidth = typ0.width + typ1.width
+        return self.newop(
+            "@bitvector_concat_bv_gbv_wrapped_res",
+            [arg0, MachineIntConstant(typ0.width), arg1],
+            types.GenericBitVector(),
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_bitvector_concat_bv_gbv_wrapped_res(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        arg2, typ2 = self._extract_smallfixedbitvector(arg2)
+        reswidth = self._extract_machineint(arg1).number + typ2.width
         if reswidth > 64:
             return
         res = self.newcast(
             self.newop(
                 "@bitvector_concat_bv_bv",
-                [arg0, MachineIntConstant(typ1.width), arg1],
+                [arg0, MachineIntConstant(typ2.width), arg2],
                 types.SmallFixedBitVector(reswidth),
                 op.sourcepos,
                 op.varname_hint,

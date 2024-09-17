@@ -117,6 +117,11 @@ class BitVector(object):
     def append_64(self, ui):
         raise NotImplementedError("abstract base class")
 
+    def prepend_small(self, size, ui):
+        # default implementation
+        other = from_ruint(size, ui)
+        return other.append(self)
+
     def lshift_bits(self, other):
         return self.lshift(other.toint())
 
@@ -331,6 +336,13 @@ class SmallBitVector(BitVector):
         if ressize > 64 or not isinstance(other, SmallBitVector):
             return BitVector.append(self, other)
         return from_ruint(ressize, (self.val << other.size()) | other.val)
+
+    def prepend_small(self, size, ui):
+        # default implementation
+        ressize = size + self.size()
+        if ressize > 64:
+            return BitVector.prepend_small(self, size, ui)
+        return from_ruint(ressize, (ui << self.size()) | self.val)
 
     def replicate(self, i):
         size = self.size()

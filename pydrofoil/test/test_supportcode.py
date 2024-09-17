@@ -154,6 +154,10 @@ def make_bitvector(data, width=-1):
         else:
             return _make_generic_bitvector(data, width)
 
+small_bitvectors = strategies.builds(
+    _make_small_bitvector,
+    strategies.data())
+
 bitvectors = strategies.builds(
     make_bitvector,
     strategies.data())
@@ -1804,6 +1808,16 @@ def test_append_hypothesis(a, b):
     res = a.append(b)
     lres = res.tolong()
     assert lres == (la << b.size()) | lb
+
+@given(small_bitvectors, bitvectors)
+def test_prepend_small_hypothesis(a, b):
+    sa = a.size()
+    ua = a.touint()
+    lb = b.tolong()
+    res1 = b.prepend_small(sa, ua)
+    res2 = a.append(b)
+    assert res1.tolong() == res2.tolong()
+    assert res1.size() == res2.size()
 
 @given(bitvectors, uints)
 def test_append_64_hypothesis(a, b):

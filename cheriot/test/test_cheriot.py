@@ -36,5 +36,5 @@ def cheriotmain():
 
 @pytest.mark.parametrize("elf", elfs)
 def test_full_cheriot(cheriotmain, elf):
-    cheriotmain(['executable', elf, "--verbose"])
+    cheriotmain(['executable', elf])
 

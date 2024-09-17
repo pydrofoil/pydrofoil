@@ -530,12 +530,14 @@ class __extend__(parse.Register):
         read_pyname = write_pyname = "machine.%s" % self.pyname
         if self.name in codegen.promoted_registers:
             read_pyname = "jit.promote(%s)" % write_pyname
+        elif isinstance(typ, types.Struct):
+            read_pyname += ".copy_into(machine)"
+            register_ref_name = self.make_register_ref(codegen, read_pyname)
+            read_pyname = "%s.deref(machine)" % (register_ref_name, )
+            write_pyname = "%s.update_with(machine, %%s)" % (register_ref_name, )
         else:
             read_pyname = typ.packed_field_read(read_pyname)
             write_pyname = typ.packed_field_write(write_pyname, '%s') # bit too much string processing magic
-        if isinstance(self.resolved_type, types.Struct):
-            read_pyname += ".copy_into(machine)"
-
         codegen.all_registers[self.name] = self
         codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
         with codegen.emit_code_type("declarations"):
@@ -546,6 +548,18 @@ class __extend__(parse.Register):
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             graph = construct_ir(self, codegen, singleblock=True)
             emit_function_code(graph, self, codegen)
+
+    def make_register_ref(self, codegen, read_pyname):
+        name = "ref_%s" % (self.pyname, )
+        with codegen.cached_declaration(self.name, name) as pyname:
+            with codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
+                with codegen.emit_indent("def deref(self, machine):"):
+                    codegen.emit("return %s" % (read_pyname, ))
+                with codegen.emit_indent("def update_with(self, machine, res):"):
+                    codegen.emit("machine.%s = res.copy_into(machine)" % (self.pyname, ))
+            codegen.emit("%s = %s() # singleton" % (pyname, pyname))
+            self.register_ref_name = pyname
+        return pyname
 
 def iterblockops(blocks):
     for blockpc, block in sorted(blocks.items()):

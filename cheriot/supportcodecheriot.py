@@ -601,18 +601,19 @@ def get_main(outriscv):
 
     Globals._pydrofoil_enum_read_ifetch_value = outriscv.Enum_zread_kind.zRead_ifetch
 
-    prefix = "rv32"
+    prefix = "cheriot"
 
-    def get_printable_location(pc, do_show_times, insn_limit, tick, g):
+    def get_printable_location(pc, do_show_times, insn_limit, tick, pcc_bits, g):
         if tick:
             return "TICK 0x%x" % (pc, )
         if g.dump_dict and pc in g.dump_dict:
             return "%s 0x%x: %s" % (prefix, pc, g.dump_dict[pc])
+        return outriscv.func_zcapToString(None, outriscv.func_zcapBitsToCapability(None, True, pcc_bits))
         return hex(pc)
 
     driver = JitDriver(
         get_printable_location=get_printable_location,
-        greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'g'],
+        greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'pcc_bits', 'g'],
         reds=['step_no', 'insn_cnt', 'machine'],
         virtualizables=['machine'],
         name=prefix,
@@ -651,11 +652,14 @@ def get_main(outriscv):
             self.g.interval_start = self.g.total_start = time.time()
             prev_pc = 0
             g = self.g
+            pcc_bits = outriscv.func_zcapToBits(self, self._reg_zPCC)
 
             while 1:
                 driver.jit_merge_point(pc=self._reg_zPC, tick=tick,
                         insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
-                        do_show_times=do_show_times, machine=self, g=g)
+                        do_show_times=do_show_times, machine=self, g=g, pcc_bits=pcc_bits)
+
+
                 if self._reg_zhtif_done or not (insn_limit == 0 or step_no < insn_limit):
                     break
                 jit.promote(self.g)
@@ -670,8 +674,13 @@ def get_main(outriscv):
                         print "kips:", 0x100000 / 1000. / (curr - g.interval_start)
                         g.interval_start = curr
                     tick = False
+                    pcc_bits = outriscv.func_zcapToBits(self, self._reg_zPCC)
                     continue
                 # run a Sail step
+
+                # transfer the knowledge from the green pcc_bits to the real pcc register
+                self._reg_zPCC = outriscv.func_zcapBitsToCapability(self, True, pcc_bits)
+
                 prev_pc = self._reg_zPC
                 stepped = self.step(Integer.fromint(step_no))
                 if self.have_exception:
@@ -695,9 +704,13 @@ def get_main(outriscv):
                         if p.c_value < 0:
                             # ctrl-c was pressed
                             break
+                    pcc_bits = outriscv.func_zcapToBits(self, self._reg_zPCC)
                     driver.can_enter_jit(pc=self._reg_zPC, tick=tick,
                             insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
-                            do_show_times=do_show_times, machine=self, g=g)
+                            do_show_times=do_show_times, machine=self, g=g, pcc_bits=pcc_bits)
+                    continue
+                pcc_bits = outriscv.func_zcapToBits(self, self._reg_zPCC)
+
             # loop end
 
             interval_end = time.time()

@@ -254,7 +254,7 @@ class CodeEmitter(object):
         self.codegen.emit(write)
 
     def emit_op_RefAssignment(self, op):
-        self.codegen.emit("%s.copy_into(machine, %s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
+        self.codegen.emit("%s.update_with(machine, %s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
 
     def emit_op_Allocate(self, op):
         self._op_helper(op, op.resolved_type.uninitialized_value)
@@ -264,15 +264,16 @@ class CodeEmitter(object):
         assert isinstance(arg, ir.GlobalRead)
         regname = arg.name
         register = self.codegen.all_registers[regname]
-        name = "ref_%s" % (regname, )
-        with self.codegen.cached_declaration(regname, name) as pyname:
-            with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
-                with self.codegen.emit_indent("def deref(self, machine):"):
-                    self.codegen.emit("return machine.%s" % (register.pyname, ))
-                if isinstance(op.resolved_type.typ, types.Struct):
-                    with self.codegen.emit_indent("def copy_into(self, machine, res=None):"):
-                        self.codegen.emit("return machine.%s.copy_into(machine, res)" % (register.pyname, ))
-            self.codegen.emit("%s = %s() # singleton" % (pyname, pyname))
+        pyname = register.register_ref_name
+        #name = "ref_%s" % (regname, )
+        #with self.codegen.cached_declaration(regname, name) as pyname:
+        #    with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
+        #        with self.codegen.emit_indent("def deref(self, machine):"):
+        #            self.codegen.emit("return machine.%s" % (register.pyname, ))
+        #        if isinstance(op.resolved_type.typ, types.Struct):
+        #            with self.codegen.emit_indent("def copy_into(self, machine, res=None):"):
+        #                self.codegen.emit("return machine.%s.copy_into(machine, res)" % (register.pyname, ))
+        #    self.codegen.emit("%s = %s() # singleton" % (pyname, pyname))
         return self._op_helper(op, pyname)
 
     def emit_op_VectorInit(self, op):

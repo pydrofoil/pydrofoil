@@ -47,10 +47,12 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
 
 @always_inline
 def read_tag_bool(machine, addr):
+    addr <<= 3 # this is log2_cap_size in the cheriot model
     return machine.g.mem.read_tag_bit(addr)
 
 @always_inline
 def write_tag_bool(machine, addr, tag):
+    addr <<= 3 # this is log2_cap_size in the cheriot model
     return machine.g.mem.write_tag_bit(addr, tag)
 
 # rough memory layout:
@@ -547,7 +549,8 @@ def load_sail(machine, fn):
     oldmem = g.mem
     if oldmem:
         oldmem.close()
-    mem = mem_mod.TaggedBlockMemory()
+    mem = mem_mod.TaggedFlatMemory(size=g.rv_ram_size, base_addr=g.rv_ram_base)
+    #mem = mem_mod.TaggedBlockMemory()
     g.mem = mem
     with open(fn, "rb") as f:
         entrypoint = elf.elf_read_process_image(mem, f) # load process image

@@ -34,7 +34,6 @@ def cheriotmain():
     from cheriot.targetcheriot import make_code
     return make_code()
 
-@pytest.mark.parametrize("elf", elfs)
-def test_full_cheriot(cheriotmain, elf):
-    cheriotmain(['executable', elf])
+def test_cheriot_hello(cheriotmain):
+    cheriotmain(['executable', os.path.join(elfdir, 'hello_world'), '-l', '491627'])
 

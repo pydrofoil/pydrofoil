@@ -204,7 +204,7 @@ class TaggedFlatMemory(FlatMemory):
         mem_offset, inword_addr, _ = self._split_addr(addr, 1)
         mask = r_uint(1) << inword_addr
         olddata = ord(self.tags[mem_offset])
-        self.tags[mem_offset] = chr((olddata & ~mask) | (tag << inword_addr))
+        self.tags[mem_offset] = chr((olddata & ~mask) | (r_uint(tag) << inword_addr))
 
 
 class BlockMemory(MemBase):

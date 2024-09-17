@@ -626,9 +626,7 @@ def get_main(outriscv):
         jit.jit_debug("ram ifetch", intmask(zpaddr))
         mem = jit.promote(machine.g).mem
         res = mem.read(zpaddr, 2, executable_flag=True)
-        jit.jit_debug("ram ifetch", intmask(res))
         res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
-        jit.jit_debug("mem_read_patched_done")
         return res
     outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False = phys_mem_read_patched
 

@@ -559,7 +559,7 @@ class __extend__(parse.Register):
                 with codegen.emit_indent("def deref(self, machine):"):
                     codegen.emit("return %s" % (read_pyname, ))
                 with codegen.emit_indent("def update_with(self, machine, res):"):
-                    codegen.emit("machine.%s = res.copy_into(machine)" % (self.pyname, ))
+                    codegen.emit("res.copy_into(machine, machine.%s)" % (self.pyname, ))
             codegen.emit("%s = %s() # singleton" % (pyname, pyname))
             self.register_ref_name = pyname
         return pyname

@@ -128,7 +128,7 @@ class FlatMemory(MemBase):
         if executable_flag:
             self.mark_word_immutable(start_addr)
 
-        if (executable_flag and
+        if ((executable_flag or jit.isconstant(mem_offset)) and
                 self._get_status_word(mem_offset, self.version) == MEM_STATUS_IMMUTABLE):
             data = self._immutable_read(mem_offset, self.version)
         else:

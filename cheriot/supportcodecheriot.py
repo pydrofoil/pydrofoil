@@ -602,8 +602,6 @@ def get_main(outriscv):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
 
-    Globals._pydrofoil_enum_read_ifetch_value = outriscv.Enum_zread_kind.zRead_ifetch
-
     prefix = "cheriot"
 
     def get_printable_location(pc, do_show_times, insn_limit, tick, pcc_bits, g):
@@ -621,6 +619,18 @@ def get_main(outriscv):
         virtualizables=['machine'],
         name=prefix,
         is_recursive=True)
+
+    phys_mem_read = outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False
+    def phys_mem_read_patched(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta):
+        # read and ignore the result, the JIT will do the rest?
+        jit.jit_debug("ram ifetch", intmask(zpaddr))
+        mem = jit.promote(machine.g).mem
+        res = mem.read(zpaddr, 2, executable_flag=True)
+        jit.jit_debug("ram ifetch", intmask(res))
+        res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
+        jit.jit_debug("mem_read_patched_done")
+        return res
+    outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False = phys_mem_read_patched
 
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
@@ -681,8 +691,9 @@ def get_main(outriscv):
                     continue
                 # run a Sail step
 
-                # transfer the knowledge from the green pcc_bits to the real pcc register
-                self._reg_zPCC = outriscv.func_zcapBitsToCapability(self, True, pcc_bits)
+                if jit.we_are_jitted():
+                    # transfer the knowledge from the green pcc_bits to the real pcc register
+                    self._reg_zPCC = outriscv.func_zcapBitsToCapability(self, True, pcc_bits)
 
                 prev_pc = self._reg_zPC
                 stepped = self.step(Integer.fromint(step_no))

@@ -52,6 +52,13 @@ def rbigint_fromrarith_int(uint):
     jit.record_known_result(uint, rbigint.touint, res)
     return res
 
+def bv_concat_n_zero_bits(width, bv1, nzeros):
+    ressize = width + nzeros
+    if ressize > 64 and bv1:
+        return from_ruint(width, bv1).append(from_ruint(nzeros, r_uint(0)))
+    else:
+        return from_ruint(ressize, bv1 << nzeros)
+
 class MaskHolder(object):
     def __init__(self, predefined=128):
         self.lst = []

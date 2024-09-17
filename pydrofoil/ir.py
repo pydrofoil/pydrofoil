@@ -2854,6 +2854,16 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_bitvector_concat_bv_gbv_wrapped_res(self, op):
         arg0, arg1, arg2 = self._args(op)
+        if isinstance(arg2, Operation) and arg2.name == "@zeros_i":
+            subarg0, = self._args(arg2)
+            if not isinstance(subarg0, Constant):
+                return self.newop(
+                    "@bitvector_concat_bv_n_zeros_wrapped_res",
+                    [arg0, arg1, subarg0],
+                    types.GenericBitVector(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
         arg2, typ2 = self._extract_smallfixedbitvector(arg2)
         reswidth = self._extract_machineint(arg1).number + typ2.width
         if reswidth > 64:

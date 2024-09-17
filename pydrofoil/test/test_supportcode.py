@@ -1830,6 +1830,12 @@ def test_append_64_hypothesis(a, b):
     lres2 = res.tolong()
     assert lres2 == lres1
 
+@given(small_bitvectors, bitvectors)
+def test_bv_concat_n_zero_bits(a, b):
+    res1 = bitvector.bv_concat_n_zero_bits(a.size(), a.touint(), b.size())
+    res2 = a.append(bitvector.from_ruint(b.size(), r_uint(0)))
+    assert res1.eq(res2)
+
 @given(bitvectors)
 def test_hypothesis_bv_repr_doesnt_crash(bv):
     repr(bv)

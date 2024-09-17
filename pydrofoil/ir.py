@@ -3831,6 +3831,20 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type
         )
 
+    def optimize_bitvector_concat_bv_gbv_truncate_to(self, op):
+        # very cheriot-specific :`-)
+        arg0, arg1, arg2, arg3 = self._args(op)
+        if not isinstance(arg2, Operation) or not arg2.name == '@bitvector_concat_bv_n_zeros_wrapped_res':
+            return
+        subarg0, subarg1, subarg2 = self._args(arg2)
+        return self.newop(
+            "@bitvector_concat_bv_bv_n_zeros_truncate",
+            [arg0, arg1, subarg0, subarg1, subarg2, arg3],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint
+        )
+
     @symmetric
     def optimize_eq_bool(self, op, arg0, arg1):
         if not isinstance(arg0, BooleanConstant):

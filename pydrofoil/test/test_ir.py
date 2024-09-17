@@ -4034,30 +4034,6 @@ def test_getcapboundsbits():
     i42 = block4.emit(StructConstruction, 'ztuplez3z5bv32_z5bv33', [i32, i41], Struct('ztuplez3z5bv32_z5bv33', ('ztuplez3z5bv32_z5bv330', 'ztuplez3z5bv32_z5bv331'), (SmallFixedBitVector(32), SmallFixedBitVector(33)), True), None, None)
     block4.next = Return(i42, None)
     graph = Graph('zgetCapBoundsBits', [i2, i20, i21, i23, i25, i33, i35], block4)
-    # notes:
-    # we can replace the append with:
-    # size1 = length_unwrapped_res(arg1)
-    # size2 = length_unwrapped_res(arg2)
-    # targetsize = add_i_i_must_fit(size1, size2)
-    # arg1e = zero_extend(arg1, targetsize)
-    # arg2e = zero_extend(arg2, targetsize)
-    # arg1eshifted = shiftl(arg1e, size2)
-    # res = or_bits(arg1eshifted, arg2e)
-
-    # in the current situation:
-    # 
-    # i23 = block4.emit(Operation, '@add_bits_int_bv_i', [i22, MachineIntConstant(32), i11], SmallFixedBitVector(32), '`8 418:37-418:48', 'zz435')
-    # i24 = block4.emit(Cast, '$cast', [i23], GenericBitVector(), None, None)
-    # i25 = block4.emit(FieldAccess, 'zB', [zc], SmallFixedBitVector(9), None, None)
-    # i26 = block4.emit(Comment, 'inlined zzzeros_implicit', [], Unit(), None, None)
-    # i27 = block4.emit(Operation, '@zeros_i', [i2], GenericBitVector(), '`4 99:30-99:43', 'return')
-    # i28 = block4.emit(Cast, '$cast', [i25], GenericBitVector(), '`8 418:52-418:66', 'zz431')
-    # replacing the append:
-    # i29 = block4.emit(Operation, 'append', [i28, i27], GenericBitVector(), '`8 418:52-418:66', 'zz427')
-    # we get size1 = 9 statically and size2 = i2, with 0 <= i2 < 32
-    # targetsize is 9 + i2, which is between 9 <= targetsize < 41
-    # i30 = block4.emit(Operation, 'append', [i24, i29], GenericBitVector(), '`8 418:36-418:66', 'zz423')
-    # i31 = block4.emit(Operation, '@sail_truncate_o_i', [i30, MachineIntConstant(32)], GenericBitVector(), '`8 418:27-418:83', 'zz425')
     check_optimize(graph, """\
 a2 = Argument('a2', MachineInt())
 a20 = Argument('a20', MachineInt())
@@ -4068,13 +4044,10 @@ a33 = Argument('a33', SmallFixedBitVector(32))
 a35 = Argument('a35', SmallFixedBitVector(9))
 block0 = Block()
 i7 = block0.emit(Comment, 'inlined zzzeros_implicit', [], Unit(), None, None)
-i8 = block0.emit(Operation, '@bitvector_concat_bv_n_zeros_wrapped_res', [a25, MachineIntConstant(9), a2], GenericBitVector(), '`8 418:52-418:66', 'zz427')
-i9 = block0.emit(Operation, '@bitvector_concat_bv_gbv_truncate_to', [a23, MachineIntConstant(32), i8, MachineIntConstant(32)], SmallFixedBitVector(32), '`8 418:36-418:66', 'zz423')
-i10 = block0.emit(Comment, 'inlined zzzeros_implicit', [], Unit(), None, None)
-i11 = block0.emit(Operation, '@bitvector_concat_bv_n_zeros_wrapped_res', [a35, MachineIntConstant(9), a2], GenericBitVector(), '`8 419:51-419:65', 'zz414')
-i12 = block0.emit(Operation, '@bitvector_concat_bv_gbv_truncate_to', [a33, MachineIntConstant(32), i11, MachineIntConstant(33)], SmallFixedBitVector(33), '`8 419:35-419:65', 'zz410')
-i13 = block0.emit(StructConstruction, 'ztuplez3z5bv32_z5bv33', [i9, i12], Struct('ztuplez3z5bv32_z5bv33', ('ztuplez3z5bv32_z5bv330', 'ztuplez3z5bv32_z5bv331'), (SmallFixedBitVector(32), SmallFixedBitVector(33)), True), None, None)
-block0.next = Return(i13, None)
+i8 = block0.emit(Operation, '@bitvector_concat_bv_bv_n_zeros_truncate', [a23, MachineIntConstant(32), a25, MachineIntConstant(9), a2, MachineIntConstant(32)], SmallFixedBitVector(32), '`8 418:36-418:66', 'zz423')
+i9 = block0.emit(Comment, 'inlined zzzeros_implicit', [], Unit(), None, None)
+i10 = block0.emit(Operation, '@bitvector_concat_bv_bv_n_zeros_truncate', [a33, MachineIntConstant(32), a35, MachineIntConstant(9), a2, MachineIntConstant(33)], SmallFixedBitVector(33), '`8 419:35-419:65', 'zz410')
+i11 = block0.emit(StructConstruction, 'ztuplez3z5bv32_z5bv33', [i8, i10], Struct('ztuplez3z5bv32_z5bv33', ('ztuplez3z5bv32_z5bv330', 'ztuplez3z5bv32_z5bv331'), (SmallFixedBitVector(32), SmallFixedBitVector(33)), True), None, None)
+block0.next = Return(i11, None)
 graph = Graph('zgetCapBoundsBits', [a2, a20, a21, a23, a25, a33, a35], block0)
-
 """)

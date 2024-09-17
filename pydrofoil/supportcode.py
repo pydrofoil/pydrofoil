@@ -366,6 +366,11 @@ def bitvector_concat_bv_n_zeros_wrapped_res(machine, bv1, width, nzeros):
 def bitvector_concat_bv_gbv_truncate_to(machine, bv1, width, gbv, target_width):
     return gbv.prepend_small_then_truncate_unwrapped_res(width, bv1, target_width)
 
+@purefunction
+def bitvector_concat_bv_bv_n_zeros_truncate(machine, bv1, width1, bv2, width2, nzeros, target_width):
+    res = (bv1 << width2) | bv2
+    res <<= nzeros
+    return _mask(target_width, res)
 
 @purefunction
 def append_64(machine, bv, v):

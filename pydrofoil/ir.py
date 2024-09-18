@@ -279,6 +279,9 @@ class SSABuilder(object):
                 self._store(op.result, ssaop)
             elif isinstance(op, parse.Assignment):
                 value = self._get_arg(op.value, op.result)
+                if isinstance(op.resolved_type, types.Struct) and not op.resolved_type.tuplestruct:
+                    value = StructCopy(op.resolved_type.name, value, op.resolved_type, op.sourcepos)
+                    self._addop(value)
                 if op.resolved_type != op.value.resolved_type:
                     # we need a cast first
                     value = Cast(value, op.resolved_type, op.sourcepos, op.result)
@@ -868,6 +871,15 @@ class StructConstruction(Operation):
 
     def __repr__(self):
         return "StructConstruction(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
+
+class StructCopy(Operation):
+    can_have_side_effects = False
+
+    def __init__(self, name, arg, resolved_type, sourcepos):
+        Operation.__init__(self, name, [arg], resolved_type, sourcepos)
+
+    def __repr__(self):
+        return "StructConstruction(%r, %r, %r, %r)" % (self.name, self.args[0], self.resolved_type, self.sourcepos)
 
 class FieldAccess(Operation):
     can_have_side_effects = False

@@ -370,7 +370,7 @@ class __extend__(parse.Enum):
 
                 codegen.emit("@staticmethod")
                 with codegen.emit_indent("def convert_from_uint(u):"):
-                    codegen.emit("res = intmask(e) + %s.%s" % (self.pyname, self.names[0]))
+                    codegen.emit("res = intmask(u) + %s.%s" % (self.pyname, self.names[0]))
                     codegen.emit("assert res <= %s.%s" % (self.pyname, self.names[-1]))
                     codegen.emit("return res")
 
@@ -390,7 +390,7 @@ class __extend__(parse.Union):
             codegen.add_named_type(self.name, self.pyname, uniontyp, self)
             uniontyp.compact_union = False
             bits = bits_needed(uniontyp) 
-            if bits <= 64 and "SmallFixedBitVector" in str(uniontyp.typs):
+            if bits <= 64:
                 uniontyp.compact_union = True
                 self._implement_compact_union(codegen, uniontyp)
                 return
@@ -501,8 +501,7 @@ class __extend__(parse.Union):
     def _implement_compact_union(self, codegen, uniontyp):
         from rpython.rlib.rarithmetic import r_uint
         bits_tag = len(uniontyp.typs).bit_length()
-        name = self.pyname
-        with codegen.emit_indent("class %s(object): # only used as namespace" % name):
+        with codegen.emit_indent("class %s(object): # only used as namespace" % self.pyname):
             codegen.emit("SHIFT = %s" % (bits_tag, ))
             codegen.emit("TAG_MASK = 0x%x" % ((1 << bits_tag) - 1, ))
 
@@ -512,13 +511,14 @@ class __extend__(parse.Union):
             uninitialized_value = r_uint(hash(str(uniontyp))) # deterministic and based on the type
             uninitialized_value = (uninitialized_value << bits_tag) | number
             codegen.emit("UNINIT = r_uint(0x%x)" % (uninitialized_value, ))
-        uniontyp.uninitialized_value = "%s.UNINIT" % (name, )
+        uniontyp.uninitialized_value = "%s.UNINIT" % (self.pyname, )
         for name, typ in zip(self.names, self.types):
             rtyp = typ.resolve_type(codegen)
             pyname = self.pyname + "_" + name
             codegen.add_global(name, pyname, uniontyp, self)
             self.pynames.append(pyname)
             with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
+                codegen.emit("# typ: %s" % rtyp)
                 codegen.emit("@staticmethod")
                 codegen.emit("@objectmodel.specialize.arg_or_var(0)")
                 with codegen.emit_indent("def construct(a):"):
@@ -544,26 +544,32 @@ class __extend__(parse.Union):
 def to_uint_bits(codegen, typ, name):
     if isinstance(typ, types.Enum):
         typname = codegen.getname(typ.name)
-        return 'typname.convert_to_uint(%s)' % name
+        return '%s.convert_to_uint(%s)' % (typname, name)
     elif isinstance(typ, types.SmallFixedBitVector):
         return name
     elif isinstance(typ, types.Unit):
         return '0'
     elif isinstance(typ, types.Bool):
         return 'r_uint(%s)' % name
+    elif isinstance(typ, types.Union):
+        assert typ.compact_union
+        return name
     else:
         assert 0
 
 def from_uint_bits(codegen, typ, name):
     if isinstance(typ, types.Enum):
         typname = codegen.getname(typ.name)
-        return 'typname.convert_from_uint(%s)' % name
+        return '%s.convert_from_uint(%s)' % (typname, name)
     elif isinstance(typ, types.SmallFixedBitVector):
         return 'supportcode.debug_check_bv_fits(%s, %s)'  % (name, typ.width)
     elif isinstance(typ, types.Unit):
         return ()
     elif isinstance(typ, types.Bool):
         return 'bool(%s)' % name
+    elif isinstance(typ, types.Union):
+        assert typ.compact_union
+        return name
     else:
         assert 0
 
@@ -698,8 +704,6 @@ class __extend__(parse.Function):
         blocks = self._prepare_blocks()
         if self.detect_union_switch(blocks[0]):
             codegen.print_debug_msg("making method!", self.name)
-            with self._scope(codegen, pyname):
-                codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
             self._emit_methods(blocks, codegen)
             return
         codegen.print_debug_msg("making SSA IR")
@@ -812,6 +816,7 @@ class __extend__(parse.Function):
         from pydrofoil.ir import build_ssa
         typ = codegen.globalnames[self.name].typ
         uniontyp = typ.argtype.elements[0]
+        # make the implementations
         switches = []
         curr_offset = 0
         while 1:
@@ -822,7 +827,7 @@ class __extend__(parse.Function):
                 break
             switches.append((curr_block, curr_offset, op))
             curr_offset = op.target
-        generated_for_class = set()
+        generated_for_class = {}
         for i, (block, oldpc, cond) in enumerate(switches):
             if cond is not None:
                 clsname = codegen.getname(cond.condition.variant)
@@ -832,7 +837,6 @@ class __extend__(parse.Function):
                 known_cls = None
             if clsname in generated_for_class:
                 continue
-            generated_for_class.add(clsname)
             copyblock = []
             # add all var declarations of all the previous blocks
             for prevblock, _, prevcond in switches[:i]:
@@ -850,9 +854,33 @@ class __extend__(parse.Function):
                 pyname = self.name
             finally:
                 self.name = propername
+            generated_for_class[clsname] = pyname, known_cls
             codegen.add_graph(graph, self.emit_method, pyname, clsname)
             if codegen.program_entrypoints:
                 codegen.program_entrypoints.append(graph.name)
+        # make method calling function
+        with self._scope(codegen, self.pyname):
+            if uniontyp.compact_union:
+                # ouch, need to implement tag-based dispatch
+                default = None
+                basename = codegen.namedtypes[uniontyp.name].pyname
+                codegen.emit("tag = %s & %s.TAG_MASK" % (self.args[0], basename, ))
+                prefix = ''
+                for clsname, (pyname, known_cls) in generated_for_class.iteritems():
+                    if not known_cls:
+                        default = pyname
+                        continue
+                    with codegen.emit_indent("%sif tag == %s.%s_tag:" % (prefix, basename, known_cls)):
+                        codegen.emit("return %s(%s, machine, %s)"  % (pyname, self.args[0], ", ".join(self.args[1:])))
+                    prefix = 'el'
+                if default:
+                    with codegen.emit_indent("else:"):
+                        codegen.emit("return %s(%s, machine, %s)"  % (default, self.args[0], ", ".join(self.args[1:])))
+                codegen.emit("assert 0, 'should be unreachable'")
+            else:
+                basename = codegen.namedtypes[uniontyp.name].pyname
+                codegen.emit("return %s.meth_%s(machine, %s)" % (self.args[0], self.name, ", ".join(self.args[1:])))
+
 
     def emit_method(self, graph, codegen, pyname, clsname):
         with self._scope(codegen, pyname, method=True):

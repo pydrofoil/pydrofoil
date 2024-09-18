@@ -158,6 +158,7 @@ class SSABuilder(object):
         graph = Graph(self.functionast.name, self.args, self.allblocks[self.startpc], self.has_loop)
         #if random.random() < 0.01:
         #    self.view = 1
+        insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
         light_simplify(graph, self.codegen)
         if self.view:
@@ -434,6 +435,42 @@ class SSABuilder(object):
             self._addop(GlobalWrite(result, [value], value.resolved_type))
         else:
             self.variable_map[result] = value
+
+def insert_struct_copies_for_arguments(graph, codegen):
+    copy_needed = set()
+    for arg in graph.args:
+        if isinstance(arg.resolved_type, types.Struct) and not arg.resolved_type.tuplestruct:
+            copy_needed.add(arg)
+    if not copy_needed:
+        return
+    mutated_struct_types = compute_mutated_struct_types(graph)
+    copied_args = [arg for arg in graph.args
+                   if arg in copy_needed and
+                       arg.resolved_type in mutated_struct_types]
+    if not copied_args:
+        return
+    ops = []
+    replacements = {}
+    for arg in copied_args:
+        op = StructCopy(arg.resolved_type.name, arg, arg.resolved_type)
+        ops.append(op)
+        replacements[arg] = op
+    graph.replace_ops(replacements)
+    graph.startblock = Block(ops, Goto(graph.startblock))
+    res = light_simplify(graph, codegen)
+    if res:
+        partial_allocation_removal(graph, codegen)
+
+def compute_mutated_struct_types(graph):
+    # very rough over-approximation
+    result = set()
+    for block in graph.iterblocks():
+        for op in block.operations:
+            if not isinstance(op, FieldWrite):
+                continue
+            result.add(op.args[0].resolved_type)
+    return result
+
 
 def build_ssa(blocks, functionast, functionargs, codegen, startpc=0, extra_args=None):
     builder = SSABuilder(blocks, functionast, functionargs, codegen, startpc, extra_args)
@@ -875,7 +912,7 @@ class StructConstruction(Operation):
 class StructCopy(Operation):
     can_have_side_effects = False
 
-    def __init__(self, name, arg, resolved_type, sourcepos):
+    def __init__(self, name, arg, resolved_type, sourcepos=None):
         Operation.__init__(self, name, [arg], resolved_type, sourcepos)
 
     def __repr__(self):

@@ -42,13 +42,6 @@ class CodeEmitter(object):
         if len(self.blocks) == 1:
             self.emit_block_ops(self.blocks[0])
             return
-        mutated_structtypes = compute_mutated_struct_types(self.graph)
-        for arg in self.graph.args:
-            if isinstance(arg.resolved_type, types.Struct) and not arg.resolved_type.tuplestruct:
-                # copy all struct arguments where structs of the same type are
-                # mutated in this function
-                if arg.resolved_type in mutated_structtypes:
-                    codegen.emit("%s = %s.copy_into(machine)" % (arg.name, arg.name))
         # first give out variable names
         for block in self.blocks:
             for index, op in enumerate(block.operations):
@@ -389,13 +382,4 @@ def count_uses(graph):
         for arg in block.next.getargs():
             uses[arg] += 1
     return uses
-
-def compute_mutated_struct_types(graph):
-    result = set()
-    for block in graph.iterblocks():
-        for op in block.operations:
-            if not isinstance(op, ir.FieldWrite):
-                continue
-            result.add(op.args[0].resolved_type)
-    return result
 

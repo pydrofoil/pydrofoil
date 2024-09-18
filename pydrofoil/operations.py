@@ -169,6 +169,8 @@ class __extend__(types.String):
 class __extend__(types.Union):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
         assert restyp is types.Bool()
+        if self.compact_union:
+            return "%s == %s" % (sarg1, sarg2)
         return "%s.eq(%s)" % (sarg1, sarg2)
 
 class __extend__(types.Struct):

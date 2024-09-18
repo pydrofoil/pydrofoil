@@ -261,6 +261,8 @@ class Codegen(specialize.FixpointSpecializer):
         if structtyp in self.seen_typs:
             return
         self.seen_typs.add(structtyp)
+        #if sum(bits_needed(typ) for typ in structtyp.typs) <= 64:
+        #    import pdb;pdb.set_trace()
         self.add_named_type(name, pyname, structtyp, ast)
         uninit_arg = []
         with self.emit_code_type("declarations"), self.emit_indent("class %s(supportcode.ObjectBase):" % pyname):
@@ -356,11 +358,22 @@ class __extend__(parse.Enum):
         name = "Enum_" + self.name
         typ = self.resolve_type(codegen)
         self.pyname = name
+        codegen.add_global(self.name, self.pyname, typ, self)
         with codegen.emit_code_type("declarations"):
             with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
                 for index, name in enumerate(self.names, start=codegen.last_enum):
                     codegen.add_global(name, "%s.%s" % (self.pyname, name), typ, self)
                     codegen.emit("%s = %s" % (name, index))
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_to_uint(e):"):
+                    codegen.emit("return r_uint(e - %s.%s)" % (self.pyname, self.names[0]))
+
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_from_uint(u):"):
+                    codegen.emit("res = intmask(e) + %s.%s" % (self.pyname, self.names[0]))
+                    codegen.emit("assert res <= %s.%s" % (self.pyname, self.names[-1]))
+                    codegen.emit("return res")
+
                 codegen.last_enum += len(self.names) + 1 # gap of 1
                 codegen.add_named_type(self.name, self.pyname, typ, self)
 
@@ -371,17 +384,22 @@ class __extend__(parse.Union):
         # pre-declare the types
         rtyps = [typ.resolve_type(codegen) for typ in self.types]
         with codegen.emit_code_type("declarations"):
+            self.pynames = []
+            names = tuple(self.names)
+            uniontyp = types.Union(self.name, names, tuple(rtyps))
+            codegen.add_named_type(self.name, self.pyname, uniontyp, self)
+            uniontyp.compact_union = False
+            bits = bits_needed(uniontyp) 
+            if bits <= 64 and "SmallFixedBitVector" in str(uniontyp.typs):
+                uniontyp.compact_union = True
+                self._implement_compact_union(codegen, uniontyp)
+                return
             with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
                 codegen.emit("@objectmodel.always_inline")
                 with codegen.emit_indent("def eq(self, other):"):
                     codegen.emit("return False")
             codegen.emit("%s.singleton = %s()" % (name, name))
-            self.pynames = []
-            names = tuple(self.names)
-            names = tuple(self.names)
-            uniontyp = types.Union(self.name, names, tuple(rtyps))
             uniontyp.uninitialized_value = "%s.singleton" % (name, )
-            codegen.add_named_type(self.name, self.pyname, uniontyp, self)
             for name, typ in zip(self.names, self.types):
                 rtyp = typ.resolve_type(codegen)
                 pyname = self.pyname + "_" + name
@@ -397,6 +415,7 @@ class __extend__(parse.Union):
                     self.make_init(codegen, rtyp, typ, pyname)
                     self.make_eq(codegen, rtyp, typ, pyname)
                     self.make_convert(codegen, rtyp, typ, pyname)
+                    self.make_check_variant(codegen, rtyp, typ, pyname)
                 if rtyp is types.Unit():
                     codegen.emit("%s.singleton = %s(())" % (pyname, pyname))
                 if type(rtyp) is types.Enum:
@@ -466,12 +485,105 @@ class __extend__(parse.Union):
             with codegen.emit_indent("else:"):
                 codegen.emit("raise TypeError")
 
+    def make_check_variant(self, codegen, rtyp, typ, pyname):
+        codegen.emit("@staticmethod")
+        codegen.emit("@objectmodel.always_inline")
+        with codegen.emit_indent("def check_variant(inst):"):
+            codegen.emit("return isinstance(inst, %s)" % pyname)
+
     def constructor(self, info, op, args, argtyps):
-        if len(argtyps) == 1 and type(argtyps[0]) is types.Enum:
+        if info.typ.compact_union or (len(argtyps) == 1 and type(argtyps[0]) is types.Enum):
             return "%s.construct(%s)" % (op, args)
         if argtyps == [types.Unit()]:
             return "%s.singleton" % (op, )
         return "%s(%s)" % (op, args)
+
+    def _implement_compact_union(self, codegen, uniontyp):
+        from rpython.rlib.rarithmetic import r_uint
+        bits_tag = len(uniontyp.typs).bit_length()
+        name = self.pyname
+        with codegen.emit_indent("class %s(object): # only used as namespace" % name):
+            codegen.emit("SHIFT = %s" % (bits_tag, ))
+            codegen.emit("TAG_MASK = 0x%x" % ((1 << bits_tag) - 1, ))
+
+            for number, (name, typ) in enumerate(zip(self.names, self.types)):
+                codegen.emit("%s_tag = r_uint(0x%x)" % (name, number))
+            number += 1
+            uninitialized_value = r_uint(hash(str(uniontyp))) # deterministic and based on the type
+            uninitialized_value = (uninitialized_value << bits_tag) | number
+            codegen.emit("UNINIT = r_uint(0x%x)" % (uninitialized_value, ))
+        uniontyp.uninitialized_value = "%s.UNINIT" % (name, )
+        for name, typ in zip(self.names, self.types):
+            rtyp = typ.resolve_type(codegen)
+            pyname = self.pyname + "_" + name
+            codegen.add_global(name, pyname, uniontyp, self)
+            self.pynames.append(pyname)
+            with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
+                codegen.emit("@staticmethod")
+                codegen.emit("@objectmodel.specialize.arg_or_var(0)")
+                with codegen.emit_indent("def construct(a):"):
+                    codegen.emit("tag = %s.%s_tag" % (self.pyname, name))
+                    converted = to_uint_bits(codegen, rtyp, 'a')
+                    codegen.emit("return (%s << %s.SHIFT) | tag" % (converted, self.pyname))
+                codegen.emit()
+                codegen.emit("@staticmethod")
+                codegen.emit("@objectmodel.specialize.arg_or_var(0)")
+                with codegen.emit_indent("def check_variant(a):"):
+                    codegen.emit("tag = %s.%s_tag" % (self.pyname, name))
+                    codegen.emit("return a & %s.TAG_MASK == tag" % (self.pyname, ))
+                codegen.emit()
+                codegen.emit("@staticmethod")
+                codegen.emit("@objectmodel.specialize.arg_or_var(0)")
+                with codegen.emit_indent("def convert(u):"):
+                    codegen.emit("tag = %s.%s_tag" % (self.pyname, name))
+                    codegen.emit("assert u & %s.TAG_MASK == tag" % (self.pyname, ))
+                    codegen.emit("u >>= %s.SHIFT" % (self.pyname, ))
+                    converted = from_uint_bits(codegen, rtyp, 'u')
+                    codegen.emit("return %s" % (converted, ))
+
+def to_uint_bits(codegen, typ, name):
+    if isinstance(typ, types.Enum):
+        typname = codegen.getname(typ.name)
+        return 'typname.convert_to_uint(%s)' % name
+    elif isinstance(typ, types.SmallFixedBitVector):
+        return name
+    elif isinstance(typ, types.Unit):
+        return '0'
+    elif isinstance(typ, types.Bool):
+        return 'r_uint(%s)' % name
+    else:
+        assert 0
+
+def from_uint_bits(codegen, typ, name):
+    if isinstance(typ, types.Enum):
+        typname = codegen.getname(typ.name)
+        return 'typname.convert_from_uint(%s)' % name
+    elif isinstance(typ, types.SmallFixedBitVector):
+        return 'supportcode.debug_check_bv_fits(%s, %s)'  % (name, typ.width)
+    elif isinstance(typ, types.Unit):
+        return ()
+    elif isinstance(typ, types.Bool):
+        return 'bool(%s)' % name
+    else:
+        assert 0
+
+def bits_needed(typ):
+    if isinstance(typ, types.Enum):
+        return len(typ.elements).bit_length()
+    elif isinstance(typ, types.SmallFixedBitVector):
+        return typ.width
+    elif isinstance(typ, types.Unit):
+        return 1
+    elif isinstance(typ, types.Bool):
+        return 1
+    #elif isinstance(typ, types.Struct):
+    #    return sum(bits_needed(typ) for typ in typ.typs)
+    elif isinstance(typ, types.Union):
+        bits_tag = len(typ.typs).bit_length() # over-approximation
+        return max(bits_needed(typ) for typ in typ.typs) + bits_tag
+    #elif isinstance(typ, (types.String, types.GenericBitVector, types.Int)):
+    #    return sys.maxint
+    return sys.maxint
 
 class __extend__(parse.Struct):
     def make_code(self, codegen):

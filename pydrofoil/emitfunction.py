@@ -219,7 +219,7 @@ class CodeEmitter(object):
 
     def emit_op_UnionVariantCheck(self, op):
         clsname = self.codegen.getname(op.name)
-        self._op_helper(op, "not isinstance(%s, %s)" % (self._get_arg(op.args[0]), clsname))
+        self._op_helper(op, "not %s.check_variant(%s)" % (clsname, self._get_arg(op.args[0])))
 
     def emit_op_UnionCast(self, op):
         clsname = self.codegen.getname(op.name)

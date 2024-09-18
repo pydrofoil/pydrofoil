@@ -4366,6 +4366,12 @@ def partial_allocation_removal(graph, codegen):
                     fields[fieldname] = value
                 virtuals_in_block[op] = fields
                 continue
+            if isinstance(op, StructCopy):
+                obj = get_repr(op.args[0])
+                if obj in virtuals_in_block:
+                    fields = virtuals_in_block[obj].copy()
+                    virtuals_in_block[op] = fields
+                    continue
             if isinstance(op, FieldWrite):
                 obj = get_repr(op.args[0])
                 if obj in virtuals_in_block:

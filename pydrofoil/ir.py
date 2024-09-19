@@ -443,7 +443,7 @@ def insert_struct_copies_for_arguments(graph, codegen):
             copy_needed.add(arg)
     if not copy_needed:
         return
-    mutated_struct_types = compute_mutated_struct_types(graph)
+    mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
     copied_args = [arg for arg in graph.args
                    if arg in copy_needed and
                        arg.resolved_type in mutated_struct_types]
@@ -461,12 +461,14 @@ def insert_struct_copies_for_arguments(graph, codegen):
     if res:
         partial_allocation_removal(graph, codegen)
 
-def compute_mutated_struct_types(graph):
+def compute_mutations_of_non_copied_structs(graph):
     # very rough over-approximation
     result = set()
     for block in graph.iterblocks():
         for op in block.operations:
             if not isinstance(op, FieldWrite):
+                continue
+            if isinstance(op.args[0], StructCopy):
                 continue
             result.add(op.args[0].resolved_type)
     return result
@@ -916,7 +918,7 @@ class StructCopy(Operation):
         Operation.__init__(self, name, [arg], resolved_type, sourcepos)
 
     def __repr__(self):
-        return "StructConstruction(%r, %r, %r, %r)" % (self.name, self.args[0], self.resolved_type, self.sourcepos)
+        return "StructCopy(%r, %r, %r, %r)" % (self.name, self.args[0], self.resolved_type, self.sourcepos)
 
 class FieldAccess(Operation):
     can_have_side_effects = False

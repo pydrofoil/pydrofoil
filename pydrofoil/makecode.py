@@ -668,7 +668,7 @@ class __extend__(parse.Register):
         with codegen.cached_declaration(self.name, name) as pyname:
             with codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
                 with codegen.emit_indent("def deref(self, machine):"):
-                    codegen.emit("return %s.copy_into(machine)" % (read_pyname, ))
+                    codegen.emit("return %s" % (read_pyname, ))
                 with codegen.emit_indent("def update_with(self, machine, res):"):
                     codegen.emit("res.copy_into(machine, machine.%s)" % (self.pyname, ))
             codegen.emit("%s = %s() # singleton" % (pyname, pyname))

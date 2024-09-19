@@ -303,8 +303,6 @@ class SSABuilder(object):
                 if fieldval.resolved_type != typ:
                     fieldval = self._addop(Cast(fieldval, typ, op.sourcepos))
                 self._addop(FieldWrite(lastfield, [obj, fieldval], types.Unit(), op.sourcepos))
-                if isinstance(obj, GlobalRead):
-                    self._addop(GlobalWrite(obj.name, [obj], obj.resolved_type))
 
             elif isinstance(op, parse.GeneralAssignment):
                 args = self._get_args(op.rhs.args)

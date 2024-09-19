@@ -4442,6 +4442,21 @@ def partial_allocation_removal(graph, codegen):
                 if obj in virtuals_in_block:
                     replacements[op] = virtuals_in_block[obj][op.name]
                     continue
+            if isinstance(op, GlobalWrite) and op.name in codegen.all_registers:
+                obj = get_repr(op.args[0])
+                if obj in virtuals_in_block:
+                    typ = op.args[0].resolved_type
+                    fields = virtuals_in_block[obj]
+                    target = GlobalRead(op.name, typ)
+                    newoperations.append(target)
+                    for name in typ.names:
+                        if name in fields:
+                            fieldvalue = escape(fields[name])
+                        else:
+                            fieldvalue = DefaultValue(typ.fieldtyps[name])
+                        newoperations.append(FieldWrite(name, [target, fieldvalue]))
+                    continue
+
             for arg in op.getargs():
                 escape(arg)
             newoperations.append(op)

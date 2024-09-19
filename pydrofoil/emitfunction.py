@@ -85,6 +85,8 @@ class CodeEmitter(object):
             return True
         if isinstance(op, ir.UnionCast):
             return True
+        if isinstance(op, ir.RefOf):
+            return True
         if op.name == "@not":
             return True
         name = self.codegen.builtin_names.get(op.name, op.name)
@@ -260,9 +262,7 @@ class CodeEmitter(object):
         self._op_helper(op, op.resolved_type.uninitialized_value)
 
     def emit_op_RefOf(self, op):
-        arg, = op.args
-        assert isinstance(arg, ir.GlobalRead)
-        regname = arg.name
+        regname = op.name
         register = self.codegen.all_registers[regname]
         pyname = register.register_ref_name
         #name = "ref_%s" % (regname, )

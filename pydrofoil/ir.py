@@ -402,7 +402,10 @@ class SSABuilder(object):
             ssaop = UnionCast(parseval.variant, [arg], parseval.resolved_type)
             return self._addop(ssaop)
         elif isinstance(parseval, parse.RefOf):
-            return self._addop(RefOf([self._get_arg(parseval.expr)], parseval.resolved_type))
+            arg = self._get_arg(parseval.expr)
+            assert isinstance(arg, GlobalRead)
+            assert arg.name in self.codegen.all_registers
+            return self._addop(RefOf(arg.name, parseval.resolved_type))
         elif isinstance(parseval, parse.Number):
             return MachineIntConstant(parseval.number)
         elif isinstance(parseval, parse.BitVectorConstant):
@@ -967,11 +970,11 @@ class RefAssignment(Operation):
 class RefOf(Operation):
     can_have_side_effects = False
 
-    def __init__(self, args, resolved_type, sourcepos=None):
-        Operation.__init__(self, "$ref-of", args, resolved_type, sourcepos)
+    def __init__(self, name, resolved_type, sourcepos=None):
+        Operation.__init__(self, name, [], resolved_type, sourcepos)
 
     def __repr__(self):
-        return "RefOf(%r, %r, %r)" % (self.args, self.resolved_type, self.sourcepos, )
+        return "RefOf(%r, %r, %r)" % (self.name, self.resolved_type, self.sourcepos, )
 
 class VectorInit(Operation):
     can_have_side_effects = False

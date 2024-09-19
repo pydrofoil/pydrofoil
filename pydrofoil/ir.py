@@ -1324,13 +1324,13 @@ def print_graph_construction(graph, codegen=None):
     else:
         builtin_names = {}
 
-    uniontyps = []
-    seen_uniontyps = {}
+    bigtyps = []
+    seen_bigtyps = {}
     def type_repr(typ):
-        if isinstance(typ, types.Union):
-            if typ.name not in seen_uniontyps:
-                uniontyps.append("%s = %r" % (typ.name, typ))
-                seen_uniontyps[typ.name] = typ
+        if isinstance(typ, (types.Union, types.Enum, types.Struct)):
+            if typ.name not in seen_bigtyps:
+                bigtyps.append("%s = %r" % (typ.name, typ))
+                seen_bigtyps[typ.name] = typ
             return typ.name
         return repr(typ)
 
@@ -1369,7 +1369,7 @@ def print_graph_construction(graph, codegen=None):
             seen_ops.add(op)
         res.append("%s.next = %s" % (blockname, block.next._repr(print_varnames, blocknames)))
     res.append("graph = Graph(%r, [%s], block0%s)" % (graph.name, ", ".join(arg.name for arg in graph.args), ", True" if graph.has_loop else ""))
-    res = uniontyps + res
+    res = bigtyps + res
     return res
 
 

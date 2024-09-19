@@ -158,6 +158,7 @@ class SSABuilder(object):
         graph = Graph(self.functionast.name, self.args, self.allblocks[self.startpc], self.has_loop)
         #if random.random() < 0.01:
         #    self.view = 1
+        #mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
         insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
         light_simplify(graph, self.codegen)
@@ -302,6 +303,9 @@ class SSABuilder(object):
                 if fieldval.resolved_type != typ:
                     fieldval = self._addop(Cast(fieldval, typ, op.sourcepos))
                 self._addop(FieldWrite(lastfield, [obj, fieldval], types.Unit(), op.sourcepos))
+                if isinstance(obj, GlobalRead):
+                    self._addop(GlobalWrite(obj.name, [obj], obj.resolved_type))
+
             elif isinstance(op, parse.GeneralAssignment):
                 args = self._get_args(op.rhs.args)
                 rhs = Operation(op.rhs.name, args, op.rhs.resolved_type, op.sourcepos)
@@ -471,7 +475,7 @@ def compute_mutations_of_non_copied_structs(graph):
         for op in block.operations:
             if not isinstance(op, FieldWrite):
                 continue
-            if isinstance(op.args[0], StructCopy):
+            if isinstance(op.args[0], (StructCopy, Allocate)):
                 continue
             result.add(op.args[0].resolved_type)
     return result

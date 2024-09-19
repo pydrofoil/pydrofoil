@@ -300,13 +300,15 @@ def test_specialize_on_result_tuple():
     opt.optimize()
     optimize(calling_graph, fakecodegen)
     assert "\n".join(print_graph_construction(calling_graph)) == '''\
+tup_tup_bv32_i_o = Struct('tup_tup_bv32_i_o', ('bv32_0', 'i_1', 'o_2'), (SmallFixedBitVector(32), MachineInt(), Bool()), True)
 b = Argument('b', Bool())
 zx = Argument('zx', SmallFixedBitVector(32))
 block0 = Block()
-i2 = block0.emit(Operation, 'tuplify_specialized_bv32_2_o__tup_bv32_i_o_put', [zx, MachineIntConstant(2), b], Struct('tup_tup_bv32_i_o', ('bv32_0', 'i_1', 'o_2'), (SmallFixedBitVector(32), MachineInt(), Bool()), True), '`7 456:19-456:28', 'zz419')
+i2 = block0.emit(Operation, 'tuplify_specialized_bv32_2_o__tup_bv32_i_o_put', [zx, MachineIntConstant(2), b], tup_tup_bv32_i_o, '`7 456:19-456:28', 'zz419')
 i3 = block0.emit(FieldAccess, 'bv32_0', [i2], SmallFixedBitVector(32), None, None)
 block0.next = Return(i3, None)
-graph = Graph('f', [b, zx], block0)'''
+graph = Graph('f', [b, zx], block0)\
+'''
 
 def test_results_bubble_up_problem():
     # f -> g(32) -> h(32) returns bv32

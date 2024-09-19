@@ -4087,3 +4087,25 @@ i11 = block0.emit(StructConstruction, 'ztuplez3z5bv32_z5bv33', [i8, i10], Struct
 block0.next = Return(i11, None)
 graph = Graph('zgetCapBoundsBits', [a2, a20, a21, a23, a25, a33, a35], block0)
 """)
+
+def test_partial_allocation_make_copy_virtual():
+    capstruct = Struct('zCapability', ('zB', 'zE', 'ztag'), (SmallFixedBitVector(9), SmallFixedBitVector(5), Bool()))
+    i7 = Argument('i7', capstruct)
+    i49 = Argument('i49', Bool())
+    block1 = Block()
+    i50 = block1.emit(StructCopy, 'zCapability', [i7], capstruct, '`8 646:4-646:40', None)
+    i51 = block1.emit(FieldWrite, 'ztag', [i50, i49], Unit(), '`8 646:4-646:40', None)
+    i52 = block1.emit(StructCopy, 'zCapability', [i50], capstruct, '`8 646:4-646:40', None)
+    block1.next = Return(i52)
+    graph = Graph('zf', [i7, i49], block1)
+    check_optimize(graph, """
+i7 = Argument('i7', Struct('zCapability', ('zB', 'zE', 'ztag'), (SmallFixedBitVector(9), SmallFixedBitVector(5), Bool())))
+i49 = Argument('i49', Bool())
+block0 = Block()
+i2 = block0.emit(FieldAccess, 'zB', [i7], SmallFixedBitVector(9), None, None)
+i3 = block0.emit(FieldAccess, 'zE', [i7], SmallFixedBitVector(5), None, None)
+i4 = block0.emit(StructConstruction, 'zCapability', [i2, i3, i49], Struct('zCapability', ('zB', 'zE', 'ztag'), (SmallFixedBitVector(9), SmallFixedBitVector(5), Bool())), '`8 646:4-646:40', None)
+block0.next = Return(i4, None)
+graph = Graph('zf', [i7, i49], block0)
+""")
+

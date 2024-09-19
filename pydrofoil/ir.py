@@ -4411,6 +4411,19 @@ def partial_allocation_removal(graph, codegen):
                     fields = virtuals_in_block[obj].copy()
                     virtuals_in_block[op] = fields
                     continue
+                # copy of a non-virtual struct. we could indiscriminantly turn
+                # it into a StructConstruction, but that seems potentially
+                # bloaty. Instead, check whether it's used in the next op of
+                # the current block and only do that if yes.
+                if index + 1 < len(block.operations) and op in block.operations[index + 1].getargs():
+                    typ = op.resolved_type
+                    fields = {}
+                    for fieldname in typ.names:
+                        fieldvalue = FieldAccess(fieldname, [op.args[0]], typ.fieldtyps[fieldname])
+                        newoperations.append(fieldvalue)
+                        fields[fieldname] = fieldvalue
+                    virtuals_in_block[op] = fields
+                    continue
             if isinstance(op, FieldWrite):
                 obj = get_repr(op.args[0])
                 if obj in virtuals_in_block:

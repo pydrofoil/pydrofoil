@@ -147,14 +147,6 @@ class Codegen(specialize.FixpointSpecializer):
         else:
             return self.globalnames[name]
 
-    def write_to(self, name, result):
-        target = self.getinfo(name).write_pyname
-        assert target is not None
-        if "%" not in target:
-            self.emit("%s = %s" % (target, result))
-        else:
-            self.emit(target % (result, ))
-
     def gettyp(self, name):
         return self.getinfo(name).typ
 
@@ -271,6 +263,7 @@ class Codegen(specialize.FixpointSpecializer):
                     fieldname = "self." + arg
                     self.emit(fieldtyp.packed_field_write(fieldname, arg))
                     uninit_arg.append(fieldtyp.uninitialized_value)
+            #self.emit("@objectmodel.always_inline")
             with self.emit_indent("def copy_into(self, machine, res=None):"):
                 self.emit("if res is None: res = objectmodel.instantiate(self.__class__)")
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
@@ -653,7 +646,6 @@ class __extend__(parse.Register):
         if self.name in codegen.promoted_registers:
             read_pyname = "jit.promote(%s)" % write_pyname
         elif isinstance(typ, types.Struct):
-            read_pyname += ".copy_into(machine)"
             register_ref_name = self.make_register_ref(codegen, read_pyname)
             read_pyname = "%s.deref(machine)" % (register_ref_name, )
             write_pyname = "%s.update_with(machine, %%s)" % (register_ref_name, )
@@ -676,7 +668,7 @@ class __extend__(parse.Register):
         with codegen.cached_declaration(self.name, name) as pyname:
             with codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
                 with codegen.emit_indent("def deref(self, machine):"):
-                    codegen.emit("return %s" % (read_pyname, ))
+                    codegen.emit("return %s.copy_into(machine)" % (read_pyname, ))
                 with codegen.emit_indent("def update_with(self, machine, res):"):
                     codegen.emit("res.copy_into(machine, machine.%s)" % (self.pyname, ))
             codegen.emit("%s = %s() # singleton" % (pyname, pyname))

@@ -374,7 +374,10 @@ class SSABuilder(object):
             elif parseval.name == 'bitone':
                 return SmallBitVectorConstant(1, types.Bit())
             if parseval.name in self.codegen.let_values:
-                return self.codegen.let_values[parseval.name]
+                res = self.codegen.let_values[parseval.name]
+                if isinstance(res, StructConstruction):
+                    res = self._addop(StructConstruction(res.name, res.args[:], res.resolved_type, res.sourcepos))
+                return res
             if isinstance(parseval.resolved_type, types.Enum):
                 if parseval.name in parseval.resolved_type.elements:
                     return EnumConstant(parseval.name, parseval.resolved_type)
@@ -495,7 +498,7 @@ def extract_global_value(graph, name):
     if name != lastop.name:
         return
     value = lastop.args[0]
-    if not isinstance(value, Constant):
+    if not isinstance(value, (StructConstruction, Constant)):
         return
     return value
 

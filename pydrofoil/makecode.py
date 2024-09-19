@@ -991,13 +991,6 @@ class __extend__(parse.Let):
             value = extract_global_value(graph, self.name)
             if value is not None:
                 codegen.let_values[self.name] = value
-            return
-            blocks = {0: self.body[:]}
-            optimize_blocks(blocks, codegen)
-            for i, op in enumerate(blocks[0]):
-                codegen.emit("# %s" % (op, ))
-                op.make_op_code(codegen)
-            codegen.emit()
 
 
 # ____________________________________________________________

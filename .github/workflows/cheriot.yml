@@ -88,7 +88,7 @@ jobs:
 
     - name: Run allocator_benchmark
       run: |
-        ./pydrofoil-cheriot cheriot/input/allocator_benchmark -l 274595167
+        ./pydrofoil-cheriot cheriot/input/allocator-benchmark -l 274595167
 
     - name: Upload binary
       uses: actions/upload-artifact@v3

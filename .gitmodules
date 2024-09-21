@@ -10,3 +10,6 @@
 [submodule "pypy2"]
 	path = pypy2
 	url = https://github.com/pypy/pypy
+[submodule "sail-cheriot"]
+	path = sail-cheriot
+	url = https://github.com/CHERIoT-Platform/cheriot-sail

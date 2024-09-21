@@ -237,6 +237,7 @@ sail-cheriot/src/cheri_cap_common.sail: ## Clone the sail-cheriot submodule
 .PHONY: regen-cheriot-ir-files
 regen-cheriot-ir-files: sail-cheriot/src/cheri_cap_common.sail isla/isla-sail/plugin.cmxs ## Build CHERIoT IR
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` && \
+	cd sail-cheriot && \
 	isla-sail  -c_preserve _set_Misa_C -O -Oconstant_fold -memo_z3  -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		sail-riscv/model/prelude.sail \
 		sail-riscv/model/riscv_xlen32.sail \
@@ -298,7 +299,7 @@ regen-cheriot-ir-files: sail-cheriot/src/cheri_cap_common.sail isla/isla-sail/pl
 		sail-riscv/model/riscv_fetch.sail \
 		sail-riscv/model/riscv_step.sail \
 		sail-riscv/model/main.sail \
-		-o ${PWD}/cheriot/cheriot_model_rv32 && \
+		-o ${PWD}/cheriot/cheriot_model_rv32
 
 
 ## Housekeeping targets:

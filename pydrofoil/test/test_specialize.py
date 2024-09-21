@@ -9,6 +9,7 @@ class FakeCodeGen(FixpointSpecializer):
         FixpointSpecializer.__init__(self)
         self.builtin_names = {"zz5izDzKz5i64": "int_to_int64", "zz5i64zDzKz5i": "int64_to_int"}
         self._all_graphs = []
+        self.all_registers = {}
 
     def add_struct_type(self, *args):
         pass

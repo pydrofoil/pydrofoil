@@ -70,6 +70,7 @@ jobs:
 
     - name: Generate ir files
       run: |
+        touch sail/_opam/bin/sail
         make regen-cheriot-ir-files
 
     - name: Test with pytest

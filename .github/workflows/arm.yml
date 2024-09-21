@@ -56,7 +56,8 @@ jobs:
 
     - name: Run ARM unit test
       run: |
-        PYPY_GC_MAX=12GB PYTHONPATH=. ./pypy_binary/bin/python pypy2/pytest.py -vs arm/
+        make pypy_binary/bin/python
+        PYPY_GC_MAX=12GB PYTHONPATH=. ./pypy_binary/bin/python pypy2/pytest.py -vs arm/make pydrofoil-test-arm
 
     - name: build ARM
       run: |

@@ -25,6 +25,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+        submodules: yes
 
     - name: Set up PyPy 2.7
       uses: actions/setup-python@v5

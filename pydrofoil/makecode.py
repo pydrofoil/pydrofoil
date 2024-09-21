@@ -663,14 +663,23 @@ class __extend__(parse.Register):
             graph = construct_ir(self, codegen, singleblock=True)
             emit_function_code(graph, self, codegen)
 
-    def make_register_ref(self, codegen, read_pyname):
+    def make_register_ref(self, codegen, read_pyname=None):
+        if hasattr(self, 'register_ref_name'):
+            return self.register_ref_name
+        if read_pyname is None:
+            import pdb;pdb.set_trace()
+            read_pyname = codegen.globalnames[self.name].pyname
+        typ = self.typ.resolve_type(codegen)
         name = "ref_%s" % (self.pyname, )
         with codegen.cached_declaration(self.name, name) as pyname:
             with codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
                 with codegen.emit_indent("def deref(self, machine):"):
                     codegen.emit("return %s" % (read_pyname, ))
                 with codegen.emit_indent("def update_with(self, machine, res):"):
-                    codegen.emit("res.copy_into(machine, machine.%s)" % (self.pyname, ))
+                    if isinstance(typ, types.Struct):
+                        codegen.emit("res.copy_into(machine, machine.%s)" % (self.pyname, ))
+                    else:
+                        codegen.emit("assert 0, 'not implemented'")
             codegen.emit("%s = %s() # singleton" % (pyname, pyname))
             self.register_ref_name = pyname
         return pyname

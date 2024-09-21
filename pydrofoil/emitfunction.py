@@ -264,7 +264,7 @@ class CodeEmitter(object):
     def emit_op_RefOf(self, op):
         regname = op.name
         register = self.codegen.all_registers[regname]
-        pyname = register.register_ref_name
+        pyname = register.make_register_ref(self.codegen)
         #name = "ref_%s" % (regname, )
         #with self.codegen.cached_declaration(regname, name) as pyname:
         #    with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):

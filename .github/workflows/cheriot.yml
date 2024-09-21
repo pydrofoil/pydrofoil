@@ -84,7 +84,7 @@ jobs:
     - name: Run CHERIoT tests
       run: |
         ./pydrofoil-cheriot cheriot/input/hello_world -l 491627
-        ./pydrofoil-cheriot cheriot/input/test_suite
+        ./pydrofoil-cheriot cheriot/input/test-suite
 
     - name: Run allocator_benchmark
       run: |

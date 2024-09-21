@@ -9,7 +9,7 @@ More about SAIL: https://github.com/rems-project/sail
 
 Semicolon:
 ==
-Instruction seperator
+Instruction separator
 
 Example:
 ```
@@ -50,7 +50,7 @@ Normal Functions:
 ==
 Argument types after colon and return type after ->. 
 Body after =.
-Brackets used when body contains more than one statment. 
+Brackets used when body contains more than one statement. 
 Last expression is the return value.
 
 Example:
@@ -63,7 +63,7 @@ function compute_value(a : bits(1), op : arithmetic_op) -> bits(16) = {
 
 Functions Signature Declaration:
 ==
-The declaration of a function can be moved into a seperate line using val.
+The declaration of a function can be moved into a separate line using val.
 
 Example:
 ```

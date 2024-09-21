@@ -4138,7 +4138,7 @@ def should_inline(graph, model_specific_should_inline=None):
 def topo_order(graph):
     order = list(graph.iterblocks()) # dfs
 
-    # do a (slighly bad) topological sort
+    # do a (slightly bad) topological sort
     incoming = defaultdict(set)
     for block in order:
         for nextblock in block.next.next_blocks():

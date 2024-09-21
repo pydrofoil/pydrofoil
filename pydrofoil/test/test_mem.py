@@ -25,7 +25,7 @@ def test_mem_write_read(memcls):
     mem = memcls()
     assert mem.read(r_uint(1), 1) == 0
     addresses = range(100) + [TBM.BLOCK_MASK + i for i in range(-100, 100)]
-    # cleck little endianness
+    # check little endianness
     mem.write(r_uint(8), 8, r_uint(0x0102030405060708))
     assert mem.read(r_uint(8), 1) == r_uint(0x08)
     assert mem.read(r_uint(9), 1) == r_uint(0x07)

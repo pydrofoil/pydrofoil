@@ -6,7 +6,7 @@ ALL: pydrofoil-riscv
 
 .PHONY: pydrofoil-riscv
 pydrofoil-riscv: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build the pydrofoil RISC-V emulator
-	pkg-config libffi # if this fails, libffi development headers arent installed
+	pkg-config libffi # if this fails, libffi development headers aren't installed
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
 pydrofoil-test: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the pydrofoil implementation-level unit tests

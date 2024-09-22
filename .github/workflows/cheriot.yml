@@ -91,7 +91,7 @@ jobs:
         ./pydrofoil-cheriot cheriot/input/allocator-benchmark -l 274595167
 
     - name: Upload binary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pydrofoil-cheriot-${{ matrix.os }}
         path: ./pydrofoil-cheriot

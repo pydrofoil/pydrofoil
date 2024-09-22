@@ -1,7 +1,6 @@
 import sys
 import os
 from os.path import dirname
-from pydrofoil.makecode import parse_and_make_code
 toplevel = dirname(dirname(__file__))
 armir = os.path.join(toplevel, "arm", "armv9.ir")
 outarm = os.path.join(toplevel, "arm", "generated", "outarm.py")
@@ -85,6 +84,7 @@ def _regen_arm():
         s = f.read()
     entrypoints = "zstep_model z__SetThisInstrDetails zmain z__SetConfig z__ListConfig".split()
     support_code = "from arm import supportcodearm as supportcode"
+    from pydrofoil.makecode import parse_and_make_code
     res = parse_and_make_code(s, support_code, PROMOTED_REGISTERS,
                               should_inline=should_inline,
                               entrypoints=entrypoints)

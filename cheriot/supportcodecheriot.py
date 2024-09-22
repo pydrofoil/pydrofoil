@@ -55,54 +55,6 @@ def write_tag_bool(machine, addr, tag):
     addr <<= 3 # this is log2_cap_size in the cheriot model
     return machine.g.mem.write_tag_bit(addr, tag)
 
-# rough memory layout:
-# | rom | clint | .... | ram <htif inside> ram
-
-@jit.not_in_trace
-def _observe_addr_range(machine, pc, addr, width, ranges):
-    index = _find_index(ranges, addr, width)
-    jit.promote(machine.g)._mem_addr_range_next = index
-
-@jit.elidable
-def _get_likely_addr_range(g, pc, ranges):
-    # not really at all elidable, but it does not matter. the result is only
-    # used to produce some guards
-    return g._mem_addr_range_next
-
-def _find_index(ranges, addr, width):
-    for index, (start, stop) in enumerate(ranges):
-        if start <= addr and addr + width < stop:
-            return index
-    return -1
-
-@specialize.argtype(0)
-def promote_addr_region(machine, addr, width, offset, executable_flag):
-    g = jit.promote(machine.g)
-    width = intmask(machine.word_width_bytes(width))
-    addr = intmask(addr)
-    jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
-    if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
-        return
-    if executable_flag:
-        return
-    pc = machine._reg_zPC
-    _observe_addr_range(machine, pc, addr, width, g._mem_ranges)
-    range_index = _get_likely_addr_range(g, pc, g._mem_ranges)
-    if range_index < 0 or width > 8:
-        return
-    # the next line produces two guards
-    if g._mem_ranges[range_index][0] <= addr and addr < g._mem_ranges[range_index][1] - width:
-        if width == 8 and addr & ((r_uint(1)<<63) | 0b111) == 0:
-            # it's aligned and the highest bit is not set. tell the jit that the
-            # last three bits and the highest bit are zero. can be removed with
-            # known bits analysis later
-            jit.record_exact_value(addr & 1, 0)
-            jit.record_exact_value(addr & 0b111, 0)
-            jit.record_exact_value((addr + width) & 0b111, 0)
-            jit.record_exact_value(r_uint(addr) & (r_uint(1)<<63), 0)
-            jit.record_exact_value((r_uint(addr) >> 1) & 1, 0)
-            jit.record_exact_value((r_uint(addr) >> 2) & 1, 0)
-    return
 
 class Globals(object):
     _immutable_fields_ = [
@@ -116,7 +68,6 @@ class Globals(object):
     ]
 
     def __init__(self):
-        self._mem_addr_range_next = -1
         self.mem = None
         self.rv_enable_pmp                  = False
         self.rv_enable_zfinx                = False
@@ -161,17 +112,6 @@ class Globals(object):
         self.config_print_rvfi = False
 
         self.cpu_hz = 1000000000 # 1 GHz
-
-    def _init_ranges(self):
-        self._mem_ranges = [
-            (intmask(self.rv_rom_base), intmask(self.rv_rom_base + self.rv_rom_size)),
-            (intmask(self.rv_clint_base), intmask(self.rv_clint_base + self.rv_clint_size)),
-            (intmask(self.rv_ram_base), intmask(self.rv_htif_tohost)),
-            (intmask(self.rv_htif_tohost), intmask(self.rv_htif_tohost + 16)),
-            (intmask(self.rv_htif_tohost + 16), intmask(self.rv_ram_base + self.rv_ram_size)),
-        ]
-        for a, b in self._mem_ranges:
-            assert b >= 8
 
     def _create_dtb(self):
         from pydrofoil.dtb import DeviceTree
@@ -657,8 +597,6 @@ def get_main(outriscv):
             step_no = 0
             insn_cnt = 0
             tick = False
-
-            self.g._init_ranges()
 
             self.g.interval_start = self.g.total_start = time.time()
             prev_pc = 0

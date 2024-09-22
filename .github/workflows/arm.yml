@@ -73,3 +73,10 @@ jobs:
     - name: show jit summary booting
       run: |
         cat summary
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: pydrofoil-arm-${{ matrix.os }}
+        path: ./pydrofoil-arm
+

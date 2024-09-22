@@ -156,8 +156,6 @@ class Globals(object):
         self.dtb = d.to_binary()
 
 
-DEFAULT_RSTVEC = 0x00001000
-
 def rv_16_random_bits(machine):
     # pseudo-random for determinism for now
     return r_uint(machine.g.random.genrand32()) & r_uint(0xffff)
@@ -237,9 +235,6 @@ def load_reservation(machine, addr):
     #print "reservation <- 0x%x" % (addr, )
     return ()
 
-def speculate_conditional(machine, _):
-    return True
-
 @specialize.argtype(0)
 def check_mask(machine):
     return r_uint(0x00000000FFFFFFFF) if is_32bit_model(machine) else r_uint(0xffffffffffffffff)
@@ -269,9 +264,6 @@ def memea(len, n):
 
 
 # sim stuff
-
-def plat_term_write_impl(c):
-    os.write(1, c)
 
 @specialize.argtype(0)
 def init_sail(machine, elf_entry):

@@ -318,9 +318,6 @@ def memea(len, n):
 
 # sim stuff
 
-def plat_term_write_impl(c):
-    os.write(1, c)
-
 @specialize.argtype(0)
 def init_sail(machine, elf_entry):
     machine.init_model()

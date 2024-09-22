@@ -94,7 +94,6 @@ def _regen_arm():
 
 def target(driver, cmdlineargs):
     if driver is not None:
-        driver.config.translation.suggest(jit_opencoder_model="big")
         driver.config.translation.suggest(withsmallfuncsets=0)
         driver.config.translation.suggest(output="pydrofoil-arm")
     main = make_code(regen="--no-arm-regen" not in cmdlineargs)

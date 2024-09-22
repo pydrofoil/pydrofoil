@@ -667,7 +667,6 @@ class __extend__(parse.Register):
         if hasattr(self, 'register_ref_name'):
             return self.register_ref_name
         if read_pyname is None:
-            import pdb;pdb.set_trace()
             read_pyname = codegen.globalnames[self.name].pyname
         typ = self.typ.resolve_type(codegen)
         name = "ref_%s" % (self.pyname, )

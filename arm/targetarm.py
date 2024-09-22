@@ -75,9 +75,12 @@ def regen_arm():
     # do code regeneration in a subprocess to clean up memory completely
     import subprocess
     print "running regeneration in subprocess"
-    subprocess.call("%s %s --only-regen" % (sys.executable, __file__), shell=True)
+    subprocess.call("%s %s --only-regen" % (sys.executable, __file__), shell=True, env=os.environ.copy())
 
 def _regen_arm():
+    import sys, os
+    print os.environ
+    print sys.path
     with open(armir, "rb") as f:
         s = f.read()
     entrypoints = "zstep_model z__SetThisInstrDetails zmain z__SetConfig z__ListConfig".split()

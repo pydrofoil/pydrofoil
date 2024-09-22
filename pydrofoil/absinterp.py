@@ -249,7 +249,7 @@ class AbstractInterpreter(object):
         from dotviewer import graphclient
         import pytest
         dotgen = DotGen('G')
-        print_varnames = self.graph._dot(dotgen, self.codegen)
+        print_varnames = self.graph._dot(dotgen, self.codegen, None)
         for block in self.graph.iterblocks():
             extrainfoid = "info" + str(id(block))
             if block not in self.values:

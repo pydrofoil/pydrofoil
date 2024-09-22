@@ -20,9 +20,6 @@ class ExitNow(Exception):
 
 VERSION = "0.0.1-alpha0"
 
-with open(os.path.join(os.path.dirname(__file__), "riscv_model_version")) as f:
-    SAIL_RISCV_VERSION = f.read().strip()
-
 
 def write_mem(machine, addr, content): # write a single byte
     jit.promote(machine.g).mem.write(addr, 1, content)
@@ -48,69 +45,29 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
     jit.promote(machine.g).mem.write(addr.touint(), n, data.touint())
     return True
 
-# rough memory layout:
-# | rom | clint | .... | ram <htif inside> ram
+@always_inline
+def read_tag_bool(machine, addr):
+    addr <<= 3 # this is log2_cap_size in the cheriot model
+    return machine.g.mem.read_tag_bit(addr)
 
-@jit.not_in_trace
-def _observe_addr_range(machine, pc, addr, width, ranges):
-    index = _find_index(ranges, addr, width)
-    jit.promote(machine.g)._mem_addr_range_next = index
+@always_inline
+def write_tag_bool(machine, addr, tag):
+    addr <<= 3 # this is log2_cap_size in the cheriot model
+    return machine.g.mem.write_tag_bit(addr, tag)
 
-@jit.elidable
-def _get_likely_addr_range(g, pc, ranges):
-    # not really at all elidable, but it does not matter. the result is only
-    # used to produce some guards
-    return g._mem_addr_range_next
-
-def _find_index(ranges, addr, width):
-    for index, (start, stop) in enumerate(ranges):
-        if start <= addr and addr + width < stop:
-            return index
-    return -1
-
-@specialize.argtype(0)
-def promote_addr_region(machine, addr, width, offset, executable_flag):
-    g = jit.promote(machine.g)
-    width = intmask(machine.word_width_bytes(width))
-    addr = intmask(addr)
-    jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
-    if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
-        return
-    if executable_flag:
-        return
-    pc = machine._reg_zPC
-    _observe_addr_range(machine, pc, addr, width, g._mem_ranges)
-    range_index = _get_likely_addr_range(g, pc, g._mem_ranges)
-    if range_index < 0 or width > 8:
-        return
-    # the next line produces two guards
-    if g._mem_ranges[range_index][0] <= addr and addr < g._mem_ranges[range_index][1] - width:
-        if width == 8 and addr & ((r_uint(1)<<63) | 0b111) == 0:
-            # it's aligned and the highest bit is not set. tell the jit that the
-            # last three bits and the highest bit are zero. can be removed with
-            # known bits analysis later
-            jit.record_exact_value(addr & 1, 0)
-            jit.record_exact_value(addr & 0b111, 0)
-            jit.record_exact_value((addr + width) & 0b111, 0)
-            jit.record_exact_value(r_uint(addr) & (r_uint(1)<<63), 0)
-            jit.record_exact_value((r_uint(addr) >> 1) & 1, 0)
-            jit.record_exact_value((r_uint(addr) >> 2) & 1, 0)
-    return
 
 class Globals(object):
     _immutable_fields_ = [
         'config_print_platform?', 'config_print_mem_access?',
         'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?',
+        'config_print_exception?',
         'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
         'rv_rom_base?', 'rv_rom_size?', 'mem?',
         'rv_insns_per_tick?',
         '_mem_ranges?[*]',
-        'rv64'
     ]
 
-    def __init__(self, rv64=True):
-        self.rv64 = rv64
-        self._mem_addr_range_next = -1
+    def __init__(self):
         self.mem = None
         self.rv_enable_pmp                  = False
         self.rv_enable_zfinx                = False
@@ -151,29 +108,15 @@ class Globals(object):
         self.config_print_reg = True
         self.config_print_mem_access = True
         self.config_print_platform = True
+        self.config_print_exception = True
         self.config_print_rvfi = False
 
         self.cpu_hz = 1000000000 # 1 GHz
 
-    def _init_ranges(self):
-        self._mem_ranges = [
-            (intmask(self.rv_rom_base), intmask(self.rv_rom_base + self.rv_rom_size)),
-            (intmask(self.rv_clint_base), intmask(self.rv_clint_base + self.rv_clint_size)),
-            (intmask(self.rv_ram_base), intmask(self.rv_htif_tohost)),
-            (intmask(self.rv_htif_tohost), intmask(self.rv_htif_tohost + 16)),
-            (intmask(self.rv_htif_tohost + 16), intmask(self.rv_ram_base + self.rv_ram_size)),
-        ]
-        for a, b in self._mem_ranges:
-            assert b >= 8
-
     def _create_dtb(self):
         from pydrofoil.dtb import DeviceTree
-        if self.rv64:
-            isa_spec = b"rv64imac"
-            mmu_spec = b"sv39"
-        else:
-            isa_spec = b"rv32imac"
-            mmu_spec = b"sv32"
+        isa_spec = b"rv32imac"
+        mmu_spec = b"sv32"
         d = DeviceTree()
         with d.begin_node(b""):
             d.add_property_u32(b"#address-cells", 2)
@@ -212,8 +155,6 @@ class Globals(object):
                 d.add_property(b"compatible", b"ucb,htif0")
         self.dtb = d.to_binary()
 
-
-DEFAULT_RSTVEC = 0x00001000
 
 def rv_16_random_bits(machine):
     # pseudo-random for determinism for now
@@ -267,6 +208,15 @@ def sys_enable_vext(machine, _):
 def sys_enable_writable_fiom(machine, _):
     return machine.g.rv_enable_writable_fiom
 
+def sys_pmp_count(machine, _):
+    return 0 # XXX
+def sys_pmp_grain(machine, _):
+    return 0 # XXX
+
+def plat_uart_base(machine, _):
+    return 0x10000000 # XXX make configurable or something
+def plat_uart_size(machine, _):
+    return 0x100
 
 # Provides entropy for the scalar cryptography extension.
 def plat_get_16_random_bits(machine, _):
@@ -284,9 +234,6 @@ def load_reservation(machine, addr):
     machine.g.reservation_valid = True
     #print "reservation <- 0x%x" % (addr, )
     return ()
-
-def speculate_conditional(machine, _):
-    return True
 
 @specialize.argtype(0)
 def check_mask(machine):
@@ -321,56 +268,11 @@ def memea(len, n):
 @specialize.argtype(0)
 def init_sail(machine, elf_entry):
     machine.init_model()
-    init_sail_reset_vector(machine, elf_entry)
+    machine._reg_zPC = r_uint(elf_entry) # boot at elf entry
 
 @specialize.argtype(0)
 def is_32bit_model(machine):
-    return not machine.rv64
-
-@specialize.argtype(0)
-def init_sail_reset_vector(machine, entry):
-    RST_VEC_SIZE = 8
-    reset_vec = [ # 32 bit entries
-        r_uint(0x297),                                      # auipc  t0,0x0
-        r_uint(0x28593 + (RST_VEC_SIZE * 4 << 20)),         # addi   a1, t0, &dtb
-        r_uint(0xf1402573),                                 # csrr   a0, mhartid
-        r_uint(0x0182a283)  # lw     t0,24(t0)
-        if is_32bit_model(machine) else
-        r_uint(0x0182b283), # ld     t0,24(t0)
-        r_uint(0x28067),                                    # jr     t0
-        r_uint(0),
-        r_uint(entry & 0xffffffff),
-        r_uint(entry >> 32),
-    ]
-
-
-    rv_rom_base = DEFAULT_RSTVEC
-    addr = r_uint(rv_rom_base)
-    for i, fourbytes in enumerate(reset_vec):
-        for j in range(4):
-            write_mem(machine, addr, fourbytes & 0xff) # little endian
-            addr += 1
-            fourbytes >>= 8
-        assert fourbytes == 0
-    if machine.g.dtb:
-        for i, char in enumerate(machine.g.dtb):
-            write_mem(machine, addr, r_uint(ord(char)))
-            addr += 1
-
-    align = 0x1000
-    # zero-fill to page boundary
-    rom_end = r_uint((addr + align - 1) / align * align)
-    for i in range(intmask(addr), rom_end):
-        write_mem(machine, addr, 0)
-        addr += 1
-
-    # set rom size
-    rv_rom_size = rom_end - rv_rom_base
-    if machine.g.rv_rom_size != rv_rom_size:
-        machine.g.rv_rom_size = rv_rom_size
-
-    # boot at reset vector
-    machine._reg_zPC = r_uint(rv_rom_base)
+    return True
 
 def parse_dump_file(fn):
     with open(fn) as f:
@@ -416,18 +318,8 @@ def parse_dump_file(fn):
 helptext = """
 Usage: %s [options] <elf_file>
 
-Run the Pydrofoil RISC-V emulator on elf_file.
+Run the CHERIoT emulator on elf_file.
 
---rv32                          run emulator in 32bit mode
--l/--inst-limit <limit>         exit after limit instructions have been executed
---instructions-per-tick <num>   tick the emulated clock every num instructions (default: 100)
---verbose                       print a detailed trace of every instruction executed
---print-kips                    print kip/s every 2**20 instructions
---jit <options>                 set JIT options (try --jit help for details)
---dump <file>                   load elf file disassembly from file
--b/--device-tree-blob <file>    load dtb from file (usually not needed, Pydrofoil has a dtb built-in)
---disable-vext                  disable vector extension
---version                       print the version of pydrofoil-riscv
 --help                          print this information and exit
 """
 
@@ -484,11 +376,6 @@ def main(argv, *machineclasses):
 def _main(argv, *machineclasses):
     if parse_flag(argv, "--help"):
         print_help(argv[0])
-        return 0
-
-    version = parse_flag(argv, "--version")
-    if version:
-        print "pydrofoil-riscv %s (Sail model version: %s)" % (VERSION, SAIL_RISCV_VERSION)
         return 0
 
     blob = parse_args(argv, "-b", "--device-tree-blob")
@@ -556,6 +443,7 @@ def _main(argv, *machineclasses):
         machine.g.config_print_reg = False
         machine.g.config_print_mem_access = False
         machine.g.config_print_platform = False
+        machine.g.config_print_exception = False
     entry = load_sail(machine, file)
     init_sail(machine, entry)
     if dump_file:
@@ -593,9 +481,8 @@ def load_sail(machine, fn):
     oldmem = g.mem
     if oldmem:
         oldmem.close()
-    mem1 = mem_mod.FlatMemory(False)
-    mem2 = mem_mod.FlatMemory(False, g.rv_ram_size)
-    mem = mem_mod.SplitMemory(mem1, 0, mem1.size, mem2, g.rv_ram_base, g.rv_ram_size)
+    mem = mem_mod.TaggedFlatMemory(size=g.rv_ram_size, base_addr=g.rv_ram_base)
+    #mem = mem_mod.TaggedBlockMemory()
     g.mem = mem
     with open(fn, "rb") as f:
         entrypoint = elf.elf_read_process_image(mem, f) # load process image
@@ -640,40 +527,48 @@ def get_config_print_mem(machine, _):
     return machine.g.config_print_mem_access
 def get_config_print_platform(machine, _):
     return machine.g.config_print_platform
+def get_config_print_exception(machine, _):
+    return machine.g.config_print_exception
 
-def get_main(outriscv, rv64):
+def get_main(outriscv):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
 
-    Globals._pydrofoil_enum_read_ifetch_value = outriscv.Enum_zread_kind.zRead_ifetch
+    prefix = "cheriot"
 
-    if rv64:
-        prefix = "rv64"
-    else:
-        prefix = "rv32"
-
-    def get_printable_location(pc, do_show_times, insn_limit, tick, g):
+    def get_printable_location(pc, do_show_times, insn_limit, tick, pcc_bits, g):
         if tick:
             return "TICK 0x%x" % (pc, )
         if g.dump_dict and pc in g.dump_dict:
             return "%s 0x%x: %s" % (prefix, pc, g.dump_dict[pc])
+        return outriscv.func_zcapToString(None, outriscv.func_zcapBitsToCapability(None, True, pcc_bits))
         return hex(pc)
 
     driver = JitDriver(
         get_printable_location=get_printable_location,
-        greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'g'],
+        greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'pcc_bits', 'g'],
         reds=['step_no', 'insn_cnt', 'machine'],
         virtualizables=['machine'],
         name=prefix,
         is_recursive=True)
 
+    phys_mem_read = outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False
+    def phys_mem_read_patched(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta):
+        # read and ignore the result, the JIT will do the rest?
+        jit.jit_debug("ram ifetch", intmask(zpaddr))
+        mem = jit.promote(machine.g).mem
+        res = mem.read(zpaddr, 2, executable_flag=True)
+        res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
+        return res
+    outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False = phys_mem_read_patched
+
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
-        _virtualizable_ = ['_reg_ztlb39', '_reg_ztlb48', '_reg_zminstret', '_reg_zPC', '_reg_znextPC', '_reg_zmstatus', '_reg_zmip', '_reg_zmie', '_reg_zsatp', '_reg_zx1']
+        _virtualizable_ = ['_reg_ztlb39', '_reg_ztlb48', '_reg_zminstret', '_reg_zPC', '_reg_znextPC', '_reg_zmstatus', '_reg_zmip', '_reg_zmie', '_reg_zsatp', '_reg_zx1', '_reg_zPCC', '_reg_znextPCC']
 
         def __init__(self):
             outriscv.Machine.__init__(self)
-            self.g = Globals(rv64=rv64)
+            self.g = Globals()
 
         def tick_clock(self):
             return outriscv.func_ztick_clock(self, ())
@@ -695,16 +590,17 @@ def get_main(outriscv, rv64):
             insn_cnt = 0
             tick = False
 
-            self.g._init_ranges()
-
             self.g.interval_start = self.g.total_start = time.time()
             prev_pc = 0
             g = self.g
+            pcc_bits = outriscv.func_zcapToBits(self, self._reg_zPCC)
 
             while 1:
                 driver.jit_merge_point(pc=self._reg_zPC, tick=tick,
                         insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
-                        do_show_times=do_show_times, machine=self, g=g)
+                        do_show_times=do_show_times, machine=self, g=g, pcc_bits=pcc_bits)
+
+
                 if self._reg_zhtif_done or not (insn_limit == 0 or step_no < insn_limit):
                     break
                 jit.promote(self.g)
@@ -719,8 +615,14 @@ def get_main(outriscv, rv64):
                         print "kips:", 0x100000 / 1000. / (curr - g.interval_start)
                         g.interval_start = curr
                     tick = False
+                    pcc_bits = outriscv.func_zcapToBits(self, self._reg_zPCC)
                     continue
                 # run a Sail step
+
+                if jit.we_are_jitted():
+                    # transfer the knowledge from the green pcc_bits to the real pcc register
+                    self._reg_zPCC = outriscv.func_zcapBitsToCapability(self, True, pcc_bits)
+
                 prev_pc = self._reg_zPC
                 stepped = self.step(Integer.fromint(step_no))
                 if self.have_exception:
@@ -744,9 +646,13 @@ def get_main(outriscv, rv64):
                         if p.c_value < 0:
                             # ctrl-c was pressed
                             break
+                    pcc_bits = outriscv.func_zcapToBits(self, self._reg_zPCC)
                     driver.can_enter_jit(pc=self._reg_zPC, tick=tick,
                             insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
-                            do_show_times=do_show_times, machine=self, g=g)
+                            do_show_times=do_show_times, machine=self, g=g, pcc_bits=pcc_bits)
+                    continue
+                pcc_bits = outriscv.func_zcapToBits(self, self._reg_zPCC)
+
             # loop end
 
             interval_end = time.time()
@@ -768,8 +674,7 @@ def get_main(outriscv, rv64):
                 raise ExitNow
 
 
-    Machine.rv64 = rv64
-    Machine.__name__ += "64" if rv64 else "32"
+    Machine.__name__ += "32"
 
     def bound_main(argv):
         return main(argv, Machine)

@@ -90,8 +90,7 @@ def split_graph(graph, codegen, functyp, next_name, min_size, start_block=None):
     for block in graph.iterblocks():
         assert block in graph1blocks or block in graph2blocks
         if block in graph1blocks and block in graph2blocks:
-            import pdb;pdb.set_trace() # this might be sharing blocks
-            assert is_end_block(block)
+            raise CantSplitError # could be lifted
     transferblock, = transfer_blocks
     assert transferblock not in graph1blocks
     assert transferblock in graph2blocks

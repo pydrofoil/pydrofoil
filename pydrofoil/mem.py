@@ -74,9 +74,9 @@ class FlatMemory(MemBase):
     PAGE_SIZE = 1 << 9
     PAGE_MASK = PAGE_SIZE - 1
 
-    _immutable_fields_ = ['mem?', 'version?', 'status']
+    _immutable_fields_ = ['mem?', 'version?', 'status', 'base_addr']
 
-    def __init__(self, mmap=False, size=SIZE):
+    def __init__(self, mmap=False, size=SIZE, base_addr=0):
         self.size = size
         if mmap:
             if we_are_translated():
@@ -97,6 +97,7 @@ class FlatMemory(MemBase):
         self.version = Version()
 
         self.mmap = mmap
+        self.base_addr = base_addr
 
     def close(self):
         if not self.mmap:
@@ -110,6 +111,7 @@ class FlatMemory(MemBase):
 
     @always_inline
     def _split_addr(self, start_addr, num_bytes):
+        start_addr -= self.base_addr
         mem_offset = start_addr >> 3
         inword_addr = start_addr & 0b111
         # little endian
@@ -126,7 +128,7 @@ class FlatMemory(MemBase):
         if executable_flag:
             self.mark_word_immutable(start_addr)
 
-        if (executable_flag and
+        if ((executable_flag or jit.isconstant(mem_offset)) and
                 self._get_status_word(mem_offset, self.version) == MEM_STATUS_IMMUTABLE):
             data = self._immutable_read(mem_offset, self.version)
         else:
@@ -186,6 +188,23 @@ class FlatMemory(MemBase):
             return
         #print "mark_word_immutable", mem_offset
         self.status[mem_offset] = MEM_STATUS_IMMUTABLE
+
+
+class TaggedFlatMemory(FlatMemory):
+    def __init__(self, mmap=False, size=FlatMemory.SIZE, base_addr=0):
+        FlatMemory.__init__(self, mmap, size, base_addr)
+        self.tags = ['\x00'] * len(self.mem)
+
+    def read_tag_bit(self, addr):
+        mem_offset, inword_addr, _ = self._split_addr(addr, 1)
+        data = ord(self.tags[mem_offset])
+        return bool((data >> inword_addr) & 1)
+
+    def write_tag_bit(self, addr, tag):
+        mem_offset, inword_addr, _ = self._split_addr(addr, 1)
+        mask = r_uint(1) << inword_addr
+        olddata = ord(self.tags[mem_offset])
+        self.tags[mem_offset] = chr((olddata & ~mask) | (r_uint(tag) << inword_addr))
 
 
 class BlockMemory(MemBase):
@@ -275,6 +294,55 @@ class BlockMemory(MemBase):
         mask <<= inword_addr * 8
         value <<= inword_addr * 8
         block[block_offset] = (olddata & ~mask) | value
+
+
+class TaggedBlockMemory(BlockMemory):
+    def __init__(self):
+        BlockMemory.__init__(self)
+        self.tag_blocks = {}
+        self.last_block_tags = None
+        self.last_block_addr_tags = r_uint(-1)
+
+    @always_inline
+    def _split_tag_addr(self, addr):
+        block_addr = addr >> self.ADDRESS_BITS_BLOCK
+        block = self.get_tag_block(block_addr)
+        addr = addr & self.BLOCK_MASK
+        block_offset = addr >> 6
+        inword_addr = addr & 0b111111
+        return block, block_offset, inword_addr
+
+    def get_tag_block(self, block_addr):
+        jit.conditional_call(
+            block_addr != self.last_block_addr_tags,
+            TaggedBlockMemory._fetch_and_set_tag_block,
+            self,
+            block_addr
+        )
+        return self.last_block_tags
+
+    def _fetch_and_set_tag_block(self, block_addr):
+        block = self._get_tag_block(block_addr)
+        self.last_block_tags = block
+        self.last_block_addr_tags = block_addr
+
+    @jit.elidable
+    def _get_tag_block(self, block_addr):
+        if block_addr in self.tag_blocks:
+            return self.tag_blocks[block_addr]
+        res = self.tag_blocks[block_addr] = [r_uint(0)] * ((self.BLOCK_SIZE + 63) // 64)
+        return res
+
+    def read_tag_bit(self, addr):
+        block, block_offset, inword_addr = self._split_tag_addr(addr)
+        return bool((block[block_offset] >> inword_addr) & 0b1)
+
+    def write_tag_bit(self, addr, tag):
+        tag = r_uint(bool(tag))
+        block, block_offset, inword_addr = self._split_tag_addr(addr)
+        mask = r_uint(1) << inword_addr
+        olddata = block[block_offset]
+        block[block_offset] = (olddata & ~mask) | (tag << inword_addr)
 
 
 class SplitMemory(MemBase):

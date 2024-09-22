@@ -158,6 +158,8 @@ class SSABuilder(object):
         graph = Graph(self.functionast.name, self.args, self.allblocks[self.startpc], self.has_loop)
         #if random.random() < 0.01:
         #    self.view = 1
+        #mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
+        insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
         light_simplify(graph, self.codegen)
         if self.view:
@@ -279,6 +281,9 @@ class SSABuilder(object):
                 self._store(op.result, ssaop)
             elif isinstance(op, parse.Assignment):
                 value = self._get_arg(op.value, op.result)
+                if isinstance(op.resolved_type, types.Struct) and not op.resolved_type.tuplestruct:
+                    value = StructCopy(op.resolved_type.name, value, op.resolved_type, op.sourcepos)
+                    self._addop(value)
                 if op.resolved_type != op.value.resolved_type:
                     # we need a cast first
                     value = Cast(value, op.resolved_type, op.sourcepos, op.result)
@@ -298,6 +303,7 @@ class SSABuilder(object):
                 if fieldval.resolved_type != typ:
                     fieldval = self._addop(Cast(fieldval, typ, op.sourcepos))
                 self._addop(FieldWrite(lastfield, [obj, fieldval], types.Unit(), op.sourcepos))
+
             elif isinstance(op, parse.GeneralAssignment):
                 args = self._get_args(op.rhs.args)
                 rhs = Operation(op.rhs.name, args, op.rhs.resolved_type, op.sourcepos)
@@ -366,7 +372,10 @@ class SSABuilder(object):
             elif parseval.name == 'bitone':
                 return SmallBitVectorConstant(1, types.Bit())
             if parseval.name in self.codegen.let_values:
-                return self.codegen.let_values[parseval.name]
+                res = self.codegen.let_values[parseval.name]
+                if isinstance(res, StructConstruction):
+                    res = self._addop(StructConstruction(res.name, res.args[:], res.resolved_type, res.sourcepos))
+                return res
             if isinstance(parseval.resolved_type, types.Enum):
                 if parseval.name in parseval.resolved_type.elements:
                     return EnumConstant(parseval.name, parseval.resolved_type)
@@ -398,7 +407,10 @@ class SSABuilder(object):
             ssaop = UnionCast(parseval.variant, [arg], parseval.resolved_type)
             return self._addop(ssaop)
         elif isinstance(parseval, parse.RefOf):
-            return self._addop(RefOf([self._get_arg(parseval.expr)], parseval.resolved_type))
+            arg = self._get_arg(parseval.expr)
+            assert isinstance(arg, GlobalRead)
+            assert arg.name in self.codegen.all_registers
+            return self._addop(RefOf(arg.name, parseval.resolved_type))
         elif isinstance(parseval, parse.Number):
             return MachineIntConstant(parseval.number)
         elif isinstance(parseval, parse.BitVectorConstant):
@@ -432,6 +444,44 @@ class SSABuilder(object):
         else:
             self.variable_map[result] = value
 
+def insert_struct_copies_for_arguments(graph, codegen):
+    copy_needed = set()
+    for arg in graph.args:
+        if isinstance(arg.resolved_type, types.Struct) and not arg.resolved_type.tuplestruct:
+            copy_needed.add(arg)
+    if not copy_needed:
+        return
+    mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
+    copied_args = [arg for arg in graph.args
+                   if arg in copy_needed and
+                       arg.resolved_type in mutated_struct_types]
+    if not copied_args:
+        return
+    ops = []
+    replacements = {}
+    for arg in copied_args:
+        op = StructCopy(arg.resolved_type.name, arg, arg.resolved_type)
+        ops.append(op)
+        replacements[arg] = op
+    graph.replace_ops(replacements)
+    graph.startblock = Block(ops, Goto(graph.startblock))
+    res = light_simplify(graph, codegen)
+    if res:
+        partial_allocation_removal(graph, codegen)
+
+def compute_mutations_of_non_copied_structs(graph):
+    # very rough over-approximation
+    result = set()
+    for block in graph.iterblocks():
+        for op in block.operations:
+            if not isinstance(op, FieldWrite):
+                continue
+            if isinstance(op.args[0], (StructCopy, Allocate)):
+                continue
+            result.add(op.args[0].resolved_type)
+    return result
+
+
 def build_ssa(blocks, functionast, functionargs, codegen, startpc=0, extra_args=None):
     builder = SSABuilder(blocks, functionast, functionargs, codegen, startpc, extra_args)
     return builder.build()
@@ -446,7 +496,7 @@ def extract_global_value(graph, name):
     if name != lastop.name:
         return
     value = lastop.args[0]
-    if not isinstance(value, Constant):
+    if not isinstance(value, (StructConstruction, Constant)):
         return
     return value
 
@@ -869,6 +919,15 @@ class StructConstruction(Operation):
     def __repr__(self):
         return "StructConstruction(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
+class StructCopy(Operation):
+    can_have_side_effects = False
+
+    def __init__(self, name, arg, resolved_type, sourcepos=None):
+        Operation.__init__(self, name, [arg], resolved_type, sourcepos)
+
+    def __repr__(self):
+        return "StructCopy(%r, %r, %r, %r)" % (self.name, self.args[0], self.resolved_type, self.sourcepos)
+
 class FieldAccess(Operation):
     can_have_side_effects = False
 
@@ -916,11 +975,11 @@ class RefAssignment(Operation):
 class RefOf(Operation):
     can_have_side_effects = False
 
-    def __init__(self, args, resolved_type, sourcepos=None):
-        Operation.__init__(self, "$ref-of", args, resolved_type, sourcepos)
+    def __init__(self, name, resolved_type, sourcepos=None):
+        Operation.__init__(self, name, [], resolved_type, sourcepos)
 
     def __repr__(self):
-        return "RefOf(%r, %r, %r)" % (self.args, self.resolved_type, self.sourcepos, )
+        return "RefOf(%r, %r, %r)" % (self.name, self.resolved_type, self.sourcepos, )
 
 class VectorInit(Operation):
     can_have_side_effects = False
@@ -1263,13 +1322,13 @@ def print_graph_construction(graph, codegen=None):
     else:
         builtin_names = {}
 
-    uniontyps = []
-    seen_uniontyps = {}
+    bigtyps = []
+    seen_bigtyps = {}
     def type_repr(typ):
-        if isinstance(typ, types.Union):
-            if typ.name not in seen_uniontyps:
-                uniontyps.append("%s = %r" % (typ.name, typ))
-                seen_uniontyps[typ.name] = typ
+        if isinstance(typ, (types.Union, types.Enum, types.Struct)):
+            if typ.name not in seen_bigtyps:
+                bigtyps.append("%s = %r" % (typ.name, typ))
+                seen_bigtyps[typ.name] = typ
             return typ.name
         return repr(typ)
 
@@ -1308,7 +1367,7 @@ def print_graph_construction(graph, codegen=None):
             seen_ops.add(op)
         res.append("%s.next = %s" % (blockname, block.next._repr(print_varnames, blocknames)))
     res.append("graph = Graph(%r, [%s], block0%s)" % (graph.name, ", ".join(arg.name for arg in graph.args), ", True" if graph.has_loop else ""))
-    res = uniontyps + res
+    res = bigtyps + res
     return res
 
 
@@ -2844,14 +2903,34 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_append(self, op):
         arg0, arg1 = self._args(op)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        reswidth = typ0.width + typ1.width
+        return self.newop(
+            "@bitvector_concat_bv_gbv_wrapped_res",
+            [arg0, MachineIntConstant(typ0.width), arg1],
+            types.GenericBitVector(),
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_bitvector_concat_bv_gbv_wrapped_res(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        if isinstance(arg2, Operation) and arg2.name == "@zeros_i":
+            subarg0, = self._args(arg2)
+            if not isinstance(subarg0, Constant):
+                return self.newop(
+                    "@bitvector_concat_bv_n_zeros_wrapped_res",
+                    [arg0, arg1, subarg0],
+                    types.GenericBitVector(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+        arg2, typ2 = self._extract_smallfixedbitvector(arg2)
+        reswidth = self._extract_machineint(arg1).number + typ2.width
         if reswidth > 64:
             return
         res = self.newcast(
             self.newop(
                 "@bitvector_concat_bv_bv",
-                [arg0, MachineIntConstant(typ1.width), arg1],
+                [arg0, MachineIntConstant(typ2.width), arg2],
                 types.SmallFixedBitVector(reswidth),
                 op.sourcepos,
                 op.varname_hint,
@@ -3764,21 +3843,66 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_sail_truncate_o_i(self, op):
         arg0, arg1 = self._args(op)
-        arg0, typ = self._extract_smallfixedbitvector(arg0)
         num = self._extract_number(arg1)
-        if typ.width < num.number:
-            return
-        if typ.width == num.number:
-            newop = arg0
-        else:
+        try:
+            arg0, typ = self._extract_smallfixedbitvector(arg0)
+        except NoMatchException:
+            if num.number > 64:
+                return
             newop = self.newop(
-                "@truncate_bv_i",
+                "@truncate_unwrapped_res",
                 [arg0, num],
                 types.SmallFixedBitVector(num.number),
                 op.sourcepos,
                 op.varname_hint
             )
+        else:
+            if typ.width < num.number:
+                return
+            if typ.width == num.number:
+                newop = arg0
+            else:
+                newop = self.newop(
+                    "@truncate_bv_i",
+                    [arg0, num],
+                    types.SmallFixedBitVector(num.number),
+                    op.sourcepos,
+                    op.varname_hint
+                )
         return self.newcast(newop, op.resolved_type)
+
+    def optimize_truncate_unwrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        if not isinstance(arg0, Operation) or not arg0.name == '@bitvector_concat_bv_gbv_wrapped_res':
+            return
+        arg1 = self._extract_number(arg1)
+        if arg1.number > 64:
+            return
+        subarg0, subarg1, subarg2 = self._args(arg0)
+        return self.newcast(
+            self.newop(
+                "@bitvector_concat_bv_gbv_truncate_to",
+                [subarg0, subarg1, subarg2, arg1],
+                types.SmallFixedBitVector(arg1.number),
+                arg0.sourcepos,
+                arg0.varname_hint,
+            ),
+            op.resolved_type
+        )
+
+    def optimize_bitvector_concat_bv_gbv_truncate_to(self, op):
+        # very cheriot-specific :`-)
+        arg0, arg1, arg2, arg3 = self._args(op)
+        if not isinstance(arg2, Operation) or not arg2.name == '@bitvector_concat_bv_n_zeros_wrapped_res':
+            return
+        subarg0, subarg1, subarg2 = self._args(arg2)
+        return self.newop(
+            "@bitvector_concat_bv_bv_n_zeros_truncate",
+            [arg0, arg1, subarg0, subarg1, subarg2, arg3],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint
+        )
 
     @symmetric
     def optimize_eq_bool(self, op, arg0, arg1):
@@ -4289,6 +4413,25 @@ def partial_allocation_removal(graph, codegen):
                     fields[fieldname] = value
                 virtuals_in_block[op] = fields
                 continue
+            if isinstance(op, StructCopy):
+                obj = get_repr(op.args[0])
+                if obj in virtuals_in_block:
+                    fields = virtuals_in_block[obj].copy()
+                    virtuals_in_block[op] = fields
+                    continue
+                # copy of a non-virtual struct. we could indiscriminantly turn
+                # it into a StructConstruction, but that seems potentially
+                # bloaty. Instead, check whether it's used in the next op of
+                # the current block and only do that if yes.
+                if index + 1 < len(block.operations) and op in block.operations[index + 1].getargs():
+                    typ = op.resolved_type
+                    fields = {}
+                    for fieldname in typ.names:
+                        fieldvalue = FieldAccess(fieldname, [op.args[0]], typ.fieldtyps[fieldname])
+                        newoperations.append(fieldvalue)
+                        fields[fieldname] = fieldvalue
+                    virtuals_in_block[op] = fields
+                    continue
             if isinstance(op, FieldWrite):
                 obj = get_repr(op.args[0])
                 if obj in virtuals_in_block:
@@ -4299,6 +4442,21 @@ def partial_allocation_removal(graph, codegen):
                 if obj in virtuals_in_block:
                     replacements[op] = virtuals_in_block[obj][op.name]
                     continue
+            if isinstance(op, GlobalWrite) and op.name in codegen.all_registers:
+                obj = get_repr(op.args[0])
+                if obj in virtuals_in_block:
+                    typ = op.args[0].resolved_type
+                    fields = virtuals_in_block[obj]
+                    target = GlobalRead(op.name, typ)
+                    newoperations.append(target)
+                    for name in typ.names:
+                        if name in fields:
+                            fieldvalue = escape(fields[name])
+                        else:
+                            fieldvalue = DefaultValue(typ.fieldtyps[name])
+                        newoperations.append(FieldWrite(name, [target, fieldvalue]))
+                    continue
+
             for arg in op.getargs():
                 escape(arg)
             newoperations.append(op)

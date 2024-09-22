@@ -42,10 +42,6 @@ class CodeEmitter(object):
         if len(self.blocks) == 1:
             self.emit_block_ops(self.blocks[0])
             return
-        for arg in self.graph.args:
-            if isinstance(arg.resolved_type, types.Struct) and not arg.resolved_type.tuplestruct:
-                # copy all struct arguments
-                codegen.emit("%s = %s.copy_into()" % (arg.name, arg.name))
         # first give out variable names
         for block in self.blocks:
             for index, op in enumerate(block.operations):
@@ -88,6 +84,8 @@ class CodeEmitter(object):
         if isinstance(op, ir.Cast):
             return True
         if isinstance(op, ir.UnionCast):
+            return True
+        if isinstance(op, ir.RefOf):
             return True
         if op.name == "@not":
             return True
@@ -216,7 +214,7 @@ class CodeEmitter(object):
 
     def emit_op_UnionVariantCheck(self, op):
         clsname = self.codegen.getname(op.name)
-        self._op_helper(op, "not isinstance(%s, %s)" % (self._get_arg(op.args[0]), clsname))
+        self._op_helper(op, "not %s.check_variant(%s)" % (clsname, self._get_arg(op.args[0])))
 
     def emit_op_UnionCast(self, op):
         clsname = self.codegen.getname(op.name)
@@ -226,6 +224,10 @@ class CodeEmitter(object):
         pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
         args = ", ".join([self._get_arg(arg) for arg in op.args])
         self._op_helper(op, "%s(%s)" % (pyname, args))
+
+    def emit_op_StructCopy(self, op):
+        pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
+        self._op_helper(op, "%s.copy_into(machine)" % self._get_arg(op.args[0]))
 
     def emit_op_Cast(self, op):
         fromtyp = op.args[0].resolved_type
@@ -254,29 +256,25 @@ class CodeEmitter(object):
         self.codegen.emit(write)
 
     def emit_op_RefAssignment(self, op):
-        # XXX think long and hard about refs!
-        self.codegen.emit("%s.copy_into(%s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
+        self.codegen.emit("%s.update_with(machine, %s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
 
     def emit_op_Allocate(self, op):
         self._op_helper(op, op.resolved_type.uninitialized_value)
 
     def emit_op_RefOf(self, op):
-        if not isinstance(op.resolved_type.typ, types.Struct):
-            # only support references of 64 bit registers
-            assert op.resolved_type.typ is types.SmallFixedBitVector(64)
-            arg, = op.args
-            assert isinstance(arg, ir.GlobalRead)
-            regname = arg.name
-            register = self.codegen.all_registers[regname]
-            name = "ref_%s" % (regname, )
-            with self.codegen.cached_declaration(regname, name) as pyname:
-                with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
-                    with self.codegen.emit_indent("def deref(self, machine):"):
-                        self.codegen.emit("return machine.%s" % (register.pyname, ))
-                self.codegen.emit("%s = %s() # singleton" % (pyname, pyname))
-            return self._op_helper(op, pyname)
-        # for structs it's just the identity
-        return self._op_helper(op, self._get_arg(op.args[0]))
+        regname = op.name
+        register = self.codegen.all_registers[regname]
+        pyname = register.make_register_ref(self.codegen)
+        #name = "ref_%s" % (regname, )
+        #with self.codegen.cached_declaration(regname, name) as pyname:
+        #    with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
+        #        with self.codegen.emit_indent("def deref(self, machine):"):
+        #            self.codegen.emit("return machine.%s" % (register.pyname, ))
+        #        if isinstance(op.resolved_type.typ, types.Struct):
+        #            with self.codegen.emit_indent("def copy_into(self, machine, res=None):"):
+        #                self.codegen.emit("return machine.%s.copy_into(machine, res)" % (register.pyname, ))
+        #    self.codegen.emit("%s = %s() # singleton" % (pyname, pyname))
+        return self._op_helper(op, pyname)
 
     def emit_op_VectorInit(self, op):
         oftyp = op.resolved_type.typ
@@ -384,3 +382,4 @@ def count_uses(graph):
         for arg in block.next.getargs():
             uses[arg] += 1
     return uses
+

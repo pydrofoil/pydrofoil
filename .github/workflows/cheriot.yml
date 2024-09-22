@@ -45,7 +45,7 @@ jobs:
 
     - name: Restore cached opam
       id: cache-opam-restore
-      uses: actions/cache/restore@v3
+      uses: actions/cache/restore@v4
       with:
         path: |
           ~/.opam
@@ -61,7 +61,7 @@ jobs:
     - name: Save cached opam
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       id: cache-opam-save
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       with:
         path: |
           ~/.opam

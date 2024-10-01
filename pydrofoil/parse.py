@@ -298,12 +298,6 @@ class FVecType(Type):
 class Statement(BaseAst):
     end_of_block = False
 
-    def find_used_vars(self):
-        raise NotImplementedError
-
-    def replace_var(self, var, expr):
-        raise NotImplementedError
-
 class StatementWithSourcePos(Statement):
     sourcepos = None
     def add_sourcepos(self, sourcepos):
@@ -317,13 +311,6 @@ class LocalVarDeclaration(StatementWithSourcePos):
         self.value = value
         self.sourcepos = sourcepos
 
-    def find_used_vars(self):
-        if self.value:
-            return self.value.find_used_vars()
-        return set()
-
-    def replace_var(self, var, expr):
-        xxx
 
 class GeneralAssignment(StatementWithSourcePos):
     def __init__(self, lhs, rhs, sourcepos=None, resolved_type=None):
@@ -331,18 +318,6 @@ class GeneralAssignment(StatementWithSourcePos):
         self.rhs = rhs
         self.sourcepos = sourcepos
         self.resolved_type = resolved_type
-
-    def find_used_vars(self):
-        if isinstance(self.lhs, StructElementAssignment):
-            res = self.lhs.obj.find_used_vars()
-        else:
-            res = self.lhs.ref.find_used_vars()
-        for arg in self.rhs.args:
-            res.update(arg.find_used_vars())
-        return res
-
-    def replace_var(self, var, expr):
-        return GeneralAssignment(self.lhs.replace_var(var, expr), self.rhs.replace_var(var, expr), self.sourcepos, self.resolved_type)
 
 
 class Assignment(StatementWithSourcePos):
@@ -352,16 +327,6 @@ class Assignment(StatementWithSourcePos):
         self.sourcepos = sourcepos
         self.resolved_type = resolved_type
 
-    def find_used_vars(self):
-        return self.value.find_used_vars()
-
-    def replace_var(self, var, expr):
-        return Assignment(
-            self.result,
-            self.value.replace_var(var, expr),
-            self.sourcepos,
-            self.resolved_type,
-        )
 
 class Operation(StatementWithSourcePos):
     def __init__(self, result, name, args, sourcepos=None, resolved_type=None):
@@ -371,39 +336,6 @@ class Operation(StatementWithSourcePos):
         self.sourcepos = sourcepos
         self.resolved_type = resolved_type
 
-    def find_used_vars(self):
-        res = set()
-        for val in self.args:
-            res.update(val.find_used_vars())
-        return res
-
-    def replace_var(self, var, expr):
-        newargs = [arg.replace_var(var, expr) for arg in self.args]
-        return Operation(self.result, self.name, newargs, self.sourcepos, self.resolved_type)
-
-
-class TemplatedOperation(StatementWithSourcePos):
-    def __init__(self, result, name, templateparam, args, sourcepos=None, resolved_type=None):
-        import pdb; pdb.set_trace()
-        self.result = result
-        self.name = name
-        self.templateparam = templateparam
-        self.args = args
-        self.sourcepos = sourcepos
-        self.resolved_type = resolved_type
-
-    def find_used_vars(self):
-        res = set()
-        for val in self.args:
-            res.update(val.find_used_vars())
-        return res
-
-    def replace_var(self, var, expr):
-        newargs = [arg.replace_var(var, expr) for arg in self.args]
-        return TemplatedOperation(self.result, self.name,
-                self.templateparam, newargs,
-                self.sourcepos,
-                self.resolved_type)
 
 
 class Goto(Statement):
@@ -411,8 +343,6 @@ class Goto(Statement):
     def __init__(self, target):
         self.target = target
 
-    def find_used_vars(self):
-        return set()
 
 class ConditionalJump(StatementWithSourcePos):
     def __init__(self, condition, target, sourcepos=None):
@@ -420,12 +350,6 @@ class ConditionalJump(StatementWithSourcePos):
         self.target = target
         self.sourcepos = sourcepos
 
-    def find_used_vars(self):
-        return self.condition.find_used_vars()
-
-    def replace_var(self, var, expr):
-        newcond = self.condition.replace_var(var, expr)
-        return ConditionalJump(newcond, self.target, self.sourcepos)
 
 class Condition(BaseAst):
     pass
@@ -434,26 +358,12 @@ class ExprCondition(Condition):
     def __init__(self, expr):
         self.expr = expr
 
-    def find_used_vars(self):
-        return self.expr.find_used_vars()
-
-    def replace_var(self, var, expr):
-        return ExprCondition(self.expr.replace_var(var, expr))
 
 class Comparison(Condition):
     def __init__(self, operation, args):
         self.operation = operation
         self.args = args
 
-    def find_used_vars(self):
-        res = set()
-        for val in self.args:
-            res.update(val.find_used_vars())
-        return res
-
-    def replace_var(self, var, expr):
-        newargs = [arg.replace_var(var, expr) for arg in self.args]
-        return Comparison(self.operation, newargs)
 
 class UnionVariantCheck(Condition):
     def __init__(self, var, variant, resolved_type=None):
@@ -461,11 +371,6 @@ class UnionVariantCheck(Condition):
         self.variant = variant
         self.resolved_type = resolved_type
 
-    def find_used_vars(self):
-        return self.var.find_used_vars()
-
-    def replace_var(self, var, expr):
-        return UnionVariantCheck(self.var.replace_var(var, expr), self.variant, self.resolved_type)
 
 class StructElementAssignment(StatementWithSourcePos):
     def __init__(self, obj, fields, value, resolved_type=None, sourcepos=None):
@@ -475,19 +380,6 @@ class StructElementAssignment(StatementWithSourcePos):
         self.resolved_type = resolved_type
         self.sourcepos = sourcepos
 
-    def find_used_vars(self):
-        res = self.obj.find_used_vars()
-        res.update(self.value.find_used_vars())
-        return res
-
-    def replace_var(self, var, expr):
-        return StructElementAssignment(
-            self.obj.replace_var(var, expr),
-            self.fields,
-            self.value.replace_var(var, expr) if self.value is not None else self.value,
-            self.resolved_type,
-            self.sourcepos)
-
 
 class RefAssignment(StatementWithSourcePos):
     def __init__(self, ref, value, resolved_type=None, sourcepos=None):
@@ -496,13 +388,6 @@ class RefAssignment(StatementWithSourcePos):
         self.sourcepos = sourcepos
         self.resolved_type = resolved_type
 
-    def find_used_vars(self):
-        res = self.value.find_used_vars()
-        res.add(self.ref)
-        return res
-
-    def replace_var(self, var, expr):
-        return RefAssignment(self.ref.replace_var(var, expr), self.value, self.sourcepos)
 
 class FunctionEndingStatement(StatementWithSourcePos):
     pass
@@ -510,11 +395,6 @@ class FunctionEndingStatement(StatementWithSourcePos):
 class End(FunctionEndingStatement):
     end_of_block = True
 
-    def find_used_vars(self):
-        return set()
-
-    def replace_var(self, var, expr):
-        xxx
 
 class Exit(FunctionEndingStatement):
     end_of_block = True
@@ -523,20 +403,10 @@ class Exit(FunctionEndingStatement):
         self.kind = kind
         self.sourcepos = sourcepos
 
-    def find_used_vars(self):
-        return set()
-
-    def replace_var(self, var, expr):
-        xxx
 
 class Arbitrary(FunctionEndingStatement):
     end_of_block = True
 
-    def find_used_vars(self):
-        return set()
-
-    def replace_var(self, var, expr):
-        xxx
 
 class JustStop(FunctionEndingStatement):
     end_of_block = True
@@ -544,24 +414,11 @@ class JustStop(FunctionEndingStatement):
 class Expression(BaseAst):
     resolved_type = None
 
-    def find_used_vars(self):
-        raise NotImplementedError
-
-    def replace_var(self, var, expr):
-        xxx
 
 class Var(Expression):
     def __init__(self, name, resolved_type=None):
         self.name = name
         self.resolved_type = resolved_type
-
-    def find_used_vars(self):
-        return {self.name}
-
-    def replace_var(self, var, expr):
-        if self.name == var:
-            return expr
-        return self
 
 
 class Number(Expression):
@@ -570,11 +427,6 @@ class Number(Expression):
         if resolved_type:
             self.resolved_type = resolved_type
 
-    def find_used_vars(self):
-        return set()
-
-    def replace_var(self, var, expr):
-        return self
 
 class BitVectorConstant(Expression):
     def __init__(self, constant, resolved_type=None):
@@ -582,11 +434,6 @@ class BitVectorConstant(Expression):
         if resolved_type:
             self.resolved_type = resolved_type
 
-    def find_used_vars(self):
-        return set()
-
-    def replace_var(self, var, expr):
-        return self
 
 class FieldAccess(Expression):
     def __init__(self, obj, element, resolved_type=None):
@@ -594,15 +441,6 @@ class FieldAccess(Expression):
         self.element = element
         self.resolved_type = resolved_type
 
-    def find_used_vars(self):
-        return self.obj.find_used_vars()
-
-    def replace_var(self, var, expr):
-        return FieldAccess(
-            self.obj.replace_var(var, expr),
-            self.element,
-            self.resolved_type,
-        )
 
 class Cast(Expression):
     def __init__(self, expr, variant, resolved_type=None):
@@ -610,25 +448,11 @@ class Cast(Expression):
         self.variant = variant
         self.resolved_type = resolved_type
 
-    def find_used_vars(self):
-        return self.expr.find_used_vars()
-
-    def replace_var(self, var, expr):
-        return Cast(
-            self.expr.replace_var(var, expr),
-            self.variant,
-            self.resolved_type,
-        )
 
 class RefOf(Expression):
     def __init__(self, expr):
         self.expr = expr
 
-    def find_used_vars(self):
-        return self.expr.find_used_vars()
-
-    def replace_var(self, var, expr):
-        return RefOf(self.expr.replace_var(var, expr))
 
 class String(Expression):
     def __init__(self, string, resolved_type=None):
@@ -636,29 +460,13 @@ class String(Expression):
         if resolved_type:
             self.resolved_type = resolved_type
 
-    def find_used_vars(self):
-        return set()
-
-    def replace_var(self, var, expr):
-        return self
 
 class Unit(Expression):
-    def find_used_vars(self):
-        return set()
-
-    def replace_var(self, var, expr):
-        return self
-
+    pass
 
 class Undefined(Expression):
     def __init__(self, typ):
         self.typ = typ
-
-    def find_used_vars(self):
-        return set()
-
-    def replace_var(self, var, expr):
-        return self
 
 
 class StructConstruction(Expression):
@@ -667,15 +475,6 @@ class StructConstruction(Expression):
         self.fieldnames = fieldnames
         self.fieldvalues = fieldvalues
 
-    def find_used_vars(self):
-        res = set()
-        for val in self.fieldvalues:
-            res.update(val.find_used_vars())
-        return res
-
-    def replace_var(self, var, expr):
-        fieldvalues = [val.replace_var(var, expr) for val in self.fieldvalues]
-        return StructConstruction(self.name, self.fieldnames, fieldvalues)
 
 class StructField(BaseAst):
     def __init__(self, fieldname, fieldvalue):
@@ -693,16 +492,6 @@ class OperationExpr(Expression):
         self.resolved_type = resolved_type
         self.sourcepos = sourcepos
 
-    def find_used_vars(self):
-        res = set()
-        for val in self.args:
-            res.update(val.find_used_vars())
-        return res
-
-    def replace_var(self, var, expr):
-        newargs = [arg.replace_var(var, expr) for arg in self.args]
-        return OperationExpr(self.name, newargs, self.resolved_type,
-                self.sourcepos)
 
 class CastExpr(Expression):
     def __init__(self, expr, resolved_type, sourcepos=None):
@@ -715,12 +504,6 @@ class CastExpr(Expression):
         if sourcepos:
             self.sourcepos = sourcepos
 
-    def find_used_vars(self):
-        return self.expr.find_used_vars()
-
-    def replace_var(self, var, expr):
-        expr = self.expr.replace_var(var, expr)
-        return CastExpr(expr, self.resolved_type)
 
 # ____________________________________________________________
 # parser
@@ -849,8 +632,6 @@ def generalassign(p):
     if isinstance(lhs, Var):
         if isinstance(rhs, Operation):
             return Operation(lhs.name, rhs.name, rhs.args, rhs.sourcepos)
-        if isinstance(rhs, TemplatedOperation):
-            return TemplatedOperation(lhs.name, rhs.name, rhs.templateparam, rhs.args, rhs.sourcepos)
         if isinstance(rhs, Expression):
             return Assignment(lhs.name, rhs)
     if isinstance(lhs, StructElementAssignment):
@@ -888,7 +669,7 @@ def morenames(p):
     return StructElementAssignment(None, [p[0].value] + p[2].fields, None)
 
 
-@pg.production("rhs : oprhs | templatedoprhs | expr")
+@pg.production("rhs : oprhs | expr")
 def rhs(p):
     return p[0]
 
@@ -902,10 +683,6 @@ def localvardeclaration(p):
 @pg.production('oprhs : NAME LPAREN opargs RPAREN')
 def oprhs(p):
     return Operation(None, p[0].value, p[2].args)
-
-@pg.production('templatedoprhs : NAME LT type GT LPAREN opargs RPAREN')
-def templatedoprhs(p):
-    return TemplatedOperation(None, p[0].value, p[2], p[5].args)
 
 @pg.production('opargs : expr | expr COMMA opargs')
 def opargs(p):

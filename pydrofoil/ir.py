@@ -4061,7 +4061,7 @@ def inline(graph, codegen):
                         index = 0
                         changed = True
                         continue
-                elif not really_huge_function and not subgraph.has_loop:
+                elif not really_huge_function and not subgraph.has_loop and subgraph is not graph:
                     # complicated case
                     _inline(graph, codegen, block, index, subgraph)
                     remove_empty_blocks(graph, codegen)

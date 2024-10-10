@@ -10,13 +10,17 @@ thisdir = os.path.dirname(__file__)
 riscvirs = [os.path.join(thisdir, "riscv_model_RV32.ir"), os.path.join(thisdir, "riscv_model_RV64.ir")]
 outriscvpys = [os.path.join(thisdir, "generated/outriscv32.py"), os.path.join(thisdir, "generated/outriscv.py")]
 
+def should_inline(name):
+    if "zextensionEnabled" in name:
+        return True
+
 def _make_code(rv64=True):
     print "making python code"
     with open(riscvirs[rv64], "rb") as f:
         s = f.read()
     support_code = "from riscv import supportcoderiscv as supportcode"
     entrypoints = "ztick_clock ztick_platform zinit_model zstep zext_decode".split()
-    res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', }, entrypoints=entrypoints)
+    res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', }, entrypoints=entrypoints, should_inline=should_inline)
     ## XXX horrible hack, they should be fixed in the model!
     #assert res.count("def func_zread_ram(machine, zrk") == 1
     #res = res.replace("def func_zread_ram(machine, zrk", "def func_zread_ram(machine, executable_flag, zrk")

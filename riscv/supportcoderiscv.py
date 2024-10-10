@@ -1,6 +1,7 @@
 import os
 
 from pydrofoil.supportcode import *
+from pydrofoil.supportcode import _platform_read_mem_slowpath, _platform_write_mem_slowpath
 from pydrofoil.bitvector import Integer
 from pydrofoil import elf
 from pydrofoil import mem as mem_mod
@@ -143,6 +144,10 @@ class Globals(object):
         self.rv_enable_misaligned           = False
         self.rv_enable_vext                 = True
         self.rv_enable_bext                 = True
+        self.rv_enable_svinval              = True
+        self.rv_enable_zicboz               = True
+        self.rv_enable_zicbom               = True
+        self.rv_enable_zcb                  = True
         self.rv_enable_writable_fiom        = True
         self.rv_mtval_has_illegal_inst_bits = False
 
@@ -151,6 +156,8 @@ class Globals(object):
 
         self.rv_rom_base = r_uint(0x1000)
         self.rv_rom_size = r_uint(0x100)
+        self.rv_cache_block_size_exp = 6
+        self.rv_writable_hpm_counters = r_uint(0xFFFFFFFF)
 
         self.random = Random(1)
 
@@ -262,6 +269,21 @@ def sys_enable_writable_misa(machine, _):
 def sys_enable_bext(machine, _):
     return machine.g.rv_enable_bext
 
+def sys_enable_svinval(machine, _):
+    return machine.g.rv_enable_svinval
+
+def sys_enable_zcb(machine, _):
+    return machine.g.rv_enable_svinval
+
+def sys_enable_zicboz(machine, _):
+    return machine.g.rv_enable_zicboz
+
+def sys_enable_zicbom(machine, _):
+    return machine.g.rv_enable_zicbom
+
+def sys_writable_hpm_counters(machine, _):
+    return machine.g.rv_writable_hpm_counters
+
 def plat_enable_dirty_update(machine, _):
     return machine.g.rv_enable_dirty_update
 
@@ -285,6 +307,9 @@ def plat_rom_base(machine, _):
 
 def plat_rom_size(machine, _):
     return machine.g.rv_rom_size
+
+def plat_cache_block_size_exp(machine, _):
+    return machine.g.rv_cache_block_size_exp
 
 def sys_enable_vext(machine, _):
     return machine.g.rv_enable_vext
@@ -554,6 +579,13 @@ def _main(argv, *machineclasses):
             return 1
 
     disable_vext = parse_flag(argv, "--disable-vext")
+
+    enable_zfinx = parse_flag(argv, "--enable-zfinx")
+    enable_writable_fiom = parse_flag(argv, "--enable-writable-fiom")
+    enable_svinval = parse_flag(argv, "--enable-svinval")
+    enable_zcb = parse_flag(argv, "--enable-zcb")
+    enable_zicbom = parse_flag(argv, "--enable-zicbom")
+    enable_zicboz = parse_flag(argv, "--enable-zicboz")
 
     verbose = parse_flag(argv, "--verbose")
 

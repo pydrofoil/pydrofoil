@@ -944,6 +944,11 @@ def vector_update_list(machine, l, index, element):
     l[index] = element
     return l
 
+@unwrap("i o")
+@objectmodel.specialize.argtype(2)
+def vector_init(machine, length, element):
+    return [element] * length
+
 @purefunction
 def vec_length_unwrapped_res(machine, l):
     return len(l)
@@ -1321,7 +1326,7 @@ def read_mem(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
     addr = addr.touint()
     if n == 1 or n == 2 or n == 4 or n == 8:
-        res = mem.read(addr, n, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
+        res = mem.read(addr, n)
         return bitvector.SmallBitVector(n*8, res)
     else:
         return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
@@ -1332,7 +1337,18 @@ def read_mem_exclusive(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
     addr = addr.touint()
     if n == 1 or n == 2 or n == 4 or n == 8:
-        res = mem.read(addr, n, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
+        res = mem.read(addr, n)
+        return bitvector.SmallBitVector(n*8, res)
+    else:
+        return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
+
+@unwrap("o o o i")
+def read_mem_ifetch(machine, read_kind, addr_size, addr, n):
+    assert addr_size in (64, 32)
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        res = mem.read(addr, n, executable_flag=True)
         return bitvector.SmallBitVector(n*8, res)
     else:
         return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
@@ -1343,20 +1359,20 @@ def platform_read_mem(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
     addr = addr.touint()
     if n == 1 or n == 2 or n == 4 or n == 8:
-        res = mem.read(addr, n, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
+        res = mem.read(addr, n)
         return bitvector.SmallBitVector(n*8, res)
     else:
         return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
 
 def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
-    return mem.read(addr, n, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
+    return mem.read(addr, n)
 
 @jit.unroll_safe
 def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
     value = None
     for i in range(n - 1, -1, -1):
-        byteval = mem.read(addr + i, 1, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
+        byteval = mem.read(addr + i, 1)
         nextbyte = bitvector.SmallBitVector(8, byteval)
         if value is None:
             value = nextbyte
@@ -1401,6 +1417,9 @@ def monomorphize(machine, addr):
 
 make_dummy("read_register_from_vector")
 make_dummy("write_register_from_vector")
+
+make_dummy("emulator_read_tag")
+make_dummy("emulator_write_tag")
 
 # argument handling
 

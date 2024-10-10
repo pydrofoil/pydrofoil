@@ -1,6 +1,7 @@
 import os
 
 from pydrofoil.supportcode import *
+from pydrofoil.supportcode import _platform_read_mem_slowpath, _platform_write_mem_slowpath
 from pydrofoil.bitvector import Integer
 from pydrofoil import elf
 from pydrofoil import mem as mem_mod
@@ -24,9 +25,30 @@ with open(os.path.join(os.path.dirname(__file__), "riscv_model_version")) as f:
     SAIL_RISCV_VERSION = f.read().strip()
 
 
-def write_mem(machine, addr, content): # write a single byte
-    jit.promote(machine.g).mem.write(addr, 1, content)
+@unwrap("o o o i o")
+def write_mem(machine, write_kind, addr_size, addr, n, data):
+    assert addr_size in (64, 32)
+    assert data.size() == n * 8
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        mem.write(addr, n, data.touint())
+    else:
+        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
     return True
+
+@unwrap("o o o i o")
+def write_mem_exclusive(machine, write_kind, addr_size, addr, n, data):
+    assert addr_size in (64, 32)
+    assert data.size() == n * 8
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        mem.write(addr, n, data.touint())
+    else:
+        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
+    return True
+
 
 @always_inline
 @unwrap("o o o i")
@@ -121,6 +143,11 @@ class Globals(object):
         self.rv_enable_dirty_update         = False
         self.rv_enable_misaligned           = False
         self.rv_enable_vext                 = True
+        self.rv_enable_bext                 = True
+        self.rv_enable_svinval              = True
+        self.rv_enable_zicboz               = True
+        self.rv_enable_zicbom               = True
+        self.rv_enable_zcb                  = True
         self.rv_enable_writable_fiom        = True
         self.rv_mtval_has_illegal_inst_bits = False
 
@@ -129,6 +156,8 @@ class Globals(object):
 
         self.rv_rom_base = r_uint(0x1000)
         self.rv_rom_size = r_uint(0x100)
+        self.rv_cache_block_size_exp = 6
+        self.rv_writable_hpm_counters = r_uint(0xFFFFFFFF)
 
         self.random = Random(1)
 
@@ -237,6 +266,24 @@ def sys_enable_zfinx(machine, _):
 def sys_enable_writable_misa(machine, _):
     return machine.g.rv_enable_writable_misa
 
+def sys_enable_bext(machine, _):
+    return machine.g.rv_enable_bext
+
+def sys_enable_svinval(machine, _):
+    return machine.g.rv_enable_svinval
+
+def sys_enable_zcb(machine, _):
+    return machine.g.rv_enable_svinval
+
+def sys_enable_zicboz(machine, _):
+    return machine.g.rv_enable_zicboz
+
+def sys_enable_zicbom(machine, _):
+    return machine.g.rv_enable_zicbom
+
+def sys_writable_hpm_counters(machine, _):
+    return machine.g.rv_writable_hpm_counters
+
 def plat_enable_dirty_update(machine, _):
     return machine.g.rv_enable_dirty_update
 
@@ -261,11 +308,25 @@ def plat_rom_base(machine, _):
 def plat_rom_size(machine, _):
     return machine.g.rv_rom_size
 
+def plat_cache_block_size_exp(machine, _):
+    return machine.g.rv_cache_block_size_exp
+
 def sys_enable_vext(machine, _):
     return machine.g.rv_enable_vext
 
 def sys_enable_writable_fiom(machine, _):
     return machine.g.rv_enable_writable_fiom
+
+def sys_pmp_count(machine, _):
+    return 0 # XXX
+def sys_pmp_grain(machine, _):
+    return 0 # XXX
+
+def plat_uart_base(machine, _):
+    return 0x10000000 # XXX make configurable or something
+def plat_uart_size(machine, _):
+    return 0x100
+
 
 
 # Provides entropy for the scalar cryptography extension.
@@ -315,6 +376,8 @@ def plat_htif_tohost(machine, _):
 def memea(len, n):
     return ()
 
+def instr_announce(machine, _):
+    return ()
 
 # sim stuff
 
@@ -348,20 +411,23 @@ def init_sail_reset_vector(machine, entry):
     addr = r_uint(rv_rom_base)
     for i, fourbytes in enumerate(reset_vec):
         for j in range(4):
-            write_mem(machine, addr, fourbytes & 0xff) # little endian
+            machine.g.mem.write(addr, 1, fourbytes & 0xff)
+            #write_mem(machine, addr, fourbytes & 0xff) # little endian
             addr += 1
             fourbytes >>= 8
         assert fourbytes == 0
     if machine.g.dtb:
         for i, char in enumerate(machine.g.dtb):
-            write_mem(machine, addr, r_uint(ord(char)))
+            machine.g.mem.write(addr, 1, r_uint(ord(char)))
+            #write_mem(machine, addr, r_uint(ord(char)))
             addr += 1
 
     align = 0x1000
     # zero-fill to page boundary
     rom_end = r_uint((addr + align - 1) / align * align)
     for i in range(intmask(addr), rom_end):
-        write_mem(machine, addr, 0)
+        #write_mem(machine, addr, 0)
+        machine.g.mem.write(addr, 1, 0)
         addr += 1
 
     # set rom size
@@ -482,6 +548,7 @@ def main(argv, *machineclasses):
             raise
 
 def _main(argv, *machineclasses):
+    jit.set_param(None, "trace_limit", 50000)
     if parse_flag(argv, "--help"):
         print_help(argv[0])
         return 0
@@ -513,6 +580,13 @@ def _main(argv, *machineclasses):
             return 1
 
     disable_vext = parse_flag(argv, "--disable-vext")
+
+    enable_zfinx = parse_flag(argv, "--enable-zfinx")
+    enable_writable_fiom = parse_flag(argv, "--enable-writable-fiom")
+    enable_svinval = parse_flag(argv, "--enable-svinval")
+    enable_zcb = parse_flag(argv, "--enable-zcb")
+    enable_zicbom = parse_flag(argv, "--enable-zicbom")
+    enable_zicboz = parse_flag(argv, "--enable-zicboz")
 
     verbose = parse_flag(argv, "--verbose")
 

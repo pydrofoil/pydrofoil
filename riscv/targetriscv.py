@@ -15,7 +15,7 @@ def _make_code(rv64=True):
     with open(riscvirs[rv64], "rb") as f:
         s = f.read()
     support_code = "from riscv import supportcoderiscv as supportcode"
-    entrypoints = "ztick_clock ztick_platform zword_width_bytes zinit_model zstep zext_decode".split()
+    entrypoints = "ztick_clock ztick_platform zinit_model zstep zext_decode".split()
     res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', }, entrypoints=entrypoints)
     ## XXX horrible hack, they should be fixed in the model!
     #assert res.count("def func_zread_ram(machine, zrk") == 1

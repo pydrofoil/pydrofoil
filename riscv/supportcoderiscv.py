@@ -24,9 +24,30 @@ with open(os.path.join(os.path.dirname(__file__), "riscv_model_version")) as f:
     SAIL_RISCV_VERSION = f.read().strip()
 
 
-def write_mem(machine, addr, content): # write a single byte
-    jit.promote(machine.g).mem.write(addr, 1, content)
+@unwrap("o o o i o")
+def write_mem(machine, write_kind, addr_size, addr, n, data):
+    assert addr_size in (64, 32)
+    assert data.size() == n * 8
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        mem.write(addr, n, data.touint())
+    else:
+        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
     return True
+
+@unwrap("o o o i o")
+def write_mem_exclusive(machine, write_kind, addr_size, addr, n, data):
+    assert addr_size in (64, 32)
+    assert data.size() == n * 8
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        mem.write(addr, n, data.touint())
+    else:
+        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
+    return True
+
 
 @always_inline
 @unwrap("o o o i")
@@ -121,6 +142,7 @@ class Globals(object):
         self.rv_enable_dirty_update         = False
         self.rv_enable_misaligned           = False
         self.rv_enable_vext                 = True
+        self.rv_enable_bext                 = True
         self.rv_enable_writable_fiom        = True
         self.rv_mtval_has_illegal_inst_bits = False
 
@@ -237,6 +259,9 @@ def sys_enable_zfinx(machine, _):
 def sys_enable_writable_misa(machine, _):
     return machine.g.rv_enable_writable_misa
 
+def sys_enable_bext(machine, _):
+    return machine.g.rv_enable_bext
+
 def plat_enable_dirty_update(machine, _):
     return machine.g.rv_enable_dirty_update
 
@@ -266,6 +291,17 @@ def sys_enable_vext(machine, _):
 
 def sys_enable_writable_fiom(machine, _):
     return machine.g.rv_enable_writable_fiom
+
+def sys_pmp_count(machine, _):
+    return 0 # XXX
+def sys_pmp_grain(machine, _):
+    return 0 # XXX
+
+def plat_uart_base(machine, _):
+    return 0x10000000 # XXX make configurable or something
+def plat_uart_size(machine, _):
+    return 0x100
+
 
 
 # Provides entropy for the scalar cryptography extension.
@@ -315,6 +351,8 @@ def plat_htif_tohost(machine, _):
 def memea(len, n):
     return ()
 
+def instr_announce(machine, _):
+    return ()
 
 # sim stuff
 
@@ -348,20 +386,23 @@ def init_sail_reset_vector(machine, entry):
     addr = r_uint(rv_rom_base)
     for i, fourbytes in enumerate(reset_vec):
         for j in range(4):
-            write_mem(machine, addr, fourbytes & 0xff) # little endian
+            machine.g.mem.write(addr, 1, fourbytes & 0xff)
+            #write_mem(machine, addr, fourbytes & 0xff) # little endian
             addr += 1
             fourbytes >>= 8
         assert fourbytes == 0
     if machine.g.dtb:
         for i, char in enumerate(machine.g.dtb):
-            write_mem(machine, addr, r_uint(ord(char)))
+            machine.g.mem.write(addr, 1, r_uint(ord(char)))
+            #write_mem(machine, addr, r_uint(ord(char)))
             addr += 1
 
     align = 0x1000
     # zero-fill to page boundary
     rom_end = r_uint((addr + align - 1) / align * align)
     for i in range(intmask(addr), rom_end):
-        write_mem(machine, addr, 0)
+        #write_mem(machine, addr, 0)
+        machine.g.mem.write(addr, 1, 0)
         addr += 1
 
     # set rom size

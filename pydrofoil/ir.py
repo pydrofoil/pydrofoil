@@ -159,6 +159,7 @@ class SSABuilder(object):
         #if random.random() < 0.01:
         #    self.view = 1
         #mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
+        graph.check()
         insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
         light_simplify(graph, self.codegen)
@@ -374,7 +375,15 @@ class SSABuilder(object):
             if parseval.name in self.codegen.let_values:
                 res = self.codegen.let_values[parseval.name]
                 if isinstance(res, StructConstruction):
-                    res = self._addop(StructConstruction(res.name, res.args[:], res.resolved_type, res.sourcepos))
+                    args = []
+                    for arg in res.args:
+                        if isinstance(arg, Constant):
+                            args.append(arg)
+                        elif isinstance(arg, Cast) and isinstance(arg.args[0], Constant):
+                            args.append(self._addop(Cast(arg.args[0], arg.resolved_type)))
+                        else:
+                            assert 0, "not implemented so far"
+                    res = self._addop(StructConstruction(res.name, args, res.resolved_type, res.sourcepos))
                 return res
             if isinstance(parseval.resolved_type, types.Enum):
                 if parseval.name in parseval.resolved_type.elements:
@@ -2213,7 +2222,7 @@ class BaseOptimizer(object):
 
     def _must_be_non_negative(self, arg):
          return isinstance(arg, Operation) and arg.name in (
-                "@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res")
+                "@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res", "@vec_length_unwrapped_res")
 
 def is_pow_2(num):
     return num & (num - 1) == 0
@@ -3811,6 +3820,15 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_length(self, op):
         arg0, = self._args(op)
+        if isinstance(op.args[0].resolved_type, types.Vec):
+            res = self.newop(
+                    "@vec_length_unwrapped_res",
+                    [arg0],
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+            )
+            return self._make_int64_to_int(res, op.sourcepos)
         res = self.newop(
                 "@length_unwrapped_res",
                 [arg0],
@@ -4013,6 +4031,7 @@ class LocalOptimizer(BaseOptimizer):
             ),
             op.resolved_type
         )
+    optimize_read_mem_o_o_o_i = optimize_platform_read_mem_o_o_o_i
 
     def optimize_UINT64_C(self, op):
         arg0, = self._args(op)

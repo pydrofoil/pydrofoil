@@ -741,6 +741,17 @@ def get_main(outriscv, rv64):
         name=prefix,
         is_recursive=True)
 
+    phys_mem_read = outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False
+    def phys_mem_read_patched(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta):
+        if outriscv.Union_zAccessTypezIuzK_zExecutezIuzK.check_variant(zt):
+            # read and ignore the result, the JIT will do the rest?
+            jit.jit_debug("ram ifetch", intmask(zpaddr))
+            mem = jit.promote(machine.g).mem
+            res = mem.read(zpaddr, 2, executable_flag=True)
+        res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
+        return res
+    outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False = phys_mem_read_patched
+
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
         _virtualizable_ = ['_reg_ztlb39', '_reg_ztlb48', '_reg_zminstret', '_reg_zPC', '_reg_znextPC', '_reg_zmstatus', '_reg_zmip', '_reg_zmie', '_reg_zsatp', '_reg_zx1']
@@ -796,6 +807,8 @@ def get_main(outriscv, rv64):
                     continue
                 # run a Sail step
                 prev_pc = self._reg_zPC
+                jit.promote(self._reg_zmstatus.bits)
+                jit.promote(self._reg_zmisa.bits)
                 stepped = self.step(Integer.fromint(step_no))
                 if self.have_exception:
                     print "ended with exception!"

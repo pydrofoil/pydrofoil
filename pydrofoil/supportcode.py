@@ -581,6 +581,21 @@ def eq(machine, ia, ib):
         return ia == ib
     import pdb;pdb.set_trace()
 
+def lt_unsigned64(machine, ua, ub):
+    assert isinstance(ua, r_uint)
+    assert isinstance(ub, r_uint)
+    return ua < ub
+
+def lteq_unsigned64(machine, ua, ub):
+    assert isinstance(ua, r_uint)
+    assert isinstance(ub, r_uint)
+    return ua <= ub
+
+def gteq_unsigned64(machine, ua, ub):
+    assert isinstance(ua, r_uint)
+    assert isinstance(ub, r_uint)
+    return ua >= ub
+
 @purefunction
 @objectmodel.specialize.argtype(1)
 def add_int(machine, ia, ib):

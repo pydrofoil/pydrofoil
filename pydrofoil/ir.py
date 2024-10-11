@@ -321,7 +321,6 @@ class SSABuilder(object):
                         obj = self._addop(FieldAccess(field, [obj], typ))
                     typ = typ.fieldtyps[lastfield]
                     if rhs.resolved_type != typ:
-                        import pdb;pdb.set_trace()
                         rhs = self._addop(Cast(rhs, typ, op.sourcepos))
                     self._addop(FieldWrite(lastfield, [obj, rhs], types.Unit(), op.sourcepos))
                 else:
@@ -1160,7 +1159,6 @@ class GenericBitVectorConstant(Constant):
             value = hex(int(val))
         else:
             value = bin(int(val))
-        #import pdb;pdb.set_trace()
         if isinstance(self.value, (bitvector.SparseBitVector, bitvector.SmallBitVector)):
             return "bitvector.from_ruint(%s, r_uint(%s))" % (size, self.value.val)
         return "bitvector.from_bigint(%s, rbigint.fromlong(%s))" % (size, value)
@@ -2677,6 +2675,15 @@ class LocalOptimizer(BaseOptimizer):
 
     def _cmp_generic_optimization(self, op, arg0, arg1):
         assert arg0.resolved_type is arg1.resolved_type
+        if arg0.resolved_type is not types.MachineInt():
+            if (isinstance(arg0, Operation) and arg0.name == "@unsigned_bv_wrapped_res"
+                    and isinstance(arg1, Operation) and arg1.name == "@unsigned_bv_wrapped_res"):
+                newname = "@" + self._builtinname(op.name).lstrip("@") + "_unsigned64"
+                return self.newop(newname, [arg0.args[0],
+                                            arg1.args[0]],
+                                  op.resolved_type,
+                                  op.sourcepos,
+                                  op.varname_hint)
         add_components, sub_components, constant, useful = self._add_sub_extract_components(arg0, arg1)
         if useful:
             if len(add_components) + len(sub_components) <= 1 and isinstance(constant, int):

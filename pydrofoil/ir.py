@@ -381,6 +381,8 @@ class SSABuilder(object):
                             args.append(arg)
                         elif isinstance(arg, Cast) and isinstance(arg.args[0], Constant):
                             args.append(self._addop(Cast(arg.args[0], arg.resolved_type)))
+                        elif isinstance(arg, Operation) and arg.name == INT_TO_INT64_NAME and isinstance(arg.args[0], Constant):
+                            args.append(self._addop(Operation(INT_TO_INT64_NAME, [arg.args[0]], arg.resolved_type)))
                         else:
                             assert 0, "not implemented so far"
                     res = self._addop(StructConstruction(res.name, args, res.resolved_type, res.sourcepos))
@@ -398,7 +400,11 @@ class SSABuilder(object):
                 arg = args[index]
                 targettyp = parseval.resolved_type.fieldtyps[fieldname]
                 if arg.resolved_type != targettyp:
-                    args[index] = self._addop(Cast(arg, targettyp))
+                    if targettyp is types.MachineInt():
+                        castop = Operation(INT_TO_INT64_NAME, [arg], types.MachineInt())
+                    else:
+                        castop = Cast(arg, targettyp)
+                    args[index] = self._addop(castop)
             ssaop = StructConstruction(parseval.name, args, parseval.resolved_type)
             self._addop(ssaop)
             return ssaop
@@ -510,6 +516,8 @@ def extract_global_value(graph, name):
     return value
 
 
+INT_TO_INT64_NAME = "zz5izDzKz5i64"
+INT64_TO_INT_NAME = "zz5i64zDzKz5i"
 
 # graph
 
@@ -2120,13 +2128,13 @@ class BaseOptimizer(object):
             return self._extract_machineint(arg)
         except NoMatchException:
             # call int_to_int64
-            return self.newop("zz5izDzKz5i64", [arg], types.MachineInt())
+            return self.newop(INT_TO_INT64_NAME, [arg], types.MachineInt())
 
     def _make_int64_to_int(self, arg, sourcepos=None):
-        return self.newop("zz5i64zDzKz5i", [arg], types.Int(), sourcepos)
+        return self.newop(INT64_TO_INT_NAME, [arg], types.Int(), sourcepos)
 
     def _make_int_to_int64(self, arg, sourcepos=None):
-        return self.newop("zz5izDzKz5i64", [arg], types.MachineInt(), sourcepos)
+        return self.newop(INT_TO_INT64_NAME, [arg], types.MachineInt(), sourcepos)
 
     def _get_op_replacement(self, value):
         while value in self.replacements:
@@ -2183,7 +2191,7 @@ class BaseOptimizer(object):
         if isinstance(arg, Cast):
             import pdb;pdb.set_trace()
         # check whether we have a cast as an available expression (ie "above" us)
-        key = (Operation, 'zz5izDzKz5i64', self._cse_comparison_tuple([arg]), types.MachineInt())
+        key = (Operation, INT_TO_INT64_NAME, self._cse_comparison_tuple([arg]), types.MachineInt())
         if self.cse_op_available_in_block and key in self.cse_op_available_in_block:
             return self.cse_op_available_in_block[key]
         if self.newoperations is not None:
@@ -4318,7 +4326,7 @@ def find_anticipated_casts(graph):
         for op in block.operations:
             if isinstance(op, Cast) and isinstance(op.resolved_type, types.SmallFixedBitVector):
                 s.add((op.args[0], op.resolved_type))
-            if isinstance(op, Operation) and op.name == 'zz5izDzKz5i64':
+            if isinstance(op, Operation) and op.name == INT_TO_INT64_NAME:
                 s.add((op.args[0], op.resolved_type))
     return anticipated_casts
 

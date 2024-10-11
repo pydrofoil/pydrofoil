@@ -1252,10 +1252,12 @@ class SmallInteger(Integer):
             n = -1
         else:
             n = self.val >> start
-        if n > 0:
+        if n >= 0:
             return SparseBitVector(len, r_uint(n))
-        jit.jit_debug("SmallInteger.slice large width negative case")
-        return from_bigint(len, rbigint.fromint(n))
+        size = GenericBitVector._data_size(len)
+        res = [r_uint(-1)] * size
+        res[0] = r_uint(n)
+        return GenericBitVector(len, res, normalize=True)
 
     def slice_unwrapped_res(self, len, start):
         if start >= 64:

@@ -807,8 +807,8 @@ def get_main(outriscv, rv64):
                     continue
                 # run a Sail step
                 prev_pc = self._reg_zPC
-                jit.promote(self._reg_zmstatus.bits)
-                jit.promote(self._reg_zmisa.bits)
+                jit.promote(self._reg_zmstatus.zbits)
+                jit.promote(self._reg_zmisa.zbits)
                 stepped = self.step(Integer.fromint(step_no))
                 if self.have_exception:
                     print "ended with exception!"

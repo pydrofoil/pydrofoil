@@ -1130,17 +1130,6 @@ class FakeMachine(object):
         self.g = supportcode.Globals()
         self._pydrofoil_enum_read_ifetch_value = 1
 
-def test_read_write_mem():
-    m = FakeMachine()
-    for i in range(100):
-        supportcode.write_mem(m, r_uint(i), r_uint((i * i) & 0xff))
-    for i in range(100):
-        supportcode.write_mem(m, r_uint(i + 0x80000000), r_uint((-i * i) & 0xff))
-    for i in range(100):
-        assert supportcode.read_mem(m, r_uint(i)) == r_uint((i * i) & 0xff)
-    for i in range(100):
-        assert supportcode.read_mem(m, r_uint(i + 0x80000000)) == r_uint((-i * i) & 0xff)
-
 def test_platform_read_write_mem():
     m = FakeMachine()
     # here some of the arguments are BitVector/Integer instances

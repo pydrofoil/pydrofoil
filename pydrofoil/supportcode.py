@@ -1457,6 +1457,7 @@ def parse_flag(argv, flagname):
 
 class RegistersBase(object):
     _immutable_fields_ = []
+    _attrs_ = ['have_exception', 'throw_location', 'current_exception', 'g', '_reg_zfloat_fflags', '_reg_zfloat_result']
 
     have_exception = False
     throw_location = None

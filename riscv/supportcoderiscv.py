@@ -384,7 +384,7 @@ def instr_announce(machine, _):
 @specialize.argtype(0)
 def init_sail(machine, elf_entry):
     machine.init_model()
-    init_sail_reset_vector(machine, elf_entry)
+    return init_sail_reset_vector(machine, elf_entry)
 
 @specialize.argtype(0)
 def is_32bit_model(machine):
@@ -436,7 +436,7 @@ def init_sail_reset_vector(machine, entry):
         machine.g.rv_rom_size = rv_rom_size
 
     # boot at reset vector
-    machine._reg_zPC = r_uint(rv_rom_base)
+    return r_uint(rv_rom_base)
 
 def parse_dump_file(fn):
     with open(fn) as f:
@@ -631,7 +631,7 @@ def _main(argv, *machineclasses):
         machine.g.config_print_mem_access = False
         machine.g.config_print_platform = False
     entry = load_sail(machine, file)
-    init_sail(machine, entry)
+    machine.set_pc(init_sail(machine, entry))
     if dump_file:
         if check_file_missing(dump_file):
             return -1
@@ -648,7 +648,7 @@ def _main(argv, *machineclasses):
     for i in range(iterations):
         machine.run_sail(limit, print_kips)
         if i:
-            init_sail(machine, entry)
+            machine.set_pc(init_sail(machine, entry))
     #flush_logs()
     #close_logs()
     return 0
@@ -754,11 +754,14 @@ def get_main(outriscv, rv64):
 
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
-        _virtualizable_ = ['_reg_ztlb39', '_reg_ztlb48', '_reg_zminstret', '_reg_zPC', '_reg_znextPC', '_reg_zmstatus', '_reg_zmip', '_reg_zmie', '_reg_zsatp', '_reg_zx1']
+        _virtualizable_ = ['_reg_zminstret', '_reg_zPC', '_reg_zinstbits', '_reg_znextPC', '_reg_zmstatus', '_reg_zmip', '_reg_zmie', '_reg_zsatp', '_reg_zx1', '_reg_zx15']
 
         def __init__(self):
             outriscv.Machine.__init__(self)
             self.g = Globals(rv64=rv64)
+
+        def set_pc(self, value):
+            self._reg_zPC = value
 
         def tick_clock(self):
             return outriscv.func_ztick_clock(self, ())

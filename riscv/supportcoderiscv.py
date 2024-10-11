@@ -548,7 +548,7 @@ def main(argv, *machineclasses):
             raise
 
 def _main(argv, *machineclasses):
-    jit.set_param(None, "trace_limit", 50000)
+    jit.set_param(None, "trace_limit", 20000)
     if parse_flag(argv, "--help"):
         print_help(argv[0])
         return 0

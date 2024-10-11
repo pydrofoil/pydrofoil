@@ -13,6 +13,8 @@ outriscvpys = [os.path.join(thisdir, "generated/outriscv32.py"), os.path.join(th
 def should_inline(name):
     if "zextensionEnabled" in name:
         return True
+    if "zmatch_TLB_Entry" in name:
+        return True
 
 def _make_code(rv64=True):
     print "making python code"

@@ -99,6 +99,10 @@ def promote_addr_region(machine, addr, width, executable_flag):
         return
     if executable_flag:
         jit.promote(addr)
+        jit.jit_debug("ram ifetch", intmask(addr))
+        mem = jit.promote(machine.g).mem
+        # read and ignore the result, the JIT will do the rest
+        res = mem.read(r_uint(addr), width, executable_flag=True)
         return
     jit.promote(width)
     _observe_addr_range(machine, addr, width, g._mem_ranges)
@@ -761,17 +765,6 @@ def get_main(outriscv, rv64):
         virtualizables=['machine'],
         name=prefix,
         is_recursive=True)
-
-    phys_mem_read = outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False
-    def phys_mem_read_patched(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta):
-        if outriscv.Union_zAccessTypezIuzK_zExecutezIuzK.check_variant(zt):
-            # read and ignore the result, the JIT will do the rest?
-            jit.jit_debug("ram ifetch", intmask(zpaddr))
-            mem = jit.promote(machine.g).mem
-            res = mem.read(zpaddr, 2, executable_flag=True)
-        res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
-        return res
-    outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False = phys_mem_read_patched
 
     for name in dir(outriscv):
         if name.startswith("func_zchecked_mem_"):

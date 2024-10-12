@@ -15,8 +15,6 @@ def should_inline(name):
         return True
     if "zmatch_TLB_Entry" in name:
         return True
-    if "zphys_mem_read" in name:
-        return False
 
 def _make_code(rv64=True):
     print "making python code"

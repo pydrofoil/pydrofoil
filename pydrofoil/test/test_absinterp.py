@@ -724,3 +724,14 @@ i3 = block0.emit(Operation, '@shl_int_i_i_must_fit', [i2, MachineIntConstant(2)]
 block0.next = Return(i3, None)
 graph = Graph('g', [v], block0)
 """)
+
+def test_unsigned_bv_wrapped_res():
+    i11 = Argument('i11', MachineInt())
+    block0 = Block()
+    i12 = block0.emit(Operation, 'zrX', [i11], SmallFixedBitVector(64), '`17 145:42-145:57', 'return')
+    i31 = block0.emit(Operation, '@unsigned_bv_wrapped_res', [i12, MachineIntConstant(64)], Int(), '`41 36:69-36:86', 'zz414001')
+    block0.next = Return(i31)
+    graph = Graph('uwrapped', [i11], block0)
+    values = analyze(graph, fakecodegen)
+    assert values[block0][i31].high == 2 ** 64 - 1
+    assert values[block0][i31].low == 0

@@ -460,6 +460,12 @@ class AbstractInterpreter(object):
             return
         return Range(0, 2**arg1.low - 1)
 
+    def analyze_unsigned_bv_wrapped_res(self, op):
+        _, arg1 = self._argbounds(op)
+        if not arg1.isconstant():
+            return
+        return Range(0, 2**arg1.low - 1)
+
     def analyze_signed_bv(self, op):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():

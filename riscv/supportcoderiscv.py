@@ -1,6 +1,7 @@
 import os
 
 from pydrofoil.supportcode import *
+from pydrofoil.supportcode import _platform_read_mem_slowpath, _platform_write_mem_slowpath
 from pydrofoil.bitvector import Integer
 from pydrofoil import elf
 from pydrofoil import mem as mem_mod
@@ -24,9 +25,30 @@ with open(os.path.join(os.path.dirname(__file__), "riscv_model_version")) as f:
     SAIL_RISCV_VERSION = f.read().strip()
 
 
-def write_mem(machine, addr, content): # write a single byte
-    jit.promote(machine.g).mem.write(addr, 1, content)
+@unwrap("o o o i o")
+def write_mem(machine, write_kind, addr_size, addr, n, data):
+    assert addr_size in (64, 32)
+    assert data.size() == n * 8
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        mem.write(addr, n, data.touint())
+    else:
+        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
     return True
+
+@unwrap("o o o i o")
+def write_mem_exclusive(machine, write_kind, addr_size, addr, n, data):
+    assert addr_size in (64, 32)
+    assert data.size() == n * 8
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        mem.write(addr, n, data.touint())
+    else:
+        _platform_write_mem_slowpath(machine, mem, write_kind, addr, n, data)
+    return True
+
 
 @always_inline
 @unwrap("o o o i")
@@ -52,12 +74,12 @@ def platform_write_mem(machine, write_kind, addr_size, addr, n, data):
 # | rom | clint | .... | ram <htif inside> ram
 
 @jit.not_in_trace
-def _observe_addr_range(machine, pc, addr, width, ranges):
+def _observe_addr_range(machine, addr, width, ranges):
     index = _find_index(ranges, addr, width)
     jit.promote(machine.g)._mem_addr_range_next = index
 
 @jit.elidable
-def _get_likely_addr_range(g, pc, ranges):
+def _get_likely_addr_range(g, ranges):
     # not really at all elidable, but it does not matter. the result is only
     # used to produce some guards
     return g._mem_addr_range_next
@@ -69,32 +91,37 @@ def _find_index(ranges, addr, width):
     return -1
 
 @specialize.argtype(0)
-def promote_addr_region(machine, addr, width, offset, executable_flag):
+def promote_addr_region(machine, addr, width, executable_flag):
     g = jit.promote(machine.g)
-    width = intmask(machine.word_width_bytes(width))
     addr = intmask(addr)
     jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
     if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
         return
     if executable_flag:
+        jit.promote(addr)
+        jit.jit_debug("ram ifetch", intmask(addr))
+        mem = jit.promote(machine.g).mem
+        # read and ignore the result, the JIT will do the rest
+        res = mem.read(r_uint(addr), width, executable_flag=True)
         return
-    pc = machine._reg_zPC
-    _observe_addr_range(machine, pc, addr, width, g._mem_ranges)
-    range_index = _get_likely_addr_range(g, pc, g._mem_ranges)
+    jit.promote(width)
+    _observe_addr_range(machine, addr, width, g._mem_ranges)
+    range_index = _get_likely_addr_range(g, g._mem_ranges)
     if range_index < 0 or width > 8:
         return
     # the next line produces two guards
     if g._mem_ranges[range_index][0] <= addr and addr < g._mem_ranges[range_index][1] - width:
-        if width == 8 and addr & ((r_uint(1)<<63) | 0b111) == 0:
-            # it's aligned and the highest bit is not set. tell the jit that the
-            # last three bits and the highest bit are zero. can be removed with
-            # known bits analysis later
-            jit.record_exact_value(addr & 1, 0)
-            jit.record_exact_value(addr & 0b111, 0)
-            jit.record_exact_value((addr + width) & 0b111, 0)
-            jit.record_exact_value(r_uint(addr) & (r_uint(1)<<63), 0)
-            jit.record_exact_value((r_uint(addr) >> 1) & 1, 0)
-            jit.record_exact_value((r_uint(addr) >> 2) & 1, 0)
+        if width == 1:
+            mask = 0
+        elif width == 2:
+            mask = 0b1
+        elif width == 4:
+            mask = 0b11
+        elif width == 8:
+            mask = 0b111
+        else:
+            return
+        jit.promote(addr & ((r_uint(1)<<63) | mask) == 0)
     return
 
 class Globals(object):
@@ -121,6 +148,11 @@ class Globals(object):
         self.rv_enable_dirty_update         = False
         self.rv_enable_misaligned           = False
         self.rv_enable_vext                 = True
+        self.rv_enable_bext                 = True
+        self.rv_enable_svinval              = True
+        self.rv_enable_zicboz               = True
+        self.rv_enable_zicbom               = True
+        self.rv_enable_zcb                  = True
         self.rv_enable_writable_fiom        = True
         self.rv_mtval_has_illegal_inst_bits = False
 
@@ -129,6 +161,8 @@ class Globals(object):
 
         self.rv_rom_base = r_uint(0x1000)
         self.rv_rom_size = r_uint(0x100)
+        self.rv_cache_block_size_exp = 6
+        self.rv_writable_hpm_counters = r_uint(0xFFFFFFFF)
 
         self.random = Random(1)
 
@@ -237,6 +271,24 @@ def sys_enable_zfinx(machine, _):
 def sys_enable_writable_misa(machine, _):
     return machine.g.rv_enable_writable_misa
 
+def sys_enable_bext(machine, _):
+    return machine.g.rv_enable_bext
+
+def sys_enable_svinval(machine, _):
+    return machine.g.rv_enable_svinval
+
+def sys_enable_zcb(machine, _):
+    return machine.g.rv_enable_svinval
+
+def sys_enable_zicboz(machine, _):
+    return machine.g.rv_enable_zicboz
+
+def sys_enable_zicbom(machine, _):
+    return machine.g.rv_enable_zicbom
+
+def sys_writable_hpm_counters(machine, _):
+    return machine.g.rv_writable_hpm_counters
+
 def plat_enable_dirty_update(machine, _):
     return machine.g.rv_enable_dirty_update
 
@@ -261,11 +313,25 @@ def plat_rom_base(machine, _):
 def plat_rom_size(machine, _):
     return machine.g.rv_rom_size
 
+def plat_cache_block_size_exp(machine, _):
+    return machine.g.rv_cache_block_size_exp
+
 def sys_enable_vext(machine, _):
     return machine.g.rv_enable_vext
 
 def sys_enable_writable_fiom(machine, _):
     return machine.g.rv_enable_writable_fiom
+
+def sys_pmp_count(machine, _):
+    return 0 # XXX
+def sys_pmp_grain(machine, _):
+    return 0 # XXX
+
+def plat_uart_base(machine, _):
+    return 0x10000000 # XXX make configurable or something
+def plat_uart_size(machine, _):
+    return 0x100
+
 
 
 # Provides entropy for the scalar cryptography extension.
@@ -315,13 +381,15 @@ def plat_htif_tohost(machine, _):
 def memea(len, n):
     return ()
 
+def instr_announce(machine, _):
+    return ()
 
 # sim stuff
 
 @specialize.argtype(0)
 def init_sail(machine, elf_entry):
     machine.init_model()
-    init_sail_reset_vector(machine, elf_entry)
+    return init_sail_reset_vector(machine, elf_entry)
 
 @specialize.argtype(0)
 def is_32bit_model(machine):
@@ -348,20 +416,23 @@ def init_sail_reset_vector(machine, entry):
     addr = r_uint(rv_rom_base)
     for i, fourbytes in enumerate(reset_vec):
         for j in range(4):
-            write_mem(machine, addr, fourbytes & 0xff) # little endian
+            machine.g.mem.write(addr, 1, fourbytes & 0xff)
+            #write_mem(machine, addr, fourbytes & 0xff) # little endian
             addr += 1
             fourbytes >>= 8
         assert fourbytes == 0
     if machine.g.dtb:
         for i, char in enumerate(machine.g.dtb):
-            write_mem(machine, addr, r_uint(ord(char)))
+            machine.g.mem.write(addr, 1, r_uint(ord(char)))
+            #write_mem(machine, addr, r_uint(ord(char)))
             addr += 1
 
     align = 0x1000
     # zero-fill to page boundary
     rom_end = r_uint((addr + align - 1) / align * align)
     for i in range(intmask(addr), rom_end):
-        write_mem(machine, addr, 0)
+        #write_mem(machine, addr, 0)
+        machine.g.mem.write(addr, 1, 0)
         addr += 1
 
     # set rom size
@@ -370,7 +441,7 @@ def init_sail_reset_vector(machine, entry):
         machine.g.rv_rom_size = rv_rom_size
 
     # boot at reset vector
-    machine._reg_zPC = r_uint(rv_rom_base)
+    return r_uint(rv_rom_base)
 
 def parse_dump_file(fn):
     with open(fn) as f:
@@ -482,6 +553,7 @@ def main(argv, *machineclasses):
             raise
 
 def _main(argv, *machineclasses):
+    jit.set_param(None, "trace_limit", 20000)
     if parse_flag(argv, "--help"):
         print_help(argv[0])
         return 0
@@ -513,6 +585,13 @@ def _main(argv, *machineclasses):
             return 1
 
     disable_vext = parse_flag(argv, "--disable-vext")
+
+    enable_zfinx = parse_flag(argv, "--enable-zfinx")
+    enable_writable_fiom = parse_flag(argv, "--enable-writable-fiom")
+    enable_svinval = parse_flag(argv, "--enable-svinval")
+    enable_zcb = parse_flag(argv, "--enable-zcb")
+    enable_zicbom = parse_flag(argv, "--enable-zicbom")
+    enable_zicboz = parse_flag(argv, "--enable-zicboz")
 
     verbose = parse_flag(argv, "--verbose")
 
@@ -557,7 +636,7 @@ def _main(argv, *machineclasses):
         machine.g.config_print_mem_access = False
         machine.g.config_print_platform = False
     entry = load_sail(machine, file)
-    init_sail(machine, entry)
+    machine.set_pc(init_sail(machine, entry))
     if dump_file:
         if check_file_missing(dump_file):
             return -1
@@ -574,7 +653,7 @@ def _main(argv, *machineclasses):
     for i in range(iterations):
         machine.run_sail(limit, print_kips)
         if i:
-            init_sail(machine, entry)
+            machine.set_pc(init_sail(machine, entry))
     #flush_logs()
     #close_logs()
     return 0
@@ -641,6 +720,26 @@ def get_config_print_mem(machine, _):
 def get_config_print_platform(machine, _):
     return machine.g.config_print_platform
 
+def patch_checked_mem_function(outriscv, name):
+    func = getattr(outriscv, name)
+    varnames = func.func_code.co_varnames
+    if "read" in name:
+        assert varnames[:5] == ('machine', 'zt', 'zpriv', 'zpaddr', 'zwidth')
+        def patched(machine, zt, zpriv, zpaddr, zwidth, *args):
+            executable_flag = outriscv.Union_zAccessTypezIuzK_zExecutezIuzK.check_variant(zt)
+            promote_addr_region(machine, zpaddr, zwidth, executable_flag)
+            return func(machine, zt, zpriv, zpaddr, zwidth, *args)
+        patched.func_name += "_" + func.func_name
+        setattr(outriscv, name, patched)
+    else:
+        assert "write" in name
+        assert varnames[:3] == ('machine', 'zpaddr', 'zwidth')
+        def patched(machine, zpaddr, zwidth, *args):
+            promote_addr_region(machine, zpaddr, zwidth, False)
+            return func(machine, zpaddr, zwidth, *args)
+        patched.func_name += "_" + func.func_name
+        setattr(outriscv, name, patched)
+
 def get_main(outriscv, rv64):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
@@ -667,22 +766,26 @@ def get_main(outriscv, rv64):
         name=prefix,
         is_recursive=True)
 
+    for name in dir(outriscv):
+        if name.startswith("func_zchecked_mem_"):
+            patch_checked_mem_function(outriscv, name)
+
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
-        _virtualizable_ = ['_reg_ztlb39', '_reg_ztlb48', '_reg_zminstret', '_reg_zPC', '_reg_znextPC', '_reg_zmstatus', '_reg_zmip', '_reg_zmie', '_reg_zsatp', '_reg_zx1']
+        _virtualizable_ = ['_reg_zminstret', '_reg_zPC', '_reg_zinstbits', '_reg_znextPC', '_reg_zmstatus', '_reg_zmip', '_reg_zmie', '_reg_zsatp', '_reg_zx1', '_reg_zx15']
 
         def __init__(self):
             outriscv.Machine.__init__(self)
             self.g = Globals(rv64=rv64)
+
+        def set_pc(self, value):
+            self._reg_zPC = value
 
         def tick_clock(self):
             return outriscv.func_ztick_clock(self, ())
 
         def tick_platform(self):
             return outriscv.func_ztick_platform(self, ())
-
-        def word_width_bytes(self, width):
-            return outriscv.func_zword_width_bytes(self, width)
 
         def init_model(self):
             return outriscv.func_zinit_model(self, ())
@@ -722,6 +825,8 @@ def get_main(outriscv, rv64):
                     continue
                 # run a Sail step
                 prev_pc = self._reg_zPC
+                jit.promote(self._reg_zmstatus.zbits)
+                jit.promote(self._reg_zmisa.zbits)
                 stepped = self.step(Integer.fromint(step_no))
                 if self.have_exception:
                     print "ended with exception!"

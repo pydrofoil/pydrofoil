@@ -159,6 +159,7 @@ class SSABuilder(object):
         #if random.random() < 0.01:
         #    self.view = 1
         #mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
+        graph.check()
         insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
         light_simplify(graph, self.codegen)
@@ -320,7 +321,6 @@ class SSABuilder(object):
                         obj = self._addop(FieldAccess(field, [obj], typ))
                     typ = typ.fieldtyps[lastfield]
                     if rhs.resolved_type != typ:
-                        import pdb;pdb.set_trace()
                         rhs = self._addop(Cast(rhs, typ, op.sourcepos))
                     self._addop(FieldWrite(lastfield, [obj, rhs], types.Unit(), op.sourcepos))
                 else:
@@ -374,7 +374,17 @@ class SSABuilder(object):
             if parseval.name in self.codegen.let_values:
                 res = self.codegen.let_values[parseval.name]
                 if isinstance(res, StructConstruction):
-                    res = self._addop(StructConstruction(res.name, res.args[:], res.resolved_type, res.sourcepos))
+                    args = []
+                    for arg in res.args:
+                        if isinstance(arg, Constant):
+                            args.append(arg)
+                        elif isinstance(arg, Cast) and isinstance(arg.args[0], Constant):
+                            args.append(self._addop(Cast(arg.args[0], arg.resolved_type)))
+                        elif isinstance(arg, Operation) and arg.name == INT_TO_INT64_NAME and isinstance(arg.args[0], Constant):
+                            args.append(self._addop(Operation(INT_TO_INT64_NAME, [arg.args[0]], arg.resolved_type)))
+                        else:
+                            assert 0, "not implemented so far"
+                    res = self._addop(StructConstruction(res.name, args, res.resolved_type, res.sourcepos))
                 return res
             if isinstance(parseval.resolved_type, types.Enum):
                 if parseval.name in parseval.resolved_type.elements:
@@ -389,7 +399,11 @@ class SSABuilder(object):
                 arg = args[index]
                 targettyp = parseval.resolved_type.fieldtyps[fieldname]
                 if arg.resolved_type != targettyp:
-                    args[index] = self._addop(Cast(arg, targettyp))
+                    if targettyp is types.MachineInt():
+                        castop = Operation(INT_TO_INT64_NAME, [arg], types.MachineInt())
+                    else:
+                        castop = Cast(arg, targettyp)
+                    args[index] = self._addop(castop)
             ssaop = StructConstruction(parseval.name, args, parseval.resolved_type)
             self._addop(ssaop)
             return ssaop
@@ -501,6 +515,8 @@ def extract_global_value(graph, name):
     return value
 
 
+INT_TO_INT64_NAME = "zz5izDzKz5i64"
+INT64_TO_INT_NAME = "zz5i64zDzKz5i"
 
 # graph
 
@@ -1143,7 +1159,6 @@ class GenericBitVectorConstant(Constant):
             value = hex(int(val))
         else:
             value = bin(int(val))
-        #import pdb;pdb.set_trace()
         if isinstance(self.value, (bitvector.SparseBitVector, bitvector.SmallBitVector)):
             return "bitvector.from_ruint(%s, r_uint(%s))" % (size, self.value.val)
         return "bitvector.from_bigint(%s, rbigint.fromlong(%s))" % (size, value)
@@ -2111,13 +2126,13 @@ class BaseOptimizer(object):
             return self._extract_machineint(arg)
         except NoMatchException:
             # call int_to_int64
-            return self.newop("zz5izDzKz5i64", [arg], types.MachineInt())
+            return self.newop(INT_TO_INT64_NAME, [arg], types.MachineInt())
 
     def _make_int64_to_int(self, arg, sourcepos=None):
-        return self.newop("zz5i64zDzKz5i", [arg], types.Int(), sourcepos)
+        return self.newop(INT64_TO_INT_NAME, [arg], types.Int(), sourcepos)
 
     def _make_int_to_int64(self, arg, sourcepos=None):
-        return self.newop("zz5izDzKz5i64", [arg], types.MachineInt(), sourcepos)
+        return self.newop(INT_TO_INT64_NAME, [arg], types.MachineInt(), sourcepos)
 
     def _get_op_replacement(self, value):
         while value in self.replacements:
@@ -2174,7 +2189,7 @@ class BaseOptimizer(object):
         if isinstance(arg, Cast):
             import pdb;pdb.set_trace()
         # check whether we have a cast as an available expression (ie "above" us)
-        key = (Operation, 'zz5izDzKz5i64', self._cse_comparison_tuple([arg]), types.MachineInt())
+        key = (Operation, INT_TO_INT64_NAME, self._cse_comparison_tuple([arg]), types.MachineInt())
         if self.cse_op_available_in_block and key in self.cse_op_available_in_block:
             return self.cse_op_available_in_block[key]
         if self.newoperations is not None:
@@ -2213,7 +2228,7 @@ class BaseOptimizer(object):
 
     def _must_be_non_negative(self, arg):
          return isinstance(arg, Operation) and arg.name in (
-                "@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res")
+                "@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res", "@vec_length_unwrapped_res")
 
 def is_pow_2(num):
     return num & (num - 1) == 0
@@ -2660,6 +2675,15 @@ class LocalOptimizer(BaseOptimizer):
 
     def _cmp_generic_optimization(self, op, arg0, arg1):
         assert arg0.resolved_type is arg1.resolved_type
+        if arg0.resolved_type is not types.MachineInt():
+            if (isinstance(arg0, Operation) and arg0.name == "@unsigned_bv_wrapped_res"
+                    and isinstance(arg1, Operation) and arg1.name == "@unsigned_bv_wrapped_res"):
+                newname = "@" + self._builtinname(op.name).lstrip("@") + "_unsigned64"
+                return self.newop(newname, [arg0.args[0],
+                                            arg1.args[0]],
+                                  op.resolved_type,
+                                  op.sourcepos,
+                                  op.varname_hint)
         add_components, sub_components, constant, useful = self._add_sub_extract_components(arg0, arg1)
         if useful:
             if len(add_components) + len(sub_components) <= 1 and isinstance(constant, int):
@@ -3811,6 +3835,15 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_length(self, op):
         arg0, = self._args(op)
+        if isinstance(op.args[0].resolved_type, types.Vec):
+            res = self.newop(
+                    "@vec_length_unwrapped_res",
+                    [arg0],
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+            )
+            return self._make_int64_to_int(res, op.sourcepos)
         res = self.newop(
                 "@length_unwrapped_res",
                 [arg0],
@@ -4013,6 +4046,7 @@ class LocalOptimizer(BaseOptimizer):
             ),
             op.resolved_type
         )
+    optimize_read_mem_o_o_o_i = optimize_platform_read_mem_o_o_o_i
 
     def optimize_UINT64_C(self, op):
         arg0, = self._args(op)
@@ -4042,7 +4076,7 @@ def inline(graph, codegen):
                         index = 0
                         changed = True
                         continue
-                elif not really_huge_function and not subgraph.has_loop:
+                elif not really_huge_function and not subgraph.has_loop and subgraph is not graph:
                     # complicated case
                     _inline(graph, codegen, block, index, subgraph)
                     remove_empty_blocks(graph, codegen)
@@ -4299,7 +4333,7 @@ def find_anticipated_casts(graph):
         for op in block.operations:
             if isinstance(op, Cast) and isinstance(op.resolved_type, types.SmallFixedBitVector):
                 s.add((op.args[0], op.resolved_type))
-            if isinstance(op, Operation) and op.name == 'zz5izDzKz5i64':
+            if isinstance(op, Operation) and op.name == INT_TO_INT64_NAME:
                 s.add((op.args[0], op.resolved_type))
     return anticipated_casts
 

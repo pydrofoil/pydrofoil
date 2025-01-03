@@ -498,6 +498,10 @@ Run the Pydrofoil RISC-V emulator on elf_file.
 --dump <file>                   load elf file disassembly from file
 -b/--device-tree-blob <file>    load dtb from file (usually not needed, Pydrofoil has a dtb built-in)
 --disable-vext                  disable vector extension
+-d/--enable-dirty-update        enable dirty update
+-m/--enable-misaligned          enable misagligned memory accesses
+-i/--mtval-has-illegal-inst-bits
+--ram-size <num>                set emulated RAM size (in MiB)
 --version                       print the version of pydrofoil-riscv
 --help                          print this information and exit
 """
@@ -584,6 +588,10 @@ def _main(argv, *machineclasses):
             print "invalid jit option"
             return 1
 
+    enable_misaligned = parse_flag(argv, "-m", "--enable-misaligned")
+    enable_dirty_update = parse_flag(argv, "-d", "--enable-dirty-update")
+    mtval_has_illegal_inst_bits = parse_flag(argv, "-i", "--mtval-has-illegal-inst-bits")
+
     disable_vext = parse_flag(argv, "--disable-vext")
 
     enable_zfinx = parse_flag(argv, "--enable-zfinx")
@@ -592,6 +600,8 @@ def _main(argv, *machineclasses):
     enable_zcb = parse_flag(argv, "--enable-zcb")
     enable_zicbom = parse_flag(argv, "--enable-zicbom")
     enable_zicboz = parse_flag(argv, "--enable-zicboz")
+
+    ram_size = parse_args(argv, "-z", "--ram-size")
 
     verbose = parse_flag(argv, "--verbose")
 
@@ -616,6 +626,10 @@ def _main(argv, *machineclasses):
     #init_logs()
 
     machine = machinecls()
+    if ram_size:
+        ram_size = int(ram_size)
+        print "setting ram-size to %s MiB" % ram_size
+        machine.g.rv_ram_size = r_uint(ram_size << 20)
     if blob:
         if check_file_missing(blob):
             return -1
@@ -629,6 +643,12 @@ def _main(argv, *machineclasses):
 
     if disable_vext:
         machine.g.rv_enable_vext = False
+    if enable_misaligned:
+        machine.g.rv_enable_misaligned = True
+    if enable_dirty_update:
+        machine.g.rv_enable_dirty_update = True
+    if mtval_has_illegal_inst_bits:
+        machine.g.rv_mtval_has_illegal_inst_bits = True
 
     if not verbose:
         machine.g.config_print_instr = False

@@ -122,3 +122,8 @@ def test_dis_instructions(riscvmain):
         m.run_sail(1, False)
         res.append(outriscv.func_zassembly_forwards(m, outriscv.func_zext_decode(m, m._reg_zinstbits)))
     assert "illegal" not in "\n".join(res)
+
+def test_enable_options_smoke_test(riscvmain):
+    elf = elfs[0]
+    riscvmain(['executable', elf, "--enable-dirty-update", "--enable-misaligned", "--mtval-has-illegal-inst-bits", "--ram-size", 128])
+

@@ -760,6 +760,17 @@ def patch_checked_mem_function(outriscv, name):
         patched.func_name += "_" + func.func_name
         setattr(outriscv, name, patched)
 
+def patch_tlb(outriscv):
+    func = outriscv.func_ztranslate_TLB_hit
+    def translate_tlb_hit(machine, zsv_params, zasid, zptb, zvAddr, zac, zpriv, zmxr, zdo_sum, zext_ptw, ztlb_index, zent):
+        if zac is outriscv.Union_zAccessTypezIuzK_zExecutezIuzK.singleton or jit.isconstant(zvAddr):
+            jit.promote(zent.zpAddr)
+            jit.promote(zent.zvAddrMask)
+            jit.promote(zent.zpte)
+        res = func(machine, zsv_params, zasid, zptb, zvAddr, zac, zpriv, zmxr, zdo_sum, zext_ptw, ztlb_index, zent)
+        return res
+    outriscv.func_ztranslate_TLB_hit = translate_tlb_hit
+
 def get_main(outriscv, rv64):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
@@ -789,6 +800,10 @@ def get_main(outriscv, rv64):
     for name in dir(outriscv):
         if name.startswith("func_zchecked_mem_"):
             patch_checked_mem_function(outriscv, name)
+
+    jit.unroll_safe(outriscv.zexecute_zRISCV_REV8)
+
+    patch_tlb(outriscv)
 
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']

@@ -130,6 +130,7 @@ class Globals(object):
         'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?',
         'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
         'rv_rom_base?', 'rv_rom_size?', 'mem?',
+        'rv_ram_base?', 'rv_ram_size?',
         'rv_insns_per_tick?',
         '_mem_ranges?[*]',
         'rv64'

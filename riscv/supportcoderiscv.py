@@ -131,6 +131,7 @@ class Globals(object):
         'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
         'rv_rom_base?', 'rv_rom_size?', 'mem?',
         'rv_ram_base?', 'rv_ram_size?',
+        'rv_enable_dirty_update?', 'rv_enable_misaligned?',
         'rv_insns_per_tick?',
         '_mem_ranges?[*]',
         'rv64'

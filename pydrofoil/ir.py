@@ -966,6 +966,7 @@ class UnionVariantCheck(Operation):
         return "UnionVariantCheck(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
 class UnionCast(Operation):
+    can_have_side_effects = False
     def __repr__(self):
         return "UnionCast(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
@@ -1518,6 +1519,7 @@ def _bare_optimize(graph, codegen):
     res = swap_not(graph, codegen) or res
     res = optimize_with_range_info(graph, codegen) or res
     res = cse_global_reads(graph, codegen) or res
+    res = cse_field_reads(graph, codegen) or res
     res = remove_superfluous_union_checks(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph, codegen) or res
@@ -4515,6 +4517,75 @@ def partial_allocation_removal(graph, codegen):
             if not res:
                 break
     return changes
+
+
+@repeat
+def cse_field_reads(graph, codegen):
+    # very simple forward load-after-load and load-after-store pass for struct fields
+    def leaves_structs_alone(op):
+        if not op.can_have_side_effects:
+            return True
+        if isinstance(op, Comment):
+            return True
+        if op.name == "@not":
+            return True
+        if op.name == "@eq":
+            return True
+        name = op.name.lstrip("@$")
+        name = codegen.builtin_names.get(name, name)
+        return type(op) is Operation and name in supportcode.purefunctions
+
+    replacements = {}
+    available = {} # block -> block -> prev_op
+
+    entrymap = graph.make_entrymap()
+    blocks = topo_order_best_attempt(graph)
+    for block in blocks:
+        available_in_block = {} # (type, fieldname) -> (source, result)
+        prev_blocks = entrymap[block]
+        if prev_blocks:
+            if len(prev_blocks) == 1:
+                available_in_block = available[prev_blocks[0]].copy()
+            else:
+                # intersection of what's available in the previous blocks
+                for key, val in available[prev_blocks[0]].iteritems():
+                    if not all(available.get(prev_block, {}).get(key, None) == val
+                               for prev_block in prev_blocks):
+                        continue
+                    available_in_block[key] = val
+        available[block] = available_in_block
+        for index, op in enumerate(block.operations):
+            if isinstance(op, FieldAccess):
+                key = (op.args[0].resolved_type, op.name)
+                if key in available_in_block:
+                    source, res = available_in_block[key]
+                    if source is op.args[0]:
+                        replacements[op] = res
+                        block.operations[index] = None
+                        continue
+                available_in_block[key] = (op.args[0], op)
+            elif isinstance(op, FieldWrite):
+                key = (op.args[0].resolved_type, op.name)
+                available_in_block[key] = (op.args[0], op.args[1])
+                continue
+            elif isinstance(op, StructConstruction):
+                for arg, typ, name in zip(op.args, op.resolved_type.typs, op.resolved_type.names):
+                    available_in_block[op.resolved_type, name] = (op, arg)
+            elif not leaves_structs_alone(op):
+                available_in_block.clear()
+                continue
+            else:
+                continue
+    if replacements:
+        for block in blocks:
+            block.operations = [op for op in block.operations if op is not None]
+        while 1:
+            # XXX do them in one go somehow
+            changed = graph.replace_ops(replacements)
+            if not changed:
+                break
+        return True
+    return False
 
 
 # ____________________________________________________________

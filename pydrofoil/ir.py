@@ -4058,6 +4058,9 @@ class LocalOptimizer(BaseOptimizer):
         arg0, = self._args(op)
         return arg0
 
+    def optimize_branch_announce(self, op):
+        return UnitConstant.UNIT
+
 @repeat
 def inline(graph, codegen):
     # don't add blocks to functions that are already really big and need to be

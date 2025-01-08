@@ -4276,6 +4276,7 @@ def test_monomorphize():
     zpa = Argument('zpa', GenericBitVector())
     block0 = Block()
     i0 = block0.emit(Operation, 'monomorphize', [zpa], GenericBitVector(), '`10 243:47-243:65', 'zz442')
+    i1 = block0.emit(Operation, 'branch_announce', [MachineIntConstant(64), zpa], Unit(), '`18 25:2-25:32', 'zz40')
     block0.next = Return(i0)
     graph = Graph('mono', [zpa], block0)
     check_optimize(graph, '''

@@ -15,6 +15,12 @@ def should_inline(name):
         return True
     if "zmatch_TLB_Entry" in name:
         return True
+    if "zsail_mem_read" in name:
+        return True
+    if "zsail_mem_write" in name:
+        return True
+    if "request_is_exclusive" in name:
+        return True
 
 def _make_code(rv64=True):
     print "making python code"

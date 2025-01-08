@@ -1383,6 +1383,10 @@ def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
     return mem.read(addr, n)
 
+def fast_read_mem_i_bv_i_isfetch(machine, addr_size, addr, n, isfetch):
+    mem = jit.promote(machine.g).mem
+    return mem.read(addr, n, executable_flag=isfetch)
+
 @jit.unroll_safe
 def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
     value = None

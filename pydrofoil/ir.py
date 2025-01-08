@@ -4033,7 +4033,7 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type
         )
 
-    def optimize_platform_read_mem_o_o_o_i(self, op):
+    def optimize_platform_read_mem_o_o_o_i(self, op, isfetch=False):
         arg0, arg1, arg2, arg3 = self._args(op)
         arg2, typ = self._extract_smallfixedbitvector(arg2)
         arg3 = self._extract_number(arg3)
@@ -4044,8 +4044,8 @@ class LocalOptimizer(BaseOptimizer):
         assert typ.width in (32, 64)
         return self.newcast(
             self.newop(
-                "@platform_read_mem_o_i_bv_i",
-                [arg0, arg1, arg2, arg3],
+                "@fast_read_mem_i_bv_i_isfetch",
+                [arg1, arg2, arg3, BooleanConstant.frombool(isfetch)],
                 types.SmallFixedBitVector(arg3.number * 8),
                 op.sourcepos,
                 op.varname_hint,
@@ -4053,6 +4053,9 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type
         )
     optimize_read_mem_o_o_o_i = optimize_platform_read_mem_o_o_o_i
+
+    def optimize_read_mem_ifetch_o_o_o_i(self, op):
+        return self.optimize_platform_read_mem_o_o_o_i(op, isfetch=True)
 
     def optimize_UINT64_C(self, op):
         arg0, = self._args(op)

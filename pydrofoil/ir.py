@@ -400,7 +400,11 @@ class SSABuilder(object):
                 targettyp = parseval.resolved_type.fieldtyps[fieldname]
                 if arg.resolved_type != targettyp:
                     if targettyp is types.MachineInt():
+                        assert arg.resolved_type == types.Int()
                         castop = Operation(INT_TO_INT64_NAME, [arg], types.MachineInt())
+                    elif targettyp is types.Int():
+                        assert arg.resolved_type == types.MachineInt()
+                        castop = Operation(INT64_TO_INT_NAME, [arg], targettyp)
                     else:
                         castop = Cast(arg, targettyp)
                     args[index] = self._addop(castop)

@@ -4271,3 +4271,16 @@ i2 = block0.emit(Operation, '@lt_unsigned64', [i8, i11], Bool(), '`5 143:32-143:
 block0.next = Return(i2, None)
 graph = Graph('zexecute_zBTYPE', [i8, i11], block0)
 ''')
+
+def test_monomorphize():
+    zpa = Argument('zpa', GenericBitVector())
+    block0 = Block()
+    i0 = block0.emit(Operation, 'monomorphize', [zpa], GenericBitVector(), '`10 243:47-243:65', 'zz442')
+    block0.next = Return(i0)
+    graph = Graph('mono', [zpa], block0)
+    check_optimize(graph, '''
+zpa = Argument('zpa', GenericBitVector())
+block0 = Block()
+block0.next = Return(zpa, None)
+graph = Graph('mono', [zpa], block0)
+''')

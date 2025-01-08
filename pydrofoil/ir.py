@@ -4054,6 +4054,9 @@ class LocalOptimizer(BaseOptimizer):
         assert arg0.number == 0
         return GenericBitVectorConstant(bitvector.from_ruint(0, r_uint(0)))
 
+    def optimize_monomorphize(self, op):
+        arg0, = self._args(op)
+        return arg0
 
 @repeat
 def inline(graph, codegen):

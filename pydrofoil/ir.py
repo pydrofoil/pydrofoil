@@ -4070,6 +4070,9 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_branch_announce(self, op):
         return UnitConstant.UNIT
 
+    def optimize_instr_announce(self, op):
+        return UnitConstant.UNIT
+
 @repeat
 def inline(graph, codegen):
     # don't add blocks to functions that are already really big and need to be

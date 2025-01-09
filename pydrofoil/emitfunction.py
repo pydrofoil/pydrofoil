@@ -87,6 +87,10 @@ class CodeEmitter(object):
             return True
         if isinstance(op, ir.RefOf):
             return True
+        if isinstance(op, ir.UnpackPackedField):
+            return True
+        if isinstance(op, ir.PackPackedField):
+            return True
         if op.name == "@not":
             return True
         name = self.codegen.builtin_names.get(op.name, op.name)
@@ -292,6 +296,20 @@ class CodeEmitter(object):
 
     def emit_op_Phi(self, op):
         pass
+
+    def emit_op_PackedFieldAccess(self, op):
+        read = op.resolved_type.typ.packed_field_read("%s.%s" % (self._get_arg(op.args[0]), op.name), bare=True)
+        return self._op_helper(op, read)
+
+    def emit_op_UnpackPackedField(self, op):
+        assert op.args[0].resolved_type.typ.packed_field_size > 1
+        read = op.resolved_type.packed_field_unpack(self._get_arg(op.args[0]))
+        return self._op_helper(op, read)
+
+    def emit_op_PackedFieldWrite(self, op):
+        lhs = "%s.%s" % (self._get_arg(op.args[0]), op.name)
+        write = op.args[1].resolved_type.typ.packed_field_write(lhs, self._get_arg(op.args[1]), bare=True)
+
 
     # ________________________________________________
     # jumps etc

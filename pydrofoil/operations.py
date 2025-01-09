@@ -10,8 +10,11 @@ class __extend__(types.Type):
     def make_op_code_special_eq(self, ast, (sarg1, sarg2), argtyps, restyp):
         return "supportcode.raise_type_error() + %r + %r + %r" % (sarg1, sarg2, str(self))
 
-    def packed_field_read(self, sarg):
+    packed_field_size = None
+
+    def packed_field_read(self, sarg, bare=False):
         assert "." in sarg
+        assert not bare
         return sarg
 
     def packed_field_write(self, lhs, rhs):
@@ -42,14 +45,25 @@ class __extend__(types.GenericBitVector):
         assert restyp is types.Bool()
         return "%s.eq(%s)" % (sarg1, sarg2)
 
-    def packed_field_read(self, sarg):
+    packed_field_size = 3
+
+    def packed_field_read(self, sarg, bare=False):
         assert "." in sarg
         names = "(%s_width, %s_val, %s_data)" % (sarg, sarg, sarg)
-        return "bitvector.BitVector.unpack" + names
+        if bare:
+            return names
+        return self.packed_field_unpack(names)
 
-    def packed_field_write(self, lhs, rhs):
+    def packed_field_unpack(self, packed):
+        return "bitvector.BitVector.unpack(*%s)" % packed
+
+    def packed_field_write(self, lhs, rhs, bare=False):
         names = "(%s_width, %s_val, %s_data)" % (lhs, lhs, lhs)
-        return "%s = %s.pack()" % (names, rhs)
+        if not bare:
+            rhs += ".pack()"
+        return "%s = %s" % (names, rhs)
+
+    #def packed_field_pack(self, 
 
     def packed_field_copy(self, lhs, rhs):
         names = "(%s_width, %s_val, %s_data)"
@@ -61,10 +75,17 @@ class __extend__(types.BigFixedBitVector):
         assert restyp is types.Bool()
         return "%s.eq(%s)" % (sarg1, sarg2)
 
-    def packed_field_read(self, sarg):
+    packed_field_size = 3
+
+    def packed_field_read(self, sarg, bare=False):
         assert "." in sarg
         names = "(%s, %s_val, %s_data)" % (self.width, sarg, sarg)
-        return "bitvector.BitVector.unpack" + names
+        if bare:
+            return names
+        return self.packed_field_unpack(names)
+
+    def packed_field_unpack(self, packed):
+        return "bitvector.BitVector.unpack(*%s)" % packed
 
     def packed_field_write(self, lhs, rhs):
         names = "(%s_val, %s_data)" % (lhs, lhs)
@@ -112,10 +133,17 @@ class __extend__(types.Int):
         assert restyp is types.Bool()
         return "%s.eq(%s)" % (sarg1, sarg2)
 
-    def packed_field_read(self, sarg):
+    packed_field_size = 2
+
+    def packed_field_read(self, sarg, bare=False):
         assert "." in sarg
         names = "(%s_val_or_sign, %s_data)" % (sarg, sarg)
-        return "bitvector.Integer.unpack" + names
+        if bare:
+            return names
+        return self.packed_field_unpack(names)
+
+    def packed_field_unpack(self, packed):
+        return "bitvector.Integer.unpack(*%s)" % packed
 
     def packed_field_write(self, lhs, rhs):
         names = "(%s_val_or_sign, %s_data)" % (lhs, lhs)

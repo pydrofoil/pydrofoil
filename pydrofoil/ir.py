@@ -952,7 +952,7 @@ class FieldAccess(Operation):
     can_have_side_effects = False
 
     def __repr__(self):
-        return "FieldAccess(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
+        return "%s(%r, %r, %r)" % (self.__class__.__name__, self.name, self.args, self.resolved_type)
 
 class FieldWrite(Operation):
     def __init__(self, name, args, resolved_type=None, sourcepos=None, varname_hint=None):
@@ -961,7 +961,7 @@ class FieldWrite(Operation):
         Operation.__init__(self, name, args, resolved_type, sourcepos, varname_hint)
 
     def __repr__(self):
-        return "FieldWrite(%r, %r)" % (self.name, self.args)
+        return "%s(%r, %r)" % (self.__class__.__name__, self.name, self.args)
 
 class UnionVariantCheck(Operation):
     can_have_side_effects = False
@@ -1030,6 +1030,20 @@ class NonSSAAssignment(Operation):
 class Comment(Operation):
     def __init__(self, comment):
         Operation.__init__(self, comment, [], types.Unit())
+
+
+class PackedFieldAccess(FieldAccess):
+    pass
+
+class UnpackPackedField(Operation):
+    can_have_side_effects = False
+
+class PackPackedField(Operation):
+    can_have_side_effects = False
+
+class PackedFieldWrite(FieldWrite):
+    pass
+
 
 class Phi(Value):
     can_have_side_effects = False
@@ -1490,7 +1504,11 @@ def light_simplify(graph, codegen):
     codegen.print_debug_msg("simplifying ssa")
     res = _optimize(graph, codegen)
     if res:
-        graph.check()
+        res = make_packed_reads_writes_explicit(graph, codegen)
+        if res:
+            res = _optimize(graph, codegen)
+            if res:
+                graph.check()
     return res
 
 
@@ -2265,12 +2283,33 @@ class LocalOptimizer(BaseOptimizer):
         if op.resolved_type is arg.resolved_type:
             block.operations[index] = None
             return arg
+        if isinstance(op.resolved_type, types.SmallFixedBitVector):
+            if isinstance(arg, UnpackPackedField):
+                return self.newop("@packed_field_cast_smallfixedbitvector", [MachineIntConstant(op.resolved_type.width), arg.args[0]], op.resolved_type, op.sourcepos)
         if self.do_double_casts and isinstance(arg, Cast):
             arg2, = self._args(arg)
             if arg2.resolved_type is op.resolved_type:
                 block.operations[index] = None
                 return arg2
             return self.newcast(arg2, op.resolved_type, op.sourcepos, op.varname_hint)
+
+    def _optimize_PackPackedField(self, op, block, index):
+        arg, = self._args(op)
+        if isinstance(arg, UnpackPackedField):
+            return arg.args[0]
+        if arg.resolved_type is types.GenericBitVector():
+            arg, typ = self._extract_smallfixedbitvector(arg)
+            return self.newop("@pack_smallfixedbitvector", [MachineIntConstant(typ.width), arg], op.resolved_type, op.sourcepos)
+        elif op.args[0].resolved_type is types.Int():
+            arg = self._extract_machineint(arg)
+            return self.newop("@pack_machineint", [arg], op.resolved_type, op.sourcepos)
+
+    def _optimize_UnpackPackedField(self, op, block, index):
+        if not isinstance(op.args[0], PackedFieldAccess):
+            typ = op.args[0].resolved_type
+            if not isinstance(typ, types.Packed):
+                assert typ.packed_field_size
+                return op.args[0]
 
     def _optimize_Operation(self, op, block, index):
         name = self._builtinname(op.name)
@@ -4597,7 +4636,38 @@ def cse_field_reads(graph, codegen):
         return True
     return False
 
-
+def make_packed_reads_writes_explicit(graph, codegen):
+    replacements = {}
+    for block in graph.iterblocks():
+        newoperations = []
+        for index, op in enumerate(block.operations):
+            if type(op) is FieldAccess:
+                if op.resolved_type.packed_field_size:
+                    op1 = PackedFieldAccess(op.name, op.args, types.Packed(op.resolved_type))
+                    op2 = UnpackPackedField("$unpack", [op1], op.resolved_type)
+                    newoperations.append(op1)
+                    newoperations.append(op2)
+                    replacements[op] = op2
+                    continue
+            elif type(op) is FieldWrite:
+                typ = op.args[1].resolved_type
+                if typ.packed_field_size:
+                    op1 = PackPackedField("$pack", [op.args[1]], types.Packed(typ))
+                    op2 = PackedFieldWrite(op.name, [op.args[0], op1])
+                    newoperations.append(op1)
+                    newoperations.append(op2)
+                    continue
+            newoperations.append(op)
+        block.operations = newoperations
+    if replacements:
+        while 1:
+            # XXX do them in one go somehow
+            changed = graph.replace_ops(replacements)
+            if not changed:
+                break
+        graph.check()
+        return True
+    return False
 # ____________________________________________________________
 # dominator-tree based algorithms
 

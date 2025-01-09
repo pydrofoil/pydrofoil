@@ -4722,3 +4722,5 @@ def test_fetch():
     block25.next = Goto(block18, None)
     graph = Graph('zfetch', [zgsz321625], block0)
     graph.view()
+    make_packed_reads_writes_explicit(graph, fakecodegen)
+    graph.view()

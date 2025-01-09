@@ -222,3 +222,13 @@ class Real(Type):
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
+
+@unique
+class Packed(Type):
+    def __init__(self, typ):
+        self.uninitialized_value = "%s.unpack()" % typ.uninitialized_value
+        self.typ = typ
+
+    def __repr__(self):
+        return "%s(%s)" % (type(self).__name__, self.typ)
+

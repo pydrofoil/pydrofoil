@@ -17,7 +17,8 @@ class __extend__(types.Type):
         assert not bare
         return sarg
 
-    def packed_field_write(self, lhs, rhs):
+    def packed_field_write(self, lhs, rhs, bare=False):
+        assert not bare
         return "%s = %s" % (lhs, rhs)
 
     def packed_field_copy(self, lhs, rhs):
@@ -63,7 +64,8 @@ class __extend__(types.GenericBitVector):
             rhs += ".pack()"
         return "%s = %s" % (names, rhs)
 
-    #def packed_field_pack(self, 
+    def packed_field_pack(self, unpacked):
+        return unpacked + ".pack()"
 
     def packed_field_copy(self, lhs, rhs):
         names = "(%s_width, %s_val, %s_data)"
@@ -90,6 +92,9 @@ class __extend__(types.BigFixedBitVector):
     def packed_field_write(self, lhs, rhs):
         names = "(%s_val, %s_data)" % (lhs, lhs)
         return "%s = %s.pack()[1:]" % (names, rhs)
+
+    def packed_field_pack(self, unpacked):
+        return unpacked + ".pack()[1:]"
 
     def packed_field_copy(self, lhs, rhs):
         names = "(%s_val, %s_data)"
@@ -145,9 +150,14 @@ class __extend__(types.Int):
     def packed_field_unpack(self, packed):
         return "bitvector.Integer.unpack(*%s)" % packed
 
-    def packed_field_write(self, lhs, rhs):
+    def packed_field_write(self, lhs, rhs, bare=False):
         names = "(%s_val_or_sign, %s_data)" % (lhs, lhs)
-        return "%s = %s.pack()" % (names, rhs)
+        if not bare:
+            rhs += ".pack()"
+        return "%s = %s" % (names, rhs)
+
+    def packed_field_pack(self, unpacked):
+        return unpacked + ".pack()"
 
     def packed_field_copy(self, lhs, rhs):
         names = "(%s_val_or_sign, %s_data)"

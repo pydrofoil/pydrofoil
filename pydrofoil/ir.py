@@ -162,6 +162,7 @@ class SSABuilder(object):
         graph.check()
         insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
+        make_packed_reads_writes_explicit(graph, self.codegen)
         light_simplify(graph, self.codegen)
         if self.view:
             graph.view()
@@ -959,6 +960,8 @@ class FieldWrite(Operation):
         if resolved_type is None:
             resolved_type = types.Unit()
         Operation.__init__(self, name, args, resolved_type, sourcepos, varname_hint)
+        if isinstance(args[1].resolved_type, types.Packed) and type(self) is FieldWrite:
+            self.__class__ = PackedFieldWrite
 
     def __repr__(self):
         return "%s(%r, %r)" % (self.__class__.__name__, self.name, self.args)
@@ -1037,6 +1040,14 @@ class PackedFieldAccess(FieldAccess):
 
 class UnpackPackedField(Operation):
     can_have_side_effects = False
+
+    def __init__(self, arg, sourcepos=None):
+        assert isinstance(arg.resolved_type, types.Packed)
+        Operation.__init__(self, "$unpack", [arg], arg.resolved_type.typ, sourcepos)
+
+    def __repr__(self):
+        return "UnpackPackedField(%s)" % self.args[0]
+
 
 class PackPackedField(Operation):
     can_have_side_effects = False
@@ -1504,11 +1515,7 @@ def light_simplify(graph, codegen):
     codegen.print_debug_msg("simplifying ssa")
     res = _optimize(graph, codegen)
     if res:
-        res = make_packed_reads_writes_explicit(graph, codegen)
-        if res:
-            res = _optimize(graph, codegen)
-            if res:
-                graph.check()
+        graph.check()
     return res
 
 
@@ -2305,11 +2312,16 @@ class LocalOptimizer(BaseOptimizer):
             return self.newop("@pack_machineint", [arg], op.resolved_type, op.sourcepos)
 
     def _optimize_UnpackPackedField(self, op, block, index):
+        arg, = self._args(op)
         if not isinstance(op.args[0], PackedFieldAccess):
-            typ = op.args[0].resolved_type
-            if not isinstance(typ, types.Packed):
-                assert typ.packed_field_size
-                return op.args[0]
+            if type(arg) is Operation and arg.name == "@pack_smallfixedbitvector":
+                import pdb;pdb.set_trace()
+                assert arg.args[1].resolved_type is op.resolved_type
+                return arg.args[1]
+            if type(arg) is Operation and arg.name == "@pack_machineint":
+                return self.newop(INT64_TO_INT_NAME, [arg.args[0]], types.Int(), arg.sourcepos)
+            import pdb;pdb.set_trace()
+
 
     def _optimize_Operation(self, op, block, index):
         name = self._builtinname(op.name)
@@ -4112,6 +4124,14 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_instr_announce(self, op):
         return UnitConstant.UNIT
 
+    def optimize_packed_field_cast_smallfixedbitvector(self, op):
+        arg0, arg1 = self._args(op)
+        if not isinstance(arg1, PackedFieldAccess):
+            if arg1.name == "@pack_smallfixedbitvector":
+                assert arg0.number == arg1.args[0].number
+                return arg1.args[1]
+            import pdb;pdb.set_trace()
+
 @repeat
 def inline(graph, codegen):
     # don't add blocks to functions that are already really big and need to be
@@ -4518,6 +4538,8 @@ def partial_allocation_removal(graph, codegen):
                     typ = op.resolved_type
                     fields = {}
                     for fieldname in typ.names:
+                        if typ.fieldtyps[fieldname].packed_field_size:
+                            import pdb;pdb.set_trace()
                         fieldvalue = FieldAccess(fieldname, [op.args[0]], typ.fieldtyps[fieldname])
                         newoperations.append(fieldvalue)
                         fields[fieldname] = fieldvalue
@@ -4531,6 +4553,7 @@ def partial_allocation_removal(graph, codegen):
             if isinstance(op, FieldAccess):
                 obj = get_repr(op.args[0])
                 if obj in virtuals_in_block:
+                    assert op.resolved_type is virtuals_in_block[obj][op.name].resolved_type
                     replacements[op] = virtuals_in_block[obj][op.name]
                     continue
             if isinstance(op, GlobalWrite) and op.name in codegen.all_registers:
@@ -4644,7 +4667,7 @@ def make_packed_reads_writes_explicit(graph, codegen):
             if type(op) is FieldAccess:
                 if op.resolved_type.packed_field_size:
                     op1 = PackedFieldAccess(op.name, op.args, types.Packed(op.resolved_type))
-                    op2 = UnpackPackedField("$unpack", [op1], op.resolved_type)
+                    op2 = UnpackPackedField(op1)
                     newoperations.append(op1)
                     newoperations.append(op2)
                     replacements[op] = op2
@@ -4657,6 +4680,19 @@ def make_packed_reads_writes_explicit(graph, codegen):
                     newoperations.append(op1)
                     newoperations.append(op2)
                     continue
+            elif type(op) is StructConstruction and any(typ.packed_field_size for typ in op.resolved_type.typs):
+                newop = Allocate(op.resolved_type, op.sourcepos)
+                replacements[op] = newop
+                newoperations.append(newop)
+                for name, typ, val in zip(op.resolved_type.names, op.resolved_type.typs, op.args):
+                    if typ.packed_field_size:
+                        op1 = PackPackedField("$pack", [val], types.Packed(typ))
+                        newoperations.append(op1)
+                        newoperations.append(PackedFieldWrite(name, [newop, op1]))
+                    else:
+                        newoperations.append(FieldWrite(name, [newop, val]))
+                print "allocate", graph, op, newoperations
+                continue
             newoperations.append(op)
         block.operations = newoperations
     if replacements:

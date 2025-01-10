@@ -93,6 +93,8 @@ class Specializer(object):
         if isinstance(restype, types.Struct):
             fields = []
             for fieldtyp, fieldtyp_orig, name in zip(restype.typs, original_restype.typs, restype.names):
+                if fieldtyp.packed_field_read:
+                    import pdb;pdb.set_trace()
                 field = ir.FieldAccess(name, [newcall], fieldtyp)
                 optimizer.newoperations.append(field)
                 converted_field = self._reconstruct_result(fieldtyp, fieldtyp_orig, field, optimizer)

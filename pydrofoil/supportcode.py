@@ -520,7 +520,7 @@ def pack_machineint(machine, val):
     return val, None
 
 @objectmodel.always_inline
-def packed_field_cast_smallfixedbitvector(machine, width, val, data, targetwidth):
+def packed_field_cast_smallfixedbitvector(machine, targetwidth, (width, val, data)):
     assert width == targetwidth
     return val
 

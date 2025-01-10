@@ -255,6 +255,8 @@ class CodeEmitter(object):
         return self._op_helper(op, read)
 
     def emit_op_FieldWrite(self, op):
+        if isinstance(op.args[1].resolved_type, types.Packed):
+            return self.emit_op_PackedFieldWrite(op)
         lhs = "%s.%s" % (self._get_arg(op.args[0]), op.name)
         write = op.args[1].resolved_type.packed_field_write(lhs, self._get_arg(op.args[1]))
         self.codegen.emit(write)
@@ -309,6 +311,12 @@ class CodeEmitter(object):
     def emit_op_PackedFieldWrite(self, op):
         lhs = "%s.%s" % (self._get_arg(op.args[0]), op.name)
         write = op.args[1].resolved_type.typ.packed_field_write(lhs, self._get_arg(op.args[1]), bare=True)
+        self.codegen.emit(write)
+
+    def emit_op_PackPackedField(self, op):
+        assert op.args[0].resolved_type.packed_field_size > 1
+        read = op.args[0].resolved_type.packed_field_pack(self._get_arg(op.args[0]))
+        return self._op_helper(op, read)
 
 
     # ________________________________________________

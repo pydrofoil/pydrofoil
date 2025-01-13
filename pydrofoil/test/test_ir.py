@@ -4645,3 +4645,19 @@ i19 = block3.emit(Operation, '@pack_machineint', [MachineIntConstant(8)], Packed
 block3.next = Goto(block2, None)
 graph = Graph('zhex_bits_signed_8_forwards', [zargz3], block0)
 ''')
+
+def test_unpack_pack_smallfixedbitvector_bug():
+    zpaddr = Argument('zpaddr', SmallFixedBitVector(32))
+    block0 = Block()
+    i10 = block0.emit(Operation, '@pack_smallfixedbitvector', [MachineIntConstant(32), zpaddr], Packed(GenericBitVector()), None, None)
+    i13 = block0.emit(UnpackPackedField, '$unpack', [i10], GenericBitVector(), None, None)
+    block0.next = Return(i13)
+    graph = Graph('zf', [zpaddr], block0)
+    check_optimize(graph, '''
+zpaddr = Argument('zpaddr', SmallFixedBitVector(32))
+block0 = Block()
+i1 = block0.emit(Operation, '@pack_smallfixedbitvector', [MachineIntConstant(32), zpaddr], Packed(GenericBitVector()), None, None)
+i2 = block0.emit(Cast, '$cast', [zpaddr], GenericBitVector(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('zf', [zpaddr], block0)
+''')

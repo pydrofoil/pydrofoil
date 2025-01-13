@@ -2343,8 +2343,7 @@ class LocalOptimizer(BaseOptimizer):
         arg, = self._args(op)
         if not isinstance(op.args[0], FieldAccess):
             if type(arg) is Operation and arg.name == "@pack_smallfixedbitvector":
-                assert arg.args[1].resolved_type is op.resolved_type
-                return arg.args[1]
+                return self.newcast(arg.args[1], op.resolved_type, op.sourcepos, op.varname_hint)
             if type(arg) is Operation and arg.name == "@pack_machineint":
                 return self.newop(INT64_TO_INT_NAME, [arg.args[0]], types.Int(), arg.sourcepos)
             if isinstance(arg, PackPackedField):

@@ -83,8 +83,6 @@ class CodeEmitter(object):
     def _can_print_op_anywhere(self, op):
         if isinstance(op, ir.Cast):
             return True
-        if isinstance(op, ir.UnionCast):
-            return True
         if isinstance(op, ir.RefOf):
             return True
         if isinstance(op, ir.UnpackPackedField):

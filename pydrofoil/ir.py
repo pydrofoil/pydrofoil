@@ -848,6 +848,7 @@ class Graph(object):
                 for prevblock in op.prevblocks:
                     assert prevblock in entrymap
                     assert prevblock in entry
+                assert len({val.resolved_type for val in op.prevvalues}) == 1
         # check that all the used values are defined somewhere
         for block in entrymap:
             defined_vars = defined_vars_per_block[block]
@@ -916,10 +917,6 @@ class Operation(Value):
     can_have_side_effects = True
 
     def __init__(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
-        if name == INT64_TO_INT_NAME and isinstance(resolved_type, types.Packed):
-            import pdb;pdb.set_trace()
-        if name == INT_TO_INT64_NAME and isinstance(args[0].resolved_type, types.Packed):
-            import pdb;pdb.set_trace()
         for arg in args:
             assert isinstance(arg, Value)
         self.name = name
@@ -2345,7 +2342,6 @@ class LocalOptimizer(BaseOptimizer):
         arg, = self._args(op)
         if not isinstance(op.args[0], FieldAccess):
             if type(arg) is Operation and arg.name == "@pack_smallfixedbitvector":
-                import pdb;pdb.set_trace()
                 assert arg.args[1].resolved_type is op.resolved_type
                 return arg.args[1]
             if type(arg) is Operation and arg.name == "@pack_machineint":
@@ -2598,6 +2594,23 @@ class LocalOptimizer(BaseOptimizer):
             res = StructConstruction(op.resolved_type.name, fields, op.resolved_type)
             self.newoperations.append(res)
             return res
+        if isinstance(op.resolved_type, types.Union):
+            names = set()
+            for arg in op.prevvalues:
+                if type(arg) is not Operation:
+                    return
+                if len(arg.args) != 1:
+                    return
+                names.add(arg.name)
+            if len(names) != 1:
+                return
+            variant, = names
+            if variant not in op.resolved_type.variants:
+                return
+            self._need_dead_code_removal = True
+            arg = self.newphi(op.prevblocks, [arg.args[0] for arg in op.prevvalues],
+                              op.prevvalues[0].args[0].resolved_type)
+            return self.newop(variant, [arg], op.resolved_type)
 
     def _optimize_NonSSAAssignment(self, op, block, index):
         return REMOVE

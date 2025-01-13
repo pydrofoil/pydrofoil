@@ -511,12 +511,10 @@ def count_leading_zeros(machine, bv):
 
 @objectmodel.always_inline
 def pack_smallfixedbitvector(machine, width, val):
-    import pdb;pdb.set_trace()
     return width, val, None
 
 @objectmodel.always_inline
 def pack_machineint(machine, val):
-    import pdb;pdb.set_trace()
     return val, None
 
 @objectmodel.always_inline

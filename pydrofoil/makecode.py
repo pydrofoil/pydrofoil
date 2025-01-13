@@ -266,10 +266,11 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_named_type(name, pyname, structtyp, ast)
         uninit_arg = []
         with self.emit_code_type("declarations"), self.emit_indent("class %s(supportcode.ObjectBase):" % pyname):
+            self.emit("@objectmodel.always_inline")
             with self.emit_indent("def __init__(self, %s):" % ", ".join(structtyp.names)):
-                for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
+                for arg, fieldtyp in zip(structtyp.names, structtyp.internaltyps):
                     fieldname = "self." + arg
-                    self.emit(fieldtyp.packed_field_write(fieldname, arg))
+                    self.emit(fieldtyp.packed_field_write(fieldname, arg, bare=True))
                     uninit_arg.append(fieldtyp.uninitialized_value)
             #self.emit("@objectmodel.always_inline")
             with self.emit_indent("def copy_into(self, machine, res=None):"):
@@ -409,8 +410,8 @@ class __extend__(parse.Union):
                 with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                     # default field values
                     if type(rtyp) is types.Struct:
-                        for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
-                            codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value))
+                        for fieldname, fieldtyp in sorted(rtyp.internalfieldtyps.iteritems()):
+                            codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value, bare=True))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                     self.make_init(codegen, rtyp, typ, pyname)

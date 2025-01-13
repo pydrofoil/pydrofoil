@@ -162,7 +162,7 @@ class SSABuilder(object):
         graph.check()
         insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
-        make_packed_reads_writes_explicit(graph, self.codegen)
+        #make_packed_reads_writes_explicit(graph, self.codegen)
         light_simplify(graph, self.codegen)
         if self.view:
             graph.view()
@@ -297,12 +297,22 @@ class SSABuilder(object):
                 obj = self._get_arg(op.obj)
                 typ = obj.resolved_type
                 for field in firstfields:
-                    typ = typ.fieldtyps[field]
+                    typ = typ.internalfieldtyps[field]
+                    if isinstance(typ, types.Packed):
+                        import pdb;pdb.set_trace()
                     obj = self._addop(FieldAccess(field, [obj], typ))
 
                 fieldval = self._get_arg(op.value)
-                typ = typ.fieldtyps[lastfield]
-                if fieldval.resolved_type != typ:
+                typ = typ.internalfieldtyps[lastfield]
+                if isinstance(typ, types.Packed):
+                    if typ.typ != fieldval.resolved_type:
+                        if typ.typ is types.GenericBitVector():
+                            fieldval = self._addop(Cast(fieldval, typ.typ))
+                        else:
+                            import pdb;pdb.set_trace()
+                    fieldval = self._addop(PackPackedField(fieldval))
+                    assert fieldval.resolved_type == typ
+                elif fieldval.resolved_type != typ:
                     fieldval = self._addop(Cast(fieldval, typ, op.sourcepos))
                 self._addop(FieldWrite(lastfield, [obj, fieldval], types.Unit(), op.sourcepos))
 
@@ -318,10 +328,15 @@ class SSABuilder(object):
                     obj = self._get_arg(op.lhs.obj)
                     typ = obj.resolved_type
                     for field in firstfields:
-                        typ = typ.fieldtyps[field]
+                        typ = typ.internalfieldtyps[field]
+                        assert not isinstance(typ, types.Packed)
                         obj = self._addop(FieldAccess(field, [obj], typ))
-                    typ = typ.fieldtyps[lastfield]
-                    if rhs.resolved_type != typ:
+                    typ = typ.internalfieldtyps[lastfield]
+                    if isinstance(typ, types.Packed):
+                        if typ.typ != rhs.resolved_type:
+                            import pdb;pdb.set_trace()
+                        rhs = self._addop(PackPackedField(rhs))
+                    elif rhs.resolved_type != typ:
                         rhs = self._addop(Cast(rhs, typ, op.sourcepos))
                     self._addop(FieldWrite(lastfield, [obj, rhs], types.Unit(), op.sourcepos))
                 else:
@@ -398,7 +413,7 @@ class SSABuilder(object):
             args = self._get_args(parseval.fieldvalues)
             for index, fieldname in enumerate(parseval.fieldnames):
                 arg = args[index]
-                targettyp = parseval.resolved_type.fieldtyps[fieldname]
+                targettyp = parseval.resolved_type.internalfieldtyps[fieldname]
                 if arg.resolved_type != targettyp:
                     if targettyp is types.MachineInt():
                         assert arg.resolved_type == types.Int()
@@ -406,6 +421,15 @@ class SSABuilder(object):
                     elif targettyp is types.Int():
                         assert arg.resolved_type == types.MachineInt()
                         castop = Operation(INT64_TO_INT_NAME, [arg], targettyp)
+                    elif isinstance(targettyp, types.Packed):
+                        if targettyp.typ is not arg.resolved_type:
+                            if targettyp.typ is types.Int():
+                                assert arg.resolved_type == types.MachineInt()
+                                arg = self._addop(Operation(INT64_TO_INT_NAME, [arg], targettyp.typ))
+                            else:
+                                assert targettyp.typ is types.GenericBitVector()
+                                arg = self._addop(Cast(arg, targettyp.typ))
+                        castop = PackPackedField(arg)
                     else:
                         castop = Cast(arg, targettyp)
                     args[index] = self._addop(castop)
@@ -418,8 +442,11 @@ class SSABuilder(object):
                 index = parseval.obj.fieldnames.index(parseval.element)
                 return self._get_arg(parseval.obj.fieldvalues[index])
             arg = self._get_arg(parseval.obj)
-            ssaop = FieldAccess(parseval.element, [arg], parseval.resolved_type)
+            internalfieldtyp = arg.resolved_type.internalfieldtyps[parseval.element]
+            ssaop = FieldAccess(parseval.element, [arg], internalfieldtyp)
             self._addop(ssaop)
+            if isinstance(internalfieldtyp, types.Packed):
+                ssaop = self._addop(UnpackPackedField(ssaop))
             return ssaop
         elif isinstance(parseval, parse.Cast):
             arg = self._get_arg(parseval.expr)
@@ -889,6 +916,10 @@ class Operation(Value):
     can_have_side_effects = True
 
     def __init__(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
+        if name == INT64_TO_INT_NAME and isinstance(resolved_type, types.Packed):
+            import pdb;pdb.set_trace()
+        if name == INT_TO_INT64_NAME and isinstance(args[0].resolved_type, types.Packed):
+            import pdb;pdb.set_trace()
         for arg in args:
             assert isinstance(arg, Value)
         self.name = name
@@ -899,7 +930,7 @@ class Operation(Value):
         self.varname_hint = varname_hint
 
     def __repr__(self):
-        return "%s(%r, %r, %r)" % (self.__class__.__name__, self.name, self.args, self.sourcepos)
+        return "%s(%r, %r, %r, %r)" % (self.__class__.__name__, self.name, self.args, self.resolved_type, self.sourcepos)
 
     def _repr(self, print_varnames):
         return self._get_print_name(print_varnames)
@@ -960,8 +991,6 @@ class FieldWrite(Operation):
         if resolved_type is None:
             resolved_type = types.Unit()
         Operation.__init__(self, name, args, resolved_type, sourcepos, varname_hint)
-        if isinstance(args[1].resolved_type, types.Packed) and type(self) is FieldWrite:
-            self.__class__ = PackedFieldWrite
 
     def __repr__(self):
         return "%s(%r, %r)" % (self.__class__.__name__, self.name, self.args)
@@ -1035,9 +1064,6 @@ class Comment(Operation):
         Operation.__init__(self, comment, [], types.Unit())
 
 
-class PackedFieldAccess(FieldAccess):
-    pass
-
 class UnpackPackedField(Operation):
     can_have_side_effects = False
 
@@ -1052,8 +1078,12 @@ class UnpackPackedField(Operation):
 class PackPackedField(Operation):
     can_have_side_effects = False
 
-class PackedFieldWrite(FieldWrite):
-    pass
+    def __init__(self, arg, sourcepos=None):
+        assert isinstance(arg.resolved_type, (types.Int, types.GenericBitVector))
+        Operation.__init__(self, "$pack", [arg], types.Packed(arg.resolved_type), sourcepos)
+
+    def __repr__(self):
+        return "PackPackedField(%s)" % self.args[0]
 
 
 class Phi(Value):
@@ -2313,14 +2343,15 @@ class LocalOptimizer(BaseOptimizer):
 
     def _optimize_UnpackPackedField(self, op, block, index):
         arg, = self._args(op)
-        if not isinstance(op.args[0], PackedFieldAccess):
+        if not isinstance(op.args[0], FieldAccess):
             if type(arg) is Operation and arg.name == "@pack_smallfixedbitvector":
                 import pdb;pdb.set_trace()
                 assert arg.args[1].resolved_type is op.resolved_type
                 return arg.args[1]
             if type(arg) is Operation and arg.name == "@pack_machineint":
                 return self.newop(INT64_TO_INT_NAME, [arg.args[0]], types.Int(), arg.sourcepos)
-            import pdb;pdb.set_trace()
+            if not isinstance(arg, Phi):
+                import pdb;pdb.set_trace()
 
 
     def _optimize_Operation(self, op, block, index):
@@ -2553,7 +2584,7 @@ class LocalOptimizer(BaseOptimizer):
             fields = []
             for index, name in enumerate(op.resolved_type.names):
                 values = []
-                fieldtyp = op.resolved_type.fieldtyps[name]
+                fieldtyp = op.resolved_type.internalfieldtyps[name]
                 for arg in op.prevvalues:
                     if isinstance(arg, DefaultValue):
                         values.append(DefaultValue(fieldtyp))
@@ -4126,7 +4157,7 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_packed_field_cast_smallfixedbitvector(self, op):
         arg0, arg1 = self._args(op)
-        if not isinstance(arg1, PackedFieldAccess):
+        if not isinstance(arg1, FieldAccess):
             if arg1.name == "@pack_smallfixedbitvector":
                 assert arg0.number == arg1.args[0].number
                 return arg1.args[1]
@@ -4136,6 +4167,8 @@ class LocalOptimizer(BaseOptimizer):
 def inline(graph, codegen):
     # don't add blocks to functions that are already really big and need to be
     # split later
+    #if graph.name == "zhex_bits_2_forwards":
+    #    import pdb;pdb.set_trace()
     really_huge_function = graph.has_more_than_n_blocks(1000)
     changed = False
     for block in graph.iterblocks():
@@ -4492,7 +4525,7 @@ def partial_allocation_removal(graph, codegen):
                 if name in fields:
                     fieldvalue = escape(fields[name])
                 else:
-                    fieldvalue = DefaultValue(typ.fieldtyps[name])
+                    fieldvalue = DefaultValue(typ.internalfieldtyps[name])
                 fieldvalues.append(fieldvalue)
             op = StructConstruction(typ.name, fieldvalues, typ, value.sourcepos)
             newoperations.append(op)
@@ -4540,7 +4573,7 @@ def partial_allocation_removal(graph, codegen):
                     for fieldname in typ.names:
                         if typ.fieldtyps[fieldname].packed_field_size:
                             import pdb;pdb.set_trace()
-                        fieldvalue = FieldAccess(fieldname, [op.args[0]], typ.fieldtyps[fieldname])
+                        fieldvalue = FieldAccess(fieldname, [op.args[0]], typ.internalfieldtyps[fieldname])
                         newoperations.append(fieldvalue)
                         fields[fieldname] = fieldvalue
                     virtuals_in_block[op] = fields
@@ -4567,7 +4600,7 @@ def partial_allocation_removal(graph, codegen):
                         if name in fields:
                             fieldvalue = escape(fields[name])
                         else:
-                            fieldvalue = DefaultValue(typ.fieldtyps[name])
+                            fieldvalue = DefaultValue(typ.internalfieldtyps[name])
                         newoperations.append(FieldWrite(name, [target, fieldvalue]))
                     continue
 
@@ -4659,51 +4692,6 @@ def cse_field_reads(graph, codegen):
         return True
     return False
 
-def make_packed_reads_writes_explicit(graph, codegen):
-    replacements = {}
-    for block in graph.iterblocks():
-        newoperations = []
-        for index, op in enumerate(block.operations):
-            if type(op) is FieldAccess:
-                if op.resolved_type.packed_field_size:
-                    op1 = PackedFieldAccess(op.name, op.args, types.Packed(op.resolved_type))
-                    op2 = UnpackPackedField(op1)
-                    newoperations.append(op1)
-                    newoperations.append(op2)
-                    replacements[op] = op2
-                    continue
-            elif type(op) is FieldWrite:
-                typ = op.args[1].resolved_type
-                if typ.packed_field_size:
-                    op1 = PackPackedField("$pack", [op.args[1]], types.Packed(typ))
-                    op2 = PackedFieldWrite(op.name, [op.args[0], op1])
-                    newoperations.append(op1)
-                    newoperations.append(op2)
-                    continue
-            elif type(op) is StructConstruction and any(typ.packed_field_size for typ in op.resolved_type.typs):
-                newop = Allocate(op.resolved_type, op.sourcepos)
-                replacements[op] = newop
-                newoperations.append(newop)
-                for name, typ, val in zip(op.resolved_type.names, op.resolved_type.typs, op.args):
-                    if typ.packed_field_size:
-                        op1 = PackPackedField("$pack", [val], types.Packed(typ))
-                        newoperations.append(op1)
-                        newoperations.append(PackedFieldWrite(name, [newop, op1]))
-                    else:
-                        newoperations.append(FieldWrite(name, [newop, val]))
-                print "allocate", graph, op, newoperations
-                continue
-            newoperations.append(op)
-        block.operations = newoperations
-    if replacements:
-        while 1:
-            # XXX do them in one go somehow
-            changed = graph.replace_ops(replacements)
-            if not changed:
-                break
-        graph.check()
-        return True
-    return False
 # ____________________________________________________________
 # dominator-tree based algorithms
 

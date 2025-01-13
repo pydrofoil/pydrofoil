@@ -14,16 +14,30 @@ class __extend__(types.Type):
 
     def packed_field_read(self, sarg, bare=False):
         assert "." in sarg
-        assert not bare
         return sarg
 
     def packed_field_write(self, lhs, rhs, bare=False):
-        assert not bare
         return "%s = %s" % (lhs, rhs)
 
     def packed_field_copy(self, lhs, rhs):
         # suboptimal default implementation
         return self.packed_field_write(lhs, self.packed_field_read(rhs))
+
+
+class __extend__(types.Packed):
+    def packed_field_read(self, sarg, bare=False):
+        if not bare:
+            import pdb;pdb.set_trace()
+        return self.typ.packed_field_read(sarg, bare=bare)
+
+    def packed_field_write(self, lhs, rhs, bare=False):
+        if not bare:
+            import pdb;pdb.set_trace()
+        return self.typ.packed_field_write(lhs, rhs, bare=bare)
+
+    def packed_field_copy(self, lhs, rhs):
+        import pdb;pdb.set_trace()
+        return self.typ.packed_field_copy(lhs, rhs)
 
 
 def ruint_mask(s, width):
@@ -60,9 +74,9 @@ class __extend__(types.GenericBitVector):
 
     def packed_field_write(self, lhs, rhs, bare=False):
         names = "(%s_width, %s_val, %s_data)" % (lhs, lhs, lhs)
-        if not bare:
-            rhs += ".pack()"
-        return "%s = %s" % (names, rhs)
+        if bare:
+            return "%s = %s" % (names, rhs)
+        return "%s = %s.pack()" % (names, rhs)
 
     def packed_field_pack(self, unpacked):
         return unpacked + ".pack()"
@@ -89,8 +103,11 @@ class __extend__(types.BigFixedBitVector):
     def packed_field_unpack(self, packed):
         return "bitvector.BitVector.unpack(*%s)" % packed
 
-    def packed_field_write(self, lhs, rhs):
+    def packed_field_write(self, lhs, rhs, bare=False):
         names = "(%s_val, %s_data)" % (lhs, lhs)
+        if bare:
+            import pdb;pdb.set_trace()
+            return "%s = [1:]" % (names, rhs)
         return "%s = %s.pack()[1:]" % (names, rhs)
 
     def packed_field_pack(self, unpacked):
@@ -152,9 +169,9 @@ class __extend__(types.Int):
 
     def packed_field_write(self, lhs, rhs, bare=False):
         names = "(%s_val_or_sign, %s_data)" % (lhs, lhs)
-        if not bare:
-            rhs += ".pack()"
-        return "%s = %s" % (names, rhs)
+        if bare:
+            return "%s = %s" % (names, rhs)
+        return "%s = %s.pack()" % (names, rhs)
 
     def packed_field_pack(self, unpacked):
         return unpacked + ".pack()"

@@ -60,10 +60,13 @@ class Struct(Type):
         self.name = name
         self.names = names
         self.typs = typs
+        self.internaltyps = tuple((Packed(typ) if typ.packed_field_size else typ) for typ in typs)
         self.fieldtyps = {}
+        self.internalfieldtyps = {}
         assert len(names) == len(typs)
-        for name, typ in zip(names, typs):
+        for name, typ, internaltyp in zip(names, self.typs, self.internaltyps):
             self.fieldtyps[name] = typ
+            self.internalfieldtyps[name] = internaltyp
         self.tuplestruct = tuplestruct
 
     def __repr__(self):
@@ -226,7 +229,7 @@ class Real(Type):
 @unique
 class Packed(Type):
     def __init__(self, typ):
-        self.uninitialized_value = "%s.unpack()" % typ.uninitialized_value
+        self.uninitialized_value = "%s.pack()" % typ.uninitialized_value
         self.typ = typ
 
     def __repr__(self):

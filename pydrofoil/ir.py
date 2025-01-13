@@ -1568,6 +1568,7 @@ def _bare_optimize(graph, codegen):
     res = join_blocks(graph, codegen) or res
     res = remove_dead(graph, codegen) or res
     res = simplify_phis(graph, codegen) or res
+    res = sink_allocate(graph, codegen) or res
     res = inline(graph, codegen) or res
     res = remove_superfluous_union_checks(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=False) or res
@@ -2346,8 +2347,23 @@ class LocalOptimizer(BaseOptimizer):
                 return arg.args[1]
             if type(arg) is Operation and arg.name == "@pack_machineint":
                 return self.newop(INT64_TO_INT_NAME, [arg.args[0]], types.Int(), arg.sourcepos)
+            if isinstance(arg, PackPackedField):
+                return arg.args[0]
             if not isinstance(arg, Phi):
                 import pdb;pdb.set_trace()
+            else:
+                l = []
+                for prevvalue, prevblock in zip(arg.prevvalues, arg.prevblocks):
+                    unpack = UnpackPackedField(prevvalue)
+                    prevblock.operations.append(unpack)
+                    l.append(unpack)
+                phi = self.newphi(
+                    arg.prevblocks,
+                    l,
+                    arg.resolved_type.typ)
+                self.newoperations.pop()
+                self.newoperations.insert(0, phi)
+                return phi
 
 
     def _optimize_Operation(self, op, block, index):
@@ -4523,6 +4539,38 @@ def cse_global_reads(graph, codegen):
                 break
         return True
     return False
+
+@repeat
+def sink_allocate(graph, codegen):
+    changed = False
+    for block in graph.iterblocks():
+        newoperations = []
+        alloc = None
+        count = 0
+        for op in block.operations:
+            if isinstance(op, Allocate):
+                count += 1
+        if count != 1:
+            continue
+        for index, op in enumerate(block.operations):
+            if (alloc is None and 
+                    isinstance(op, Allocate) and
+                    index + 1 < len(block.operations) and
+                    op not in block.operations[index + 1].getargs()):
+                alloc = op
+                continue
+            if alloc in op.getargs():
+                newoperations.append(alloc)
+                newoperations.extend(block.operations[index:])
+                changed = True
+                break
+            newoperations.append(op)
+        else:
+            if alloc:
+                newoperations.append(alloc)
+        if changed:
+            block.operations = newoperations
+    return changed
 
 @repeat
 def partial_allocation_removal(graph, codegen):

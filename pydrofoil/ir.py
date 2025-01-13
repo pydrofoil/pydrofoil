@@ -4584,8 +4584,6 @@ def partial_allocation_removal(graph, codegen):
                     typ = op.resolved_type
                     fields = {}
                     for fieldname in typ.names:
-                        if typ.fieldtyps[fieldname].packed_field_size:
-                            import pdb;pdb.set_trace()
                         fieldvalue = FieldAccess(fieldname, [op.args[0]], typ.internalfieldtyps[fieldname])
                         newoperations.append(fieldvalue)
                         fields[fieldname] = fieldvalue

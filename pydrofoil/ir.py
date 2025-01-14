@@ -2989,8 +2989,8 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_not_bits(self, op):
         (arg0,) = self._args(op)
-        #if isinstance(arg0, parse.OperationExpr) and arg0.name == "@zeros_i":
-        #    return parse.OperationExpr("@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos)
+        if isinstance(arg0, Operation) and arg0.name == "@zeros_i":
+            return self.newop("@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         return self.newcast(
@@ -3235,6 +3235,15 @@ class LocalOptimizer(BaseOptimizer):
         try:
             arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         except NoMatchException:
+            if isinstance(arg0, Operation) and arg0.name == '@ones_i':
+                arg0arg0, = self._args(arg0)
+                return self.newop(
+                    "@ones_zero_extended_unwrapped_res",
+                    [arg0arg0, arg1],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
             raise
         if typ0.width == arg1.number:
             res = arg0

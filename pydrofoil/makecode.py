@@ -82,6 +82,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@bitvector_concat_bv_n_zeros_wrapped_res", "supportcode.bitvector_concat_bv_n_zeros_wrapped_res")
         self.add_global("@bitvector_concat_bv_gbv_truncate_to", "supportcode.bitvector_concat_bv_gbv_truncate_to")
         self.add_global("@bitvector_concat_bv_bv_n_zeros_truncate", "supportcode.bitvector_concat_bv_bv_n_zeros_truncate")
+        self.add_global("@ones_zero_extended_unwrapped_res", "supportcode.ones_zero_extended_unwrapped_res")
         self.add_global("@signed_bv", "supportcode.signed_bv")
         self.add_global("@unsigned_bv_wrapped_res", "supportcode.unsigned_bv_wrapped_res")
         self.add_global("@unsigned_bv", "supportcode.unsigned_bv")

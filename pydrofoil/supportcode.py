@@ -481,6 +481,11 @@ def ones(machine, num):
     else:
         return bitvector.from_bigint(num, rbigint.fromint(-1))
 
+def ones_zero_extended_unwrapped_res(machine, num_ones, width):
+    num_ones = min(num_ones, width)
+    assert num_ones <= 64
+    return safe_lshift(None, r_uint(1), num_ones) - 1
+
 @unwrap("i")
 @purefunction
 def undefined_bitvector(machine, num):

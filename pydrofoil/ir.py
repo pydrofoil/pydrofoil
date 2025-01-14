@@ -2671,6 +2671,15 @@ class LocalOptimizer(BaseOptimizer):
             assert arg0.args[0].resolved_type == op.resolved_type
             return arg0.args[0]
 
+    def _optimize_StructCopy(self, op, block, index):
+        from pydrofoil.emitfunction import count_uses
+        arg0, = self._args(op)
+        if isinstance(arg0, UnionCast) and block.operations[index - 1] is arg0:
+            # a unioncast just before the copy does not need copying again
+            uses = count_uses(self.graph)
+            if uses[arg0] == 1:
+                return arg0
+
     @symmetric
     def optimize_eq_bits(self, op, arg0, arg1):
         arg0, typ = self._extract_smallfixedbitvector(arg0)

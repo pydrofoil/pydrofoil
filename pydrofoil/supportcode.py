@@ -624,6 +624,34 @@ def add_o_i_wrapped_res(machine, a, b):
     return a.int_add(b)
 
 @purefunction
+def add_unsigned_bv64_unsigned_bv64_wrapped_res(machine, a, b):
+    res = a + b
+    if res < a:
+        a = bitvector.Integer.from_ruint(a)
+        b = bitvector.Integer.from_ruint(b)
+        return a.add(b)
+    else:
+        return Integer.from_ruint(res)
+
+@purefunction
+def lteq_add4_unsigned_bv64(machine, a, b, c, d):
+    # returns a + b <= c + d, where a, b, c, d are 64 bit bvs, interpreted as unsigned ints
+    x = a + b
+    y = c + d
+    if x >= a and y >= c: # both unsigned adds don't overflow
+        return x <= y
+    else:
+        # slow path, unlikely
+        a = bitvector.Integer.from_ruint(a)
+        b = bitvector.Integer.from_ruint(b)
+        c = bitvector.Integer.from_ruint(c)
+        d = bitvector.Integer.from_ruint(d)
+        x = a.add(b)
+        y = c.add(d)
+        return x.le(y)
+    
+
+@purefunction
 def add_i_i_wrapped_res(machine, a, b):
     return bitvector.SmallInteger.add_i_i(a, b)
 

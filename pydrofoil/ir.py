@@ -2286,7 +2286,7 @@ class BaseOptimizer(object):
         return num
 
     def _must_be_non_negative(self, arg):
-         return isinstance(arg, Operation) and arg.name in (
+        return isinstance(arg, Operation) and arg.name in (
                 "@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res", "@vec_length_unwrapped_res")
 
 def is_pow_2(num):
@@ -2846,6 +2846,16 @@ class LocalOptimizer(BaseOptimizer):
             else:
                 return BooleanConstant.frombool(arg0.number <= arg1.number)
         else:
+            if (isinstance(arg0, Operation) and
+                    arg0.name == "@add_unsigned_bv64_unsigned_bv64_wrapped_res" and
+                    isinstance(arg1, Operation) and
+                    arg1.name == "@add_unsigned_bv64_unsigned_bv64_wrapped_res"):
+                return self.newop(
+                    "@lteq_add4_unsigned_bv64",
+                    arg0.args + arg1.args,
+                    types.Bool(),
+                    op.sourcepos,
+                    op.varname_hint)
             try:
                 arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
             except NoMatchException:
@@ -3421,8 +3431,32 @@ class LocalOptimizer(BaseOptimizer):
                 return self._make_int_to_int64(res)
         return res
 
+    def _extract_unsigned_bv64(self, value):
+        if (isinstance(value, Operation) and
+                value.name == "@unsigned_bv_wrapped_res" and
+                isinstance(value.args[1], MachineIntConstant) and
+                value.args[1].number == 64):
+            return value.args[0]
+        elif isinstance(value, IntConstant):
+            if 0 <= value.number < 2 ** 64:
+                return SmallBitVectorConstant(r_uint(value.number), types.SmallFixedBitVector(64))
+        elif isinstance(value, MachineIntConstant):
+            if value.number >= 0:
+                return SmallBitVectorConstant(r_uint(value.number), types.SmallFixedBitVector(64))
+        raise NoMatchException
+
     @symmetric
     def optimize_add_int(self, op, arg0, arg1):
+        try:
+            bvarg0 = self._extract_unsigned_bv64(arg0)
+            bvarg1 = self._extract_unsigned_bv64(arg1)
+        except NoMatchException:
+            pass
+        else:
+            return self.newop("@add_unsigned_bv64_unsigned_bv64_wrapped_res",
+                              [bvarg0, bvarg1],
+                              op.resolved_type, op.sourcepos, op.varname_hint)
+
         res = self._general_add_sub_opt(op)
         if res is not None:
             return res
@@ -3440,6 +3474,15 @@ class LocalOptimizer(BaseOptimizer):
         if res is not None:
             return res
         arg0, arg1 = self._args(op)
+        try:
+            bvarg0 = self._extract_unsigned_bv64(arg0)
+            bvarg1 = self._extract_unsigned_bv64(arg1)
+        except NoMatchException:
+            pass
+        else:
+            return self.newop("@add_unsigned_bv64_unsigned_bv64_wrapped_res",
+                              [bvarg0, bvarg1],
+                              op.resolved_type, op.sourcepos, op.varname_hint)
         num0 = num1 = None
         try:
             num1 = self._extract_number(arg1)

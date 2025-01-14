@@ -59,6 +59,8 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@add_i_i_wrapped_res", "supportcode.add_i_i_wrapped_res")
         self.add_global("@add_i_i_must_fit", "supportcode.add_i_i_must_fit")
         self.add_global("@add_o_i_wrapped_res", "supportcode.add_o_i_wrapped_res")
+        self.add_global("@add_unsigned_bv64_unsigned_bv64_wrapped_res", "supportcode.add_unsigned_bv64_unsigned_bv64_wrapped_res")
+        self.add_global("@lteq_add4_unsigned_bv64", "supportcode.lteq_add4_unsigned_bv64")
         self.add_global("@sub_i_i_wrapped_res", "supportcode.sub_i_i_wrapped_res")
         self.add_global("@sub_i_i_must_fit", "supportcode.sub_i_i_must_fit")
         self.add_global("@sub_o_i_wrapped_res", "supportcode.sub_o_i_wrapped_res")

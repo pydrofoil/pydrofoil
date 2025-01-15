@@ -1138,6 +1138,7 @@ BooleanConstant.FALSE = BooleanConstant(False)
 class MachineIntConstant(Constant):
     resolved_type = types.MachineInt()
     def __init__(self, number):
+        number = int(number)
         assert isinstance(number, int)
         self.number = number
 
@@ -1476,12 +1477,14 @@ def print_stats():
 
 DEBUG_REPEAT = False
 
+LIMIT = 1000
+
 def repeat(func):
     def repeated(graph, codegen, *args, **kwargs):
         t1_proper = time.time()
         STACK_START_TIMES.append(t1_proper)
         ever_changed = False
-        for i in range(1000):
+        for i in range(LIMIT):
             if DEBUG_REPEAT and repeat.debug_list is not None:
                 repeat.debug_list.append((func.func_name, "before", i, print_graph_construction(graph), ever_changed))
             changed = func(graph, codegen, *args, **kwargs)

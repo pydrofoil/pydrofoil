@@ -4824,3 +4824,20 @@ i22.prevvalues[0] = i26
 block8.next = Goto(block5, None)
 graph = Graph('zlookup_TLB', [zasid, zvaddr], block0)
 ''')
+
+def test_redundant_struct_construction():
+    ztuplez3z5bv5_z5bv5 = Struct('ztuplez3z5bv5_z5bv5', ('ztuplez3z5bv5_z5bv50', 'ztuplez3z5bv5_z5bv51'), (SmallFixedBitVector(5), SmallFixedBitVector(5)), True)
+    struct = Argument('struct', ztuplez3z5bv5_z5bv5)
+    block0 = Block()
+    i2 = block0.emit(FieldAccess, 'ztuplez3z5bv5_z5bv50', [struct], SmallFixedBitVector(5), None, None)
+    i3 = block0.emit(FieldAccess, 'ztuplez3z5bv5_z5bv51', [struct], SmallFixedBitVector(5), None, None)
+    i4 = block0.emit(StructConstruction, 'ztuplez3z5bv5_z5bv5', [i2, i3], ztuplez3z5bv5_z5bv5, None, None)
+    block0.next = Return(i4, None)
+    graph = Graph('zexecute_zSINVAL_VMA', [struct], block0)
+    check_optimize(graph, """\
+ztuplez3z5bv5_z5bv5 = Struct('ztuplez3z5bv5_z5bv5', ('ztuplez3z5bv5_z5bv50', 'ztuplez3z5bv5_z5bv51'), (SmallFixedBitVector(5), SmallFixedBitVector(5)), True)
+struct = Argument('struct', ztuplez3z5bv5_z5bv5)
+block0 = Block()
+block0.next = Return(struct, None)
+graph = Graph('zexecute_zSINVAL_VMA', [struct], block0)
+""")

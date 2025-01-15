@@ -2679,6 +2679,16 @@ class LocalOptimizer(BaseOptimizer):
             uses = count_uses(self.graph)
             if uses[arg0] == 1:
                 return arg0
+            import pdb;pdb.set_trace()
+
+    def _optimize_StructConstruction(self, op, block, index):
+        args = self._args(op)
+        if op.resolved_type.tuplestruct and all(isinstance(arg, FieldAccess) for arg in args):
+            fieldreadargs = {arg.args[0] for arg in args}
+            if len(fieldreadargs) == 1:
+                res, = fieldreadargs
+                if res.resolved_type == op.resolved_type:
+                    return res
 
     @symmetric
     def optimize_eq_bits(self, op, arg0, arg1):

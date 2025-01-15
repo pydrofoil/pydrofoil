@@ -95,19 +95,18 @@ class __extend__(types.BigFixedBitVector):
 
     def packed_field_read(self, sarg, bare=False):
         assert "." in sarg
-        names = "(%s, %s_val, %s_data)" % (self.width, sarg, sarg)
+        names = "(%s_val, %s_data)" % (sarg, sarg)
         if bare:
             return names
         return self.packed_field_unpack(names)
 
     def packed_field_unpack(self, packed):
-        return "bitvector.BitVector.unpack(*%s)" % packed
+        return "bitvector.BitVector.unpack(%s, *%s)" % (self.width, packed)
 
     def packed_field_write(self, lhs, rhs, bare=False):
         names = "(%s_val, %s_data)" % (lhs, lhs)
         if bare:
-            import pdb;pdb.set_trace()
-            return "%s = [1:]" % (names, rhs)
+            return "%s = %s" % (names, rhs)
         return "%s = %s.pack()[1:]" % (names, rhs)
 
     def packed_field_pack(self, unpacked):

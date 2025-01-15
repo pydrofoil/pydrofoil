@@ -306,7 +306,7 @@ class SSABuilder(object):
                 typ = typ.internalfieldtyps[lastfield]
                 if isinstance(typ, types.Packed):
                     if typ.typ != fieldval.resolved_type:
-                        if typ.typ is types.GenericBitVector():
+                        if typ.typ is types.GenericBitVector() or isinstance(typ.typ, types.BigFixedBitVector):
                             fieldval = self._addop(Cast(fieldval, typ.typ))
                         else:
                             import pdb;pdb.set_trace()

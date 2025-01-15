@@ -229,7 +229,7 @@ class Real(Type):
 @unique
 class Packed(Type):
     def __init__(self, typ):
-        self.uninitialized_value = "%s.pack()" % typ.uninitialized_value
+        self.uninitialized_value = typ.packed_field_pack(typ.uninitialized_value)
         self.typ = typ
 
     def __repr__(self):

@@ -1076,7 +1076,7 @@ class PackPackedField(Operation):
     can_have_side_effects = False
 
     def __init__(self, arg, sourcepos=None):
-        assert isinstance(arg.resolved_type, (types.Int, types.GenericBitVector))
+        assert isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.BigFixedBitVector))
         Operation.__init__(self, "$pack", [arg], types.Packed(arg.resolved_type), sourcepos)
 
     def __repr__(self):

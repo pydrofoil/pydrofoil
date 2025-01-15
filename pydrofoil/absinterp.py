@@ -314,10 +314,10 @@ class AbstractInterpreter(object):
         elif isinstance(block.next, ir.ConditionalGoto):
             # first, check if one of the paths is dead
             cond = self._bounds(block.next.booleanvalue)
-            if cond == TRUE:
+            if cond is not None and cond == TRUE:
                 self._merge_values(self.current_values, block.next.truetarget)
                 return
-            elif cond == FALSE:
+            elif cond is not None and cond == FALSE:
                 self._merge_values(self.current_values, block.next.falsetarget)
                 return
             truevalues, falsevalues = self.analyze_condition(block.next.booleanvalue)

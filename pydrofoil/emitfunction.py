@@ -391,6 +391,8 @@ def count_uses(graph):
     uses = defaultdict(int)
     for block in graph.iterblocks():
         for op in block.operations:
+            if op is None:
+                continue
             for arg in op.getargs():
                 uses[arg] += 1
         for arg in block.next.getargs():

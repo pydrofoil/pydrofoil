@@ -2679,7 +2679,11 @@ class LocalOptimizer(BaseOptimizer):
             uses = count_uses(self.graph)
             if uses[arg0] == 1:
                 return arg0
-            import pdb;pdb.set_trace()
+        if isinstance(arg0, Phi):
+            if all(isinstance(arg, StructConstruction) for arg in arg0.prevvalues):
+                uses = count_uses(self.graph)
+                if op.resolved_type.tuplestruct or all(uses[arg] == 1 for arg in arg0.prevvalues):
+                    return arg0
 
     def _optimize_StructConstruction(self, op, block, index):
         args = self._args(op)

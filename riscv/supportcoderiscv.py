@@ -95,7 +95,7 @@ def promote_addr_region(machine, addr, width, executable_flag):
     g = jit.promote(machine.g)
     addr = intmask(addr)
     jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
-    if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
+    if not jit.we_are_jitted() or not jit.isconstant(width):
         return
     if executable_flag:
         jit.promote(addr)
@@ -762,6 +762,19 @@ def patch_checked_mem_function(outriscv, name):
         patched.func_name += "_" + func.func_name
         setattr(outriscv, name, patched)
 
+
+def patch_tlb(outriscv):
+    func = outriscv.func_ztranslate_TLB_hit
+    def translate_tlb_hit(machine, zsv_params, zasid, zptb, zvAddr, zac, zpriv, zmxr, zdo_sum, zext_ptw, ztlb_index, zent):
+        mask = jit.promote(zent.zvAddrMask)
+        jit.record_exact_value(zent.zvMatchMask, ~mask)
+        if zac is outriscv.Union_zAccessTypezIuzK_zExecutezIuzK.singleton:
+            jit.record_exact_value(zent.zpAddr & mask, r_uint(0))
+        res = func(machine, zsv_params, zasid, zptb, zvAddr, zac, zpriv, zmxr, zdo_sum, zext_ptw, ztlb_index, zent)
+        return res
+    outriscv.func_ztranslate_TLB_hit = translate_tlb_hit
+
+
 def get_main(outriscv, rv64):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
@@ -791,6 +804,8 @@ def get_main(outriscv, rv64):
     for name in dir(outriscv):
         if name.startswith("func_zchecked_mem_"):
             patch_checked_mem_function(outriscv, name)
+    if rv64:
+        patch_tlb(outriscv)
 
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']

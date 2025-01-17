@@ -786,17 +786,20 @@ def get_main(outriscv, rv64):
     else:
         prefix = "rv32"
 
-    def get_printable_location(pc, do_show_times, insn_limit, tick, g):
+    def get_printable_location(pc, do_show_times, insn_limit, tick, need_step_no, g):
         if tick:
             return "TICK 0x%x" % (pc, )
+        suffix = ''
+        if need_step_no:
+            suffix = ' need_step'
         if g.dump_dict and pc in g.dump_dict:
-            return "%s 0x%x: %s" % (prefix, pc, g.dump_dict[pc])
-        return hex(pc)
+            return "%s 0x%x: %s%s" % (prefix, pc, g.dump_dict[pc], suffix)
+        return "%s 0x%x%s" % (prefix, pc, suffix)
 
     driver = JitDriver(
         get_printable_location=get_printable_location,
-        greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'g'],
-        reds=['step_no', 'insn_cnt', 'machine'],
+        greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'need_step_no', 'g'],
+        reds=['insn_cnt', 'machine'],
         virtualizables=['machine'],
         name=prefix,
         is_recursive=True)
@@ -831,7 +834,12 @@ def get_main(outriscv, rv64):
             return outriscv.func_zstep(self, *args)
 
         def run_sail(self, insn_limit, do_show_times):
-            step_no = 0
+            self.step_no = 0
+            # we update self.step_no only every TICK, *unless*:
+            # - we want to continually print kps
+            # - we want to print every instruction
+            # - we are less than one TICK away from the insn_limit
+            need_step_no = do_show_times or self.g.config_print_instr or (insn_limit and insn_limit - self.step_no < self.g.rv_insns_per_tick)
             insn_cnt = 0
             tick = False
 
@@ -843,28 +851,36 @@ def get_main(outriscv, rv64):
 
             while 1:
                 driver.jit_merge_point(pc=self._reg_zPC, tick=tick,
-                        insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
+                        insn_limit=insn_limit, need_step_no=need_step_no, insn_cnt=insn_cnt,
                         do_show_times=do_show_times, machine=self, g=g)
-                if self._reg_zhtif_done or not (insn_limit == 0 or step_no < insn_limit):
+                if self._reg_zhtif_done or (insn_limit != 0 and need_step_no and self.step_no >= insn_limit):
                     break
                 jit.promote(self.g)
                 if tick:
+                    if not need_step_no:
+                        # self.step_no wasn't updated since the last tick
+                        self.step_no += insn_cnt
                     if insn_cnt == g.rv_insns_per_tick:
                         insn_cnt = 0
                         self.tick_clock()
                         self.tick_platform()
                     else:
-                        assert do_show_times and (step_no & 0xfffff) == 0
+                        assert do_show_times and (self.step_no & 0xfffff) == 0
                         curr = time.time()
                         print "kips:", 0x100000 / 1000. / (curr - g.interval_start)
                         g.interval_start = curr
                     tick = False
+                    need_step_no = do_show_times or self.g.config_print_instr or (insn_limit and insn_limit - self.step_no < self.g.rv_insns_per_tick)
                     continue
                 # run a Sail step
                 prev_pc = self._reg_zPC
                 jit.promote(self._reg_zmstatus.zbits)
                 jit.promote(self._reg_zmisa.zbits)
-                stepped = self.step(Integer.fromint(step_no))
+                if need_step_no:
+                    step_no = Integer.fromint(self.step_no)
+                else:
+                    step_no = None
+                stepped = self.step(step_no)
                 if self.have_exception:
                     print "ended with exception!"
                     print self.current_exception
@@ -872,11 +888,12 @@ def get_main(outriscv, rv64):
                     raise ValueError
                 rv_insns_per_tick = g.rv_insns_per_tick
                 if stepped:
-                    step_no += 1
+                    if need_step_no:
+                        self.step_no += 1
                     if rv_insns_per_tick:
                         insn_cnt += 1
 
-                tick_cond = (do_show_times and (step_no & 0xffffffff) == 0) | (
+                tick_cond = (do_show_times and (self.step_no & 0xffffffff) == 0) | (
                         rv_insns_per_tick and insn_cnt == rv_insns_per_tick)
                 if tick_cond:
                     tick = True
@@ -887,7 +904,7 @@ def get_main(outriscv, rv64):
                             # ctrl-c was pressed
                             break
                     driver.can_enter_jit(pc=self._reg_zPC, tick=tick,
-                            insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
+                            insn_limit=insn_limit, need_step_no=need_step_no, insn_cnt=insn_cnt,
                             do_show_times=do_show_times, machine=self, g=g)
             # loop end
 
@@ -903,9 +920,9 @@ def get_main(outriscv, rv64):
                 print "FAILURE:", self._reg_zhtif_exit_code
                 if not we_are_translated():
                     raise ValueError
-            print "Instructions: %s" % (step_no, )
+            print "Instructions: %s" % (self.step_no, )
             print "Total time (s): %s" % (interval_end - self.g.total_start)
-            print "Perf: %s Kips" % (step_no / 1000. / (interval_end - self.g.total_start), )
+            print "Perf: %s Kips" % (self.step_no / 1000. / (interval_end - self.g.total_start), )
             if ctrlc:
                 raise ExitNow
 

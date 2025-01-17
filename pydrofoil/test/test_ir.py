@@ -4906,3 +4906,23 @@ i4.prevvalues[2] = i6
 block5.next = Goto(block2, None)
 graph = Graph('ztranslateAddr', [zvAddr, b1, b2], block0)
 ''')
+
+def test_int_to_int64_of_packed():
+    structtyp = Struct('structtyp', ('f', ), (Int(), ), True)
+    struct = Argument('struct', structtyp)
+    block0 = Block()
+    i0 = block0.emit(FieldAccess, 'f', [struct], Packed(Int()), None, None)
+    i1 = block0.emit(UnpackPackedField, '$unpack', [i0], Int(), None, None)
+    i2 = block0.emit(Operation, 'int_to_int64', [i1], MachineInt(), '`37 397:9-397:14', 'zz42')
+    block0.next = Return(i2)
+
+    graph = Graph('f', [struct], block0)
+    check_optimize(graph, '''
+structtyp = Struct('structtyp', ('f',), (Int(),), True)
+struct = Argument('struct', structtyp)
+block0 = Block()
+i1 = block0.emit(FieldAccess, 'f', [struct], Packed(Int()), None, None)
+i2 = block0.emit(Operation, '@packed_field_int_to_int64', [i1], MachineInt(), '`37 397:9-397:14', 'zz42')
+block0.next = Return(i2, None)
+graph = Graph('f', [struct], block0)
+''')

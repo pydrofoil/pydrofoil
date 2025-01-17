@@ -1509,12 +1509,16 @@ class BigInteger(Integer):
         return "".join(res)
 
     def toint(self):
-        if self.sign == 0:
+        return self._sign_and_data_toint(self.sign, self.data)
+
+    @staticmethod
+    def _sign_and_data_toint(sign, data):
+        if sign == 0:
             return 0
-        if len(self.data) > 1:
+        if len(data) > 1:
             raise ValueError
-        digit = self.data[0]
-        if self.sign == -1:
+        digit = data[0]
+        if sign == -1:
             if digit == (r_uint(1) << 63):
                 return MININT
             if digit & (r_uint(1) << 63):

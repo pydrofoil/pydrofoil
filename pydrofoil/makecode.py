@@ -113,6 +113,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@pack_smallfixedbitvector", "supportcode.pack_smallfixedbitvector")
         self.add_global("@pack_machineint", "supportcode.pack_machineint")
         self.add_global("@packed_field_cast_smallfixedbitvector", "supportcode.packed_field_cast_smallfixedbitvector")
+        self.add_global("@packed_field_int_to_int64", "supportcode.packed_field_int_to_int64")
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("UINT64_C", "supportcode.uint64c")
         self.add_global("NULL", "None")

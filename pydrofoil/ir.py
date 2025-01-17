@@ -2742,6 +2742,14 @@ class LocalOptimizer(BaseOptimizer):
             return MachineIntConstant(arg0.number)
         if not isinstance(arg0, Operation):
             return
+        if isinstance(arg0, UnpackPackedField):
+            return self.newop(
+                "@packed_field_int_to_int64",
+                [arg0.args[0]],
+                op.resolved_type,
+                op.sourcepos,
+                op.varname_hint)
+
         if (
             not isinstance(arg0, Operation)
             or self._builtinname(arg0.name) != "int64_to_int"

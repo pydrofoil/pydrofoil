@@ -527,6 +527,14 @@ def packed_field_cast_smallfixedbitvector(machine, targetwidth, (width, val, dat
     assert width == targetwidth
     return val
 
+@objectmodel.always_inline
+def packed_field_int_to_int64(machine, (val, data)):
+    # equivalent to Integer.unpack(val, data).toint()
+    if data is None:
+        return val
+    return bitvector.BigInteger._sign_and_data_toint(val, data)
+
+
 # for debugging
 
 def debug_check_bv_fits(bv, size):

@@ -648,10 +648,12 @@ def test_bug():
     i205 = block10.emit(Operation, '@vector_subrange_o_i_i', [i204, i203, MachineIntConstant(0)], GenericBitVector(), '`7 154412:12-154412:29', 'zz421')
     i206 = block10.emit(Cast, '$cast', [i118], GenericBitVector(), '`7 154412:31-154412:48', 'zz425')
     i207 = block10.emit(Operation, '@vector_subrange_o_i_i', [i206, i203, MachineIntConstant(0)], GenericBitVector(), '`7 154412:31-154412:48', 'zz422')
-    i208 = block10.emit(StructConstruction, 'ztuplez3z5bv_z5bv', [i205, i207], Struct('ztuplez3z5bv_z5bv', ('ztuplez3z5bv_z5bv0', 'ztuplez3z5bv_z5bv1'), (GenericBitVector(), GenericBitVector()), True), None, None)
-    block10.next = Return(i208, None)
-    i209 = block11.emit(Operation, '@and_vec_bv_bv', [i195, i118], SmallFixedBitVector(64), '`7 154408:16-154408:29', 'zz441')
-    i202.prevvalues[1] = i209
+    i208 = block10.emit(PackPackedField, '$pack', [i205], Packed(GenericBitVector()), None, None)
+    i209 = block10.emit(PackPackedField, '$pack', [i207], Packed(GenericBitVector()), None, None)
+    i210 = block10.emit(StructConstruction, 'ztuplez3z5bv_z5bv', [i208, i209], Struct('ztuplez3z5bv_z5bv', ('ztuplez3z5bv_z5bv0', 'ztuplez3z5bv_z5bv1'), (GenericBitVector(), GenericBitVector()), True), None, None)
+    block10.next = Return(i210, None)
+    i211 = block11.emit(Operation, '@and_vec_bv_bv', [i195, i118], SmallFixedBitVector(64), '`7 154408:16-154408:29', 'zz441')
+    i202.prevvalues[1] = i211
     block11.next = Goto(block10, None)
     block12.next = Raise(StringConstant('src/v8_base.sail:154381.32-154381.33'), None)
     block13.next = Raise(StringConstant('src/v8_base.sail:154380.26-154380.27'), None)

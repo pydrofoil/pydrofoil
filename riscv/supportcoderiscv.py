@@ -12,6 +12,7 @@ from rpython.rlib.jit import JitDriver, promote
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from rpython.rlib.rrandom import Random
 from rpython.rlib import jit
+from rpython.rlib import debug as rdebug
 from rpython.rlib import rsignal
 
 import time
@@ -181,7 +182,7 @@ class Globals(object):
         self.reservation = r_uint(0)
         self.reservation_valid = False
 
-        self.dump_dict = None
+        self.dump_dict = {}
 
         self.config_print_instr = True
         self.config_print_reg = True
@@ -810,6 +811,18 @@ def get_main(outriscv, rv64):
     if rv64:
         patch_tlb(outriscv)
 
+    @jit.not_in_trace
+    def disassemble_current_inst(pc, m):
+        if rdebug.have_debug_prints_for('jit-log-opt'):
+            instbits = m._reg_zinstbits
+            if instbits & 0b11 != 0b11:
+                # compressed instruction
+                ast = outriscv.func_zencdec_compressed_backwards(m, m._reg_zinstbits)
+            else:
+                ast = outriscv.func_zext_decode(m, m._reg_zinstbits)
+            dis = outriscv.func_zassembly_forwards(m, ast)
+            m.g.dump_dict[pc] = dis
+
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
         _virtualizable_ = ['_reg_zminstret', '_reg_zPC', '_reg_zinstbits', '_reg_znextPC', '_reg_zmstatus', '_reg_zmip', '_reg_zmie', '_reg_zsatp', '_reg_zx1', '_reg_zx15']
@@ -888,6 +901,9 @@ def get_main(outriscv, rv64):
                     raise ValueError
                 rv_insns_per_tick = g.rv_insns_per_tick
                 if stepped:
+                    if jit.we_are_jitted():
+                        disassemble_current_inst(prev_pc, self)
+
                     if need_step_no:
                         self.step_no += 1
                     if rv_insns_per_tick:

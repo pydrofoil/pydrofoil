@@ -262,7 +262,8 @@ class CodeEmitter(object):
         self.codegen.emit("%s.update_with(machine, %s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
 
     def emit_op_Allocate(self, op):
-        self._op_helper(op, op.resolved_type.uninitialized_value)
+        pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
+        self._op_helper(op, 'objectmodel.instantiate(%s)' % pyname)
 
     def emit_op_RefOf(self, op):
         regname = op.name

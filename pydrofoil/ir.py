@@ -162,7 +162,6 @@ class SSABuilder(object):
         graph.check()
         insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
-        #make_packed_reads_writes_explicit(graph, self.codegen)
         light_simplify(graph, self.codegen)
         if self.view:
             graph.view()

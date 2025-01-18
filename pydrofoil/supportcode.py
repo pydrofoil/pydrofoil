@@ -515,21 +515,33 @@ def count_leading_zeros(machine, bv):
     return bitvector.Integer.fromint(bv.count_leading_zeros())
 
 @objectmodel.always_inline
+@purefunction
 def pack_smallfixedbitvector(machine, width, val):
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        raise TypeError("can't constfold yet")
     return width, val, None
 
 @objectmodel.always_inline
+@purefunction
 def pack_machineint(machine, val):
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        raise TypeError("can't constfold yet")
     return val, None
 
 @objectmodel.always_inline
+@purefunction
 def packed_field_cast_smallfixedbitvector(machine, targetwidth, (width, val, data)):
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        raise TypeError("can't constfold yet")
     assert width == targetwidth
     return val
 
 @objectmodel.always_inline
+@purefunction
 def packed_field_int_to_int64(machine, (val, data)):
     # equivalent to Integer.unpack(val, data).toint()
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        raise TypeError("can't constfold yet")
     if data is None:
         return val
     return bitvector.BigInteger._sign_and_data_toint(val, data)

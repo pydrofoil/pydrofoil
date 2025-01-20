@@ -4657,3 +4657,22 @@ i2 = block0.emit(Operation, '@packed_field_int_to_int64', [i1], MachineInt(), '`
 block0.next = Return(i2, None)
 graph = Graph('f', [struct], block0)
 ''')
+
+def test_dont_copy_fresh_structs():
+    a1 = Argument('a1', MachineInt())
+    a2 = Argument('a2', SmallFixedBitVector(8))
+    block0 = Block()
+    t = Struct('ttyp', ('f0', 'f1'), (MachineInt(), SmallFixedBitVector(8)), True)
+    i1 = block0.emit(StructConstruction, 'ttyp', [a1, a2], t, None, None)
+    i2 = block0.emit(StructCopy, 'ttyp', [i1], t)
+    block0.next = Return(i2)
+    g = Graph('f', [a1, a2], block0)
+    check_optimize(g, '''
+ttyp = Struct('ttyp', ('f0', 'f1'), (MachineInt(), SmallFixedBitVector(8)), True)
+a1 = Argument('a1', MachineInt())
+a2 = Argument('a2', SmallFixedBitVector(8))
+block0 = Block()
+i2 = block0.emit(StructConstruction, 'ttyp', [a1, a2], ttyp, None, None)
+block0.next = Return(i2, None)
+graph = Graph('f', [a1, a2], block0)
+''')

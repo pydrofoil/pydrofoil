@@ -2731,6 +2731,9 @@ class LocalOptimizer(BaseOptimizer):
             uses = count_uses(self.graph)
             if uses[arg0] == 1:
                 return arg0
+        if isinstance(arg0, StructConstruction):
+            if op.resolved_type.tuplestruct or count_uses(self.graph)[arg0] == 1:
+                return arg0
         if isinstance(arg0, Phi):
             if all(isinstance(arg, StructConstruction) for arg in arg0.prevvalues):
                 uses = count_uses(self.graph)

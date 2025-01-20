@@ -1567,6 +1567,7 @@ def _bare_optimize(graph, codegen):
     res = join_blocks(graph, codegen) or res
     res = remove_dead(graph, codegen) or res
     res = simplify_phis(graph, codegen) or res
+    res = join_many_merges_phis(graph, codegen) or res
     res = sink_allocate(graph, codegen) or res
     res = inline(graph, codegen) or res
     res = remove_superfluous_union_checks(graph, codegen) or res
@@ -1684,6 +1685,7 @@ def swap_not(graph, codegen):
 @repeat
 def simplify_phis(graph, codegen):
     replace_phis = {}
+    result = False
     for block in graph.iterblocks():
         for index, op in enumerate(block.operations):
             if not isinstance(op, Phi):
@@ -1696,8 +1698,51 @@ def simplify_phis(graph, codegen):
                 # this is really inefficient, but I don't want to think
                 del block.operations[index]
                 graph.replace_ops(replace_phis)
+                result = True
                 break # continue with the next block
-    return False
+    return result
+
+@repeat
+def join_many_merges_phis(graph, codegen):
+    if graph.has_loop:
+        return False
+    result = False
+    entrymap = graph.make_entrymap()
+    for block in graph.iterblocks():
+        if not isinstance(block.next, Goto):
+            continue
+        if not block.operations or not all(isinstance(op, Phi) for op in block.operations):
+            continue
+        nextblock = block.next.target
+        if not nextblock.operations:
+            continue
+        nextprevblocks = entrymap[nextblock]
+        if len(nextprevblocks) == 1:
+            continue
+        prevblocks = block.prevblocks_from_phis()
+        for nextphi in nextblock.operations:
+            if not isinstance(nextphi, Phi):
+                break
+            index = nextphi.prevblocks.index(block)
+            prevvalue = nextphi.prevvalues[index]
+            if prevvalue in block.operations:
+                prevvalues = prevvalue.prevvalues
+            else:
+                prevvalues = [prevvalue] * len(prevblocks)
+            nextphi.prevvalues = nextphi.prevvalues[:index] + prevvalues + nextphi.prevvalues[index+1:]
+            nextphi.prevblocks = nextphi.prevblocks[:index] + prevblocks + nextphi.prevblocks[index+1:]
+        for prevblock in prevblocks:
+            if isinstance(prevblock.next, Goto):
+                prevblock.next.target = nextblock
+            else:
+                assert isinstance(prevblock.next, ConditionalGoto)
+                if prevblock.next.truetarget is block:
+                    prevblock.next.truetarget = nextblock
+                else:
+                    assert prevblock.next.falsetarget is block
+                    prevblock.next.falsetarget = nextblock
+        return True
+    
 
 @repeat
 def remove_if_true_false(graph, codegen):

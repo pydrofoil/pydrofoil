@@ -314,6 +314,44 @@ block0.next = Return(i3, None)
 graph = Graph('f', [b, zx], block0)\
 '''
 
+def test_specialize_on_result_tuple_unit():
+    tupletyp = Struct('tup', ('bv', 'u'), (types.GenericBitVector(), types.Unit()), True)
+    bv = Argument('bv', GenericBitVector())
+    i = Argument('i', Int())
+    b = Argument('b', Bool())
+    block0 = Block()
+    i0 = block0.emit(PackPackedField, '$pack', [bv], Packed(GenericBitVector()), None, None)
+    i2 = block0.emit(StructConstruction, 'tup', [i0, UnitConstant.UNIT], tupletyp, None)
+    block0.next = Return(i2, None)
+    graph = Graph('tuplify', [bv, i, b], block0)
+
+    fakecodegen = FakeCodeGen()
+    fakecodegen.should_inline = lambda x: False
+    spec = Specializer(graph, fakecodegen)
+    fakecodegen.specialization_functions['tuplify'] = spec
+
+    b = Argument('b', Bool())
+    zx = Argument('zx', SmallFixedBitVector(32))
+    block0 = Block()
+    i0 = block0.emit(Cast, '$cast', [zx], GenericBitVector(), None, None)
+    i1 = block0.emit(Operation, 'tuplify', [i0, IntConstant(2), b], tupletyp, '`7 456:19-456:28', 'zz419')
+    i2 = block0.emit(FieldAccess, 'bv', [i1], Packed(GenericBitVector()), None)
+    i3 = block0.emit(UnpackPackedField, '$unpack', [i2], GenericBitVector(), None, None)
+    i4 = block0.emit(Cast, '$cast', [i3], SmallFixedBitVector(32), '`7 456:19-456:28', 'zz419')
+    block0.next = Return(i4, None)
+    calling_graph = Graph('f', [b, zx], block0)
+    opt = SpecializingOptimizer(calling_graph, fakecodegen)
+    opt.optimize()
+    optimize(calling_graph, fakecodegen)
+    assert "\n".join(print_graph_construction(calling_graph)) == '''\
+b = Argument('b', Bool())
+zx = Argument('zx', SmallFixedBitVector(32))
+block0 = Block()
+i2 = block0.emit(Operation, 'tuplify_specialized_bv32_2_o__tup1_bv32', [zx, MachineIntConstant(2), b], SmallFixedBitVector(32), '`7 456:19-456:28', 'zz419')
+block0.next = Return(i2, None)
+graph = Graph('f', [b, zx], block0)\
+'''
+
 def test_results_bubble_up_problem():
     # f -> g(32) -> h(32) returns bv32
     fa = Argument('fa', SmallFixedBitVector(32))

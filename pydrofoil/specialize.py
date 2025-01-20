@@ -85,6 +85,28 @@ class Specializer(object):
     def _reconstruct_result(self, restype, original_restype, newcall, optimizer):
         if restype is original_restype:
             return newcall
+        if isinstance(original_restype, types.Struct):
+            fields = []
+            single_value_used = False
+            newtypeindex = 0
+            for fieldtyp_orig in original_restype.internaltyps:
+                if fieldtyp_orig is types.Unit():
+                    field = ir.UnitConstant.UNIT
+                elif isinstance(restype, types.Struct):
+                    name = restype.names[newtypeindex]
+                    fieldtyp = restype.internaltyps[newtypeindex]
+                    field = ir.FieldAccess(name, [newcall], fieldtyp)
+                    optimizer.newoperations.append(field)
+                    newtypeindex += 1
+                else:
+                    assert newtypeindex == 0
+                    newtypeindex = 1
+                    field = newcall
+                converted_field = self._reconstruct_result(field.resolved_type, fieldtyp_orig, field, optimizer)
+                fields.append(converted_field)
+            result = ir.StructConstruction(original_restype.name, fields, original_restype)
+            optimizer.newoperations.append(result)
+            return result
         if restype is types.MachineInt():
             if original_restype is types.Int():
                 return optimizer._make_int64_to_int(newcall)
@@ -99,16 +121,6 @@ class Specializer(object):
                 assert original_restype is types.Packed(types.GenericBitVector())
                 return optimizer.newop(
                         "@pack_smallfixedbitvector", [ir.MachineIntConstant(restype.width), newcall], original_restype)
-        if isinstance(restype, types.Struct):
-            fields = []
-            for fieldtyp, fieldtyp_orig, name in zip(restype.typs, original_restype.internaltyps, restype.names):
-                field = ir.FieldAccess(name, [newcall], fieldtyp)
-                optimizer.newoperations.append(field)
-                converted_field = self._reconstruct_result(fieldtyp, fieldtyp_orig, field, optimizer)
-                fields.append(converted_field)
-            result = ir.StructConstruction(original_restype.name, fields, original_restype)
-            optimizer.newoperations.append(result)
-            return result
 
     def _make_stub(self, key):
         args = []
@@ -237,12 +249,21 @@ class Specializer(object):
                 res = returnvalue.args[1]
                 resulttyp = res.resolved_type
                 return res, "bv%s" % resulttyp.width
+            if type(returnvalue) is ir.Phi and returnvalue in returnblock.operations and all(getattr(prev, 'name', None) == '@pack_smallfixedbitvector' for prev in returnvalue.prevvalues):
+                widths = {prev.args[0].number for prev in returnvalue.prevvalues}
+                if len(widths) == 1:
+                    width, = widths
+                    newphi = ir.Phi(returnvalue.prevblocks, [prev.args[1] for prev in returnvalue.prevvalues], types.SmallFixedBitVector(width))
+                    returnblock.operations.insert(0, newphi)
+                    return newphi, "bv%s" % width
         elif isinstance(returnvalue.resolved_type, types.Struct) and returnvalue.resolved_type.tuplestruct and isinstance(returnvalue, ir.StructConstruction):
             fields = []
             extensions = []
             fieldtyps = []
             useful = False
             for value in returnvalue.args:
+                if value.resolved_type is types.Unit():
+                    continue
                 res, nameextension = self._find_result(graph, returnblock, value, optimizer)
                 if res is not None:
                     useful = True
@@ -253,6 +274,9 @@ class Specializer(object):
                     extensions.append('o')
                 fieldtyps.append(fields[-1].resolved_type)
             if useful:
+                if len(fields) == 1:
+                    newres, = fields
+                    return newres, 'tup1_%s' % extensions[0]
                 names = tuple(['%s_%s' % (name, index) for index, name in enumerate(extensions)])
                 fieldtyps = tuple(fieldtyps)
                 origname = returnvalue.resolved_type.name

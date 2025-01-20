@@ -2672,6 +2672,12 @@ class LocalOptimizer(BaseOptimizer):
             arg = self.newphi(op.prevblocks, [arg.args[0] for arg in op.prevvalues],
                               op.prevvalues[0].args[0].resolved_type)
             return self.newop(variant, [arg], op.resolved_type)
+        #if all(isinstance(prevvalue, Operation) for prevvalue in op.prevvalues):
+        #    names = {prevvalue.name for prevvalue in op.prevvalues}
+        #    if len(names) == 1:
+        #        name, = names
+        #        if name.lstrip("@") in supportcode.purefunctions:
+
 
     def _optimize_NonSSAAssignment(self, op, block, index):
         return REMOVE

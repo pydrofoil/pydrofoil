@@ -1449,7 +1449,7 @@ def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
     return mem.read(addr, n)
 
-def fast_read_mem_i_bv_i_isfetch(machine, addr_size, addr, n, isfetch):
+def fast_read_mem_i_bv_i_isfetch_isexclusive(machine, addr_size, addr, n, isfetch, isexclusive):
     mem = jit.promote(machine.g).mem
     return mem.read(addr, n, executable_flag=isfetch)
 

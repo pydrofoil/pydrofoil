@@ -106,7 +106,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@truncate_bv_i", "supportcode.truncate_bv_i")
         self.add_global("@replicate_bv_i_i", "supportcode.replicate_bv_i_i")
         self.add_global("@platform_read_mem_o_i_bv_i", "supportcode.platform_read_mem_o_i_bv_i")
-        self.add_global("@fast_read_mem_i_bv_i_isfetch", "supportcode.fast_read_mem_i_bv_i_isfetch")
+        self.add_global("@fast_read_mem_i_bv_i_isfetch_isexclusive", "supportcode.fast_read_mem_i_bv_i_isfetch_isexclusive")
         self.add_global("@lt_unsigned64", "supportcode.lt_unsigned64")
         self.add_global("@lteq_unsigned64", "supportcode.lteq_unsigned64")
         self.add_global("@gteq_unsigned64", "supportcode.gteq_unsigned64")

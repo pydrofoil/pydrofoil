@@ -2289,6 +2289,8 @@ class BaseOptimizer(object):
             and self._builtinname(arg.name) == "int64_to_int"
         ):
             return arg.args[0]
+        if isinstance(arg, Operation) and arg.name == '@packed_field_int_to_int64':
+            import pdb;pdb.set_trace()
         if isinstance(arg, Cast):
             import pdb;pdb.set_trace()
         # check whether we have a cast as an available expression (ie "above" us)
@@ -4270,7 +4272,7 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type
         )
 
-    def optimize_platform_read_mem_o_o_o_i(self, op, isfetch=False):
+    def optimize_platform_read_mem_o_o_o_i(self, op, isfetch=False, isexclusive=False):
         arg0, arg1, arg2, arg3 = self._args(op)
         arg2, typ = self._extract_smallfixedbitvector(arg2)
         arg3 = self._extract_number(arg3)
@@ -4281,8 +4283,8 @@ class LocalOptimizer(BaseOptimizer):
         assert typ.width in (32, 64)
         return self.newcast(
             self.newop(
-                "@fast_read_mem_i_bv_i_isfetch",
-                [arg1, arg2, arg3, BooleanConstant.frombool(isfetch)],
+                "@fast_read_mem_i_bv_i_isfetch_isexclusive",
+                [arg1, arg2, arg3, BooleanConstant.frombool(isfetch), BooleanConstant.frombool(isexclusive)],
                 types.SmallFixedBitVector(arg3.number * 8),
                 op.sourcepos,
                 op.varname_hint,
@@ -4293,6 +4295,9 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_read_mem_ifetch_o_o_o_i(self, op):
         return self.optimize_platform_read_mem_o_o_o_i(op, isfetch=True)
+
+    def optimize_read_mem_exclusive_o_o_o_i(self, op):
+        return self.optimize_platform_read_mem_o_o_o_i(op, isexclusive=True)
 
     def optimize_UINT64_C(self, op):
         arg0, = self._args(op)
@@ -4317,6 +4322,14 @@ class LocalOptimizer(BaseOptimizer):
                 assert arg0.number == arg1.args[0].number
                 return arg1.args[1]
             import pdb;pdb.set_trace()
+
+    def optimize_packed_field_int_to_int64(self, op):
+        arg0, = self._args(op)
+        if not isinstance(arg0, FieldAccess) and isinstance(arg0, Operation):
+            if arg0.name == "@pack_machineint":
+                return arg0.args[0]
+            import pdb;pdb.set_trace()
+
 
 @repeat
 def inline(graph, codegen):

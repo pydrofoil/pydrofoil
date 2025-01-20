@@ -59,6 +59,8 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@add_i_i_wrapped_res", "supportcode.add_i_i_wrapped_res")
         self.add_global("@add_i_i_must_fit", "supportcode.add_i_i_must_fit")
         self.add_global("@add_o_i_wrapped_res", "supportcode.add_o_i_wrapped_res")
+        self.add_global("@add_unsigned_bv64_unsigned_bv64_wrapped_res", "supportcode.add_unsigned_bv64_unsigned_bv64_wrapped_res")
+        self.add_global("@lteq_add4_unsigned_bv64", "supportcode.lteq_add4_unsigned_bv64")
         self.add_global("@sub_i_i_wrapped_res", "supportcode.sub_i_i_wrapped_res")
         self.add_global("@sub_i_i_must_fit", "supportcode.sub_i_i_must_fit")
         self.add_global("@sub_o_i_wrapped_res", "supportcode.sub_o_i_wrapped_res")
@@ -82,6 +84,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@bitvector_concat_bv_n_zeros_wrapped_res", "supportcode.bitvector_concat_bv_n_zeros_wrapped_res")
         self.add_global("@bitvector_concat_bv_gbv_truncate_to", "supportcode.bitvector_concat_bv_gbv_truncate_to")
         self.add_global("@bitvector_concat_bv_bv_n_zeros_truncate", "supportcode.bitvector_concat_bv_bv_n_zeros_truncate")
+        self.add_global("@ones_zero_extended_unwrapped_res", "supportcode.ones_zero_extended_unwrapped_res")
         self.add_global("@signed_bv", "supportcode.signed_bv")
         self.add_global("@unsigned_bv_wrapped_res", "supportcode.unsigned_bv_wrapped_res")
         self.add_global("@unsigned_bv", "supportcode.unsigned_bv")
@@ -103,9 +106,14 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@truncate_bv_i", "supportcode.truncate_bv_i")
         self.add_global("@replicate_bv_i_i", "supportcode.replicate_bv_i_i")
         self.add_global("@platform_read_mem_o_i_bv_i", "supportcode.platform_read_mem_o_i_bv_i")
+        self.add_global("@fast_read_mem_i_bv_i_isfetch", "supportcode.fast_read_mem_i_bv_i_isfetch")
         self.add_global("@lt_unsigned64", "supportcode.lt_unsigned64")
         self.add_global("@lteq_unsigned64", "supportcode.lteq_unsigned64")
         self.add_global("@gteq_unsigned64", "supportcode.gteq_unsigned64")
+        self.add_global("@pack_smallfixedbitvector", "supportcode.pack_smallfixedbitvector")
+        self.add_global("@pack_machineint", "supportcode.pack_machineint")
+        self.add_global("@packed_field_cast_smallfixedbitvector", "supportcode.packed_field_cast_smallfixedbitvector")
+        self.add_global("@packed_field_int_to_int64", "supportcode.packed_field_int_to_int64")
         self.add_global("zsail_assert", "supportcode.sail_assert")
         self.add_global("UINT64_C", "supportcode.uint64c")
         self.add_global("NULL", "None")
@@ -262,10 +270,11 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_named_type(name, pyname, structtyp, ast)
         uninit_arg = []
         with self.emit_code_type("declarations"), self.emit_indent("class %s(supportcode.ObjectBase):" % pyname):
+            self.emit("@objectmodel.always_inline")
             with self.emit_indent("def __init__(self, %s):" % ", ".join(structtyp.names)):
-                for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
+                for arg, fieldtyp in zip(structtyp.names, structtyp.internaltyps):
                     fieldname = "self." + arg
-                    self.emit(fieldtyp.packed_field_write(fieldname, arg))
+                    self.emit(fieldtyp.packed_field_write(fieldname, arg, bare=True))
                     uninit_arg.append(fieldtyp.uninitialized_value)
             #self.emit("@objectmodel.always_inline")
             with self.emit_indent("def copy_into(self, machine, res=None):"):
@@ -405,8 +414,8 @@ class __extend__(parse.Union):
                 with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                     # default field values
                     if type(rtyp) is types.Struct:
-                        for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
-                            codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value))
+                        for fieldname, fieldtyp in sorted(rtyp.internalfieldtyps.iteritems()):
+                            codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value, bare=True))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
                     self.make_init(codegen, rtyp, typ, pyname)

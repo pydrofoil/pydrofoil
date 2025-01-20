@@ -15,13 +15,19 @@ def should_inline(name):
         return True
     if "zmatch_TLB_Entry" in name:
         return True
+    if "zsail_mem_read" in name:
+        return True
+    if "zsail_mem_write" in name:
+        return True
+    if "request_is_exclusive" in name:
+        return True
 
 def _make_code(rv64=True):
     print "making python code"
     with open(riscvirs[rv64], "rb") as f:
         s = f.read()
     support_code = "from riscv import supportcoderiscv as supportcode"
-    entrypoints = "ztick_clock ztick_platform zinit_model zphys_mem_read zstep zext_decode".split()
+    entrypoints = "ztick_clock ztick_platform zinit_model zstep zext_decode".split()
     res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', }, entrypoints=entrypoints, should_inline=should_inline)
     with open(outriscvpys[rv64], "w") as f:
         f.write(res)

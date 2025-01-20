@@ -552,15 +552,15 @@ def get_main(outriscv):
         name=prefix,
         is_recursive=True)
 
-    phys_mem_read = outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False
-    def phys_mem_read_patched(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta):
-        # read and ignore the result, the JIT will do the rest?
-        jit.jit_debug("ram ifetch", intmask(zpaddr))
-        mem = jit.promote(machine.g).mem
-        res = mem.read(zpaddr, 2, executable_flag=True)
-        res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
-        return res
-    outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False = phys_mem_read_patched
+    #phys_mem_read = outriscv.func_zphys_mem_read_specialized_o_o_2_o_o_False_False
+    #def phys_mem_read_patched(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta):
+    #    # read and ignore the result, the JIT will do the rest?
+    #    jit.jit_debug("ram ifetch", intmask(zpaddr))
+    #    mem = jit.promote(machine.g).mem
+    #    res = mem.read(zpaddr, 2, executable_flag=True)
+    #    res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
+    #    return res
+    #outriscv.func_zphys_mem_read_specialized_o_o_2_o_o_False_False = phys_mem_read_patched
 
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']

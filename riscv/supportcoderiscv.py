@@ -12,6 +12,7 @@ from rpython.rlib.jit import JitDriver, promote
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from rpython.rlib.rrandom import Random
 from rpython.rlib import jit
+from rpython.rlib import debug as rdebug
 from rpython.rlib import rsignal
 
 import time
@@ -95,7 +96,7 @@ def promote_addr_region(machine, addr, width, executable_flag):
     g = jit.promote(machine.g)
     addr = intmask(addr)
     jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
-    if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
+    if not jit.we_are_jitted() or not jit.isconstant(width):
         return
     if executable_flag:
         jit.promote(addr)
@@ -130,6 +131,8 @@ class Globals(object):
         'config_print_reg?', 'config_print_instr?', 'config_print_rvfi?',
         'rv_clint_base?', 'rv_clint_size?', 'rv_htif_tohost?',
         'rv_rom_base?', 'rv_rom_size?', 'mem?',
+        'rv_ram_base?', 'rv_ram_size?',
+        'rv_enable_dirty_update?', 'rv_enable_misaligned?',
         'rv_insns_per_tick?',
         '_mem_ranges?[*]',
         'rv64'
@@ -179,7 +182,7 @@ class Globals(object):
         self.reservation = r_uint(0)
         self.reservation_valid = False
 
-        self.dump_dict = None
+        self.dump_dict = {}
 
         self.config_print_instr = True
         self.config_print_reg = True
@@ -760,6 +763,19 @@ def patch_checked_mem_function(outriscv, name):
         patched.func_name += "_" + func.func_name
         setattr(outriscv, name, patched)
 
+
+def patch_tlb(outriscv):
+    func = outriscv.func_ztranslate_TLB_hit
+    def translate_tlb_hit(machine, zsv_params, zasid, zptb, zvAddr, zac, zpriv, zmxr, zdo_sum, zext_ptw, ztlb_index, zent):
+        mask = jit.promote(zent.zvAddrMask)
+        jit.record_exact_value(zent.zvMatchMask, ~mask)
+        if zac is outriscv.Union_zAccessTypezIuzK_zExecutezIuzK.singleton:
+            jit.record_exact_value(zent.zpAddr & mask, r_uint(0))
+        res = func(machine, zsv_params, zasid, zptb, zvAddr, zac, zpriv, zmxr, zdo_sum, zext_ptw, ztlb_index, zent)
+        return res
+    outriscv.func_ztranslate_TLB_hit = translate_tlb_hit
+
+
 def get_main(outriscv, rv64):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
@@ -771,17 +787,20 @@ def get_main(outriscv, rv64):
     else:
         prefix = "rv32"
 
-    def get_printable_location(pc, do_show_times, insn_limit, tick, g):
+    def get_printable_location(pc, do_show_times, insn_limit, tick, need_step_no, g):
         if tick:
             return "TICK 0x%x" % (pc, )
+        suffix = ''
+        if need_step_no:
+            suffix = ' need_step'
         if g.dump_dict and pc in g.dump_dict:
-            return "%s 0x%x: %s" % (prefix, pc, g.dump_dict[pc])
-        return hex(pc)
+            return "%s 0x%x: %s%s" % (prefix, pc, g.dump_dict[pc], suffix)
+        return "%s 0x%x%s" % (prefix, pc, suffix)
 
     driver = JitDriver(
         get_printable_location=get_printable_location,
-        greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'g'],
-        reds=['step_no', 'insn_cnt', 'machine'],
+        greens=['pc', 'do_show_times', 'insn_limit', 'tick', 'need_step_no', 'g'],
+        reds=['insn_cnt', 'machine'],
         virtualizables=['machine'],
         name=prefix,
         is_recursive=True)
@@ -789,6 +808,20 @@ def get_main(outriscv, rv64):
     for name in dir(outriscv):
         if name.startswith("func_zchecked_mem_"):
             patch_checked_mem_function(outriscv, name)
+    if rv64:
+        patch_tlb(outriscv)
+
+    @jit.not_in_trace
+    def disassemble_current_inst(pc, m):
+        if rdebug.have_debug_prints_for('jit-log-opt'):
+            instbits = m._reg_zinstbits
+            if instbits & 0b11 != 0b11:
+                # compressed instruction
+                ast = outriscv.func_zencdec_compressed_backwards(m, m._reg_zinstbits)
+            else:
+                ast = outriscv.func_zext_decode(m, m._reg_zinstbits)
+            dis = outriscv.func_zassembly_forwards(m, ast)
+            m.g.dump_dict[pc] = dis
 
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
@@ -814,7 +847,12 @@ def get_main(outriscv, rv64):
             return outriscv.func_zstep(self, *args)
 
         def run_sail(self, insn_limit, do_show_times):
-            step_no = 0
+            self.step_no = 0
+            # we update self.step_no only every TICK, *unless*:
+            # - we want to continually print kps
+            # - we want to print every instruction
+            # - we are less than one TICK away from the insn_limit
+            need_step_no = do_show_times or self.g.config_print_instr or (insn_limit and insn_limit - self.step_no < self.g.rv_insns_per_tick)
             insn_cnt = 0
             tick = False
 
@@ -826,28 +864,36 @@ def get_main(outriscv, rv64):
 
             while 1:
                 driver.jit_merge_point(pc=self._reg_zPC, tick=tick,
-                        insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
+                        insn_limit=insn_limit, need_step_no=need_step_no, insn_cnt=insn_cnt,
                         do_show_times=do_show_times, machine=self, g=g)
-                if self._reg_zhtif_done or not (insn_limit == 0 or step_no < insn_limit):
+                if self._reg_zhtif_done or (insn_limit != 0 and need_step_no and self.step_no >= insn_limit):
                     break
                 jit.promote(self.g)
                 if tick:
+                    if not need_step_no:
+                        # self.step_no wasn't updated since the last tick
+                        self.step_no += insn_cnt
                     if insn_cnt == g.rv_insns_per_tick:
                         insn_cnt = 0
                         self.tick_clock()
                         self.tick_platform()
                     else:
-                        assert do_show_times and (step_no & 0xfffff) == 0
+                        assert do_show_times and (self.step_no & 0xfffff) == 0
                         curr = time.time()
                         print "kips:", 0x100000 / 1000. / (curr - g.interval_start)
                         g.interval_start = curr
                     tick = False
+                    need_step_no = do_show_times or self.g.config_print_instr or (insn_limit and insn_limit - self.step_no < self.g.rv_insns_per_tick)
                     continue
                 # run a Sail step
                 prev_pc = self._reg_zPC
                 jit.promote(self._reg_zmstatus.zbits)
                 jit.promote(self._reg_zmisa.zbits)
-                stepped = self.step(Integer.fromint(step_no))
+                if need_step_no:
+                    step_no = Integer.fromint(self.step_no)
+                else:
+                    step_no = None
+                stepped = self.step(step_no)
                 if self.have_exception:
                     print "ended with exception!"
                     print self.current_exception
@@ -855,11 +901,15 @@ def get_main(outriscv, rv64):
                     raise ValueError
                 rv_insns_per_tick = g.rv_insns_per_tick
                 if stepped:
-                    step_no += 1
+                    if jit.we_are_jitted():
+                        disassemble_current_inst(prev_pc, self)
+
+                    if need_step_no:
+                        self.step_no += 1
                     if rv_insns_per_tick:
                         insn_cnt += 1
 
-                tick_cond = (do_show_times and (step_no & 0xffffffff) == 0) | (
+                tick_cond = (do_show_times and (self.step_no & 0xffffffff) == 0) | (
                         rv_insns_per_tick and insn_cnt == rv_insns_per_tick)
                 if tick_cond:
                     tick = True
@@ -870,7 +920,7 @@ def get_main(outriscv, rv64):
                             # ctrl-c was pressed
                             break
                     driver.can_enter_jit(pc=self._reg_zPC, tick=tick,
-                            insn_limit=insn_limit, step_no=step_no, insn_cnt=insn_cnt,
+                            insn_limit=insn_limit, need_step_no=need_step_no, insn_cnt=insn_cnt,
                             do_show_times=do_show_times, machine=self, g=g)
             # loop end
 
@@ -886,9 +936,9 @@ def get_main(outriscv, rv64):
                 print "FAILURE:", self._reg_zhtif_exit_code
                 if not we_are_translated():
                     raise ValueError
-            print "Instructions: %s" % (step_no, )
+            print "Instructions: %s" % (self.step_no, )
             print "Total time (s): %s" % (interval_end - self.g.total_start)
-            print "Perf: %s Kips" % (step_no / 1000. / (interval_end - self.g.total_start), )
+            print "Perf: %s Kips" % (self.step_no / 1000. / (interval_end - self.g.total_start), )
             if ctrlc:
                 raise ExitNow
 

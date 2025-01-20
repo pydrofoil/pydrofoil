@@ -481,6 +481,11 @@ def ones(machine, num):
     else:
         return bitvector.from_bigint(num, rbigint.fromint(-1))
 
+def ones_zero_extended_unwrapped_res(machine, num_ones, width):
+    num_ones = min(num_ones, width)
+    assert num_ones <= 64
+    return safe_lshift(None, r_uint(1), num_ones) - 1
+
 @unwrap("i")
 @purefunction
 def undefined_bitvector(machine, num):
@@ -508,6 +513,39 @@ def truncate_bv_i(machine, bv, i):
 @purefunction
 def count_leading_zeros(machine, bv):
     return bitvector.Integer.fromint(bv.count_leading_zeros())
+
+@objectmodel.always_inline
+@purefunction
+def pack_smallfixedbitvector(machine, width, val):
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        raise TypeError("can't constfold yet")
+    return width, val, None
+
+@objectmodel.always_inline
+@purefunction
+def pack_machineint(machine, val):
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        raise TypeError("can't constfold yet")
+    return val, None
+
+@objectmodel.always_inline
+@purefunction
+def packed_field_cast_smallfixedbitvector(machine, targetwidth, (width, val, data)):
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        raise TypeError("can't constfold yet")
+    assert width == targetwidth
+    return val
+
+@objectmodel.always_inline
+@purefunction
+def packed_field_int_to_int64(machine, (val, data)):
+    # equivalent to Integer.unpack(val, data).toint()
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        raise TypeError("can't constfold yet")
+    if data is None:
+        return val
+    return bitvector.BigInteger._sign_and_data_toint(val, data)
+
 
 # for debugging
 
@@ -604,6 +642,34 @@ def add_int(machine, ia, ib):
 @purefunction
 def add_o_i_wrapped_res(machine, a, b):
     return a.int_add(b)
+
+@purefunction
+def add_unsigned_bv64_unsigned_bv64_wrapped_res(machine, a, b):
+    res = a + b
+    if res < a:
+        a = bitvector.Integer.from_ruint(a)
+        b = bitvector.Integer.from_ruint(b)
+        return a.add(b)
+    else:
+        return Integer.from_ruint(res)
+
+@purefunction
+def lteq_add4_unsigned_bv64(machine, a, b, c, d):
+    # returns a + b <= c + d, where a, b, c, d are 64 bit bvs, interpreted as unsigned ints
+    x = a + b
+    y = c + d
+    if x >= a and y >= c: # both unsigned adds don't overflow
+        return x <= y
+    else:
+        # slow path, unlikely
+        a = bitvector.Integer.from_ruint(a)
+        b = bitvector.Integer.from_ruint(b)
+        c = bitvector.Integer.from_ruint(c)
+        d = bitvector.Integer.from_ruint(d)
+        x = a.add(b)
+        y = c.add(d)
+        return x.le(y)
+    
 
 @purefunction
 def add_i_i_wrapped_res(machine, a, b):
@@ -1382,6 +1448,10 @@ def platform_read_mem(machine, read_kind, addr_size, addr, n):
 def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
     return mem.read(addr, n)
+
+def fast_read_mem_i_bv_i_isfetch(machine, addr_size, addr, n, isfetch):
+    mem = jit.promote(machine.g).mem
+    return mem.read(addr, n, executable_flag=isfetch)
 
 @jit.unroll_safe
 def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):

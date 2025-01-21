@@ -578,6 +578,14 @@ class Block(object):
         self.operations.append(op)
         return op
 
+    def replace_ops(self, replacements):
+        res = False
+        for op in self.operations:
+            assert op not in replacements # must have been removed already
+            res = op.replace_ops(replacements) or res
+        res = self.next.replace_ops(replacements) or res
+        return res
+
     def replace_prev(self, block, otherblock):
         for op in self.operations:
             if not isinstance(op, Phi):
@@ -869,10 +877,7 @@ class Graph(object):
     def replace_ops(self, replacements):
         res = False
         for block in self.iterblocks():
-            for op in block.operations:
-                assert op not in replacements # must have been removed already
-                res = op.replace_ops(replacements) or res
-            res = block.next.replace_ops(replacements) or res
+            res = block.replace_ops(replacements) or res
         return res
 
     def replace_op(self, oldop, newop):
@@ -1580,6 +1585,7 @@ def _bare_optimize(graph, codegen):
     res = remove_superfluous_union_checks(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph, codegen) or res
+    res = remove_if_phi_constant2(graph, codegen) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
     partial_allocation_removal(graph, codegen)
@@ -1793,6 +1799,8 @@ def remove_if_phi_constant(graph, codegen):
     uses = count_uses(graph)
     res = False
     for block in graph.iterblocks():
+        if not isinstance(block.next, ConditionalGoto):
+            continue
         ops = [op for op in block.operations if not isinstance(op, Comment)]
         if len(ops) != 1:
             continue
@@ -1800,8 +1808,6 @@ def remove_if_phi_constant(graph, codegen):
         if not isinstance(op, Phi):
             continue
         if op.resolved_type is not types.Bool():
-            continue
-        if not isinstance(block.next, ConditionalGoto):
             continue
         if block.next.booleanvalue is not op:
             continue
@@ -1823,6 +1829,77 @@ def remove_if_phi_constant(graph, codegen):
         if len(prevvalues) < len(op.prevvalues):
             op.prevvalues = prevvalues
             op.prevblocks = prevblocks
+    if res:
+        _remove_unreachable_phi_prevvalues(graph)
+        simplify_phis(graph, codegen)
+        join_blocks(graph, codegen)
+    return res
+
+@repeat
+def remove_if_phi_constant2(graph, codegen):
+    from pydrofoil.emitfunction import count_uses
+    uses = count_uses(graph)
+    res = False
+    d = None
+    def has_uses(values, blocks):
+        for block in blocks:
+            for op in block.operations:
+                for arg in op.getargs():
+                    if arg in values:
+                        return True
+            for arg in block.next.getargs():
+                if arg in values:
+                    return True
+        return False
+
+    for block in graph.iterblocks():
+        if not isinstance(block.next, ConditionalGoto):
+            continue
+        op = block.next.booleanvalue
+        assert op.resolved_type is types.Bool()
+        if not isinstance(op, Phi):
+            continue
+        if len(op.prevvalues) != 2:
+            continue
+        if not all(isinstance(val, BooleanConstant) for val in op.prevvalues):
+            continue
+        opvalues = [val.value for val in op.prevvalues]
+        if opvalues == [True, False]:
+            trueprevblock, falseprevblock = op.prevblocks
+            trueindex, falseindex = 0, 1
+        elif opvalues == [False, True]:
+            falseprevblock, trueprevblock = op.prevblocks
+            falseindex, trueindex = 0, 1
+        else:
+            continue
+        ops = [op for op in block.operations if not isinstance(op, Comment)]
+        if not all(isinstance(op, Phi) for op in ops):
+            continue
+        if d is None:
+            d = dominatees(graph)
+        trueblocks = d[block.next.truetarget]
+        falseblocks = d[block.next.falsetarget]
+        joinblocks = trueblocks.intersection(falseblocks)
+        trueblocks -= joinblocks
+        falseblocks -= joinblocks
+        # make sure that none of the phis are used in the blocks that are
+        # reachable by both the true and the false paths
+        if has_uses(ops, joinblocks):
+            continue
+        replacements_true = {}
+        replacements_false = {}
+        for phi in ops:
+            replacements_true[phi] = phi.prevvalues[trueindex]
+            replacements_false[phi] = phi.prevvalues[falseindex]
+        for trueblock in trueblocks:
+            trueblock.replace_ops(replacements_true)
+        for falseblock in falseblocks:
+            falseblock.replace_ops(replacements_false)
+        trueprevblock.next = Goto(block.next.truetarget)
+        falseprevblock.next = Goto(block.next.falsetarget)
+        res = True
+        break
+
     if res:
         _remove_unreachable_phi_prevvalues(graph)
         simplify_phis(graph, codegen)
@@ -4745,7 +4822,7 @@ def partial_allocation_removal(graph, codegen):
             op = Allocate(typ, value.sourcepos)
             newoperations.append(op)
             for name, fieldvalue in zip(typ.names, fieldvalues):
-                if not isinstance(value, DefaultValue):
+                if not isinstance(fieldvalue, DefaultValue):
                     newoperations.append(FieldWrite(name, [op, fieldvalue]))
         replacements[value] = op
         return op

@@ -793,6 +793,7 @@ def test_spec_bug():
     res = spec._make_stub(key) # used to crash
 
 def test_translate():
+    from pydrofoil.test.test_ir import compare
     zAccessTypezIuzK = Union('zAccessTypezIuzK', ('zExecutezIuzK', 'zReadzIuzK', 'zReadWritezIuzK', 'zWritezIuzK'), (Unit(), Unit(), Struct('ztuplez3z5unit_z5unit', ('ztuplez3z5unit_z5unit0', 'ztuplez3z5unit_z5unit1'), (Unit(), Unit()), True), Unit()))
     ztuplez3z5bv_z5unit = Struct('ztuplez3z5bv_z5unit', ('ztuplez3z5bv_z5unit0', 'ztuplez3z5bv_z5unit1'), (GenericBitVector(), Unit()), True)
     ztuplez3z5unionz0zzPTW_Error_z5unit = Struct('ztuplez3z5unionz0zzPTW_Error_z5unit', ('ztuplez3z5unionz0zzPTW_Error_z5unit0', 'ztuplez3z5unionz0zzPTW_Error_z5unit1'), (Union('zPTW_Error', ('zPTW_Access', 'zPTW_Ext_Error', 'zPTW_Invalid_Addr', 'zPTW_Invalid_PTE', 'zPTW_Misaligned', 'zPTW_No_Permission', 'zPTW_PTE_Update'), (Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit())), Unit()), True)
@@ -806,7 +807,7 @@ def test_translate():
     block1 = Block()
     block2 = Block()
     block3 = Block()
-    i6 = block0.emit(Operation, 'isbare', [], Bool, '`37 415:30-415:54', 'zz42')
+    i6 = block0.emit(Operation, 'isbare', [], Bool(), '`37 415:30-415:54', 'zz42')
     block0.next = ConditionalGoto(i6, block1, block3, '`37 417:4-417:9')
     i8 = block1.emit(Operation, '@pack_smallfixedbitvector', [MachineIntConstant(64), zvAddr], Packed(GenericBitVector()), None, None)
     i9 = block1.emit(Allocate, '$allocate', [], ztuplez3z5bv_z5unit, '`37 417:20-417:51', None)
@@ -869,10 +870,32 @@ def test_translate():
     calling_graph.check()
     opt = SpecializingOptimizer(calling_graph, codegen)
     opt.optimize()
-    calling_graph.view()
-    import pdb;pdb.set_trace()
     del codegen.inlinable_functions[a.name]
     assert codegen.inlinable_functions
     light_simplify(calling_graph, codegen)
-    calling_graph.view()
+    compare(calling_graph, '''
+zAccessTypezIuzK = Union('zAccessTypezIuzK', ('zExecutezIuzK', 'zReadzIuzK', 'zReadWritezIuzK', 'zWritezIuzK'), (Unit(), Unit(), Struct('ztuplez3z5unit_z5unit', ('ztuplez3z5unit_z5unit0', 'ztuplez3z5unit_z5unit1'), (Unit(), Unit()), True), Unit()))
+UnionSpec_zTR_ResultzIUExceptionTypezIzKzCbzK_tup1_bv64_o = Union('UnionSpec_zTR_ResultzIUExceptionTypezIzKzCbzK_tup1_bv64_o', ('UnionSpec_zTR_ResultzIUExceptionTypezIzKzCbzK_tup1_bv64_o_zTR_AddresszIUExceptionTypezIzKzCbzK', 'UnionSpec_zTR_ResultzIUExceptionTypezIzKzCbzK_tup1_bv64_o_zTR_FailurezIUExceptionTypezIzKzCbzK'), (SmallFixedBitVector(64), Struct('ztuplez3z5unionz0zzExceptionType_z5unit', ('ztuplez3z5unionz0zzExceptionType_z5unit0', 'ztuplez3z5unionz0zzExceptionType_z5unit1'), (Union('zExceptionType', ('zE_Breakpoint', 'zE_Extension', 'zE_Fetch_Access_Fault', 'zE_Fetch_Addr_Align', 'zE_Fetch_Page_Fault', 'zE_Illegal_Instr', 'zE_Load_Access_Fault', 'zE_Load_Addr_Align', 'zE_Load_Page_Fault', 'zE_M_EnvCall', 'zE_Reserved_10', 'zE_Reserved_14', 'zE_SAMO_Access_Fault', 'zE_SAMO_Addr_Align', 'zE_SAMO_Page_Fault', 'zE_S_EnvCall', 'zE_U_EnvCall'), (Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit())), Unit()), True)))
+zgsz321625 = Argument('zgsz321625', Unit())
+block0 = Block()
+block1 = Block()
+block2 = Block()
+block3 = Block()
+block4 = Block()
+i1 = block0.emit(GlobalRead, 'zPC', [], SmallFixedBitVector(64), None, None)
+i2 = block0.emit(Operation, 'zExecutezIuzK', [UnitConstant.UNIT], zAccessTypezIuzK, '`85 24:39-24:48', 'zz442')
+i3 = block0.emit(Operation, 'ztranslateAddr_specialized_o_o__union_tup1_bv64_o_noinu', [i1, i2], UnionSpec_zTR_ResultzIUExceptionTypezIzKzCbzK_tup1_bv64_o, '`85 24:17-24:49', 'zz46')
+i4 = block0.emit(Comment, 'inlined convert_UnionSpec_zTR_ResultzIUExceptionTypezIzKzCbzK_tup1_bv64_o_zTR_ResultzIUExceptionTypezIzKzCbzK', [], Unit(), None, None)
+i5 = block0.emit(GlobalRead, 'have_exception', [], Bool(), None, None)
+block0.next = ConditionalGoto(i5, block1, block2, None)
+block1.next = Return(DefaultValue(Union('zFetchResult', ('zF_Base', 'zF_Error', 'zF_Ext_Error', 'zF_RVC'), (SmallFixedBitVector(32), Struct('ztuplez3z5unionz0zzExceptionType_z5bv64', ('ztuplez3z5unionz0zzExceptionType_z5bv640', 'ztuplez3z5unionz0zzExceptionType_z5bv641'), (Union('zExceptionType', ('zE_Breakpoint', 'zE_Extension', 'zE_Fetch_Access_Fault', 'zE_Fetch_Addr_Align', 'zE_Fetch_Page_Fault', 'zE_Illegal_Instr', 'zE_Load_Access_Fault', 'zE_Load_Addr_Align', 'zE_Load_Page_Fault', 'zE_M_EnvCall', 'zE_Reserved_10', 'zE_Reserved_14', 'zE_SAMO_Access_Fault', 'zE_SAMO_Addr_Align', 'zE_SAMO_Page_Fault', 'zE_S_EnvCall', 'zE_U_EnvCall'), (Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit())), SmallFixedBitVector(64)), True), Unit(), SmallFixedBitVector(16)))), None)
+i6 = block2.emit(UnionVariantCheck, 'UnionSpec_zTR_ResultzIUExceptionTypezIzKzCbzK_tup1_bv64_o_zTR_AddresszIUExceptionTypezIzKzCbzK', [i3], Bool(), None, None)
+block2.next = ConditionalGoto(i6, block3, block4, None)
+i7 = block3.emit(GlobalRead, 'zPC', [], SmallFixedBitVector(64), None, None)
+block3.next = Return(i7, None)
+i8 = block4.emit(UnionCast, 'UnionSpec_zTR_ResultzIUExceptionTypezIzKzCbzK_tup1_bv64_o_zTR_AddresszIUExceptionTypezIzKzCbzK', [i3], SmallFixedBitVector(64), None, None)
+block4.next = Return(i8, None)
+graph = Graph('zfetch', [zgsz321625], block0)
+''')
+
 

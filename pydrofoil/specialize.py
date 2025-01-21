@@ -20,6 +20,10 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
 
 # "demanded" casts of results
 
+def is_union_creation(value):
+    assert isinstance(value.resolved_type, types.Union)
+    res = type(value) is ir.Operation and value.name in value.resolved_type.variants
+    return res
 
 def usefully_specializable(graph):
     numblocks = 0
@@ -54,6 +58,7 @@ class Specializer(object):
                 if (arg, types.MachineInt()) in anticipated:
                     self.demanded_argtyps[index] = types.MachineInt()
         self.cache = {}
+        self.reconstructors = {}
         self.codegen = codegen
         self.dependencies = set()
         self.name_to_restyp = {}
@@ -85,6 +90,10 @@ class Specializer(object):
     def _reconstruct_result(self, restype, original_restype, newcall, optimizer):
         if restype is original_restype:
             return newcall
+        if isinstance(original_restype, types.Union):
+            opname, recon_graph = self._get_reconstructor(original_restype, restype)
+            res = optimizer.newop(opname, [newcall], original_restype)
+            return res
         if isinstance(original_restype, types.Struct):
             fields = []
             single_value_used = False
@@ -121,6 +130,45 @@ class Specializer(object):
                 assert original_restype is types.Packed(types.GenericBitVector())
                 return optimizer.newop(
                         "@pack_smallfixedbitvector", [ir.MachineIntConstant(restype.width), newcall], original_restype)
+
+    def _get_reconstructor(self, original_restype, restype):
+        key = (original_restype, restype)
+        if key in self.reconstructors:
+            return self.reconstructors[key]
+        a = ir.Argument('u', restype)
+        startblock = ir.Block()
+        returnexception = ir.Block()
+        rest = ir.Block()
+        returnblock = ir.Block()
+        b = startblock.emit(ir.GlobalRead, 'have_exception', [], types.Bool())
+        startblock.next = ir.ConditionalGoto(b, returnexception, rest)
+        returnexception.next = ir.Return(ir.DefaultValue(original_restype))
+        currblock = rest
+        results = []
+        blocks = []
+        for name, argtyp in zip(restype.names, restype.typs):
+            yesblock = ir.Block()
+            noblock = ir.Block()
+            b = currblock.emit(ir.UnionVariantCheck, name, [a], types.Bool())
+            currblock.next = ir.ConditionalGoto(b, noblock, yesblock)
+            cast = yesblock.emit(ir.UnionCast, name, [a], argtyp)
+            (origname, origtyp), = [(origname, origtyp) for origname, origtyp in zip(original_restype.names, original_restype.typs) if name.endswith(origname)]
+            res = self._reconstruct_result(argtyp, origtyp, cast, DummyOptimizer(yesblock))
+            unionres = yesblock.emit(ir.Operation, origname, [res], original_restype)
+            results.append(unionres)
+            yesblock.next = ir.Goto(returnblock)
+            blocks.append(yesblock)
+            currblock = noblock
+        currblock.next = ir.Raise(ir.StringConstant('match reconstructor'))
+
+        phi = returnblock.emit_phi(blocks, results, original_restype)
+        returnblock.next = ir.Return(phi)
+        graph = ir.Graph("convert_%s_%s" % (restype.name, original_restype.name), [a], startblock)
+        graph.check()
+        import pdb;pdb.set_trace()
+        self.codegen.inlinable_functions[graph.name] = graph
+        self.reconstructors[key] = graph.name, graph
+        return graph.name, graph
 
     def _make_stub(self, key):
         args = []
@@ -286,6 +334,56 @@ class Specializer(object):
                 newres = ir.StructConstruction(newtyp.name, fields, newtyp)
                 returnblock.operations.append(newres)
                 return newres, "_".join(['tup'] + extensions + ['put'])
+        elif isinstance(returnvalue.resolved_type, types.Union) and isinstance(returnvalue, ir.Phi) and all(is_union_creation(value) or isinstance(value, ir.DefaultValue) for value in returnvalue.prevvalues):
+            newvalues = []
+            useful = False
+            newvariants = {}
+            for value, prevblock in zip(returnvalue.prevvalues, returnvalue.prevblocks):
+                if isinstance(value, ir.DefaultValue):
+                    newvalues.append(None)
+                else:
+                    res, nameextension = self._find_result(graph, prevblock, value.args[0], optimizer)
+                    if res is not None:
+                        useful = True
+                    else:
+                        res = value.args[0]
+                        nameextension = 'o'
+
+                    variantname = value.name
+                    if variantname not in newvariants:
+                        newvariants[variantname] = res.resolved_type, nameextension
+                    elif newvariants[variantname][0] != res.resolved_type:
+                        return None, None
+                    newop = ir.Operation(variantname, [res], None, value.sourcepos)
+                    prevblock.operations.append(newop)
+                    newvalues.append(newop)
+            if useful:
+                namefragments = ['UnionSpec', returnvalue.resolved_type.name]
+                typs = []
+                for name in returnvalue.resolved_type.names:
+                    if name not in newvariants:
+                        continue
+                    typ, nameextension = newvariants[name]
+                    namefragments.append(nameextension)
+                    typs.append(typ)
+                newname = "_".join(namefragments)
+                variantmapping = {}
+                variantnames = []
+                for name in returnvalue.resolved_type.names:
+                    varname = newname + "_" + name
+                    variantmapping[name] = varname
+                    variantnames.append(varname)
+                newtyp = types.Union(newname, tuple(variantnames), tuple(typs))
+                for index, value in enumerate(newvalues):
+                    if value is None:
+                        newvalues[index] = ir.DefaultValue(newtyp)
+                    else:
+                        value.resolved_type = newtyp
+                        value.name = variantmapping[name]
+                newres = ir.Phi(returnvalue.prevblocks, newvalues, newtyp)
+                returnblock.operations.append(newres)
+                return newres, "_".join(['union'] + namefragments[2:] + ['noinu'])
+
         return None, None
 
     def _extract_key(self, call, optimizer):
@@ -331,13 +429,25 @@ class Specializer(object):
                 continue
             key.append((arg.resolved_type, None))
             args.append(arg)
-        if not useful:
-            if self.resulttyp is not types.Int() and self.resulttyp is not types.GenericBitVector():
-                return None, None
-            # for Int and GenericBitVector we might still benefit from result type specialization
+        #if not useful:
+        #    if self.resulttyp is not types.Int() and self.resulttyp is not types.GenericBitVector():
+        #        return None, None
+        #    # for Int and GenericBitVector we might still benefit from result type specialization
         key = tuple(key)
         assert len(key) == len(args) == len(call.args)
         return key, args
+
+class DummyOptimizer(object):
+    def __init__(self, block):
+        self.block = block
+        self.newoperations = block.operations
+
+    def newop(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
+        newop = ir.Operation(
+            name, args, resolved_type, sourcepos,
+            varname_hint)
+        self.newoperations.append(newop)
+        return newop
 
 
 class SpecializingOptimizer(ir.BaseOptimizer):
@@ -353,6 +463,9 @@ class SpecializingOptimizer(ir.BaseOptimizer):
             if newop:
                 return newop
         return ir.BaseOptimizer._optimize_op(self, block, index, op)
+
+    def optimize(self):
+        self = ir.BaseOptimizer.optimize(self)
 
 SPECIALIZABLE_BUILTINS = frozenset("""
 @zero_extend_o_i @undefined_bitvector_i

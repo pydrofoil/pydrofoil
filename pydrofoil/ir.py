@@ -4728,22 +4728,25 @@ def partial_allocation_removal(graph, codegen):
             return value
         fields = virtuals_in_block.pop(value)
         fieldvalues = []
+        seen_default_value = False
         typ = value.resolved_type
-        if isinstance(value, StructConstruction) or not typ.tuplestruct:
-            for name in typ.names:
-                if name in fields:
-                    fieldvalue = escape(fields[name])
-                else:
-                    fieldvalue = DefaultValue(typ.internalfieldtyps[name])
-                fieldvalues.append(fieldvalue)
+        for name in typ.names:
+            if name in fields:
+                fieldvalue = escape(fields[name])
+            else:
+                fieldvalue = DefaultValue(typ.internalfieldtyps[name])
+            if isinstance(fieldvalue, DefaultValue):
+                seen_default_value = True
+            fieldvalues.append(fieldvalue)
+        if isinstance(value, StructConstruction) or not typ.tuplestruct or not seen_default_value:
             op = StructConstruction(typ.name, fieldvalues, typ, value.sourcepos)
             newoperations.append(op)
         else:
             op = Allocate(typ, value.sourcepos)
             newoperations.append(op)
-            for name in typ.names:
-                if name in fields:
-                    newoperations.append(FieldWrite(name, [op, escape(fields[name])]))
+            for name, fieldvalue in zip(typ.names, fieldvalues):
+                if not isinstance(value, DefaultValue):
+                    newoperations.append(FieldWrite(name, [op, fieldvalue]))
         replacements[value] = op
         return op
     def get_repr(value):

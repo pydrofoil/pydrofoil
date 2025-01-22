@@ -357,6 +357,8 @@ class Specializer(object):
             newvalues = []
             useful = False
             newvariants = {}
+            uniontyp = returnvalue.resolved_type
+            uniontyp = self.new_union_typs.get(uniontyp, uniontyp)
             for value, prevblock in zip(returnvalue.prevvalues, returnvalue.prevblocks):
                 if isinstance(value, ir.DefaultValue):
                     newvalues.append(None)
@@ -394,8 +396,7 @@ class Specializer(object):
                     variantnames.append(varname)
                 newtyp = types.Union(newname, tuple(variantnames), tuple(typs))
                 self.new_union_typs[newtyp] = uniontyp
-                pyname = "UnionSpec_" + newname
-                self.codegen.add_union_type(newname, pyname, newtyp)
+                self.codegen.add_union_type(newname, newname, newtyp)
                 for index, value in enumerate(newvalues):
                     if value is None:
                         newvalues[index] = ir.DefaultValue(newtyp)

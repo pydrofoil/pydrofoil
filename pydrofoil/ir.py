@@ -1888,13 +1888,11 @@ def remove_if_phi_constant2(graph, codegen):
         ops = [op for op in block.operations if not isinstance(op, Comment)]
         if not all(isinstance(op, Phi) for op in ops):
             continue
-        singlevaluereachable = reachable_blocks(block.next.truetarget)
-        othervaluereachable = reachable_blocks(block.next.falsetarget)
+        singlevaluereachable = reachable_blocks(singlenextblock)
+        othervaluereachable = reachable_blocks(othernextblock)
         joinblocks = singlevaluereachable.intersection(othervaluereachable)
         singlevaluereachable -= joinblocks
         othervaluereachable -= joinblocks
-        if len(opvalues) > 2:
-            import pdb;pdb.set_trace()
         # make sure that none of the phis are used in the blocks that are
         # reachable by both the true and the false paths
         if has_uses(ops, joinblocks):
@@ -1902,8 +1900,8 @@ def remove_if_phi_constant2(graph, codegen):
         replacements = {}
         for phi in ops:
             replacements[phi] = phi.prevvalues[singlevalueindex]
-        for trueblock in singlevaluereachable:
-            trueblock.replace_ops(replacements)
+        for singleblock in singlevaluereachable:
+            singleblock.replace_ops(replacements)
         singleprevblock.next = Goto(singlenextblock)
         block.next = Goto(othernextblock)
         res = True

@@ -4630,11 +4630,20 @@ def remove_double_exception_check(graph, codegen):
             return False
         return True
     def is_exceptional_return(block):
-        if block.operations:
-            return False
-        if not isinstance(block.next, Return):
-            return False
-        return isinstance(block.next.value, DefaultValue)
+        if not block.operations and isinstance(block.next, Return) and isinstance(block.next.value, DefaultValue):
+            return True
+        if not block.operations and isinstance(block.next, Goto):
+            nextblock = block.next.target
+            if not isinstance(nextblock.next, Return):
+                return False
+            phi = nextblock.next.value
+            if not isinstance(phi, Phi):
+                return False
+            index = phi.prevblocks.index(block)
+            if not isinstance(phi.prevvalues[index], DefaultValue):
+                return False
+            return all(isinstance(op, (Phi, Comment)) for op in nextblock.operations)
+        return False
 
     def find_next_op(block):
         while not block.operations:

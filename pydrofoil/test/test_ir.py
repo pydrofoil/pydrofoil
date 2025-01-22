@@ -4904,3 +4904,21 @@ def test_bug_2():
     graph = Graph('ztranslate_specialized_o_o_o_o_o_o_o_o_o__union_tup1_bv64_o_noinu', [zsv_params, zasid, zptb, zvAddr, zac, zpriv, zmxr, zdo_sum, zext_ptw], block0)
     check_optimize(graph, '''
 ''')
+
+
+def test_union_of_unioncast():
+    u = Union('u', ('m', 'bv'), (MachineInt(), SmallFixedBitVector(8)))
+    a = Argument('a', u)
+    block0 = Block()
+    m = block0.emit(UnionCast, 'm', [a], MachineInt())
+    u1 = block0.emit(Operation, 'm', [m], u)
+    block0.next = Return(u1)
+    graph = Graph('g', [a], block0)
+    check_optimize(graph, '''
+u = Union('u', ('m', 'bv'), (MachineInt(), SmallFixedBitVector(8)))
+a = Argument('a', u)
+block0 = Block()
+block0.next = Return(a, None)
+graph = Graph('g', [a], block0)
+''')
+

@@ -2428,6 +2428,11 @@ def is_pow_2(num):
 def shift_amount(num):
     return bitvector.BigInteger._shift_amount(num)
 
+def is_union_creation(value):
+    if not isinstance(value.resolved_type, types.Union):
+        return False
+    return type(value) is Operation and value.name in value.resolved_type.variants
+
 class LocalOptimizer(BaseOptimizer):
 
     def _should_fit_machine_int(self, op):
@@ -2529,6 +2534,11 @@ class LocalOptimizer(BaseOptimizer):
             else:
                 if newop is not None:
                     return newop
+        if isinstance(op.resolved_type, types.Union) and is_union_creation(op):
+            arg0, = self._args(op)
+            if isinstance(arg0, UnionCast) and arg0.args[0].resolved_type == op.resolved_type:
+                assert arg0.name == op.name
+                return arg0.args[0]
 
         # try generic constant folding
         func = getattr(supportcode, name, None)
@@ -2770,9 +2780,6 @@ class LocalOptimizer(BaseOptimizer):
         return REMOVE
 
     def _optimize_UnionVariantCheck(self, op, block, index):
-        def is_union_creation(value):
-            assert isinstance(value.resolved_type, types.Union)
-            return type(value) is Operation and value.name in value.resolved_type.variants
         arg, = self._args(op)
         if type(arg) is Operation:
             if arg.name == op.name:

@@ -1835,8 +1835,22 @@ def remove_if_phi_constant(graph, codegen):
         join_blocks(graph, codegen)
     return res
 
+def reachable_blocks(startblock):
+    todo = [startblock]
+    seen = set()
+    while todo:
+        block = todo.pop()
+        if block in seen:
+            continue
+        seen.add(block)
+        todo.extend(block.next.next_blocks())
+    return seen
+
+
 @repeat
 def remove_if_phi_constant2(graph, codegen):
+    if graph.has_loop:
+        return False
     res = False
     d = None
     def has_uses(values, blocks):
@@ -1877,8 +1891,8 @@ def remove_if_phi_constant2(graph, codegen):
             continue
         if d is None:
             d = dominatees(graph)
-        trueblocks = d[block.next.truetarget]
-        falseblocks = d[block.next.falsetarget]
+        trueblocks = reachable_blocks(block.next.truetarget)
+        falseblocks = reachable_blocks(block.next.falsetarget)
         joinblocks = trueblocks.intersection(falseblocks)
         trueblocks -= joinblocks
         falseblocks -= joinblocks

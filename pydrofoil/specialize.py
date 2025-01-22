@@ -381,7 +381,7 @@ class Specializer(object):
                         newvalues[index] = ir.DefaultValue(newtyp)
                     else:
                         value.resolved_type = newtyp
-                        value.name = variantmapping[name]
+                        value.name = variantmapping[value.name]
                 newres = ir.Phi(returnvalue.prevblocks, newvalues, newtyp)
                 returnblock.operations.append(newres)
                 return newres, "_".join(['union'] + namefragments[2:] + ['noinu'])
@@ -472,7 +472,7 @@ class SpecializingOptimizer(ir.BaseOptimizer):
         return ir.BaseOptimizer._optimize_op(self, block, index, op)
 
     def optimize(self):
-        self = ir.BaseOptimizer.optimize(self)
+        return ir.BaseOptimizer.optimize(self)
 
 SPECIALIZABLE_BUILTINS = frozenset("""
 @zero_extend_o_i @undefined_bitvector_i

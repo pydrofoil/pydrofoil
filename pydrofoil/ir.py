@@ -2534,8 +2534,7 @@ class LocalOptimizer(BaseOptimizer):
                     return newop
         if isinstance(op.resolved_type, types.Union) and is_union_creation(op):
             arg0, = self._args(op)
-            if isinstance(arg0, UnionCast) and arg0.args[0].resolved_type == op.resolved_type:
-                assert arg0.name == op.name
+            if isinstance(arg0, UnionCast) and arg0.args[0].resolved_type == op.resolved_type and arg0.name == op.name:
                 return arg0.args[0]
 
         # try generic constant folding

@@ -1588,6 +1588,7 @@ def _bare_optimize(graph, codegen):
     res = remove_if_phi_constant2(graph, codegen) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
+    res = remove_union_cast_of_defaultvalue(graph, codegen) or res
     partial_allocation_removal(graph, codegen)
     return res
 
@@ -2786,12 +2787,15 @@ class LocalOptimizer(BaseOptimizer):
         if not isinstance(arg, Phi):
             return
         phi = arg
-        if not all(is_union_creation(value) for value in phi.prevvalues):
+        if not all(is_union_creation(value) or isinstance(value, DefaultValue) for value in phi.prevvalues):
             return
 
         results = []
         for value in phi.prevvalues:
-            results.append(BooleanConstant.frombool(value.name != op.name))
+            if isinstance(value, DefaultValue):
+                results.append(BooleanConstant.FALSE)
+            else:
+                results.append(BooleanConstant.frombool(value.name != op.name))
         if len(set(results)) == 1:
             return results[0]
         newphi = Phi(phi.prevblocks[:], results, types.Bool())
@@ -4685,6 +4689,45 @@ def remove_double_exception_check(graph, codegen):
         remove_dead(graph, codegen)
         return True
     return False
+
+@repeat
+def remove_union_cast_of_defaultvalue(graph, codegen):
+    def find_unioncast(block):
+        for index, op in enumerate(block.operations):
+            if (isinstance(op, UnionCast) and
+                    isinstance(op.args[0], Phi) and
+                    op.args[0] in block.operations):
+                for prevvalindex, val in enumerate(op.args[0].prevvalues):
+                    if isinstance(val, DefaultValue):
+                        return index, prevvalindex, op
+                return None
+            if not isinstance(op, (Phi, Comment)):
+                break
+        return None
+    result = False
+    for block in graph.iterblocks():
+        if not block.operations:
+            continue
+        op = block.operations[0]
+        if not isinstance(op, Phi):
+            continue
+        res = find_unioncast(block)
+        if res is None:
+            continue
+        index, prevvalindex, op = res
+        phi = op.args[0]
+        badblock = phi.prevblocks[prevvalindex]
+        assert isinstance(badblock.next, Goto)
+        badblock.next = Raise(StringConstant('bad union DefaultValue reached a UnionCast'))
+        result = True
+    if result:
+        _remove_unreachable_phi_prevvalues(graph)
+        simplify_phis(graph, codegen)
+        join_blocks(graph, codegen)
+        graph.check()
+    return result
+
+
 
 def find_anticipated_casts(graph):
     blocks = topo_order_best_attempt(graph)

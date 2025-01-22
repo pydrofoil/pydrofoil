@@ -733,7 +733,7 @@ class __extend__(parse.Function):
         self.pyname = pyname
         typ = codegen.globalnames[self.name].ast.typ
         blocks = self._prepare_blocks()
-        if self.detect_union_switch(blocks[0]):
+        if len(blocks) > 50 and self.detect_union_switch(blocks[0]):
             codegen.print_debug_msg("making method!", self.name)
             self._emit_methods(blocks, codegen)
             return

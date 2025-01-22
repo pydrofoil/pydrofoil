@@ -853,9 +853,11 @@ def pow2(machine, x):
 def neg_int(machine, x):
     return x.neg()
 
+@purefunction
 def dec_str(machine, x):
     return x.str()
 
+@purefunction
 def hex_str(machine, x):
     return x.hex()
 

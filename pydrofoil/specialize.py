@@ -354,14 +354,14 @@ class Specializer(object):
                 returnblock.operations.append(newres)
                 return newres, "_".join(['tup'] + extensions + ['put'])
         elif isinstance(returnvalue.resolved_type, types.Union) and isinstance(returnvalue, ir.Phi) and all(is_union_creation(value) or isinstance(value, ir.DefaultValue) for value in returnvalue.prevvalues):
-            newvalues = []
+            tuples = []
             useful = False
             newvariants = {}
             uniontyp = returnvalue.resolved_type
             uniontyp = self.new_union_typs.get(uniontyp, uniontyp)
             for value, prevblock in zip(returnvalue.prevvalues, returnvalue.prevblocks):
                 if isinstance(value, ir.DefaultValue):
-                    newvalues.append(None)
+                    tuples.append(None)
                 else:
                     res, nameextension = self._find_result(graph, prevblock, value.args[0], optimizer)
                     if res is not None:
@@ -375,9 +375,7 @@ class Specializer(object):
                         newvariants[variantname] = res.resolved_type, nameextension
                     elif newvariants[variantname][0] != res.resolved_type:
                         return None, None
-                    newop = ir.Operation(variantname, [res], None, value.sourcepos)
-                    prevblock.operations.append(newop)
-                    newvalues.append(newop)
+                    tuples.append((variantname, res, value, prevblock))
             if useful:
                 namefragments = ['UnionSpec', uniontyp.name]
                 typs = []
@@ -397,12 +395,16 @@ class Specializer(object):
                 newtyp = types.Union(newname, tuple(variantnames), tuple(typs))
                 self.new_union_typs[newtyp] = uniontyp
                 self.codegen.add_union_type(newname, newname, newtyp)
-                for index, value in enumerate(newvalues):
-                    if value is None:
-                        newvalues[index] = ir.DefaultValue(newtyp)
+                newvalues = []
+                for index, tup in enumerate(tuples):
+                    if tup is None:
+                        value = ir.DefaultValue(newtyp)
                     else:
-                        value.resolved_type = newtyp
-                        value.name = variantmapping[value.name]
+                        variantname, res, oldvalue, prevblock = tup
+                        value = ir.Operation(variantmapping[variantname], [res], newtyp, oldvalue.sourcepos)
+                        prevblock.operations.append(value)
+                    newvalues.append(value)
+
                 newres = ir.Phi(returnvalue.prevblocks, newvalues, newtyp)
                 returnblock.operations.append(newres)
                 return newres, "_".join(['union'] + namefragments[2:] + ['noinu'])

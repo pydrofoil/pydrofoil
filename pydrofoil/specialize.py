@@ -71,6 +71,7 @@ class Specializer(object):
         self.dependencies = set()
         self.name_to_restyp = {}
         self.new_union_typs = {} # newtyp -> oldtyp
+        self.union1_graph_to_variant = {}
 
     def specialize_call(self, call, optimizer):
         if self.graph is optimizer.graph:
@@ -100,9 +101,21 @@ class Specializer(object):
         if restype is original_restype:
             return newcall
         if isinstance(original_restype, types.Union):
-            opname, recon_graph = self._get_reconstructor(original_restype, restype)
-            res = optimizer.newop(opname, [newcall], original_restype)
-            return res
+            graph = self.codegen.all_graph_by_name[newcall.name]
+            if graph not in self.union1_graph_to_variant:
+                assert isinstance(restype, types.Union)
+                opname, recon_graph = self._get_reconstructor(original_restype, restype)
+                res = optimizer.newop(opname, [newcall], original_restype)
+                return res
+            else:
+                typ, variant = self.union1_graph_to_variant[graph]
+                if typ.variants[variant] != restype:
+                    import pdb;pdb.set_trace()
+                res = optimizer.newop(variant, [newcall], typ)
+                if typ != original_restype:
+                    import pdb;pdb.set_trace()
+                return res
+
         if isinstance(original_restype, types.Struct):
             fields = []
             single_value_used = False
@@ -249,7 +262,7 @@ class Specializer(object):
         # only support a single return block for now
         returnblock = self._extract_single_return_block(graph)
         if returnblock:
-            res, nameextension = self._find_result(graph, returnblock, returnblock.next.value)
+            res, nameextension = self._find_result(graph, returnblock, returnblock.next.value, toplevel=True)
             if res:
                 returnblock.next.value = res
                 resulttyp = res.resolved_type
@@ -269,6 +282,8 @@ class Specializer(object):
         returnblock = self._extract_single_return_block(graph)
         if returnblock is None:
             return False
+        if graph in self.union1_graph_to_variant:
+            del self.union1_graph_to_variant[graph]
         old_resulttyp = returnblock.next.value.resolved_type
         resulttyp, nameextension = self.find_result_type(graph)
         if nameextension and resulttyp is not old_resulttyp and resulttyp is not self.resulttyp:
@@ -291,7 +306,7 @@ class Specializer(object):
             return True
         return False
 
-    def _find_result(self, graph, returnblock, returnvalue, optimizer=None):
+    def _find_result(self, graph, returnblock, returnvalue, optimizer=None, toplevel=False):
         if optimizer is None:
             optimizer = ir.BaseOptimizer(graph, self.codegen)
         if returnvalue.resolved_type is types.Int():
@@ -353,6 +368,14 @@ class Specializer(object):
                 newres = ir.StructConstruction(newtyp.name, fields, newtyp)
                 returnblock.operations.append(newres)
                 return newres, "_".join(['tup'] + extensions + ['put'])
+        elif toplevel and isinstance(returnvalue.resolved_type, types.Union) and is_union_creation(returnvalue):
+            res, nameextension = self._find_result(graph, returnblock, returnvalue.args[0], optimizer)
+            if res is None:
+                res = returnvalue.args[0]
+                nameextension = "o"
+            nameextension = "union1_" + nameextension
+            self.union1_graph_to_variant[graph] = (returnvalue.resolved_type, returnvalue.name)
+            return res, nameextension
         elif isinstance(returnvalue.resolved_type, types.Union) and isinstance(returnvalue, ir.Phi) and all(is_union_creation(value) or isinstance(value, ir.DefaultValue) for value in returnvalue.prevvalues):
             tuples = []
             useful = False

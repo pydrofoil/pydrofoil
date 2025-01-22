@@ -1715,7 +1715,7 @@ def join_many_merges_phis(graph, codegen):
         return False
     result = False
     entrymap = graph.make_entrymap()
-    for block in graph.iterblocks():
+    for block in list(graph.iterblocks()):
         if not isinstance(block.next, Goto):
             continue
         if not block.operations or not all(isinstance(op, Phi) for op in block.operations):
@@ -1748,7 +1748,8 @@ def join_many_merges_phis(graph, codegen):
                 else:
                     assert prevblock.next.falsetarget is block
                     prevblock.next.falsetarget = nextblock
-        return True
+        result = True
+    return result
     
 
 @repeat

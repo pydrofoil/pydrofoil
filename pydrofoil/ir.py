@@ -1326,7 +1326,7 @@ class Raise(Next):
         return False
 
     def _repr(self, print_varnames, blocknames=None):
-        return "Raise(%s, %r)" % (self.kind, self.sourcepos)
+        return "Raise(%s, %r)" % (None if self.kind is None else self.kind._repr(print_varnames), self.sourcepos)
 
 class JustStop(Next):
     def __init__(self):

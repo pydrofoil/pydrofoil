@@ -62,6 +62,7 @@ class Specializer(object):
         self.codegen = codegen
         self.dependencies = set()
         self.name_to_restyp = {}
+        self.new_union_typs = {} # newtyp -> oldtyp
 
     def specialize_call(self, call, optimizer):
         if self.graph is optimizer.graph:
@@ -130,6 +131,7 @@ class Specializer(object):
                 assert original_restype is types.Packed(types.GenericBitVector())
                 return optimizer.newop(
                         "@pack_smallfixedbitvector", [ir.MachineIntConstant(restype.width), newcall], original_restype)
+        assert 0 # don't know how to reconstruct
 
     def _get_reconstructor(self, original_restype, restype):
         key = (original_restype, restype)
@@ -152,7 +154,17 @@ class Specializer(object):
             b = currblock.emit(ir.UnionVariantCheck, name, [a], types.Bool())
             currblock.next = ir.ConditionalGoto(b, noblock, yesblock)
             cast = yesblock.emit(ir.UnionCast, name, [a], argtyp)
-            (origname, origtyp), = [(origname, origtyp) for origname, origtyp in zip(original_restype.names, original_restype.typs) if name.endswith(origname)]
+            if restype in self.new_union_typs:
+                assert original_restype not in self.new_union_typs
+                (origname, origtyp), = [(origname, origtyp) for origname, origtyp in zip(original_restype.names, original_restype.typs) if name.endswith(origname)]
+            else:
+                assert original_restype in self.new_union_typs # reverse reconstruction! can hapen if a function gets specialized further
+                (origname, origtyp), = [(origname, origtyp) for origname, origtyp in zip(original_restype.names, original_restype.typs) if origname.endswith(name)]
+                if argtyp == types.GenericBitVector() and isinstance(origtyp, types.SmallFixedBitVector):
+                    cast = yesblock.emit(ir.Cast, "$cast", [cast], origtyp)
+                    argtyp = origtyp
+
+
             res = self._reconstruct_result(argtyp, origtyp, cast, DummyOptimizer(yesblock))
             unionres = yesblock.emit(ir.Operation, origname, [res], original_restype)
             results.append(unionres)
@@ -165,7 +177,6 @@ class Specializer(object):
         returnblock.next = ir.Return(phi)
         graph = ir.Graph("convert_%s_%s" % (restype.name, original_restype.name), [a], startblock)
         graph.check()
-        import pdb;pdb.set_trace()
         self.codegen.inlinable_functions[graph.name] = graph
         self.reconstructors[key] = graph.name, graph
         return graph.name, graph
@@ -374,6 +385,7 @@ class Specializer(object):
                     variantmapping[name] = varname
                     variantnames.append(varname)
                 newtyp = types.Union(newname, tuple(variantnames), tuple(typs))
+                self.new_union_typs[newtyp] = returnvalue.resolved_type
                 pyname = "UnionSpec_" + newname
                 self.codegen.add_union_type(newname, pyname, newtyp)
                 for index, value in enumerate(newvalues):

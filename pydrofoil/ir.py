@@ -1490,6 +1490,7 @@ def repeat(func):
             if DEBUG_REPEAT and repeat.debug_list is not None:
                 repeat.debug_list.append((func.func_name, "before", i, print_graph_construction(graph), ever_changed))
             changed = func(graph, codegen, *args, **kwargs)
+            graph.check()
             if DEBUG_REPEAT and repeat.debug_list is not None:
                 repeat.debug_list.append((func.func_name, "after", i, print_graph_construction(graph), changed))
             assert isinstance(changed, (bool, str, type(None)))

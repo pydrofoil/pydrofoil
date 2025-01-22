@@ -25,6 +25,15 @@ def is_union_creation(value):
     res = type(value) is ir.Operation and value.name in value.resolved_type.variants
     return res
 
+def usefully_specializable_restype(restype):
+    if restype is types.Int() or restype is types.GenericBitVector():
+        return True
+    if isinstance(restype, types.Struct) and restype.tuplestruct:
+        return any(usefully_specializable_restype(typ) for typ in restype.typs)
+    if isinstance(restype, types.Union):
+        return any(usefully_specializable_restype(typ) for typ in restype.typs)
+    return False
+
 def usefully_specializable(graph):
     numblocks = 0
     restype = None
@@ -35,8 +44,7 @@ def usefully_specializable(graph):
             restype = block.next.value.resolved_type
         numblocks += 1
     if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool, types.Union, types.Struct)) for arg in graph.args):
-        if restype is not types.Int() and restype is not types.GenericBitVector():
-            return False
+        return usefully_specializable_restype(restype)
     return numblocks < 100
 
 
@@ -369,9 +377,9 @@ class Specializer(object):
                     prevblock.operations.append(newop)
                     newvalues.append(newop)
             if useful:
-                namefragments = ['UnionSpec', returnvalue.resolved_type.name]
+                namefragments = ['UnionSpec', uniontyp.name]
                 typs = []
-                for name in returnvalue.resolved_type.names:
+                for name in uniontyp.names:
                     if name not in newvariants:
                         continue
                     typ, nameextension = newvariants[name]
@@ -380,12 +388,12 @@ class Specializer(object):
                 newname = "_".join(namefragments)
                 variantmapping = {}
                 variantnames = []
-                for name in returnvalue.resolved_type.names:
+                for name in uniontyp.names:
                     varname = newname + "_" + name
                     variantmapping[name] = varname
                     variantnames.append(varname)
                 newtyp = types.Union(newname, tuple(variantnames), tuple(typs))
-                self.new_union_typs[newtyp] = returnvalue.resolved_type
+                self.new_union_typs[newtyp] = uniontyp
                 pyname = "UnionSpec_" + newname
                 self.codegen.add_union_type(newname, pyname, newtyp)
                 for index, value in enumerate(newvalues):

@@ -5044,7 +5044,7 @@ block4.next = Raise(StringConstant('model/riscv_sys_exceptions.sail:29: Invalid 
 graph = Graph('zprepare_trap_vector', [zbv, zcause], block0)
 ''')
 
-def test_heck():
+def test_remove_double_exception_check_after_defaultvalue_phi_merge():
     zAccessTypezIuzK = Union('zAccessTypezIuzK', ('zExecutezIuzK', 'zReadzIuzK', 'zReadWritezIuzK', 'zWritezIuzK'), (Unit(), Unit(), Struct('ztuplez3z5unit_z5unit', ('ztuplez3z5unit_z5unit0', 'ztuplez3z5unit_z5unit1'), (Unit(), Unit()), True), Unit()))
     zPrivilege = Enum('zPrivilege', ('zUser', 'zSupervisor', 'zMachine'))
     UnionSpec_zMemoryOpResultzIz8bzCuz9zK_o_tup1_bv16 = Union('UnionSpec_zMemoryOpResultzIz8bzCuz9zK_o_tup1_bv16', ('UnionSpec_zMemoryOpResultzIz8bzCuz9zK_o_tup1_bv16_zMemExceptionzIz8bzCuz9zK', 'UnionSpec_zMemoryOpResultzIz8bzCuz9zK_o_tup1_bv16_zMemValuezIz8bzCuz9zK'), (Union('zExceptionType', ('zE_Breakpoint', 'zE_Extension', 'zE_Fetch_Access_Fault', 'zE_Fetch_Addr_Align', 'zE_Fetch_Page_Fault', 'zE_Illegal_Instr', 'zE_Load_Access_Fault', 'zE_Load_Addr_Align', 'zE_Load_Page_Fault', 'zE_M_EnvCall', 'zE_Reserved_10', 'zE_Reserved_14', 'zE_SAMO_Access_Fault', 'zE_SAMO_Addr_Align', 'zE_SAMO_Page_Fault', 'zE_S_EnvCall', 'zE_U_EnvCall'), (Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit(), Unit())), SmallFixedBitVector(16)))
@@ -5109,8 +5109,6 @@ def test_heck():
     i12.prevvalues[0] = i29
     block10.next = Goto(block2, None)
     graph = Graph('zmem_read_priv_specialized_o_o_o_2_False_False_False', [ztyp, zpriv, zpaddr, zwidth, zaq, zrl, zres], block0)
-    graph.view()
-    import pdb;pdb.set_trace()
     res = remove_double_exception_check(graph, fakecodegen)
     assert res
     check_optimize(graph, '''

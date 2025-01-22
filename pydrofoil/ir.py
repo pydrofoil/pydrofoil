@@ -1490,7 +1490,6 @@ def repeat(func):
             if DEBUG_REPEAT and repeat.debug_list is not None:
                 repeat.debug_list.append((func.func_name, "before", i, print_graph_construction(graph), ever_changed))
             changed = func(graph, codegen, *args, **kwargs)
-            graph.check()
             if DEBUG_REPEAT and repeat.debug_list is not None:
                 repeat.debug_list.append((func.func_name, "after", i, print_graph_construction(graph), changed))
             assert isinstance(changed, (bool, str, type(None)))
@@ -1854,7 +1853,6 @@ def remove_if_phi_constant2(graph, codegen):
     if graph.has_loop:
         return False
     res = False
-    d = None
     def has_uses(values, blocks):
         for block in blocks:
             for op in block.operations:
@@ -1873,52 +1871,47 @@ def remove_if_phi_constant2(graph, codegen):
         assert op.resolved_type is types.Bool()
         if not isinstance(op, Phi):
             continue
-        if len(op.prevvalues) != 2:
-            continue
         if op not in block.operations:
             continue
         if not all(isinstance(val, BooleanConstant) for val in op.prevvalues):
             continue
         opvalues = [val.value for val in op.prevvalues]
-        if opvalues == [True, False]:
-            trueprevblock, falseprevblock = op.prevblocks
-            trueindex, falseindex = 0, 1
-        elif opvalues == [False, True]:
-            falseprevblock, trueprevblock = op.prevblocks
-            falseindex, trueindex = 0, 1
+        for singlevalue in [True, False]:
+            if opvalues.count(singlevalue) == 1:
+                singlevalueindex = opvalues.index(singlevalue)
+                singleprevblock = op.prevblocks[singlevalueindex]
+                singlenextblock = block.next.truetarget if singlevalue else block.next.falsetarget
+                othernextblock = block.next.truetarget if not singlevalue else block.next.falsetarget
+                break
         else:
             continue
         ops = [op for op in block.operations if not isinstance(op, Comment)]
         if not all(isinstance(op, Phi) for op in ops):
             continue
-        if d is None:
-            d = dominatees(graph)
-        trueblocks = reachable_blocks(block.next.truetarget)
-        falseblocks = reachable_blocks(block.next.falsetarget)
-        joinblocks = trueblocks.intersection(falseblocks)
-        trueblocks -= joinblocks
-        falseblocks -= joinblocks
+        singlevaluereachable = reachable_blocks(block.next.truetarget)
+        othervaluereachable = reachable_blocks(block.next.falsetarget)
+        joinblocks = singlevaluereachable.intersection(othervaluereachable)
+        singlevaluereachable -= joinblocks
+        othervaluereachable -= joinblocks
+        if len(opvalues) > 2:
+            import pdb;pdb.set_trace()
         # make sure that none of the phis are used in the blocks that are
         # reachable by both the true and the false paths
         if has_uses(ops, joinblocks):
             continue
-        replacements_true = {}
-        replacements_false = {}
+        replacements = {}
         for phi in ops:
-            replacements_true[phi] = phi.prevvalues[trueindex]
-            replacements_false[phi] = phi.prevvalues[falseindex]
-        for trueblock in trueblocks:
-            trueblock.replace_ops(replacements_true)
-        for falseblock in falseblocks:
-            falseblock.replace_ops(replacements_false)
-        trueprevblock.next = Goto(block.next.truetarget)
-        falseprevblock.next = Goto(block.next.falsetarget)
+            replacements[phi] = phi.prevvalues[singlevalueindex]
+        for trueblock in singlevaluereachable:
+            trueblock.replace_ops(replacements)
+        singleprevblock.next = Goto(singlenextblock)
+        block.next = Goto(othernextblock)
         res = True
         break
 
     if res:
-        graph.check()
         _remove_unreachable_phi_prevvalues(graph)
+        graph.check()
         simplify_phis(graph, codegen)
         join_blocks(graph, codegen)
     return res

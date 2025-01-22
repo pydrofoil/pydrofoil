@@ -34,7 +34,7 @@ def usefully_specializable(graph):
                 return False
             restype = block.next.value.resolved_type
         numblocks += 1
-    if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool)) for arg in graph.args):
+    if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool, types.Union, types.Struct)) for arg in graph.args):
         if restype is not types.Int() and restype is not types.GenericBitVector():
             return False
     return numblocks < 100
@@ -374,6 +374,8 @@ class Specializer(object):
                     variantmapping[name] = varname
                     variantnames.append(varname)
                 newtyp = types.Union(newname, tuple(variantnames), tuple(typs))
+                pyname = "UnionSpec_" + newname
+                self.codegen.add_union_type(newname, pyname, newtyp)
                 for index, value in enumerate(newvalues):
                     if value is None:
                         newvalues[index] = ir.DefaultValue(newtyp)
@@ -446,6 +448,11 @@ class DummyOptimizer(object):
         newop = ir.Operation(
             name, args, resolved_type, sourcepos,
             varname_hint)
+        self.newoperations.append(newop)
+        return newop
+
+    def newcast(self, arg, resolved_type, sourcepos=None, varname_hint=None):
+        newop = ir.Cast(arg, resolved_type, sourcepos, varname_hint)
         self.newoperations.append(newop)
         return newop
 

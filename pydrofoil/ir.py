@@ -1837,8 +1837,6 @@ def remove_if_phi_constant(graph, codegen):
 
 @repeat
 def remove_if_phi_constant2(graph, codegen):
-    from pydrofoil.emitfunction import count_uses
-    uses = count_uses(graph)
     res = False
     d = None
     def has_uses(values, blocks):
@@ -1860,6 +1858,8 @@ def remove_if_phi_constant2(graph, codegen):
         if not isinstance(op, Phi):
             continue
         if len(op.prevvalues) != 2:
+            continue
+        if op not in block.operations:
             continue
         if not all(isinstance(val, BooleanConstant) for val in op.prevvalues):
             continue
@@ -1901,6 +1901,7 @@ def remove_if_phi_constant2(graph, codegen):
         break
 
     if res:
+        graph.check()
         _remove_unreachable_phi_prevvalues(graph)
         simplify_phis(graph, codegen)
         join_blocks(graph, codegen)

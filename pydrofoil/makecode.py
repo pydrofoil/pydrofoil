@@ -293,6 +293,14 @@ class Codegen(specialize.FixpointSpecializer):
                 self.emit("return True")
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
 
+    def add_union_type(self, name, pyname, uniontyp, ast=None):
+        if uniontyp in self.seen_typs:
+            return
+        self.seen_typs.add(uniontyp)
+        self.add_named_type(name, pyname, uniontyp, ast)
+        UnionCodeMaker(uniontyp, pyname).make_code(self)
+
+
 def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
     from pydrofoil.infer import infer
     t1 = time.time()
@@ -385,15 +393,27 @@ class __extend__(parse.Enum):
 
 class __extend__(parse.Union):
     def make_code(self, codegen):
-        name = "Union_" + self.name
-        self.pyname = name
-        # pre-declare the types
         rtyps = [typ.resolve_type(codegen) for typ in self.types]
+        uniontyp = types.Union(self.name, tuple(self.names), tuple(rtyps))
+        pyname = "Union_" + self.name
+        codegen.add_union_type(self.name, pyname, uniontyp, ast=self)
+
+
+class UnionCodeMaker(object):
+    def __init__(self, typ, pyname):
+        self.typ = typ
+        self.pyname = pyname
+        self.name = typ.name
+        self.names = typ.names
+
+    def make_code(self, codegen):
+        # pre-declare the types
+        rtyps = self.typ.typs
         with codegen.emit_code_type("declarations"):
             self.pynames = []
             names = tuple(self.names)
-            uniontyp = types.Union(self.name, names, tuple(rtyps))
-            codegen.add_named_type(self.name, self.pyname, uniontyp, self)
+            name = self.pyname
+            uniontyp = self.typ
             uniontyp.compact_union = False
             bits = bits_needed(uniontyp) 
             if bits <= 64:
@@ -406,8 +426,7 @@ class __extend__(parse.Union):
                     codegen.emit("return False")
             codegen.emit("%s.singleton = %s()" % (name, name))
             uniontyp.uninitialized_value = "%s.singleton" % (name, )
-            for name, typ in zip(self.names, self.types):
-                rtyp = typ.resolve_type(codegen)
+            for name, rtyp in zip(self.names, rtyps):
                 pyname = self.pyname + "_" + name
                 codegen.add_global(name, pyname, uniontyp, self)
                 self.pynames.append(pyname)
@@ -418,10 +437,10 @@ class __extend__(parse.Union):
                             codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value, bare=True))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
-                    self.make_init(codegen, rtyp, typ, pyname)
-                    self.make_eq(codegen, rtyp, typ, pyname)
-                    self.make_convert(codegen, rtyp, typ, pyname)
-                    self.make_check_variant(codegen, rtyp, typ, pyname)
+                    self.make_init(codegen, rtyp, pyname)
+                    self.make_eq(codegen, rtyp, pyname)
+                    self.make_convert(codegen, rtyp, pyname)
+                    self.make_check_variant(codegen, rtyp, pyname)
                 if rtyp is types.Unit():
                     codegen.emit("%s.singleton = %s(())" % (pyname, pyname))
                 if type(rtyp) is types.Enum:
@@ -434,7 +453,7 @@ class __extend__(parse.Union):
         if self.name == "zexception":
             codegen.add_global("current_exception", "machine.current_exception", uniontyp, self, "machine.current_exception")
 
-    def make_init(self, codegen, rtyp, typ, pyname):
+    def make_init(self, codegen, rtyp, pyname):
         if type(rtyp) is types.Enum:
             codegen.emit("@staticmethod")
             codegen.emit("@objectmodel.specialize.arg_or_var(0)")
@@ -447,13 +466,13 @@ class __extend__(parse.Union):
             if rtyp is types.Unit():
                 codegen.emit("pass")
             elif type(rtyp) is types.Struct:
-                codegen.emit("# %s" % typ)
+                codegen.emit("# %s" % rtyp)
                 for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                     codegen.emit(fieldtyp.packed_field_copy("self.%s" % fieldname, "a.%s" % (fieldname, )))
             else:
-                codegen.emit("self.a = a # %s" % (typ, ))
+                codegen.emit("self.a = a # %s" % (rtyp, ))
 
-    def make_eq(self, codegen, rtyp, typ, pyname):
+    def make_eq(self, codegen, rtyp, pyname):
         codegen.emit("@objectmodel.always_inline")
         with codegen.emit_indent("def eq(self, other):"):
             codegen.emit("if type(self) is not type(other): return False")
@@ -462,7 +481,7 @@ class __extend__(parse.Union):
                 codegen.emit("return True")
                 return
             elif type(rtyp) is types.Struct:
-                codegen.emit("# %s" % typ)
+                codegen.emit("# %s" % rtyp)
                 for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                     codegen.emit("if %s: return False" % (
                         fieldtyp.make_op_code_special_neq(
@@ -471,10 +490,10 @@ class __extend__(parse.Union):
                             (fieldtyp, fieldtyp), types.Bool())))
             else:
                 codegen.emit("if %s: return False # %s" % (
-                    rtyp.make_op_code_special_neq(None, ('self.a', 'other.a'), (rtyp, rtyp), types.Bool()), typ))
+                    rtyp.make_op_code_special_neq(None, ('self.a', 'other.a'), (rtyp, rtyp), types.Bool()), rtyp))
             codegen.emit("return True")
 
-    def make_convert(self, codegen, rtyp, typ, pyname):
+    def make_convert(self, codegen, rtyp, pyname):
         codegen.emit("@staticmethod")
         codegen.emit("@objectmodel.always_inline")
         with codegen.emit_indent("def convert(inst):"):
@@ -491,7 +510,7 @@ class __extend__(parse.Union):
             with codegen.emit_indent("else:"):
                 codegen.emit("raise TypeError")
 
-    def make_check_variant(self, codegen, rtyp, typ, pyname):
+    def make_check_variant(self, codegen, rtyp, pyname):
         codegen.emit("@staticmethod")
         codegen.emit("@objectmodel.always_inline")
         with codegen.emit_indent("def check_variant(inst):"):
@@ -511,15 +530,14 @@ class __extend__(parse.Union):
             codegen.emit("SHIFT = %s" % (bits_tag, ))
             codegen.emit("TAG_MASK = 0x%x" % ((1 << bits_tag) - 1, ))
 
-            for number, (name, typ) in enumerate(zip(self.names, self.types)):
+            for number, (name, rtyp) in enumerate(zip(self.names, uniontyp.typs)):
                 codegen.emit("%s_tag = r_uint(0x%x)" % (name, number))
             number += 1
             uninitialized_value = r_uint(hash(str(uniontyp))) # deterministic and based on the type
             uninitialized_value = (uninitialized_value << bits_tag) | number
             codegen.emit("UNINIT = r_uint(0x%x)" % (uninitialized_value, ))
         uniontyp.uninitialized_value = "%s.UNINIT" % (self.pyname, )
-        for name, typ in zip(self.names, self.types):
-            rtyp = typ.resolve_type(codegen)
+        for name, rtyp in zip(self.names, self.typ.typs):
             pyname = self.pyname + "_" + name
             codegen.add_global(name, pyname, uniontyp, self)
             self.pynames.append(pyname)

@@ -14,6 +14,9 @@ class FakeCodeGen(FixpointSpecializer):
     def add_struct_type(self, *args):
         pass
 
+    def add_union_type(self, *args):
+        pass
+
 def test_specialize():
     fakecodegen = FakeCodeGen()
     zxs = Argument('zxs', GenericBitVector())

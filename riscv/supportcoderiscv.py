@@ -765,7 +765,7 @@ def patch_checked_mem_function(outriscv, name):
 
 
 def patch_tlb(outriscv):
-    func = outriscv.func_ztranslate_TLB_hit
+    func = outriscv.func_ztranslate_TLB_hit_specialized_o_o_o_o_o_o_o_o_o_o_o__union_tup1_bv64_o_noinu # lol
     def translate_tlb_hit(machine, zsv_params, zasid, zptb, zvAddr, zac, zpriv, zmxr, zdo_sum, zext_ptw, ztlb_index, zent):
         mask = jit.promote(zent.zvAddrMask)
         jit.record_exact_value(zent.zvMatchMask, ~mask)
@@ -773,7 +773,7 @@ def patch_tlb(outriscv):
             jit.record_exact_value(zent.zpAddr & mask, r_uint(0))
         res = func(machine, zsv_params, zasid, zptb, zvAddr, zac, zpriv, zmxr, zdo_sum, zext_ptw, ztlb_index, zent)
         return res
-    outriscv.func_ztranslate_TLB_hit = translate_tlb_hit
+    outriscv.func_ztranslate_TLB_hit_specialized_o_o_o_o_o_o_o_o_o_o_o__union_tup1_bv64_o_noinu = translate_tlb_hit
 
 
 def get_main(outriscv, rv64):

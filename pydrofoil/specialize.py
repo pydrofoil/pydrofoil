@@ -72,6 +72,7 @@ class Specializer(object):
         self.name_to_restyp = {}
         self.new_union_typs = {} # newtyp -> oldtyp
         self.union1_graph_to_variant = {}
+        self.name_to_key = {}
 
     def specialize_call(self, call, optimizer):
         if self.graph is optimizer.graph:
@@ -91,6 +92,7 @@ class Specializer(object):
             self.cache[key] = None # meaning "in progress"
             stubgraph, restype = self._make_stub(key)
             self.cache[key] = stubgraph, restype
+            self.name_to_key[stubgraph.name] = key
         self.dependencies.add(optimizer.graph)
         if call.name == stubgraph.name:
             return None # no change in optimization level
@@ -211,7 +213,14 @@ class Specializer(object):
             arg = ir.Argument(oldarg.name, typ)
             args.append(arg)
             if typ != oldarg.resolved_type:
-                if typ is types.MachineInt():
+                if isinstance(oldarg.resolved_type, types.Union):
+                    assert value is not None
+                    assert oldarg.resolved_type.variants[value] == typ
+                    unioncreation = ir.Operation(value, [arg], oldarg.resolved_type)
+                    ops.append(unioncreation)
+                    callargs.append(unioncreation)
+                    sargs.append(value)
+                elif typ is types.MachineInt():
                     if value is not None:
                         sargs.append(str(value).replace('-', 'minus'))
                         arg = ir.MachineIntConstant(value)
@@ -302,6 +311,7 @@ class Specializer(object):
                 if g is graph:
                     assert typ is old_resulttyp
                     self.cache[key] = (g, resulttyp)
+                    self.name_to_key[g.name] = key
                     break
             else:
                 assert 0
@@ -440,7 +450,7 @@ class Specializer(object):
         key = []
         args = []
         useful = False
-        for arg, argtyp, demanded_argtyp in zip(call.args, self.argtyps, self.demanded_argtyps):
+        for argindex, (arg, argtyp, demanded_argtyp) in enumerate(zip(call.args, self.argtyps, self.demanded_argtyps)):
             if argtyp is types.Int() or argtyp is types.MachineInt():
                 try:
                     arg = optimizer._extract_machineint(arg)
@@ -473,14 +483,23 @@ class Specializer(object):
                 useful = True
                 continue
             elif isinstance(argtyp, types.Enum) and isinstance(arg, ir.EnumConstant):
-                import pdb;pdb.set_trace()
                 key.append((argtyp, arg.variant))
                 args.append(arg)
                 useful = True
                 continue
-            #elif isinstance(argtyp, types.Union) and is_union_creation(arg):
-            #    import pdb;pdb.set_trace()
-            #    pass
+            elif isinstance(argtyp, types.Union):
+                if arg.resolved_type is argtyp:
+                    if is_union_creation(arg) and arg.args[0].resolved_type is not types.Unit():
+                        key.append((argtyp.variants[arg.name], arg.name))
+                        args.append(arg.args[0])
+                        useful = True
+                        continue
+                else:
+                    oldkey = self.name_to_key[call.name]
+                    key.append(oldkey[argindex])
+                    args.append(arg)
+                    useful = True
+                    continue
             if demanded_argtyp is types.MachineInt():
                 key.append((types.MachineInt(), None))
                 args.append(optimizer._make_int_to_int64(arg))

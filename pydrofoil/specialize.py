@@ -115,7 +115,8 @@ class Specializer(object):
                     newcall = self._reconstruct_result(restype, typ.variants[variant], newcall, optimizer)
                 res = optimizer.newop(variant, [newcall], typ)
                 if typ != original_restype:
-                    import pdb;pdb.set_trace()
+                    opname, recon_graph = self._get_reconstructor(original_restype, typ)
+                    res = optimizer.newop(opname, [newcall], original_restype)
                 return res
 
         if isinstance(original_restype, types.Struct):
@@ -179,10 +180,12 @@ class Specializer(object):
             cast = yesblock.emit(ir.UnionCast, name, [a], argtyp)
             if restype in self.new_union_typs:
                 assert original_restype not in self.new_union_typs
-                (origname, origtyp), = [(origname, origtyp) for origname, origtyp in zip(original_restype.names, original_restype.typs) if name.endswith(origname)]
+                origname, = [key for key, value in self.new_union_typs[restype][1].items() if value == name]
+                origtyp = original_restype.variants[origname]
             else:
                 assert original_restype in self.new_union_typs # reverse reconstruction! can hapen if a function gets specialized further
-                (origname, origtyp), = [(origname, origtyp) for origname, origtyp in zip(original_restype.names, original_restype.typs) if origname.endswith(name)]
+                origname = self.new_union_typs[original_restype][1][name]
+                origtyp = original_restype.variants[origname]
                 if argtyp == types.GenericBitVector() and isinstance(origtyp, types.SmallFixedBitVector):
                     cast = yesblock.emit(ir.Cast, "$cast", [cast], origtyp)
                     argtyp = origtyp
@@ -393,7 +396,7 @@ class Specializer(object):
             useful = False
             newvariants = {}
             uniontyp = returnvalue.resolved_type
-            uniontyp = self.new_union_typs.get(uniontyp, uniontyp)
+            uniontyp = self.new_union_typs.get(uniontyp, (uniontyp, None))[0]
             for value, prevblock in zip(returnvalue.prevvalues, returnvalue.prevblocks):
                 if isinstance(value, ir.DefaultValue):
                     tuples.append(None)
@@ -428,8 +431,25 @@ class Specializer(object):
                     variantmapping[name] = varname
                     variantnames.append(varname)
                 newtyp = types.Union(newname, tuple(variantnames), tuple(typs))
-                self.new_union_typs[newtyp] = uniontyp
-                self.codegen.add_union_type(newname, newname, newtyp)
+                typset = frozenset(typs)
+                needs_adding = True
+                if len(typset) == len(typs):
+                    if typset in self.codegen._union_memo:
+                        if self.codegen._union_memo[typset] is not newtyp:
+                            needs_adding = False
+                            newtyp = self.codegen._union_memo[typset]
+                            variantmapping = {}
+                            for name in uniontyp.names:
+                                if name not in newvariants:
+                                    continue
+                                typ, _ = newvariants[name]
+                                variantindex = newtyp.typs.index(typ)
+                                variantmapping[name] = newtyp.names[variantindex]
+                    else:
+                        self.codegen._union_memo[typset] = newtyp
+                self.new_union_typs[newtyp] = uniontyp, variantmapping
+                if needs_adding:
+                    self.codegen.add_union_type(newname, newname, newtyp)
                 newvalues = []
                 for index, tup in enumerate(tuples):
                     if tup is None:
@@ -626,6 +646,7 @@ class FixpointSpecializer(object):
         self.all_graph_by_name = {}
         self.inline_dependencies = defaultdict(set) # graph -> {graphs}
         self.program_entrypoints = entrypoints
+        self._union_memo = {}
         # attributes for printing
         self._highlevel_task_msg = ''
         self._terminal_columns = py.io.get_terminal_width()

@@ -110,7 +110,7 @@ class Specializer(object):
             else:
                 typ, variant = self.union1_graph_to_variant[graph]
                 if typ.variants[variant] != restype:
-                    import pdb;pdb.set_trace()
+                    newcall = self._reconstruct_result(restype, typ.variants[variant], newcall, optimizer)
                 res = optimizer.newop(variant, [newcall], typ)
                 if typ != original_restype:
                     import pdb;pdb.set_trace()

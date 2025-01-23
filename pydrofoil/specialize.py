@@ -231,6 +231,8 @@ class Specializer(object):
                     sargs.append(str(value).replace('-', 'minus'))
                     if typ is types.Bool():
                         callargs.append(ir.BooleanConstant.TRUE if value else ir.BooleanConstant.FALSE)
+                    elif isinstance(typ, types.Enum):
+                        callargs.append(ir.EnumConstant(value, typ))
                     else:
                         assert typ is types.MachineInt()
                         callargs.append(ir.MachineIntConstant(value))
@@ -470,6 +472,15 @@ class Specializer(object):
                 args.append(arg)
                 useful = True
                 continue
+            elif isinstance(argtyp, types.Enum) and isinstance(arg, ir.EnumConstant):
+                import pdb;pdb.set_trace()
+                key.append((argtyp, arg.variant))
+                args.append(arg)
+                useful = True
+                continue
+            #elif isinstance(argtyp, types.Union) and is_union_creation(arg):
+            #    import pdb;pdb.set_trace()
+            #    pass
             if demanded_argtyp is types.MachineInt():
                 key.append((types.MachineInt(), None))
                 args.append(optimizer._make_int_to_int64(arg))

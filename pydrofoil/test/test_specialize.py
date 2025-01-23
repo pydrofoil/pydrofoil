@@ -976,3 +976,21 @@ block1.next = Return(DefaultValue(Union('zFetchResult', ('zF_Base', 'zF_Error', 
 block2.next = Return(i2, None)
 graph = Graph('zfetch', [zgsz321625], block0)
 ''')
+
+def test_specialize_enum_args():
+    privilege = Enum('zPrivilege', ('zUser', 'zSupervisor', 'zMachine'))
+    p = Argument('p', privilege)
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    b = block0.emit(Operation, "@eq", [p, EnumConstant('zMachine', privilege)], Bool())
+    block0.next = ConditionalGoto(b, block1, block2)
+    block1.next = Return(MachineIntConstant(1))
+    block2.next = Return(MachineIntConstant(1))
+    graph = Graph('g', [p], block0)
+
+    fakecodegen = FakeCodeGen()
+    spec = Specializer(graph, fakecodegen)
+    a, b = spec._make_stub(((privilege, 'zMachine'), ))
+    assert a
+    assert len(list(a.iterblocks())) == 1

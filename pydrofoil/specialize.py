@@ -74,6 +74,12 @@ class Specializer(object):
         self.union1_graph_to_variant = {}
         self.name_to_key = {}
 
+    def view(self, *args, **kwargs):
+        return self.graph.view(*args, **kwargs)
+
+    def __repr__(self):
+        return "<%s %s variants: %s>" % (self.__class__.__name__, self.graph, len(self.cache))
+
     def specialize_call(self, call, optimizer):
         if self.graph is optimizer.graph:
             return

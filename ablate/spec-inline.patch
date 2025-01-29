@@ -1,0 +1,24 @@
+diff --git a/pydrofoil/ir.py b/pydrofoil/ir.py
+index fe44323..6544428 100644
+--- a/pydrofoil/ir.py
++++ b/pydrofoil/ir.py
+@@ -4156,6 +4156,7 @@ def copy_blocks(graph, op):
+     return blocks[graph.startblock], returnblock
+ 
+ def should_inline(graph, model_specific_should_inline=None):
++    return False
+     if model_specific_should_inline:
+         res = model_specific_should_inline(graph.name)
+         if res is not None:
+diff --git a/pydrofoil/specialize.py b/pydrofoil/specialize.py
+index d1cc873..7305ebb 100644
+--- a/pydrofoil/specialize.py
++++ b/pydrofoil/specialize.py
+@@ -22,6 +22,7 @@ from pydrofoil import types, ir, parse, supportcode, bitvector
+ 
+ 
+ def usefully_specializable(graph):
++    return False
+     numblocks = 0
+     restype = None
+     for block in graph.iterblocks():

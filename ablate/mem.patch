@@ -1,0 +1,57 @@
+diff --git a/pydrofoil/mem.py b/pydrofoil/mem.py
+index 8e3d752..e2f0bdc 100644
+--- a/pydrofoil/mem.py
++++ b/pydrofoil/mem.py
+@@ -122,6 +122,7 @@ class FlatMemory(MemBase):
+         return mem_offset, inword_addr, mask
+ 
+     def _aligned_read(self, start_addr, num_bytes, executable_flag):
++        executable_flag = False
+         if executable_flag:
+             jit.promote(start_addr)
+         mem_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+@@ -147,6 +148,7 @@ class FlatMemory(MemBase):
+ 
+     @jit.elidable_promote('all')
+     def _get_status_word(self, mem_offset, version):
++        return MEM_STATUS_MUTABLE
+         assert version is self.version
+         return self.status[mem_offset]
+ 
+@@ -163,13 +165,14 @@ class FlatMemory(MemBase):
+         self._write_word(mem_offset, (olddata & ~mask) | value)
+ 
+     def _write_word(self, mem_offset, value):
+-        if self.status[mem_offset] == MEM_STATUS_IMMUTABLE:
++        if False and self.status[mem_offset] == MEM_STATUS_IMMUTABLE:
+             oldval = self.mem[mem_offset]
+             if oldval != value:
+                 self._invalidate(mem_offset)
+         self.mem[mem_offset] = value
+ 
+     def _invalidate(self, mem_offset):
++        return
+         self.version = Version()
+         self.status[mem_offset] = MEM_STATUS_MUTABLE
+         self._debug_print_invalidating(mem_offset)
+diff --git a/riscv/supportcoderiscv.py b/riscv/supportcoderiscv.py
+index e8088ea..84c35b8 100644
+--- a/riscv/supportcoderiscv.py
++++ b/riscv/supportcoderiscv.py
+@@ -805,11 +805,11 @@ def get_main(outriscv, rv64):
+         name=prefix,
+         is_recursive=True)
+ 
+-    for name in dir(outriscv):
+-        if name.startswith("func_zchecked_mem_"):
+-            patch_checked_mem_function(outriscv, name)
+-    if rv64:
+-        patch_tlb(outriscv)
++    #for name in dir(outriscv):
++    #    if name.startswith("func_zchecked_mem_"):
++    #        patch_checked_mem_function(outriscv, name)
++    #if rv64:
++    #    patch_tlb(outriscv)
+ 
+     @jit.not_in_trace
+     def disassemble_current_inst(pc, m):

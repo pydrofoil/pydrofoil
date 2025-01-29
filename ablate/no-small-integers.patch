@@ -1,0 +1,55 @@
+diff --git a/pydrofoil/bitvector.py b/pydrofoil/bitvector.py
+index 854d3bc..3d16869 100644
+--- a/pydrofoil/bitvector.py
++++ b/pydrofoil/bitvector.py
+@@ -1158,7 +1158,8 @@ class Integer(object):
+ 
+     @staticmethod
+     def fromint(val):
+-        return SmallInteger(val)
++        selfdata, selfsign = _data_and_sign_from_int(val)
++        return BigInteger(selfdata, selfsign)
+ 
+     @staticmethod
+     @not_rpython # translation time only
+@@ -1220,7 +1221,9 @@ class Integer(object):
+ class SmallInteger(Integer):
+     _immutable_fields_ = ['val']
+ 
++    @not_rpython
+     def __init__(self, val):
++        assert 0
+         if not we_are_translated():
+             assert MININT <= val <= sys.maxint
+         self.val = val
+@@ -1484,6 +1487,8 @@ class BigInteger(Integer):
+ 
+     def hex(self):
+         from rpython.rlib.rstring import StringBuilder
++        if self.sign == 0:
++            return '0x0'
+         res = ['0'] * (len(self.data) * 16 + (self.sign == -1) + 2)
+         next_digit_index = len(res) - 1
+         for digitindex, digit in enumerate(self.data):
+diff --git a/pydrofoil/test/test_supportcode.py b/pydrofoil/test/test_supportcode.py
+index eaa3a88..70b6b59 100644
+--- a/pydrofoil/test/test_supportcode.py
++++ b/pydrofoil/test/test_supportcode.py
+@@ -1118,9 +1118,6 @@ def test_ediv_int_i_ipos():
+ def test_pow2():
+     for i in range(1000):
+         assert supportcode.pow2_i(None, i).tobigint().tolong() == 2 ** i
+-    # check that small results use small ints
+-    for i in range(63):
+-        assert supportcode.pow2_i(None, i).val == 2 ** i
+ 
+ 
+ # memory
+@@ -1437,7 +1434,6 @@ def test_sparse_vector_update():
+ def test_sparse_signed():
+     v = sbv(65, 0b0)
+     assert v.signed().toint() == 0
+-    assert isinstance(v.signed(), SmallInteger)
+ 
+ def test_sparse_unsigned():
+     v = sbv(100, 0b10001101)

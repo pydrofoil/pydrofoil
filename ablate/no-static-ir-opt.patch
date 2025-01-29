@@ -1,0 +1,115 @@
+diff --git a/pydrofoil/emitfunction.py b/pydrofoil/emitfunction.py
+index 6c8370d..59b6d1a 100644
+--- a/pydrofoil/emitfunction.py
++++ b/pydrofoil/emitfunction.py
+@@ -170,6 +170,20 @@ class CodeEmitter(object):
+         name = op.name
+         argtyps = [arg.resolved_type for arg in op.args]
+         restyp = op.resolved_type
++        if op.name.startswith(('zplain_vector_access', )) and isinstance(op.args[0].resolved_type, types.Vec):
++            meth = op.args[0].resolved_type.make_op_code_special_vector_access
++            res = meth(self.codegen, [self._get_arg(arg) for arg in op.args], argtyps, restyp)
++            self._op_helper(op, res)
++            return
++        if op.name.startswith(('zplain_vector_update', )) and isinstance(op.args[0].resolved_type, types.Vec):
++            meth = op.args[0].resolved_type.make_op_code_special_vector_update
++            res = meth(self.codegen, [self._get_arg(arg) for arg in op.args], argtyps, restyp)
++            self._op_helper(op, res)
++            return
++        if op.name.startswith('zvector_length') and isinstance(op.args[0].resolved_type, types.Vec):
++            res = "Integer.fromint(len(%s))" % self._get_arg(op.args[0])
++            self._op_helper(op, res)
++            return
+         if name in codegen.globalnames:
+             n = codegen.globalnames[name].pyname
+             if "eq_string" in name:
+@@ -289,7 +303,7 @@ class CodeEmitter(object):
+         res = self._get_print_varname(op)
+         args = self._get_args(op.args)
+         # is optimized away in the common case
+-        self._op_helper(op, "supportcode.vector_update_list(machine, %s)" % (args, ))
++        self._op_helper(op, "supportcode.vector_update_list_o_i_o(machine, %s)" % (args, ))
+ 
+     def emit_op_Comment(self, op):
+         self.codegen.emit("# %s" % (op.name, ))
+diff --git a/pydrofoil/ir.py b/pydrofoil/ir.py
+index 26e1152..ca38329 100644
+--- a/pydrofoil/ir.py
++++ b/pydrofoil/ir.py
+@@ -1538,6 +1538,8 @@ repeat.debug_list = None
+ 
+ def light_simplify(graph, codegen):
+     # in particular, don't specialize
++    return False
++
+     codegen.print_debug_msg("simplifying ssa")
+     res = _optimize(graph, codegen)
+     if res:
+@@ -1547,6 +1549,7 @@ def light_simplify(graph, codegen):
+ 
+ def optimize(graph, codegen):
+     from pydrofoil.specialize import SpecializingOptimizer
++    return False
+     res = _optimize(graph, codegen)
+     if graph.name not in codegen.inlinable_functions:
+         for i in range(100):
+diff --git a/pydrofoil/operations.py b/pydrofoil/operations.py
+index dfc9dc9..f201663 100644
+--- a/pydrofoil/operations.py
++++ b/pydrofoil/operations.py
+@@ -253,8 +253,14 @@ class __extend__(types.Real):
+         return "supportcode.eq_real(machine, %s, %s)" % (sarg1, sarg2)
+ 
+ class __extend__(types.Vec):
++    def make_op_code_special_vector_access(self, ast, sargs, argtyps, restyp):
++        return "%s[%s.toint()]" % tuple(sargs)
++
++    def make_op_code_special_vector_update(self, ast, sargs, argtyps, restyp):
++        return "supportcode.vector_update_list(machine, %s)" % ", ".join(sargs)
++
+     def make_op_code_special_vector_access_o_i(self, ast, sargs, argtyps, restyp):
+         return "%s[%s]" % tuple(sargs)
+ 
+     def make_op_code_special_vector_update_o_i_o(self, ast, sargs, argtyps, restyp):
+-        return "supportcode.vector_update_list(machine, %s)" % ", ".join(sargs)
++        return "supportcode.vector_update_list_o_i_o(machine, %s)" % ", ".join(sargs)
+diff --git a/pydrofoil/supportcode.py b/pydrofoil/supportcode.py
+index bda2fa2..cb632e0 100644
+--- a/pydrofoil/supportcode.py
++++ b/pydrofoil/supportcode.py
+@@ -1021,13 +1021,22 @@ def vector_update_inplace(machine, res, l, index, element):
+ 
+ @objectmodel.specialize.argtype(1, 3)
+ def vector_update_list(machine, l, index, element):
++    l = l[:]
++    l[index.toint()] = element
++    return l
++
++@objectmodel.specialize.argtype(1, 3)
++def vector_update_list_o_i_o(machine, l, index, element):
+     l = l[:]
+     l[index] = element
+     return l
+ 
+-@unwrap("i o")
+ @objectmodel.specialize.argtype(2)
+ def vector_init(machine, length, element):
++    return [element] * length.toint()
++
++@objectmodel.specialize.argtype(2)
++def vector_init_i_o(machine, length, element):
+     return [element] * length
+ 
+ @purefunction
+diff --git a/pydrofoil/types.py b/pydrofoil/types.py
+index f3f4e35..bf843f8 100644
+--- a/pydrofoil/types.py
++++ b/pydrofoil/types.py
+@@ -86,6 +86,7 @@ class Ref(Type):
+ 
+ @unique
+ class Vec(Type):
++    uninitialized_value = "[]"
+     def __init__(self, typ):
+         assert isinstance(typ, Type)
+         self.typ = typ

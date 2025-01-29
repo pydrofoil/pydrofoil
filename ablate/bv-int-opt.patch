@@ -1,0 +1,83 @@
+diff --git a/pydrofoil/absinterp.py b/pydrofoil/absinterp.py
+index 720ff7c..becb8c3 100644
+--- a/pydrofoil/absinterp.py
++++ b/pydrofoil/absinterp.py
+@@ -627,6 +627,8 @@ class IntOpOptimizer(ir.LocalOptimizer):
+         return conversion
+ 
+     def _extract_machineint(self, arg, *args, **kwargs):
++        from pydrofoil.ir import NoMatchException
++        raise NoMatchException
+         if arg.resolved_type is types.Int():
+             value = self.current_values.get(arg, None)
+             if value is not None and value.fits_machineint():
+diff --git a/pydrofoil/ir.py b/pydrofoil/ir.py
+index 9fd71cd..e1e6ecc 100644
+--- a/pydrofoil/ir.py
++++ b/pydrofoil/ir.py
+@@ -1477,7 +1477,7 @@ def print_stats():
+ 
+ DEBUG_REPEAT = False
+ 
+-LIMIT = 1000
++LIMIT = 100
+ 
+ def repeat(func):
+     def repeated(graph, codegen, *args, **kwargs):
+@@ -1496,6 +1496,7 @@ def repeat(func):
+             ever_changed = True
+         else:
+             codegen.print_debug_msg("LIMIT REACHED!", graph, func.func_name)
++            ever_changed = False # don't cause outer repetitions!
+             added_debug_list = False
+             if DEBUG_REPEAT:
+                 if repeat.debug_list is None:
+@@ -1585,6 +1586,8 @@ def _bare_optimize(graph, codegen):
+     res = remove_superfluous_enum_cases(graph, codegen) or res
+     res = remove_useless_switch(graph, codegen) or res
+     partial_allocation_removal(graph, codegen)
++    if graph.name == 'zencdec_backwards': # it's just too huge if we can't optimize bitvector ops
++        return False
+     return res
+ 
+ _optimize = repeat(_bare_optimize)
+@@ -2207,6 +2210,7 @@ class BaseOptimizer(object):
+         return self.codegen.builtin_names.get(name, name)
+ 
+     def _extract_smallfixedbitvector(self, arg):
++        raise NoMatchException
+         if isinstance(arg, GenericBitVectorConstant) and arg.value.size() <= 64:
+             typ = types.SmallFixedBitVector(arg.value.size())
+             return SmallBitVectorConstant(arg.value.touint(), typ), typ
+@@ -2233,6 +2237,7 @@ class BaseOptimizer(object):
+         return expr, typ
+ 
+     def _extract_machineint(self, arg, want_constant=True, can_recurse=True):
++        raise NoMatchException
+         if arg.resolved_type is types.MachineInt():
+             return arg
+         if isinstance(arg, IntConstant):
+@@ -2280,6 +2285,7 @@ class BaseOptimizer(object):
+         raise NoMatchException
+ 
+     def _extract_number(self, arg):
++        raise NoMatchException
+         if isinstance(arg, MachineIntConstant):
+             return arg
+         num = self._extract_machineint(arg)
+@@ -3465,6 +3471,7 @@ class LocalOptimizer(BaseOptimizer):
+         return res
+ 
+     def _extract_unsigned_bv64(self, value):
++        raise NoMatchException
+         if (isinstance(value, Operation) and
+                 value.name == "@unsigned_bv_wrapped_res" and
+                 isinstance(value.args[1], MachineIntConstant) and
+@@ -4274,7 +4281,6 @@ class LocalOptimizer(BaseOptimizer):
+             if arg1.name == "@pack_smallfixedbitvector":
+                 assert arg0.number == arg1.args[0].number
+                 return arg1.args[1]
+-            import pdb;pdb.set_trace()
+ 
+ @repeat
+ def inline(graph, codegen):

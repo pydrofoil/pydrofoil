@@ -291,7 +291,7 @@ class SmallBitVector(BitVector):
             if self.read_bit(size - 1):
                 return GenericBitVector._sign_extend(size, [self.val], i)
             else:
-                return SparseBitVector(i, self.val)
+                return from_ruint(i, self.val)
         m = r_uint(1) << (self.size() - 1)
         return SmallBitVector(i, (self.val ^ m) - m, True)
 
@@ -817,7 +817,7 @@ class GenericBitVector(BitVector):
             return self
         size = self.size()
         if i >= size:
-            return SparseBitVector(size, r_uint(0))
+            return from_ruint(size, r_uint(0))
         wordshift, bitshift = _data_indexes(i)
         data = self.data
         resdata = [r_uint(0)] * len(data)
@@ -841,7 +841,7 @@ class GenericBitVector(BitVector):
         if i < 0:
             raise ValueError("negative shift count")
         if i >= self.size():
-            return SparseBitVector(self.size(), r_uint(0))
+            return from_ruint(self.size(), r_uint(0))
         if i == 0:
             return self
         wordshift, bitshift = _data_indexes(i)
@@ -870,7 +870,7 @@ class GenericBitVector(BitVector):
             if highest_bit:
                 return GenericBitVector(size, [r_uint(-1)] * len(self.data), True)
             else:
-                return SparseBitVector(size, r_uint(0))
+                return from_ruint(size, r_uint(0))
         # XXX not optimal, fix broken code below
         return self.signed().rshift(i).slice(size, 0)
         #res = self.rshift(i)
@@ -1249,12 +1249,12 @@ class SmallInteger(Integer):
             return from_ruint(len, self.slice_unwrapped_res(len, start))
         if start >= 64:
             if self.val >= 0:
-                return SparseBitVector(len, r_uint(0))
+                return from_ruint(len, r_uint(0))
             n = -1
         else:
             n = self.val >> start
         if n >= 0:
-            return SparseBitVector(len, r_uint(n))
+            return from_ruint(len, r_uint(n))
         size = GenericBitVector._data_size(len)
         res = [r_uint(-1)] * size
         res[0] = r_uint(n)

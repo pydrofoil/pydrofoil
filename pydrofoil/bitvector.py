@@ -1164,7 +1164,7 @@ class Integer(object):
     @not_rpython # translation time only
     def fromlong(val):
         if MININT <= val <= MAXINT:
-            return SmallInteger(int(val))
+            return Integer.fromint(int(val))
         else:
             return Integer.from_bigint(rbigint.fromlong(val))
 
@@ -1195,7 +1195,7 @@ class Integer(object):
     def fromstr(val):
         value = 0
         try:
-            return SmallInteger(string_to_int(val, 10))
+            return Integer.fromint(string_to_int(val, 10))
         except ParseStringOverflowError as e:
             e.parser.rewind()
             return Integer.from_bigint(rbigint._from_numberstring_parser(e.parser))
@@ -1206,7 +1206,7 @@ class Integer(object):
         if val & (r_uint(1)<<63):
             # bigger than biggest signed int
             return BigInteger([val], 1)
-        return SmallInteger(intmask(val))
+        return Integer.fromint(intmask(val))
 
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
@@ -1214,7 +1214,7 @@ class Integer(object):
     @staticmethod
     def unpack(val, rval):
         if rval is None:
-            return SmallInteger(val)
+            return Integer.fromint(val)
         return BigInteger(rval, val)
 
 class SmallInteger(Integer):
@@ -1465,7 +1465,7 @@ class SmallInteger(Integer):
     def pack(self):
         return (self.val, None)
 
-INT_ZERO = SmallInteger(0)
+INT_ZERO = Integer.fromint(0)
 
 HEXCHARS = '0123456789abcdef'
 
@@ -1671,7 +1671,7 @@ class BigInteger(Integer):
         if not other:
             return self
         if not self.sign:
-            return SmallInteger(other)
+            return Integer.fromint(other)
         return self._add_int(self.data, self.sign, other)
 
     @staticmethod
@@ -1712,7 +1712,7 @@ class BigInteger(Integer):
         if not other:
             return self
         if not self.sign:
-            return SmallInteger(other).neg()
+            return Integer.fromint(other).neg()
         return self._sub_int(self.data, self.sign, other)
 
     @staticmethod
@@ -1791,7 +1791,7 @@ class BigInteger(Integer):
             if other == 0:
                 raise ZeroDivisionError
             div, rem = bigint_divrem1(self.tobigint(), other)
-            return SmallInteger(rem)
+            return Integer.fromint(rem)
 
         other = other.tobigint()
         if other.get_sign() == 0:

@@ -1465,7 +1465,6 @@ class SmallInteger(Integer):
     def pack(self):
         return (self.val, None)
 
-INT_ZERO = Integer.fromint(0)
 
 HEXCHARS = '0123456789abcdef'
 
@@ -2077,3 +2076,5 @@ def _data_mul1(selfdata, otherdigit):
         resdata[index] = low
     resdata[len(selfdata)] = carry
     return resdata
+
+INT_ZERO = Integer.fromint(0)

@@ -1426,7 +1426,7 @@ class SmallInteger(Integer):
             return INT_ZERO
         if i < 64:
             try:
-                return SmallInteger(ovfcheck(a << i))
+                return Integer.fromint(ovfcheck(a << i))
             except OverflowError:
                 pass
         data, sign = _data_and_sign_from_int(a)
@@ -1435,7 +1435,7 @@ class SmallInteger(Integer):
     @staticmethod
     def add_i_i(a, b):
         try:
-            return SmallInteger(ovfcheck(a + b))
+            return Integer.fromint(ovfcheck(a + b))
         except OverflowError:
             selfdata, selfsign = _data_and_sign_from_int(a)
             assert selfsign != 0 and b
@@ -1444,10 +1444,10 @@ class SmallInteger(Integer):
     @staticmethod
     def sub_i_i(a, b):
         try:
-            return SmallInteger(ovfcheck(a - b))
+            return Integer.fromint(ovfcheck(a - b))
         except OverflowError:
             if not a:
-                return SmallInteger(b).neg()
+                return Integer.fromint(b).neg()
             selfdata, selfsign = _data_and_sign_from_int(a)
             assert selfsign != 0 and b
             return BigInteger._sub_int(selfdata, selfsign, b)
@@ -1455,7 +1455,7 @@ class SmallInteger(Integer):
     @staticmethod
     def mul_i_i(a, b):
         try:
-            return SmallInteger(ovfcheck(a * b))
+            return Integer.fromint(ovfcheck(a * b))
         except OverflowError:
             selfdigit, selfsign = _digit_and_sign_from_int(a)
             otherdigit, othersign = _digit_and_sign_from_int(b)
@@ -1553,10 +1553,10 @@ class BigInteger(Integer):
                 if len(res) < size:
                     res = res + [r_uint(0)] * (size - len(res))
                 return GenericBitVector(length, res, normalize=True)
-            jit.jit_debug("BitInteger.slice")
+            jit.jit_debug("BigInteger.slice")
             n = self.tobigint()
         else:
-            jit.jit_debug("BitInteger.slice")
+            jit.jit_debug("BigInteger.slice")
             n = self.rshift(start).tobigint()
         return from_bigint(length, n)
 

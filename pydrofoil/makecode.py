@@ -1108,18 +1108,6 @@ class __extend__(parse.FVecType):
 class __extend__(parse.TupleType):
     def resolve_type(self, codegen):
         typ = types.Tuple(tuple([e.resolve_type(codegen) for e in self.elements]))
-        with codegen.cached_declaration(typ, "Tuple") as pyname:
-            with codegen.emit_indent("class %s(supportcode.ObjectBase): # %s" % (pyname, self)):
-                codegen.emit("@objectmodel.always_inline")
-                with codegen.emit_indent("def eq(self, other):"):
-                    codegen.emit("assert isinstance(other, %s)" % (pyname, ))
-                    for index, fieldtyp in enumerate(self.elements):
-                        rtyp = fieldtyp.resolve_type(codegen)
-                        codegen.emit("if %s: return False # %s" % (
-                            rtyp.make_op_code_special_neq(None, ('self.utup%s' % index, 'other.utup%s' % index), (rtyp, rtyp), types.Bool()), fieldtyp))
-                    codegen.emit("return True")
-            typ.pyname = pyname
-        typ.uninitialized_value = "%s()" % (pyname, )
         return typ
 
 

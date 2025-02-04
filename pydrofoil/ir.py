@@ -4390,6 +4390,7 @@ def should_inline(graph, model_specific_should_inline=None):
 
 
 def topo_order(graph):
+    assert not graph.has_loop
     order = list(graph.iterblocks()) # dfs
 
     # do a (slightly bad) topological sort

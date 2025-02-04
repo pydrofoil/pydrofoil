@@ -331,7 +331,7 @@ class AbstractInterpreter(object):
             startblock_values[arg] = self._init_arg(arg) # TODO only relevant types
         self.values[self.graph.startblock] = startblock_values
 
-        for block in ir.topo_order(self.graph):
+        for block in ir.topo_order_best_attempt(self.graph):
             self.current_block = block
             if block not in self.values:
                 # unreachable
@@ -404,6 +404,8 @@ class AbstractInterpreter(object):
         res = None
         for prevblock, value in zip(op.prevblocks, op.prevvalues):
             b = self._bounds(value, must_exist=False, block=prevblock)
+            if b is None and self.graph.has_loop:
+                b = self.analyze_default(op)
             if res is None:
                 res = b
             elif b is not None:
@@ -706,10 +708,6 @@ class IntOpOptimizer(ir.LocalOptimizer):
                 )
 
 def optimize_with_range_info(graph, codegen):
-    if graph.has_loop:
-        return False
-    if graph.has_more_than_n_blocks(1000):
-        return False
     absinterp = AbstractInterpreter(graph, codegen)
     absinterp.analyze()
     opt = IntOpOptimizer(graph, codegen, absinterp)
@@ -774,8 +772,6 @@ class Location(object):
             return
         if self.bound.same_bound(new_bound):
             return
-        if not first_run:
-            import pdb;pdb.set_trace()
         assert self.bound.contains_range(new_bound)
         self.bound = new_bound
         self.manager.schedule_location(self)
@@ -884,18 +880,13 @@ def analyze_and_optimize_all_graphs(codegen, program_entrypoints):
         if graph.name == 'zsizze_bytes_forwards':
             import pdb;pdb.set_trace()
         gra = GlobalRangeAnalysis(graph, codegen, manager)
-        if not graph.has_loop:
-            gra.analyze()
+        gra.analyze()
         gra.do_writes(first_run=True)
     # then to fixpoint
     manager.to_fixpoint(graphs)
     import pdb;pdb.set_trace()
     # then optimize
     for graph in graphs:
-        if graph.has_loop:
-            continue
-        if graph.has_more_than_n_blocks(1000):
-            continue
         gra = GlobalRangeAnalysis(graph, codegen, manager)
         opt = IntOpOptimizer(graph, codegen, gra)
         if opt.optimize():

@@ -254,8 +254,8 @@ BOOL = Range(0, 1)
 TRUE = Range(1, 1)
 FALSE = Range(0, 0)
 
-RELEVANT_TYPES = (types.MachineInt(), types.Int(), types.Bool())
-INT_TYPES = (types.MachineInt(), types.Int())
+RELEVANT_TYPES = (types.MachineInt(), types.Int(), types.Bool(), types.Packed(types.Int()))
+INT_TYPES = (types.MachineInt(), types.Int(), types.Packed(types.Int()))
 
 def analyze(graph, codegen, view=False):
     absinterp = AbstractInterpreter(graph, codegen)
@@ -555,6 +555,20 @@ class AbstractInterpreter(object):
         return Range(0, None)
 
 
+    def analyze_PackPackedField(self, op):
+        import pdb;pdb.set_trace()
+        arg0, = self._argbounds(op)
+        return arg0
+
+    def analyze_UnPackPackedField(self, op):
+        import pdb;pdb.set_trace()
+        arg0, = self._argbounds(op)
+        return arg0
+
+    def analyze_pack_machineint(self, op):
+        arg0, = self._argbounds(op)
+        return MACHINEINT.intersect(arg0)
+
     # conditions
 
     def analyze_condition(self, op):
@@ -743,6 +757,7 @@ class Location(object):
         self.readers = set()
         self.manager = manager
         self.hint = hint
+        self.times_scheduled = 0
 
     def __repr__(self):
         return "<Location %s%r #readers=%s #writers=%s %s>" % (
@@ -792,7 +807,12 @@ class LocationsManager(object):
         self.codegen = codegen
 
     def schedule_location(self, location):
-        print "scheduling", location, len(self.todo)
+        location.times_scheduled += 1
+        if location.times_scheduled > 100:
+            print "reached limit", location.times_scheduled, location
+            import pdb;pdb.set_trace()
+            return
+        print "scheduling", location, len(self.todo), location.times_scheduled
         for graph in location.readers:
             self.todo.add(graph)
 
@@ -814,6 +834,15 @@ class LocationsManager(object):
             return self.returnvalues[graph]
         res = self.newloc(typ, 'returnvalue %s' % graph.name)
         self.returnvalues[graph] = res
+        return res
+
+    def get_structfield(self, typ, fieldname):
+        assert fieldname in typ.fieldtyps
+        key = typ, fieldname
+        if key in self.structfields:
+            return self.structfields[key]
+        res = self.newloc(typ.fieldtyps[fieldname], 'field %s.%s' % (typ.name, fieldname))
+        self.structfields[key] = res
         return res
 
     def to_fixpoint(self, graphs):
@@ -841,6 +870,10 @@ class GlobalRangeAnalysis(AbstractInterpreter):
             return self.manager.get_returnvalue(called_graph, op.resolved_type).read(self.graph)
         return AbstractInterpreter.analyze_Operation(self, op)
 
+    def analyze_FieldAccess(self, op):
+        loc = self.manager.get_structfield(op.args[0].resolved_type, op.name)
+        return loc.read(self.graph)
+
     def do_writes(self, first_run):
         writes = defaultdict(list) # Location -> [bound]
         returnvalues = []
@@ -854,6 +887,18 @@ class GlobalRangeAnalysis(AbstractInterpreter):
             for op in block.operations:
                 if isinstance(op, ir.Phi):
                     continue
+                if isinstance(op, ir.FieldWrite):
+                    typ = op.args[0].resolved_type
+                    if typ.fieldtyps[op.name] in RELEVANT_TYPES:
+                        loc = self.manager.get_structfield(typ, op.name)
+                        writes[loc].append(self._bounds(op.args[1], block=block))
+                if isinstance(op, ir.StructConstruction):
+                    typ = op.resolved_type
+                    for arg, fieldtyp, name in zip(op.args, typ.typs, typ.names):
+                        if fieldtyp not in RELEVANT_TYPES:
+                            continue
+                        loc = self.manager.get_structfield(typ, name)
+                        writes[loc].append(self._bounds(arg, block=block))
                 if op.name in self.codegen.all_graph_by_name:
                     called_graph = self.codegen.all_graph_by_name[op.name]
                     for argument, target in zip(op.args, called_graph.args):
@@ -865,20 +910,15 @@ class GlobalRangeAnalysis(AbstractInterpreter):
             bound = union_many(values)
             assert bound is not None
             loc.write(self.graph, bound, first_run)
-        if self.graph.name == 'zsizze_bytes_forwards':
-            import pdb;pdb.set_trace()
         if returnvalues:
             returnloc = self.manager.get_returnvalue(self.graph, returntyp).write(self.graph, union_many(returnvalues), first_run)
 
 def analyze_and_optimize_all_graphs(codegen, program_entrypoints):
-    import pdb;pdb.set_trace()
     manager = LocationsManager(codegen)
     extra_graphs = codegen.extract_needed_extra_graphs(program_entrypoints)
     graphs = list(program_entrypoints) + [g for (g, _) in extra_graphs]
     # first pass through all graphs
     for graph in graphs:
-        if graph.name == 'zsizze_bytes_forwards':
-            import pdb;pdb.set_trace()
         gra = GlobalRangeAnalysis(graph, codegen, manager)
         gra.analyze()
         gra.do_writes(first_run=True)

@@ -4273,6 +4273,12 @@ class LocalOptimizer(BaseOptimizer):
                 return arg1.args[1]
             import pdb;pdb.set_trace()
 
+    def optimize_packed_field_int_to_int64(self, op):
+        arg0, = self._args(op)
+        if type(arg0) is Operation and arg0.name == "@pack_machineint":
+            return arg0.args[0]
+        return None
+
 @repeat
 def inline(graph, codegen):
     # don't add blocks to functions that are already really big and need to be

@@ -238,8 +238,14 @@ class Codegen(specialize.FixpointSpecializer):
         self._all_graphs.append((graph, emit_function, args, kwargs))
 
     def finish_graphs(self):
-        self.print_persistent_msg("============== FINISHING ==============")
+        self.print_persistent_msg("============== GLOBAL RANGE ANALYSIS ==============")
         from pydrofoil.ir import print_stats
+        from pydrofoil.absinterp import analyze_and_optimize_all_graphs
+        t1 = time.time()
+        analyze_and_optimize_all_graphs(self)
+        t2 = time.time()
+        self.print_persistent_msg("DONE, took seconds", round(t2 - t1, 2))
+        self.print_persistent_msg("============== FINISHING ==============")
         t1 = time.time()
         self.specialize_all()
         unspecialized_graphs = []

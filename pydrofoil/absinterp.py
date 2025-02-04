@@ -46,6 +46,22 @@ class Range(object):
             return False
         return True
 
+    def contains_range(self, other):
+        if self.low is not None:
+            if other.low is None:
+                return False
+            if other.low < self.low:
+                return False
+        if self.high is not None:
+            if other.high is None:
+                return False
+            if other.high > self.high:
+                return False
+        return True
+
+    def same_bound(self, other):
+        return self.low == other.low and self.high == other.high
+
     def isconstant(self):
         return self.low is not None and self.low == self.high
 
@@ -141,6 +157,23 @@ class Range(object):
             low = min(self.low, other.low)
         if self.high is not None and other.high is not None:
             high = max(self.high, other.high)
+        return Range(low, high)
+
+    def intersect(self, other):
+        if other.low is not None:
+            if self.low is not None:
+                low = max(self.low, other.low)
+            else:
+                low = other.low
+        else:
+            low = self.low
+        if other.high is not None:
+            if self.high is not None:
+                high = min(self.high, other.high)
+            else:
+                high = other.high
+        else:
+            high = self.high
         return Range(low, high)
 
     def le(self, other):
@@ -289,10 +322,13 @@ class AbstractInterpreter(object):
             dotgen.emit_edge(extrainfoid, str(id(block)))
         ir.GraphPage(dotgen.generate(target=None), print_varnames, self.graph.args).display()
 
+    def _init_arg(self, arg):
+        return UNBOUNDED
+
     def analyze(self):
         startblock_values = {}
         for arg in self.graph.args:
-            startblock_values[arg] = UNBOUNDED
+            startblock_values[arg] = self._init_arg(arg)
         self.values[self.graph.startblock] = startblock_values
 
         for block in ir.topo_order(self.graph):
@@ -678,3 +714,159 @@ def optimize_with_range_info(graph, codegen):
     absinterp.analyze()
     opt = IntOpOptimizer(graph, codegen, absinterp)
     return opt.optimize()
+
+# ____________________________________________________________
+# global range analysis
+
+def union_many(l, start=None, typ=None):
+    if typ is not None and start is None:
+        start = default_for_type(typ)
+    if not l:
+        return start
+    if start is None:
+        start = l[0]
+    for bound in l:
+        start = start.union(bound)
+    return start
+
+def default_for_type(typ):
+    if typ is types.Bool():
+        return BOOL
+    elif typ is types.MachineInt():
+        return MACHINEINT
+    else:
+        return UNBOUNDED
+
+class Location(object):
+    def __init__(self, manager, typ, hint=''):
+        self.resolved_type = typ
+        self.bound = default_for_type(typ)
+        self.all_bounds = {} # maps graph: range
+        self.readers = set()
+        self.manager = manager
+        self.hint = hint
+
+    def __repr__(self):
+        return "<Location %s%r #readers=%s #writers=%s %s>" % (
+                "*" if self.is_interesting() else "",
+                self.hint,
+                len(self.readers), len(self.all_bounds), self.bound)
+
+    def is_interesting(self):
+        return not default_for_type(self.resolved_type).same_bound(self.bound)
+
+    def write(self, graph, bound, first_run=False):
+        bound = default_for_type(self.resolved_type).intersect(bound)
+        old_bound = self.all_bounds.get(graph)
+        if old_bound:
+            assert old_bound.contains_range(bound)
+        assert self.bound.contains_range(bound)
+        if old_bound is not None and old_bound.same_bound(bound):
+            return
+        self.all_bounds[graph] = bound
+        if first_run:
+            return
+        self._recompute(first_run)
+
+    def _recompute(self, first_run):
+        new_bound = union_many(self.all_bounds.values())
+        if new_bound is None:
+            return
+        if self.bound.same_bound(new_bound):
+            return
+        if not first_run:
+            import pdb;pdb.set_trace()
+        assert self.bound.contains_range(new_bound)
+        self.bound = new_bound
+        self.manager.schedule_location(self)
+
+    def read(self, graph):
+        self.readers.add(graph)
+        return self.bound
+
+
+class LocationsManager(object):
+    def __init__(self, codegen):
+        self.todo = set() # set of graphs
+        self.arguments = {} # (graph, arg) -> location
+        self.structfields = {} # (typ, fieldname) -> location
+        #self.unionvariants = {} # (typ, variantname) -> location
+        self.returnvalues = {} # graph -> location
+        self.all_locations = []
+        self.codegen = codegen
+
+    def schedule_location(self, location):
+        print "scheduling", location, len(self.todo)
+        for graph in location.readers:
+            self.todo.add(graph)
+
+    def get_arg(self, graph, arg):
+        key = graph, arg
+        if key in self.arguments:
+            return self.arguments[key]
+        res = Location(self, arg.resolved_type, 'arg %s %s' % (graph.name, arg.name))
+        self.all_locations.append(res)
+        self.arguments[key] = res
+        return res
+
+    def to_fixpoint(self, graphs):
+        for loc in self.all_locations:
+            loc._recompute(first_run=True)
+        import pdb;pdb.set_trace()
+        while self.todo:
+            graph = self.todo.pop()
+            gra = GlobalRangeAnalysis(graph, self.codegen, self)
+            gra.analyze()
+            gra.do_writes(first_run=False)
+
+
+class GlobalRangeAnalysis(AbstractInterpreter):
+    def __init__(self, graph, codegen, manager):
+        AbstractInterpreter.__init__(self, graph, codegen)
+        self.manager = manager
+
+    def _init_arg(self, arg):
+        return self.manager.get_arg(self.graph, arg).read(self.graph)
+
+    def do_writes(self, first_run):
+        writes = defaultdict(list) # Location -> [bound]
+        for block in self.graph.iterblocks():
+            if block not in self.values: # unreachable
+                continue
+            for op in block.operations:
+                if isinstance(op, ir.Phi):
+                    continue
+                if op.name in self.codegen.all_graph_by_name:
+                    called_graph = self.codegen.all_graph_by_name[op.name]
+                    for argument, target in zip(op.args, called_graph.args):
+                        if argument.resolved_type not in RELEVANT_TYPES:
+                            continue
+                        loc = self.manager.get_arg(called_graph, target)
+                        writes[loc].append(self._bounds(argument, block=block))
+        for loc, values in writes.iteritems():
+            bound = union_many(values)
+            assert bound is not None
+            loc.write(self.graph, bound, first_run)
+
+def analyze_and_optimize_all_graphs(codegen):
+    manager = LocationsManager(codegen)
+    graphs = codegen.all_graph_by_name.values()
+    # first pass through all graphs
+    for graph in graphs:
+        gra = GlobalRangeAnalysis(graph, codegen, manager)
+        if not graph.has_loop:
+            gra.analyze()
+        gra.do_writes(first_run=True)
+    # then to fixpoint
+    manager.to_fixpoint(graphs)
+    import pdb;pdb.set_trace()
+    # then optimize
+    for graph in graphs:
+        if graph.has_loop:
+            continue
+        if graph.has_more_than_n_blocks(1000):
+            continue
+        gra = GlobalRangeAnalysis(graph, codegen, manager)
+        opt = IntOpOptimizer(graph, codegen, gra)
+        if opt.optimize():
+            import pdb;pdb.set_trace()

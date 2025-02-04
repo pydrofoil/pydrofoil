@@ -5,12 +5,10 @@ set -xeo pipefail
 git reset --hard
 
 PYTHONPATH=. pypy_binary/bin/python pypy2/rpython/bin/rpython -Ojit --output=pydrofoil-riscv-ablation-00-baseline riscv/targetriscv.py
-cp pydrofoil-riscv-ablation-00-baseline pydrofoil-riscv-singleablation-00-baseline
 
 
 patch -p1 < ablate/mem.patch
 PYTHONPATH=. pypy_binary/bin/python pypy2/rpython/bin/rpython -Ojit --output=pydrofoil-riscv-ablation-01-no-jit-immutability-tracking riscv/targetriscv.py
-cp pydrofoil-riscv-ablation-01-no-jit-immutability-tracking pydrofoil-riscv-singleablation-01-no-mem
 PYTHONPATH=. pypy_binary/bin/python pypy2/rpython/bin/rpython -O2 --output=pydrofoil-riscv-ablation-02-no-jit-at-all riscv/targetriscv.py
 
 patch -p1 < ablate/bv-int-opt.patch

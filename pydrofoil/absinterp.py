@@ -328,7 +328,7 @@ class AbstractInterpreter(object):
     def analyze(self):
         startblock_values = {}
         for arg in self.graph.args:
-            startblock_values[arg] = self._init_arg(arg)
+            startblock_values[arg] = self._init_arg(arg) # TODO only relevant types
         self.values[self.graph.startblock] = startblock_values
 
         for block in ir.topo_order(self.graph):
@@ -755,7 +755,7 @@ class Location(object):
     def is_interesting(self):
         return not default_for_type(self.resolved_type).same_bound(self.bound)
 
-    def write(self, graph, bound, first_run=False):
+    def write(self, graph, bound, first_run):
         bound = default_for_type(self.resolved_type).intersect(bound)
         old_bound = self.all_bounds.get(graph)
         if old_bound:
@@ -800,13 +800,24 @@ class LocationsManager(object):
         for graph in location.readers:
             self.todo.add(graph)
 
+    def newloc(self, typ, hint):
+        res = Location(self, typ, hint)
+        self.all_locations.append(res)
+        return res
+
     def get_arg(self, graph, arg):
         key = graph, arg
         if key in self.arguments:
             return self.arguments[key]
-        res = Location(self, arg.resolved_type, 'arg %s %s' % (graph.name, arg.name))
-        self.all_locations.append(res)
+        res = self.newloc(arg.resolved_type, 'arg %s %s' % (graph.name, arg.name))
         self.arguments[key] = res
+        return res
+
+    def get_returnvalue(self, graph, typ):
+        if graph in self.returnvalues:
+            return self.returnvalues[graph]
+        res = self.newloc(typ, 'returnvalue %s' % graph.name)
+        self.returnvalues[graph] = res
         return res
 
     def to_fixpoint(self, graphs):
@@ -828,11 +839,22 @@ class GlobalRangeAnalysis(AbstractInterpreter):
     def _init_arg(self, arg):
         return self.manager.get_arg(self.graph, arg).read(self.graph)
 
+    def analyze_Operation(self, op):
+        if op.name in self.codegen.all_graph_by_name:
+            called_graph = self.codegen.all_graph_by_name[op.name]
+            return self.manager.get_returnvalue(called_graph, op.resolved_type).read(self.graph)
+        return AbstractInterpreter.analyze_Operation(self, op)
+
     def do_writes(self, first_run):
         writes = defaultdict(list) # Location -> [bound]
+        returnvalues = []
         for block in self.graph.iterblocks():
             if block not in self.values: # unreachable
                 continue
+            if isinstance(block.next, ir.Return):
+                returntyp = block.next.value.resolved_type
+                if returntyp in RELEVANT_TYPES:
+                    returnvalues.append(self._bounds(block.next.value, block=block))
             for op in block.operations:
                 if isinstance(op, ir.Phi):
                     continue
@@ -847,12 +869,20 @@ class GlobalRangeAnalysis(AbstractInterpreter):
             bound = union_many(values)
             assert bound is not None
             loc.write(self.graph, bound, first_run)
+        if self.graph.name == 'zsizze_bytes_forwards':
+            import pdb;pdb.set_trace()
+        if returnvalues:
+            returnloc = self.manager.get_returnvalue(self.graph, returntyp).write(self.graph, union_many(returnvalues), first_run)
 
-def analyze_and_optimize_all_graphs(codegen):
+def analyze_and_optimize_all_graphs(codegen, program_entrypoints):
+    import pdb;pdb.set_trace()
     manager = LocationsManager(codegen)
-    graphs = codegen.all_graph_by_name.values()
+    extra_graphs = codegen.extract_needed_extra_graphs(program_entrypoints)
+    graphs = list(program_entrypoints) + [g for (g, _) in extra_graphs]
     # first pass through all graphs
     for graph in graphs:
+        if graph.name == 'zsizze_bytes_forwards':
+            import pdb;pdb.set_trace()
         gra = GlobalRangeAnalysis(graph, codegen, manager)
         if not graph.has_loop:
             gra.analyze()

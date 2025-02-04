@@ -242,18 +242,18 @@ class Codegen(specialize.FixpointSpecializer):
         from pydrofoil.ir import print_stats
         from pydrofoil.absinterp import analyze_and_optimize_all_graphs
         t1 = time.time()
-        analyze_and_optimize_all_graphs(self)
+        if self.program_entrypoints is None:
+            program_entrypoints = [g for g, _, _, _ in self._all_graphs]
+        else:
+            program_entrypoints = self.program_entrypoints + ["zinitializze_registers"]
+            program_entrypoints = [self.all_graph_by_name[name] for name in program_entrypoints]
+        analyze_and_optimize_all_graphs(self, program_entrypoints)
         t2 = time.time()
         self.print_persistent_msg("DONE, took seconds", round(t2 - t1, 2))
         self.print_persistent_msg("============== FINISHING ==============")
         t1 = time.time()
         self.specialize_all()
         unspecialized_graphs = []
-        if self.program_entrypoints is None:
-            program_entrypoints = [g for g, _, _, _ in self._all_graphs]
-        else:
-            program_entrypoints = self.program_entrypoints + ["zinitializze_registers"]
-            program_entrypoints = [self.all_graph_by_name[name] for name in program_entrypoints]
         extra_graphs = self.extract_needed_extra_graphs(program_entrypoints)
         graphs_to_emit = set(program_entrypoints)
         for graph, typ in extra_graphs:

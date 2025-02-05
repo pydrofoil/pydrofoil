@@ -560,8 +560,7 @@ class AbstractInterpreter(object):
         arg0, = self._argbounds(op)
         return arg0
 
-    def analyze_UnPackPackedField(self, op):
-        import pdb;pdb.set_trace()
+    def analyze_UnpackPackedField(self, op):
         arg0, = self._argbounds(op)
         return arg0
 
@@ -640,24 +639,39 @@ class IntOpOptimizer(ir.LocalOptimizer):
         value = self.current_values.get(op, None)
         if value is None:
             return None
-        if value == TRUE:
+        if value.same_bound(TRUE):
             return ir.BooleanConstant.TRUE
-        if value == FALSE:
+        if value.same_bound(FALSE):
             return ir.BooleanConstant.FALSE
 
+    def make_constant(self, typ, bound):
+        assert bound.isconstant()
+        if typ is types.Bool():
+            if bound.same_bound(TRUE):
+                return ir.BooleanConstant.TRUE
+            if bound.same_bound(FALSE):
+                return ir.BooleanConstant.FALSE
+            assert 0
+        elif typ is types.Int():
+            return ir.IntConstant(bound.low)
+        elif typ is types.MachineInt():
+            return ir.MachineIntConstant(bound.low)
+        assert 0
+
     def _optimize_op(self, block, index, op):
-        if op.resolved_type is types.Bool():
-            res = self._known_boolean_value(op)
-            if res is not None:
-                return res
-        elif op.resolved_type is types.Int():
-            b = self.current_values.get(op, None)
-            if b and b.isconstant():
-                return ir.IntConstant(b.low)
-        elif op.resolved_type is types.MachineInt():
-            b = self.current_values.get(op, None)
-            if b and b.isconstant():
-                return ir.MachineIntConstant(b.low)
+        if not op.can_have_side_effects:
+            if op.resolved_type is types.Bool():
+                res = self._known_boolean_value(op)
+                if res is not None:
+                    return res
+            elif op.resolved_type is types.Int():
+                b = self.current_values.get(op, None)
+                if b and b.isconstant():
+                    return ir.IntConstant(b.low)
+            elif op.resolved_type is types.MachineInt():
+                b = self.current_values.get(op, None)
+                if b and b.isconstant():
+                    return ir.MachineIntConstant(b.low)
         return ir.LocalOptimizer._optimize_op(self, block, index, op)
 
     def _insert_int_to_int64_into_right_block(self, arg, targetblock):
@@ -694,6 +708,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
                 value = self.values.get(prevblock, {}).get(arg, None)
                 if value is not None and value.fits_machineint():
                     arg = self._insert_int_to_int64_into_right_block(arg, prevblock)
+                    self._need_dead_code_removal = True
                 else:
                     return None
                 machineints.append(arg)
@@ -704,6 +719,20 @@ class IntOpOptimizer(ir.LocalOptimizer):
                     types.MachineInt())
             )
         return ir.LocalOptimizer._optimize_Phi(self, op, block, index)
+
+    def _optimize_Operation(self, op, block, index):
+        for index, arg in enumerate(self._args(op)):
+            if isinstance(arg, ir.Constant) or arg in self.replacements:
+                continue
+            if arg.resolved_type in (types.Int(), types.MachineInt(), types.Bool()):
+                bound = self.current_values.get(arg)
+                if bound is not None and bound.isconstant():
+                    const = self.make_constant(arg.resolved_type, bound)
+                    assert const.resolved_type == arg.resolved_type
+                    print "CONSTANT", op.name, const
+                    op.args[index] = const
+
+        return ir.LocalOptimizer._optimize_Operation(self, op, block, index)
 
     def optimize_tdiv_int(self, op):
         arg0, arg1 = self._args(op)
@@ -810,7 +839,6 @@ class LocationsManager(object):
         location.times_scheduled += 1
         if location.times_scheduled > 100:
             print "reached limit", location.times_scheduled, location
-            import pdb;pdb.set_trace()
             return
         print "scheduling", location, len(self.todo), location.times_scheduled
         for graph in location.readers:
@@ -848,7 +876,6 @@ class LocationsManager(object):
     def to_fixpoint(self, graphs):
         for loc in self.all_locations:
             loc._recompute(first_run=True)
-        import pdb;pdb.set_trace()
         while self.todo:
             graph = self.todo.pop()
             gra = GlobalRangeAnalysis(graph, self.codegen, self)
@@ -928,6 +955,7 @@ def analyze_and_optimize_all_graphs(codegen, program_entrypoints):
     # then optimize
     for graph in graphs:
         gra = GlobalRangeAnalysis(graph, codegen, manager)
+        gra.analyze()
         opt = IntOpOptimizer(graph, codegen, gra)
         if opt.optimize():
-            import pdb;pdb.set_trace()
+            ir.light_simplify(graph, codegen)

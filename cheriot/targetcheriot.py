@@ -15,7 +15,7 @@ def _make_code():
     with open(cheriotir, "rb") as f:
         s = f.read()
     support_code = "from cheriot import supportcodecheriot as supportcode"
-    entrypoints = "ztick_clock ztick_platform zword_width_bytes zinit_model zstep zext_decode zcapToBits zcapBitsToCapability".split()
+    entrypoints = "ztick_clock ztick_platform zword_width_bytes zinit_model zstep zext_decode zcapToBits zcapToString zcapBitsToCapability".split()
     res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', }, entrypoints=entrypoints)
     with open(outcheriotpy, "w") as f:
         f.write(res)

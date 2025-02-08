@@ -518,21 +518,24 @@ def count_leading_zeros(machine, bv):
 @purefunction
 def pack_smallfixedbitvector(machine, width, val):
     if not objectmodel.we_are_translated() and machine == "constfolding":
-        raise TypeError("can't constfold yet")
+        from pydrofoil.ir import CantFold
+        raise CantFold
     return width, val, None
 
 @objectmodel.always_inline
 @purefunction
 def pack_machineint(machine, val):
     if not objectmodel.we_are_translated() and machine == "constfolding":
-        raise TypeError("can't constfold yet")
+        from pydrofoil.ir import CantFold
+        raise CantFold
     return val, None
 
 @objectmodel.always_inline
 @purefunction
 def packed_field_cast_smallfixedbitvector(machine, targetwidth, (width, val, data)):
     if not objectmodel.we_are_translated() and machine == "constfolding":
-        raise TypeError("can't constfold yet")
+        from pydrofoil.ir import CantFold
+        raise CantFold
     assert width == targetwidth
     return val
 
@@ -541,7 +544,8 @@ def packed_field_cast_smallfixedbitvector(machine, targetwidth, (width, val, dat
 def packed_field_int_to_int64(machine, (val, data)):
     # equivalent to Integer.unpack(val, data).toint()
     if not objectmodel.we_are_translated() and machine == "constfolding":
-        raise TypeError("can't constfold yet")
+        from pydrofoil.ir import CantFold
+        raise CantFold
     if data is None:
         return val
     return bitvector.BigInteger._sign_and_data_toint(val, data)

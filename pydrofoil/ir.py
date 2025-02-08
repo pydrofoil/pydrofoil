@@ -1454,6 +1454,8 @@ class GraphPage(BaseGraphPage):
 
 # some simple graph simplifications
 
+class CantFold(Exception):
+    pass
 
 TIMINGS = defaultdict(float)
 COUNTS = defaultdict(int)
@@ -2434,6 +2436,8 @@ class LocalOptimizer(BaseOptimizer):
                 return None
         try:
             res = func("constfolding", *runtimeargs)
+        except CantFold:
+            return None # silent
         except (Exception, AssertionError) as e:
             print "generict const-folding failed", name, op, "with error", e, "arguments", args
             return None

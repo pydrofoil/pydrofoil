@@ -1785,20 +1785,14 @@ class BigInteger(Integer):
         return shift
 
     def tmod(self, other):
+        jit.jit_debug("BigInteger.tmod")
         if isinstance(other, SmallInteger) and int_in_valid_range(other.val):
             other = other.val
             if other == 0:
                 raise ZeroDivisionError
-            if self.sign == 0:
-                return INT_ZERO
-            if other > 0 and other & (other - 1) == 0 and self.sign >= 0:
-                # can use mask
-                return Integer.fromint(intmask(self.data[0] & (other - 1)))
-            jit.jit_debug("BigInteger.tmod")
             div, rem = bigint_divrem1(self.tobigint(), other)
             return SmallInteger(rem)
 
-        jit.jit_debug("BigInteger.tmod")
         other = other.tobigint()
         if other.get_sign() == 0:
             raise ZeroDivisionError

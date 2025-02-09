@@ -43,7 +43,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        HYPOTHESIS_PROFILE=ci make pydrofoil-test
+        PYTHONFAULTHANDLER=1 HYPOTHESIS_PROFILE=ci make pydrofoil-test
 
     - name: Test Coverage for Bitvectors, Integers and Reals
       if: matrix.os == 'ubuntu-20.04'

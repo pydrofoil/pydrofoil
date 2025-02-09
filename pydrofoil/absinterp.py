@@ -556,7 +556,6 @@ class AbstractInterpreter(object):
 
 
     def analyze_PackPackedField(self, op):
-        import pdb;pdb.set_trace()
         arg0, = self._argbounds(op)
         return arg0
 
@@ -801,7 +800,11 @@ class Location(object):
         bound = default_for_type(self.resolved_type).intersect(bound)
         old_bound = self.all_bounds.get(graph)
         if old_bound:
-            assert old_bound.contains_range(bound)
+            if not old_bound.contains_range(bound):
+                print "WARNING: getting wider in global range analysis of %s, writer %s" % (loc, graph.name)
+                print "old bound: %s, new bound %s, total bound %s" % (old_bound, bound, self.bound)
+                import pdb;pdb.set_trace()
+            #assert old_bound.contains_range(bound)
         assert self.bound.contains_range(bound)
         if old_bound is not None and old_bound.same_bound(bound):
             return
@@ -952,8 +955,14 @@ def analyze_and_optimize_all_graphs(codegen, program_entrypoints):
     # then to fixpoint
     manager.to_fixpoint(graphs)
     import pdb;pdb.set_trace()
+    to_reoptimize = set()
+    for loc in manager.all_locations:
+        if loc.is_interesting():
+            to_reoptimize.update(loc.readers)
+            to_reoptimize.update(loc.all_bounds)
     # then optimize
-    for graph in graphs:
+    for index, graph in enumerate(to_reoptimize):
+        codegen.print_highlevel_task("(todo: %s) GLOBAL ABSINTERP REOPT %s" % (len(to_reoptimize), graph.name))
         gra = GlobalRangeAnalysis(graph, codegen, manager)
         gra.analyze()
         opt = IntOpOptimizer(graph, codegen, gra)

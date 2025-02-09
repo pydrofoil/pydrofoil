@@ -122,7 +122,7 @@ class Specializer(object):
                 res = optimizer.newop(variant, [newcall], typ)
                 if typ != original_restype:
                     opname, recon_graph = self._get_reconstructor(original_restype, typ)
-                    res = optimizer.newop(opname, [newcall], original_restype)
+                    res = optimizer.newop(opname, [res], original_restype)
                 return res
 
         if isinstance(original_restype, types.Struct):

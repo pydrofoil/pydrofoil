@@ -43,7 +43,8 @@ jobs:
 
     - name: Test with pytest
       run: |
-        PYTHONFAULTHANDLER=1 HYPOTHESIS_PROFILE=ci make pydrofoil-test
+        make pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o
+	./pypy_binary/bin/python -X faulthandler pypy2/pytest.py -vs pydrofoil/ riscv/
 
     - name: Test Coverage for Bitvectors, Integers and Reals
       if: matrix.os == 'ubuntu-20.04'

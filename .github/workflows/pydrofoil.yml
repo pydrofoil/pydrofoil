@@ -44,7 +44,7 @@ jobs:
     - name: Test with pytest
       run: |
         make pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o
-        ./pypy_binary/bin/python -X faulthandler pypy2/pytest.py -vs pydrofoil/ riscv/
+        gdb -x gdbscript ./pypy_binary/bin/python
 
     - name: Test Coverage for Bitvectors, Integers and Reals
       if: matrix.os == 'ubuntu-20.04'

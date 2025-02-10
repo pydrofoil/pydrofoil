@@ -1,0 +1,5 @@
+set pagination off
+set debuginfod enabled off
+run pypy2/pytest.py -vs pydrofoil/ riscv/
+backtrace
+quit

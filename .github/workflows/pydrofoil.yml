@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-latest]
+        os: [ubuntu-20.04, ubuntu-24.04]
 
     steps:
     - uses: actions/checkout@v4
@@ -38,13 +38,15 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
+        sudo apt update -y
+        sudo apt install -y gdb
         make pypy_binary/bin/python
         make pypy2/rpython/bin/rpython
 
     - name: Test with pytest
       run: |
         make pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o
-        ./pypy_binary/bin/python -X faulthandler pypy2/pytest.py -vs pydrofoil/ riscv/
+        gdb -x gdbscript ./pypy_binary/bin/python
 
     - name: Test Coverage for Bitvectors, Integers and Reals
       if: matrix.os == 'ubuntu-20.04'

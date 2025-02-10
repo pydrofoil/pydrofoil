@@ -38,6 +38,7 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
+        sudo apt update -y
         sudo apt install -y gdb
         make pypy_binary/bin/python
         make pypy2/rpython/bin/rpython

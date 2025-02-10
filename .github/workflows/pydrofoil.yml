@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-latest]
+        os: [ubuntu-20.04, ubuntu-24.04]
 
     steps:
     - uses: actions/checkout@v4
@@ -38,6 +38,7 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
+        sudo apt install -y gdb
         make pypy_binary/bin/python
         make pypy2/rpython/bin/rpython
 

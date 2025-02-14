@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-22.04]
 
     steps:
     - uses: actions/checkout@v3
@@ -35,7 +35,7 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
-        make pypy_binary/bin/python
+        make pypy_binary_nightly
         make pypy2/rpython/bin/rpython
 
     - name: install opam

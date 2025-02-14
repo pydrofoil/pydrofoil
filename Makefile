@@ -324,6 +324,16 @@ pypy_binary/bin/python:  ## Download a PyPy binary
 	./pypy_binary/bin/python -m ensurepip
 	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5
 
+.PHONY: pypy_binary_nightly
+pypy_binary_nightly:  ## Download a nightly PyPy binary (instead of stable)
+	rm -rf pypy_binary
+	mkdir pypy_binary
+	python3 get_pypy_to_download.py --nightly
+	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
+	rm pypy.tar.bz2
+	./pypy_binary/bin/python -m ensurepip
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5
+
 pypy2/rpython/bin/rpython: ## Clone the PyPy submodule
 	git submodule update --init --depth 1
 

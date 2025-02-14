@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-22.04]
 
     steps:
     - uses: actions/checkout@v4
@@ -32,6 +32,11 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "pypy-2.7-v7.3.10"
+
+    - name: Download PyPy nightly and install dependencies
+      run: |
+        make pypy_binary_nightly
+        make pypy2/rpython/bin/rpython
 
     - name: Restore cached IR
       id: cache-ir-restore
@@ -58,12 +63,10 @@ jobs:
 
     - name: Run ARM unit test
       run: |
-        make pypy_binary/bin/python
         PYPY_GC_MAX=12GB PYTHONPATH=.:pypy2 ./pypy_binary/bin/python pypy2/pytest.py -vs arm/
 
     - name: build ARM
       run: |
-        make pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir
         PYTHONPATH=. pypy_binary/bin/python pypy2/rpython/bin/rpython -Ojit --translation-withsmallfuncsets=0 --output=pydrofoil-arm arm/targetarm.py --no-arm-regen
 
     - name: boot linux

@@ -8,6 +8,7 @@ class FakeCodeGen:
     builtin_names = {"zz5izDzKz5i64": "int_to_int64", "zz5i64zDzKz5i": "int64_to_int"}
     inlinable_functions = {}
     specialization_functions = {}
+    method_graphs_by_name = {}
     inline_dependencies = defaultdict(set)
 
     def print_debug_msg(*args):
@@ -1192,12 +1193,10 @@ zshift = Argument('zshift', SmallFixedBitVector(5))
 block0 = Block()
 i2 = block0.emit(Comment, 'inlined zsign_extend', [], Unit(), None, None)
 i3 = block0.emit(Operation, '@sign_extend_bv_i_i', [zv, MachineIntConstant(32), MachineIntConstant(64)], SmallFixedBitVector(64), '`1 193:29-193:51', 'return')
-i4 = block0.emit(Cast, '$cast', [i3], GenericBitVector(), None, None)
-i5 = block0.emit(Cast, '$cast', [zshift], GenericBitVector(), '`1 253:5-253:17', 'zz47')
-i6 = block0.emit(Operation, 'shift_bits_right', [i4, i5], GenericBitVector(), '`1 253:5-253:17', 'zz48')
-i7 = block0.emit(Cast, '$cast', [i6], SmallFixedBitVector(64), '`1 253:5-253:17', 'zz41')
-i8 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [i7, MachineIntConstant(31), MachineIntConstant(0)], SmallFixedBitVector(32), '`1 253:4-253:25', 'zz45')
-block0.next = Return(i8, None)
+i4 = block0.emit(Operation, '@unsigned_bv', [zshift, MachineIntConstant(5)], MachineInt(), None, None)
+i5 = block0.emit(Operation, '@shiftr_bv_i', [i3, MachineIntConstant(64), i4], SmallFixedBitVector(64), '`1 253:5-253:17', 'zz48')
+i6 = block0.emit(Operation, '@vector_subrange_fixed_bv_i_i', [i5, MachineIntConstant(31), MachineIntConstant(0)], SmallFixedBitVector(32), '`1 253:4-253:25', 'zz45')
+block0.next = Return(i6, None)
 graph = Graph('zshift_right_arith32', [zv, zshift], block0)
 ''')
 
@@ -4692,3 +4691,26 @@ i2 = block0.emit(Operation, '@packed_field_int_to_int64', [i1], MachineInt(), '`
 block0.next = Return(i2, None)
 graph = Graph('f', [struct], block0)
 ''')
+
+def test_shift_bits():
+    for before, after in [("shift_bits_left", "shiftl_bv_i"), ("shift_bits_right", "shiftr_bv_i")]:
+        a = Argument('a', SmallFixedBitVector(32))
+        b = Argument('b', SmallFixedBitVector(5))
+        block0 = Block()
+        i10 = block0.emit(Cast, '$cast', [a], GenericBitVector(), None, None)
+        i27 = block0.emit(Cast, '$cast', [b], GenericBitVector(), None, None)
+        i28 = block0.emit(Operation, before, [i10, i27], GenericBitVector(), '`39 465:18-465:44', 'zz414858')
+        i29 = block0.emit(Cast, '$cast', [i28], SmallFixedBitVector(32), '`39 465:18-465:44', 'zz414841')
+        block0.next = Return(i29)
+        graph = Graph('f', [a, b], block0)
+        check_optimize(graph, '''
+a = Argument('a', SmallFixedBitVector(32))
+b = Argument('b', SmallFixedBitVector(5))
+block0 = Block()
+i2 = block0.emit(Operation, '@unsigned_bv', [b, MachineIntConstant(5)], MachineInt(), None, None)
+i3 = block0.emit(Operation, '@%s', [a, MachineIntConstant(32), i2], SmallFixedBitVector(32), '`39 465:18-465:44', 'zz414858')
+block0.next = Return(i3, None)
+graph = Graph('f', [a, b], block0)
+''' % after)
+
+

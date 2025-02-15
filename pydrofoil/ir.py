@@ -2377,8 +2377,8 @@ class LocalOptimizer(BaseOptimizer):
             if op.args[0].name in variants:
                 op.name = variants[op.args[0].name].name
         name = self._builtinname(op.name)
-        if name in supportcode.all_unwraps:
-            specs, unwrapped_name = supportcode.all_unwraps[name]
+        if name.lstrip('@') in supportcode.all_unwraps:
+            specs, unwrapped_name = supportcode.all_unwraps[name.lstrip('@')]
             # these are unconditional unwraps, just rewrite them right here
             assert len(specs) == len(op.args)
             newargs = []
@@ -4015,6 +4015,32 @@ class LocalOptimizer(BaseOptimizer):
             ),
             op.resolved_type,
         )
+
+    def optimize_shift_bits_left(self, op):
+        arg0, arg1 = self._args(op)
+        intarg1 = self.newop(
+            "@sail_unsigned",
+            [arg1],
+            types.Int())
+        return self.newop(
+            "@shiftl",
+            [arg0, intarg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint)
+
+    def optimize_shift_bits_right(self, op):
+        arg0, arg1 = self._args(op)
+        intarg1 = self.newop(
+            "@sail_unsigned",
+            [arg1],
+            types.Int())
+        return self.newop(
+            "@shiftr",
+            [arg0, intarg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint)
 
     def optimize_arith_shiftr_o_i(self, op):
         arg0, arg1 = self._args(op)

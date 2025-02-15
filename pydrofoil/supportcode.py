@@ -327,17 +327,21 @@ def shiftr(machine, gbv, i):
 def shiftr_bv_i(machine, a, width, i):
     return _mask(width, a >> i)
 
+@purefunction
 @unwrap("o i")
 def arith_shiftr(machine, gbv, i):
     return gbv.arith_rshift(i)
 
+@purefunction
 def arith_shiftr_bv_i(machine, a, width, i):
     signed = signed_bv(machine, a, width)
     return _mask(width, r_uint(signed >> i))
 
+@purefunction
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)
 
+@purefunction
 def shift_bits_right(machine, gbv, gbva):
     return gbv.rshift_bits(gbva)
 

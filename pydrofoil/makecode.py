@@ -841,6 +841,8 @@ class __extend__(parse.Function):
             switches.append((curr_block, curr_offset, op))
             curr_offset = op.target
         generated_for_class = {}
+        all_graphs = {}
+        codegen.method_graphs_by_name[self.name] = all_graphs
         for i, (block, oldpc, cond) in enumerate(switches):
             if cond is not None:
                 clsname = codegen.getname(cond.condition.variant)
@@ -871,6 +873,7 @@ class __extend__(parse.Function):
             codegen.add_graph(graph, self.emit_method, pyname, clsname)
             if codegen.program_entrypoints:
                 codegen.program_entrypoints.append(graph.name)
+            all_graphs[cond.condition.variant if cond else None] = graph
         # make method calling function
         with self._scope(codegen, self.pyname):
             if uniontyp.compact_union:

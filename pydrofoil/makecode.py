@@ -826,7 +826,7 @@ class __extend__(parse.Function):
                 op.condition.var.name == self.args[0])
 
     def _emit_methods(self, blocks, codegen):
-        from pydrofoil.ir import build_ssa
+        from pydrofoil.ir import build_ssa, should_inline
         typ = codegen.globalnames[self.name].typ
         uniontyp = typ.argtype.elements[0]
         # make the implementations
@@ -870,7 +870,11 @@ class __extend__(parse.Function):
             finally:
                 self.name = propername
             generated_for_class[clsname] = pyname, known_cls
+            codegen.add_global(graph.name, graph.name, typ)
             codegen.add_graph(graph, self.emit_method, pyname, clsname)
+            inlinable = should_inline(graph, codegen.should_inline)
+            if inlinable:
+                codegen.inlinable_functions[graph.name] = graph
             if codegen.program_entrypoints:
                 codegen.program_entrypoints.append(graph.name)
             all_graphs[cond.condition.variant if cond else None] = graph

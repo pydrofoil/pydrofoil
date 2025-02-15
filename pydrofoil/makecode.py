@@ -906,10 +906,11 @@ class __extend__(parse.Function):
         with self._scope(codegen, pyname, method=True):
             emit_function_code(graph, self, codegen)
         codegen.emit("%s.meth_%s = %s" % (clsname, self.name, pyname))
+        codegen.emit("%s_static = %s" % (pyname, pyname))
         with self._scope(codegen, pyname):
             args = self.args
-            codegen.emit("return %s.meth_%s(%s, machine, %s)" % (
-                clsname, self.name, args[0], ", ".join(args[1:])))
+            codegen.emit("return %s_static(%s, machine, %s)" % (
+                pyname, args[0], ", ".join(args[1:])))
 
     def _find_reachable(self, block, blockpc, blocks, known_cls=None):
         # return all the blocks reachable from "block", where self.args[0] is

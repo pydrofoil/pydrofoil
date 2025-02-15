@@ -943,60 +943,6 @@ class __extend__(parse.Function):
             process(index, current)
         return {k: v for k, v in res}
 
-    def _emit_blocks(self, blocks, codegen, entrycounts, startpc=0):
-        UNUSED
-        codegen.emit("pc = %s" % startpc)
-        with codegen.emit_indent("while 1:"):
-            prefix = ''
-            for blockpc, block in sorted(blocks.items()):
-                if block == [None]:
-                    # inlined by emit_block_ops
-                    continue
-                with codegen.emit_indent("%sif pc == %s:" % (prefix, blockpc)):
-                    self.emit_block_ops(block, codegen, entrycounts, blockpc, blocks)
-                #prefix = 'el'
-            #with codegen.emit_indent("else:"):
-            #    codegen.emit("assert 0, 'should be unreachable'")
-
-    def emit_block_ops(self, block, codegen, entrycounts=(), offset=0, blocks=None):
-        UNUSED
-        if isinstance(block[0], str):
-            # bit hacky: just emit it
-            assert len(block) == 1
-            codegen.emit(block[0])
-            return
-        for i, op in enumerate(block):
-            if (isinstance(op, parse.LocalVarDeclaration) and
-                    i + 1 < len(block) and
-                    isinstance(block[i + 1], (parse.Assignment, parse.Operation)) and
-                    op.name == block[i + 1].result and op.name not in block[i + 1].find_used_vars()):
-                op.make_op_code(codegen, False)
-            elif isinstance(op, parse.ConditionalJump):
-                codegen.emit("# %s" % (op, ))
-                with codegen.emit_indent("if %s:" % (op.condition.to_code(codegen))):
-                    if entrycounts[op.target] == 1:
-                        # can inline!
-                        codegen.emit("# inline pc=%s" % op.target)
-                        self.emit_block_ops(blocks[op.target], codegen, entrycounts, op.target, blocks)
-                        blocks[op.target][:] = [None]
-                    else:
-                        codegen.emit("pc = %s" % (op.target, ))
-                    codegen.emit("continue")
-                continue
-            elif isinstance(op, parse.Goto):
-                codegen.emit("pc = %s" % (op.target, ))
-                if op.target < i:
-                    codegen.emit("continue")
-                return
-            elif isinstance(op, parse.Arbitrary):
-                codegen.emit("# arbitrary")
-                codegen.emit("return %s" % (codegen.gettyp(self.name).restype.uninitialized_value, ))
-            else:
-                codegen.emit("# %s" % (op, ))
-                op.make_op_code(codegen)
-            if op.end_of_block:
-                return
-
 class __extend__(parse.Pragma):
     def make_code(self, codegen):
         codegen.emit("# %s" % (self, ))
@@ -1102,18 +1048,7 @@ class __extend__(parse.FVecType):
 class __extend__(parse.TupleType):
     def resolve_type(self, codegen):
         typ = types.Tuple(tuple([e.resolve_type(codegen) for e in self.elements]))
-        with codegen.cached_declaration(typ, "Tuple") as pyname:
-            with codegen.emit_indent("class %s(supportcode.ObjectBase): # %s" % (pyname, self)):
-                codegen.emit("@objectmodel.always_inline")
-                with codegen.emit_indent("def eq(self, other):"):
-                    codegen.emit("assert isinstance(other, %s)" % (pyname, ))
-                    for index, fieldtyp in enumerate(self.elements):
-                        rtyp = fieldtyp.resolve_type(codegen)
-                        codegen.emit("if %s: return False # %s" % (
-                            rtyp.make_op_code_special_neq(None, ('self.utup%s' % index, 'other.utup%s' % index), (rtyp, rtyp), types.Bool()), fieldtyp))
-                    codegen.emit("return True")
-            typ.pyname = pyname
-        typ.uninitialized_value = "%s()" % (pyname, )
+        typ.uninitialized_value = "unreachable"
         return typ
 
 

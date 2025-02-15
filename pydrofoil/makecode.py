@@ -891,11 +891,11 @@ class __extend__(parse.Function):
                         default = pyname
                         continue
                     with codegen.emit_indent("%sif tag == %s.%s_tag:" % (prefix, basename, known_cls)):
-                        codegen.emit("return %s(%s, machine, %s)"  % (pyname, self.args[0], ", ".join(self.args[1:])))
+                        codegen.emit("return %s(machine, %s, %s)"  % (pyname, self.args[0], ", ".join(self.args[1:])))
                     prefix = 'el'
                 if default:
                     with codegen.emit_indent("else:"):
-                        codegen.emit("return %s(%s, machine, %s)"  % (default, self.args[0], ", ".join(self.args[1:])))
+                        codegen.emit("return %s(machine, %s, %s)"  % (default, self.args[0], ", ".join(self.args[1:])))
                 codegen.emit("assert 0, 'should be unreachable'")
             else:
                 basename = codegen.namedtypes[uniontyp.name].pyname

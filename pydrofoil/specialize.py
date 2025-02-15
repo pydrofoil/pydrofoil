@@ -404,6 +404,7 @@ class FixpointSpecializer(object):
         self.inlinable_functions = {}
         self.specialization_functions = {}
         self.all_graph_by_name = {}
+        self.method_graphs_by_name = {} # name -> list of graphs
         self.inline_dependencies = defaultdict(set) # graph -> {graphs}
         self.program_entrypoints = entrypoints
         # attributes for printing

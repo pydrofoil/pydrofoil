@@ -205,15 +205,18 @@ def length_unwrapped_res(machine, gbv):
     return gbv.size()
 
 @unwrap("o i")
+@purefunction
 @objectmodel.always_inline
 def sign_extend(machine, gbv, size):
     return gbv.sign_extend(size)
 
 @objectmodel.always_inline
+@purefunction
 def sign_extend_bv_i_i(machine, bv, width, targetwidth):
     m = r_uint(1) << (width - 1)
     return _mask(targetwidth, (bv ^ m) - m)
 
+@purefunction
 def sign_extend_o_i_unwrapped_res(machine, bv, size):
     assert size <= 64
     assert isinstance(bv, bitvector.SmallBitVector)
@@ -230,6 +233,7 @@ def zero_extend(machine, gbv, size):
 def zero_extend_bv_i_i(machine, bv, width, targetwidth):
     return bv # XXX correct?
 
+@purefunction
 def zero_extend_o_i_unwrapped_res(machine, bv, size):
     assert size <= 64
     assert isinstance(bv, bitvector.SmallBitVector)
@@ -251,24 +255,31 @@ def neq_bits(machine, gvba, gvbb):
 def neq_bits_bv_bv(machine, bva, bvb):
     return bva != bvb
 
+@purefunction
 def xor_bits(machine, gvba, gvbb):
     return gvba.xor(gvbb)
 
+@purefunction
 def xor_vec_bv_bv(machine, bva, bvb):
     return bva ^ bvb
 
+@purefunction
 def and_bits(machine, gvba, gvbb):
     return gvba.and_(gvbb)
 
+@purefunction
 def and_vec_bv_bv(machine, bva, bvb):
     return bva & bvb
 
+@purefunction
 def or_bits(machine, gvba, gvbb):
     return gvba.or_(gvbb)
 
+@purefunction
 def or_vec_bv_bv(machine, bva, bvb):
     return bva | bvb
 
+@purefunction
 def not_bits(machine, gvba):
     return gvba.invert()
 
@@ -316,17 +327,21 @@ def shiftr(machine, gbv, i):
 def shiftr_bv_i(machine, a, width, i):
     return _mask(width, a >> i)
 
+@purefunction
 @unwrap("o i")
 def arith_shiftr(machine, gbv, i):
     return gbv.arith_rshift(i)
 
+@purefunction
 def arith_shiftr_bv_i(machine, a, width, i):
     signed = signed_bv(machine, a, width)
     return _mask(width, r_uint(signed >> i))
 
+@purefunction
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)
 
+@purefunction
 def shift_bits_right(machine, gbv, gbva):
     return gbv.rshift_bits(gbva)
 
@@ -456,9 +471,11 @@ def vector_subrange_fixed_bv_i_i(machine, v, n, m):
 def slice_fixed_bv_i_i(machine, v, start, length):
     return vector_subrange_fixed_bv_i_i(machine, v, start + length - 1, start)
 
+@purefunction
 def string_of_bits(machine, gbv):
     return gbv.string_of_bits()
 
+@purefunction
 def decimal_string_of_bits(machine, sbits):
     return str(sbits)
 
@@ -481,6 +498,7 @@ def ones(machine, num):
     else:
         return bitvector.from_bigint(num, rbigint.fromint(-1))
 
+@purefunction
 def ones_zero_extended_unwrapped_res(machine, num_ones, width):
     num_ones = min(num_ones, width)
     assert num_ones <= 64
@@ -623,16 +641,19 @@ def eq(machine, ia, ib):
         return ia == ib
     import pdb;pdb.set_trace()
 
+@purefunction
 def lt_unsigned64(machine, ua, ub):
     assert isinstance(ua, r_uint)
     assert isinstance(ub, r_uint)
     return ua < ub
 
+@purefunction
 def lteq_unsigned64(machine, ua, ub):
     assert isinstance(ua, r_uint)
     assert isinstance(ub, r_uint)
     return ua <= ub
 
+@purefunction
 def gteq_unsigned64(machine, ua, ub):
     assert isinstance(ua, r_uint)
     assert isinstance(ub, r_uint)
@@ -838,6 +859,7 @@ def _int_to_int64_memo(r):
 def int64_to_int(machine, i):
     return Integer.fromint(i)
 
+@purefunction
 def string_to_int(machine, s):
     return Integer.fromstr(s)
 
@@ -857,9 +879,11 @@ def pow2(machine, x):
 def neg_int(machine, x):
     return x.neg()
 
+@purefunction
 def dec_str(machine, x):
     return x.str()
 
+@purefunction
 def hex_str(machine, x):
     return x.hex()
 

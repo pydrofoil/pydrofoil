@@ -881,6 +881,9 @@ class Graph(object):
 # values
 
 class Value(object):
+    def is_union_creation(self):
+        return False
+
     def _repr(self, print_varnames):
         return repr(self)
 
@@ -942,6 +945,10 @@ class Operation(Value):
                 self.args[index] = replacements[arg]
                 res = True
         return res
+
+    def is_union_creation(self):
+        return isinstance(self.resolved_type, types.Union) and type(self) is Operation and self.name in self.resolved_type.variants
+
 
 class Cast(Operation):
     can_have_side_effects = False
@@ -1594,8 +1601,6 @@ def localopt(graph, codegen, do_double_casts=True):
 
 @repeat
 def remove_dead(graph, codegen):
-    def is_union_creation(value):
-        return isinstance(value.resolved_type, types.Union) and type(value) is Operation and value.name in value.resolved_type.variants
     def can_remove_op(op):
         if not op.can_have_side_effects:
             return True
@@ -1603,7 +1608,7 @@ def remove_dead(graph, codegen):
             return True
         if op.name == "@eq":
             return True
-        if is_union_creation(op):
+        if op.is_union_creation():
             return True
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
@@ -2367,9 +2372,13 @@ class LocalOptimizer(BaseOptimizer):
 
 
     def _optimize_Operation(self, op, block, index):
+        if op.name in self.codegen.method_graphs_by_name and op.args[0].is_union_creation():
+            variants = self.codegen.method_graphs_by_name[op.name]
+            if op.args[0].name in variants:
+                op.name = variants[op.args[0].name].name
         name = self._builtinname(op.name)
-        if name in supportcode.all_unwraps:
-            specs, unwrapped_name = supportcode.all_unwraps[name]
+        if name.lstrip('@') in supportcode.all_unwraps:
+            specs, unwrapped_name = supportcode.all_unwraps[name.lstrip('@')]
             # these are unconditional unwraps, just rewrite them right here
             assert len(specs) == len(op.args)
             newargs = []
@@ -2634,19 +2643,16 @@ class LocalOptimizer(BaseOptimizer):
         return REMOVE
 
     def _optimize_UnionVariantCheck(self, op, block, index):
-        def is_union_creation(value):
-            assert isinstance(value.resolved_type, types.Union)
-            return type(value) is Operation and value.name in value.resolved_type.variants
         arg, = self._args(op)
         if type(arg) is Operation:
             if arg.name == op.name:
                 return BooleanConstant.FALSE
-            if is_union_creation(arg):
+            if arg.is_union_creation():
                 return BooleanConstant.TRUE
         if not isinstance(arg, Phi):
             return
         phi = arg
-        if not all(is_union_creation(value) for value in phi.prevvalues):
+        if not all(value.is_union_creation() for value in phi.prevvalues):
             return
 
         results = []
@@ -2665,11 +2671,8 @@ class LocalOptimizer(BaseOptimizer):
         return None
 
     def _optimize_UnionCast(self, op, block, index):
-        def is_union_creation(value):
-            assert isinstance(value.resolved_type, types.Union)
-            return type(value) is Operation and value.name in value.resolved_type.variants
         arg0, = self._args(op)
-        if is_union_creation(arg0) and arg0.name == op.name:
+        if arg0.is_union_creation() and arg0.name == op.name:
             assert len(arg0.args) == 1
             assert arg0.args[0].resolved_type == op.resolved_type
             return arg0.args[0]
@@ -4012,6 +4015,32 @@ class LocalOptimizer(BaseOptimizer):
             ),
             op.resolved_type,
         )
+
+    def optimize_shift_bits_left(self, op):
+        arg0, arg1 = self._args(op)
+        intarg1 = self.newop(
+            "@sail_unsigned",
+            [arg1],
+            types.Int())
+        return self.newop(
+            "@shiftl",
+            [arg0, intarg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint)
+
+    def optimize_shift_bits_right(self, op):
+        arg0, arg1 = self._args(op)
+        intarg1 = self.newop(
+            "@sail_unsigned",
+            [arg1],
+            types.Int())
+        return self.newop(
+            "@shiftr",
+            [arg0, intarg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint)
 
     def optimize_arith_shiftr_o_i(self, op):
         arg0, arg1 = self._args(op)

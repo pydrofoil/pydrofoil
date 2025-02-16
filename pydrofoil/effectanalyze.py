@@ -74,7 +74,6 @@ class ReadWriteAnalyzer(object):
         print "---"
         for name in sorted({x for e in self.func_effects.values() for x in e.prims}):
             print name
-        import pdb;pdb.set_trace()
 
     def print_callgraph(self):
         for callee, callers in self.callers_of_graphs.iteritems():
@@ -140,4 +139,5 @@ class ReadWriteAnalyzer(object):
 def analyze_all(codegen):
     rwa = ReadWriteAnalyzer(codegen)
     rwa.analyze_all()
+    return rwa
 

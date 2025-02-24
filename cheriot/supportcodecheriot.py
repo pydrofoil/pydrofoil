@@ -12,6 +12,7 @@ from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from rpython.rlib.rrandom import Random
 from rpython.rlib import jit
 from rpython.rlib import rsignal
+from rpython.rlib import debug as rdebug
 
 import time
 
@@ -102,7 +103,7 @@ class Globals(object):
         self.reservation = r_uint(0)
         self.reservation_valid = False
 
-        self.dump_dict = None
+        self.dump_dict = {}
 
         self.config_print_instr = True
         self.config_print_reg = True
@@ -467,13 +468,6 @@ def _main(argv, *machineclasses):
     #close_logs()
     return 0
 
-def get_printable_location(pc, do_show_times, insn_limit, tick, g):
-    if tick:
-        return "TICK 0x%x" % (pc, )
-    if g.dump_dict and pc in g.dump_dict:
-        return "0x%x: %s" % (pc, g.dump_dict[pc])
-    return hex(pc)
-
 
 
 def load_sail(machine, fn):
@@ -539,10 +533,10 @@ def get_main(outriscv):
     def get_printable_location(pc, do_show_times, insn_limit, tick, pcc_bits, g):
         if tick:
             return "TICK 0x%x" % (pc, )
+        capstring = outriscv.func_zcapToString(None, outriscv.func_zcapBitsToCapability(None, True, pcc_bits))
         if g.dump_dict and pc in g.dump_dict:
-            return "%s 0x%x: %s" % (prefix, pc, g.dump_dict[pc])
-        return outriscv.func_zcapToString(None, outriscv.func_zcapBitsToCapability(None, True, pcc_bits))
-        return hex(pc)
+            return "%s %s: %s" % (prefix, capstring, g.dump_dict[pc])
+        return capstring
 
     driver = JitDriver(
         get_printable_location=get_printable_location,
@@ -561,6 +555,18 @@ def get_main(outriscv):
     #    res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
     #    return res
     #outriscv.func_zphys_mem_read_specialized_o_o_2_o_o_False_False = phys_mem_read_patched
+
+    @jit.not_in_trace
+    def disassemble_current_inst(pc, m):
+        if rdebug.have_debug_prints_for('jit-log-opt'):
+            instbits = m._reg_zinstbits
+            if instbits & 0b11 != 0b11:
+                # compressed instruction
+                ast = outriscv.func_zencdec_compressed_backwards(m, m._reg_zinstbits)
+            else:
+                ast = outriscv.func_zext_decode(m, m._reg_zinstbits)
+            dis = outriscv.func_zassembly_forwards(m, ast)
+            m.g.dump_dict[pc] = dis
 
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
@@ -632,6 +638,9 @@ def get_main(outriscv):
                     raise ValueError
                 rv_insns_per_tick = g.rv_insns_per_tick
                 if stepped:
+                    if jit.we_are_jitted():
+                        disassemble_current_inst(prev_pc, self)
+
                     step_no += 1
                     if rv_insns_per_tick:
                         insn_cnt += 1

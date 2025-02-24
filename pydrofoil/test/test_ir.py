@@ -4714,3 +4714,14 @@ graph = Graph('f', [a, b], block0)
 ''' % after)
 
 
+def test_packed_int_to_int64_of_pack_machineint():
+    block0 = Block()
+    i6 = block0.emit(Operation, '@pack_machineint', [MachineIntConstant(2)], Packed(Int()), None, None)
+    i7 = block0.emit(Operation, '@packed_field_int_to_int64', [i6], MachineInt(), '`14', None)
+    block0.next = Return(i7)
+    graph = Graph('f', [], block0)
+    check_optimize(graph, '''
+block0 = Block()
+block0.next = Return(MachineIntConstant(2), None)
+graph = Graph('f', [], block0)
+''')

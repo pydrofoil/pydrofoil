@@ -524,6 +524,42 @@ def get_config_print_platform(machine, _):
 def get_config_print_exception(machine, _):
     return machine.g.config_print_exception
 
+@specialize.argtype(0)
+def promote_addr_region(machine, addr, width, executable_flag):
+    g = jit.promote(machine.g)
+    addr = intmask(addr)
+    jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
+    if not jit.we_are_jitted() or not jit.isconstant(width):
+        return
+    if executable_flag:
+        jit.promote(addr)
+        jit.jit_debug("ram ifetch", intmask(addr))
+        mem = jit.promote(machine.g).mem
+        # read and ignore the result, the JIT will do the rest
+        res = mem.read(r_uint(addr), width, executable_flag=True)
+        return
+
+def patch_checked_mem_function(outriscv, name):
+    func = getattr(outriscv, name)
+    varnames = func.func_code.co_varnames
+    if "read" in name:
+        assert varnames[:4] == ('machine', 'zt', 'zpaddr', 'zwidth')
+        def patched(machine, zt, zpaddr, zwidth, *args):
+            executable_flag = outriscv.Union_zAccessTypezIEext_access_typez5zK_zExecutezIEext_access_typez5zK.check_variant(zt)
+            promote_addr_region(machine, zpaddr, zwidth, executable_flag)
+            return func(machine, zt, zpaddr, zwidth, *args)
+        patched.func_name += "_" + func.func_name
+        setattr(outriscv, name, patched)
+    else:
+        assert "write" in name
+        assert varnames[:4] == ('machine', 'zwk', 'zpaddr', 'zwidth')
+        def patched(machine, zwk, zpaddr, zwidth, *args):
+            promote_addr_region(machine, zpaddr, zwidth, False)
+            return func(machine, zwk, zpaddr, zwidth, *args)
+        patched.func_name += "_" + func.func_name
+        setattr(outriscv, name, patched)
+
+
 def get_main(outriscv):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
@@ -546,15 +582,9 @@ def get_main(outriscv):
         name=prefix,
         is_recursive=True)
 
-    #phys_mem_read = outriscv.func_zphys_mem_read_specialized_o_o_2_o_o_False_False
-    #def phys_mem_read_patched(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta):
-    #    # read and ignore the result, the JIT will do the rest?
-    #    jit.jit_debug("ram ifetch", intmask(zpaddr))
-    #    mem = jit.promote(machine.g).mem
-    #    res = mem.read(zpaddr, 2, executable_flag=True)
-    #    res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
-    #    return res
-    #outriscv.func_zphys_mem_read_specialized_o_o_2_o_o_False_False = phys_mem_read_patched
+    for name in dir(outriscv):
+        if name.startswith("func_zchecked_mem_"):
+            patch_checked_mem_function(outriscv, name)
 
     @jit.not_in_trace
     def disassemble_current_inst(pc, m):

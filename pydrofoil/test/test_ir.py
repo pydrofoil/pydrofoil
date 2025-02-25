@@ -4725,3 +4725,18 @@ block0 = Block()
 block0.next = Return(MachineIntConstant(2), None)
 graph = Graph('f', [], block0)
 ''')
+
+def test_signed_eq_0():
+    block2 = Block()
+    i7 = Argument('i7', SmallFixedBitVector(4))
+    i8 = block2.emit(Operation, '@signed_bv', [i7, MachineIntConstant(4)], MachineInt(), '`8 526:28-526:45', 'zz45')
+    i10 = block2.emit(Operation, '@eq', [i8, MachineIntConstant(0)], Bool(), '`0 100:35-100:47', 'zz40')
+    block2.next = Return(i10)
+    graph = Graph('f', [i7], block2)
+    check_optimize(graph, '''
+i7 = Argument('i7', SmallFixedBitVector(4))
+block0 = Block()
+i1 = block0.emit(Operation, '@eq_bits_bv_bv', [i7, SmallBitVectorConstant(0x0, SmallFixedBitVector(4))], Bool(), '`0 100:35-100:47', 'zz40')
+block0.next = Return(i1, None)
+graph = Graph('f', [i7], block0)
+''')

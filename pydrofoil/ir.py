@@ -4183,8 +4183,8 @@ class LocalOptimizer(BaseOptimizer):
                 op.varname_hint
             )
 
-    def optimize_eq(self, op):
-        arg0, arg1 = self._args(op)
+    @symmetric
+    def optimize_eq(self, op, arg0, arg1):
         if arg0 is arg1:
             return BooleanConstant.TRUE
         if isinstance(arg0, MachineIntConstant) and isinstance(arg1, MachineIntConstant):
@@ -4193,6 +4193,13 @@ class LocalOptimizer(BaseOptimizer):
             return BooleanConstant.frombool(arg0.variant == arg1.variant)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
             import pdb;pdb.set_trace()
+        if isinstance(arg1, MachineIntConstant) and arg1.number == 0 and isinstance(arg0, Operation) and arg0.name == '@signed_bv':
+            arg0arg0, typ = self._extract_smallfixedbitvector(arg0.args[0])
+            return self.newop(
+                "@eq_bits_bv_bv", [arg0arg0, SmallBitVectorConstant(0x0, typ)],
+                op.resolved_type,
+                op.sourcepos,
+                op.varname_hint)
 
     def optimize_not(self, op):
         arg0, = self._args(op)

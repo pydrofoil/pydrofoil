@@ -4323,8 +4323,6 @@ class LocalOptimizer(BaseOptimizer):
 def inline(graph, codegen):
     # don't add blocks to functions that are already really big and need to be
     # split later
-    #if graph.name == "zhex_bits_2_forwards":
-    #    import pdb;pdb.set_trace()
     really_huge_function = graph.has_more_than_n_blocks(1000)
     changed = False
     for block in graph.iterblocks():
@@ -4425,14 +4423,34 @@ def should_inline(graph, model_specific_should_inline=None):
             return res
     if graph.has_loop:
         return False
-    blocks = list(graph.iterblocks())
-    if any([isinstance(block.next, Return) and block.next.value is None for block in blocks]):
-        return False
-    for op, _ in graph.iterblockops():
-        if isinstance(op, Operation) and op.name == graph.name:
-            return False # no recursive inlining
-    number_ops = len([op for block in blocks for op in block.operations])
-    return len(blocks) <= 4 and number_ops < 25
+    number_ops = 0
+    return_typ = None
+    number_blocks = 0
+    for block in graph.iterblocks():
+        number_blocks += 1
+        if isinstance(block.next, Return):
+            if block.next.value is None:
+                return False
+            return_typ = block.next.value.resolved_type
+        for op in block.operations:
+            if isinstance(op, Operation) and op.name == graph.name:
+                return False # no recursive inlining
+            number_ops += 1
+
+    max_blocks = 5
+    max_ops = 25
+    # per returned struct/union or passed in struct union we allow one more
+    # block and five more operations. those typs are likely to cause operations
+    # in the caller and callee that can be optimized away when inlined
+    if return_typ:
+        if isinstance(return_typ, (types.Struct, types.Union)):
+            max_blocks += 1
+            max_ops += 5
+    for arg in graph.args:
+        if isinstance(arg.resolved_type, (types.Struct, types.Union)):
+            max_blocks += 1
+            max_ops += 5
+    return number_blocks <= max_blocks and number_ops < max_ops
 
 
 def topo_order(graph):

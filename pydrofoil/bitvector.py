@@ -396,6 +396,21 @@ class SmallBitVector(BitVector):
     def pack(self):
         return (self.size(), self.val, None)
 
+    def count_leading_zeros(self):
+        return self._count_leading_zeros(self.size(), self.val)
+
+    @staticmethod
+    @jit.elidable
+    def _count_leading_zeros(size, val):
+        count = 0
+        mask = r_uint(1) << (size - 1)
+        for i in range(size - 1, -1, -1):
+            if val & mask:
+                break
+            count += 1
+            mask >>= 1
+        return count
+
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 

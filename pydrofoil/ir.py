@@ -2844,14 +2844,34 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_append(self, op):
         arg0, arg1 = self._args(op)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
-        arg1, typ1 = self._extract_smallfixedbitvector(arg1)
-        reswidth = typ0.width + typ1.width
+        return self.newop(
+            "@bitvector_concat_bv_gbv_wrapped_res",
+            [arg0, MachineIntConstant(typ0.width), arg1],
+            types.GenericBitVector(),
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_bitvector_concat_bv_gbv_wrapped_res(self, op):
+        arg0, arg1, arg2 = self._args(op)
+        if isinstance(arg2, Operation) and arg2.name == "@zeros_i":
+            subarg0, = self._args(arg2)
+            if not isinstance(subarg0, Constant):
+                return self.newop(
+                    "@bitvector_concat_bv_n_zeros_wrapped_res",
+                    [arg0, arg1, subarg0],
+                    types.GenericBitVector(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+        arg2, typ2 = self._extract_smallfixedbitvector(arg2)
+        reswidth = self._extract_machineint(arg1).number + typ2.width
         if reswidth > 64:
             return
         res = self.newcast(
             self.newop(
                 "@bitvector_concat_bv_bv",
-                [arg0, MachineIntConstant(typ1.width), arg1],
+                [arg0, MachineIntConstant(typ2.width), arg2],
                 types.SmallFixedBitVector(reswidth),
                 op.sourcepos,
                 op.varname_hint,
@@ -3764,21 +3784,66 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_sail_truncate_o_i(self, op):
         arg0, arg1 = self._args(op)
-        arg0, typ = self._extract_smallfixedbitvector(arg0)
         num = self._extract_number(arg1)
-        if typ.width < num.number:
-            return
-        if typ.width == num.number:
-            newop = arg0
-        else:
+        try:
+            arg0, typ = self._extract_smallfixedbitvector(arg0)
+        except NoMatchException:
+            if num.number > 64:
+                return
             newop = self.newop(
-                "@truncate_bv_i",
+                "@truncate_unwrapped_res",
                 [arg0, num],
                 types.SmallFixedBitVector(num.number),
                 op.sourcepos,
                 op.varname_hint
             )
+        else:
+            if typ.width < num.number:
+                return
+            if typ.width == num.number:
+                newop = arg0
+            else:
+                newop = self.newop(
+                    "@truncate_bv_i",
+                    [arg0, num],
+                    types.SmallFixedBitVector(num.number),
+                    op.sourcepos,
+                    op.varname_hint
+                )
         return self.newcast(newop, op.resolved_type)
+
+    def optimize_truncate_unwrapped_res(self, op):
+        arg0, arg1 = self._args(op)
+        if not isinstance(arg0, Operation) or not arg0.name == '@bitvector_concat_bv_gbv_wrapped_res':
+            return
+        arg1 = self._extract_number(arg1)
+        if arg1.number > 64:
+            return
+        subarg0, subarg1, subarg2 = self._args(arg0)
+        return self.newcast(
+            self.newop(
+                "@bitvector_concat_bv_gbv_truncate_to",
+                [subarg0, subarg1, subarg2, arg1],
+                types.SmallFixedBitVector(arg1.number),
+                arg0.sourcepos,
+                arg0.varname_hint,
+            ),
+            op.resolved_type
+        )
+
+    def optimize_bitvector_concat_bv_gbv_truncate_to(self, op):
+        # very cheriot-specific :`-)
+        arg0, arg1, arg2, arg3 = self._args(op)
+        if not isinstance(arg2, Operation) or not arg2.name == '@bitvector_concat_bv_n_zeros_wrapped_res':
+            return
+        subarg0, subarg1, subarg2 = self._args(arg2)
+        return self.newop(
+            "@bitvector_concat_bv_bv_n_zeros_truncate",
+            [arg0, arg1, subarg0, subarg1, subarg2, arg3],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint
+        )
 
     @symmetric
     def optimize_eq_bool(self, op, arg0, arg1):

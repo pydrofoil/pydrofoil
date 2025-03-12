@@ -42,10 +42,13 @@ class CodeEmitter(object):
         if len(self.blocks) == 1:
             self.emit_block_ops(self.blocks[0])
             return
+        mutated_structtypes = compute_mutated_struct_types(self.graph)
         for arg in self.graph.args:
             if isinstance(arg.resolved_type, types.Struct) and not arg.resolved_type.tuplestruct:
-                # copy all struct arguments
-                codegen.emit("%s = %s.copy_into()" % (arg.name, arg.name))
+                # copy all struct arguments where structs of the same type are
+                # mutated in this function
+                if arg.resolved_type in mutated_structtypes:
+                    codegen.emit("%s = %s.copy_into(machine)" % (arg.name, arg.name))
         # first give out variable names
         for block in self.blocks:
             for index, op in enumerate(block.operations):
@@ -254,29 +257,27 @@ class CodeEmitter(object):
         self.codegen.emit(write)
 
     def emit_op_RefAssignment(self, op):
-        # XXX think long and hard about refs!
-        self.codegen.emit("%s.copy_into(%s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
+        self.codegen.emit("%s.update_with(machine, %s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
 
     def emit_op_Allocate(self, op):
         self._op_helper(op, op.resolved_type.uninitialized_value)
 
     def emit_op_RefOf(self, op):
-        if not isinstance(op.resolved_type.typ, types.Struct):
-            # only support references of 64 bit registers
-            assert op.resolved_type.typ is types.SmallFixedBitVector(64)
-            arg, = op.args
-            assert isinstance(arg, ir.GlobalRead)
-            regname = arg.name
-            register = self.codegen.all_registers[regname]
-            name = "ref_%s" % (regname, )
-            with self.codegen.cached_declaration(regname, name) as pyname:
-                with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
-                    with self.codegen.emit_indent("def deref(self, machine):"):
-                        self.codegen.emit("return machine.%s" % (register.pyname, ))
-                self.codegen.emit("%s = %s() # singleton" % (pyname, pyname))
-            return self._op_helper(op, pyname)
-        # for structs it's just the identity
-        return self._op_helper(op, self._get_arg(op.args[0]))
+        arg, = op.args
+        assert isinstance(arg, ir.GlobalRead)
+        regname = arg.name
+        register = self.codegen.all_registers[regname]
+        pyname = register.register_ref_name
+        #name = "ref_%s" % (regname, )
+        #with self.codegen.cached_declaration(regname, name) as pyname:
+        #    with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
+        #        with self.codegen.emit_indent("def deref(self, machine):"):
+        #            self.codegen.emit("return machine.%s" % (register.pyname, ))
+        #        if isinstance(op.resolved_type.typ, types.Struct):
+        #            with self.codegen.emit_indent("def copy_into(self, machine, res=None):"):
+        #                self.codegen.emit("return machine.%s.copy_into(machine, res)" % (register.pyname, ))
+        #    self.codegen.emit("%s = %s() # singleton" % (pyname, pyname))
+        return self._op_helper(op, pyname)
 
     def emit_op_VectorInit(self, op):
         oftyp = op.resolved_type.typ
@@ -384,3 +385,13 @@ def count_uses(graph):
         for arg in block.next.getargs():
             uses[arg] += 1
     return uses
+
+def compute_mutated_struct_types(graph):
+    result = set()
+    for block in graph.iterblocks():
+        for op in block.operations:
+            if not isinstance(op, ir.FieldWrite):
+                continue
+            result.add(op.args[0].resolved_type)
+    return result
+

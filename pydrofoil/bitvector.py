@@ -56,6 +56,13 @@ def rbigint_fromrarith_int(uint):
     jit.record_known_result(uint, rbigint.touint, res)
     return res
 
+def bv_concat_n_zero_bits(width, bv1, nzeros):
+    ressize = width + nzeros
+    if ressize > 64 and bv1:
+        return from_ruint(width, bv1).append(from_ruint(nzeros, r_uint(0)))
+    else:
+        return from_ruint(ressize, bv1 << nzeros)
+
 class MaskHolder(object):
     def __init__(self, predefined=128):
         self.lst = []
@@ -125,6 +132,20 @@ class BitVector(W_Root):
     def append_64(self, ui):
         raise NotImplementedError("abstract base class")
 
+    def prepend_small(self, size, ui):
+        # default implementation
+        other = from_ruint(size, ui)
+        return other.append(self)
+
+    def prepend_small_then_truncate_unwrapped_res(self, size, ui, targetsize):
+        # default implementation
+        assert targetsize <= 64
+        assert targetsize <= size + self.size()
+        other = from_ruint(size, ui)
+        res = other.append(self).truncate(targetsize)
+        assert isinstance(res, SmallBitVector)
+        return res.touint()
+
     def lshift_bits(self, other):
         return self.lshift(other.toint())
 
@@ -140,6 +161,18 @@ class BitVector(W_Root):
             return SparseBitVector(size, val)
         else:
             return GenericBitVector(size, data)
+
+    def truncate_lsb(self, i):
+        cut_off = self.size() - i
+        return self.subrange(self.size() - 1, cut_off)
+
+    def count_leading_zeros(self):
+        count = 0
+        for i in range(self.size() - 1, -1, -1):
+            if self.read_bit(i):
+                break
+            count += 1
+        return count
 
 
 class SmallBitVector(BitVector):
@@ -327,6 +360,21 @@ class SmallBitVector(BitVector):
         if ressize > 64 or not isinstance(other, SmallBitVector):
             return BitVector.append(self, other)
         return from_ruint(ressize, (self.val << other.size()) | other.val)
+
+    def prepend_small(self, size, ui):
+        # default implementation
+        ressize = size + self.size()
+        if ressize > 64:
+            return BitVector.prepend_small(self, size, ui)
+        return from_ruint(ressize, (ui << self.size()) | self.val)
+
+    def prepend_small_then_truncate_unwrapped_res(self, size, ui, targetsize):
+        ressize = size + self.size()
+        if ressize > 64:
+            return BitVector.prepend_small_then_truncate_unwrapped_res(self, size, ui, targetsize)
+        assert targetsize <= 64
+        assert targetsize <= ressize
+        return ruint_mask(targetsize, (ui << self.size()) | self.val)
 
     def replicate(self, i):
         size = self.size()

@@ -79,6 +79,10 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@and_vec_bv_bv", "supportcode.and_vec_bv_bv")
         self.add_global("@not_vec_bv", "supportcode.not_vec_bv")
         self.add_global("@bitvector_concat_bv_bv", "supportcode.bitvector_concat_bv_bv")
+        self.add_global("@bitvector_concat_bv_gbv_wrapped_res", "supportcode.bitvector_concat_bv_gbv_wrapped_res")
+        self.add_global("@bitvector_concat_bv_n_zeros_wrapped_res", "supportcode.bitvector_concat_bv_n_zeros_wrapped_res")
+        self.add_global("@bitvector_concat_bv_gbv_truncate_to", "supportcode.bitvector_concat_bv_gbv_truncate_to")
+        self.add_global("@bitvector_concat_bv_bv_n_zeros_truncate", "supportcode.bitvector_concat_bv_bv_n_zeros_truncate")
         self.add_global("@signed_bv", "supportcode.signed_bv")
         self.add_global("@unsigned_bv_wrapped_res", "supportcode.unsigned_bv_wrapped_res")
         self.add_global("@unsigned_bv", "supportcode.unsigned_bv")
@@ -95,6 +99,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@shiftr_bv_i", "supportcode.shiftr_bv_i")
         self.add_global("@arith_shiftr_bv_i", "supportcode.arith_shiftr_bv_i")
         self.add_global("@length_unwrapped_res", "supportcode.length_unwrapped_res")
+        self.add_global("@truncate_unwrapped_res", "supportcode.truncate_unwrapped_res")
         self.add_global("@truncate_bv_i", "supportcode.truncate_bv_i")
         self.add_global("@replicate_bv_i_i", "supportcode.replicate_bv_i_i")
         self.add_global("@platform_read_mem_o_i_bv_i", "supportcode.platform_read_mem_o_i_bv_i")
@@ -211,8 +216,8 @@ class Codegen(specialize.FixpointSpecializer):
         self.finish_graphs()
         res = ["\n".join(self.declarations)]
         res.append("def let_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
-        res.append("let_init(Machine)")
         res.append("\n".join(self.code))
+        res.append("let_init(Machine)")
         return "\n\n".join(res)
 
     def emit_extra_graph(self, graph, functyp):
@@ -274,7 +279,7 @@ class Codegen(specialize.FixpointSpecializer):
                     fieldname = "self." + arg
                     self.emit(fieldtyp.packed_field_write(fieldname, arg))
                     uninit_arg.append(fieldtyp.uninitialized_value)
-            with self.emit_indent("def copy_into(self, res=None):"):
+            with self.emit_indent("def copy_into(self, machine, res=None):"):
                 self.emit("if res is None: res = objectmodel.instantiate(self.__class__)")
                 for arg, fieldtyp in zip(structtyp.names, structtyp.typs):
                     self.emit(fieldtyp.packed_field_copy("res.%s" % arg, "self.%s" % arg))
@@ -516,6 +521,7 @@ class __extend__(parse.Union):
         with codegen.emit_indent("def eq(self, other):"):
             codegen.emit("if not isinstance(other, %s): return False" % pyname)
             codegen.emit("if type(self) is not type(other): return False")
+            codegen.emit("assert isinstance(other, %s)" % pyname)
             if rtyp is types.Unit():
                 codegen.emit("return True")
                 return
@@ -616,10 +622,14 @@ class __extend__(parse.Register):
         read_pyname = write_pyname = "machine.%s" % self.pyname
         if self.name in codegen.promoted_registers:
             read_pyname = "jit.promote(%s)" % write_pyname
+        elif isinstance(typ, types.Struct):
+            read_pyname += ".copy_into(machine)"
+            register_ref_name = self.make_register_ref(codegen, read_pyname)
+            read_pyname = "%s.deref(machine)" % (register_ref_name, )
+            write_pyname = "%s.update_with(machine, %%s)" % (register_ref_name, )
         else:
             read_pyname = typ.packed_field_read(read_pyname)
             write_pyname = typ.packed_field_write(write_pyname, '%s') # bit too much string processing magic
-
         codegen.all_registers[self.name] = self
         codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
         with codegen.emit_code_type("declarations"):
@@ -633,6 +643,18 @@ class __extend__(parse.Register):
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             graph = construct_ir(self, codegen, singleblock=True)
             emit_function_code(graph, self, codegen)
+
+    def make_register_ref(self, codegen, read_pyname):
+        name = "ref_%s" % (self.pyname, )
+        with codegen.cached_declaration(self.name, name) as pyname:
+            with codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
+                with codegen.emit_indent("def deref(self, machine):"):
+                    codegen.emit("return %s" % (read_pyname, ))
+                with codegen.emit_indent("def update_with(self, machine, res):"):
+                    codegen.emit("res.copy_into(machine, machine.%s)" % (self.pyname, ))
+            codegen.emit("%s = %s() # singleton" % (pyname, pyname))
+            self.register_ref_name = pyname
+        return pyname
 
 def iterblockops(blocks):
     for blockpc, block in sorted(blocks.items()):
@@ -928,7 +950,11 @@ class __extend__(parse.Let):
     def make_code(self, codegen):
         from pydrofoil.ir import construct_ir, extract_global_value
         pyname = "machine.l.%s" % self.name
-        codegen.add_global(self.name, pyname, self.typ.resolve_type(codegen), self, pyname)
+        if isinstance(self.resolved_type, types.Struct):
+            read_pyname = pyname + ".copy_into(machine)"
+        else:
+            read_pyname = pyname
+        codegen.add_global(self.name, read_pyname, self.typ.resolve_type(codegen), self, pyname)
         with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
             codegen.emit(" # let %s : %s" % (self.name, self.typ, ))
             graph = construct_ir(self, codegen, singleblock=True)

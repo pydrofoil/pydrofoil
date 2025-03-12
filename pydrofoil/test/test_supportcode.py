@@ -154,6 +154,10 @@ def make_bitvector(data, width=-1):
         else:
             return _make_generic_bitvector(data, width)
 
+small_bitvectors = strategies.builds(
+    _make_small_bitvector,
+    strategies.data())
+
 bitvectors = strategies.builds(
     make_bitvector,
     strategies.data())
@@ -981,6 +985,16 @@ def test_truncate():
         assert res.size() == 6
         assert res.touint() == 0b010100
 
+def test_truncateLSB():
+    for c1 in gbv, bv:
+        res = c1(10, 0b1011010100).truncate_lsb(2)
+        assert res.size() == 2
+        assert res.touint() == 0b10
+        res = c1(10, 0b1011010100).truncate_lsb(6)
+        assert res.size() == 6
+        assert res.touint() == 0b101101
+
+
 @given(bitvectors, strategies.data())
 def test_hypothesis_truncate(bv, data):
     bitwidth = bv.size()
@@ -989,11 +1003,37 @@ def test_hypothesis_truncate(bv, data):
     else:
         truncatewidth = data.draw(strategies.integers(1, bitwidth))
     value = data.draw(strategies.integers(0, 2**bitwidth - 1))
-    as_bit_string = bin(value)[2:]
-    bv = bitvector.from_bigint(bitwidth, rbigint.fromlong(value))
+    as_bit_string = bin(bv.tolong())[2:]
     res = bv.truncate(truncatewidth)
     assert bin(bv.tolong())[2:].rjust(bitwidth, '0')[-truncatewidth:] == bin(res.tolong())[2:].rjust(truncatewidth, '0')
 
+@given(bitvectors, strategies.data())
+def test_hypothesis_truncate_lsb(bv, data):
+    bitwidth = bv.size()
+    if not data.draw(strategies.booleans()):
+        truncatewidth = data.draw(strategies.integers(1, min(64, bitwidth)))
+    else:
+        truncatewidth = data.draw(strategies.integers(1, bitwidth))
+    res = bv.truncate_lsb(truncatewidth)
+    assert res.size() == truncatewidth
+    otherres = bv.rshift(bitwidth - truncatewidth)
+    assert otherres.tolong() == res.tolong()
+
+def test_count_leading_zeros():
+    for c1 in gbv, bv:
+        res = c1(10, 0b1011010100).count_leading_zeros()
+        assert res == 0
+        res = c1(10, 0b0000010100).count_leading_zeros()
+        assert res == 5
+
+@given(bitvectors)
+def test_hypothesis_count_leading_zeros(bv):
+    bitwidth = bv.size()
+    res = bv.count_leading_zeros()
+    assert 0 <= res <= bitwidth
+    as_str = bin(bv.tolong())[2:].rjust(bitwidth, '0')
+    as_str_no_zeros = as_str.lstrip('0')
+    assert res == len(as_str) - len(as_str_no_zeros)
 
 def test_string_of_bits():
     for c in gbv, bv:
@@ -1769,6 +1809,26 @@ def test_append_hypothesis(a, b):
     lres = res.tolong()
     assert lres == (la << b.size()) | lb
 
+@given(small_bitvectors, bitvectors)
+def test_prepend_small_hypothesis(a, b):
+    sa = a.size()
+    ua = a.touint()
+    lb = b.tolong()
+    res1 = b.prepend_small(sa, ua)
+    res2 = a.append(b)
+    assert res1.tolong() == res2.tolong()
+    assert res1.size() == res2.size()
+
+@given(small_bitvectors, bitvectors, strategies.integers(1, 64))
+def test_prepend_small_then_truncate_hypothesis(a, b, targetsize):
+    sa = a.size()
+    ua = a.touint()
+    lb = b.tolong()
+    assume(sa + b.size() >= targetsize)
+    res1 = b.prepend_small_then_truncate_unwrapped_res(sa, ua, targetsize)
+    res2 = b.prepend_small(sa, ua).truncate(targetsize)
+    assert res1 == res2.touint()
+
 @given(bitvectors, uints)
 def test_append_64_hypothesis(a, b):
     la = a.tolong()
@@ -1779,6 +1839,12 @@ def test_append_64_hypothesis(a, b):
     res = a.append(bv(64, b))
     lres2 = res.tolong()
     assert lres2 == lres1
+
+@given(small_bitvectors, bitvectors)
+def test_bv_concat_n_zero_bits(a, b):
+    res1 = bitvector.bv_concat_n_zero_bits(a.size(), a.touint(), b.size())
+    res2 = a.append(bitvector.from_ruint(b.size(), r_uint(0)))
+    assert res1.eq(res2)
 
 @given(bitvectors)
 def test_hypothesis_bv_repr_doesnt_crash(bv):

@@ -109,7 +109,6 @@ make_dummy('platform_barrier')
 make_dummy('print_mem_access')
 make_dummy('print_platform')
 make_dummy('print_reg')
-make_dummy('print_string')
 make_dummy('string_drop')
 make_dummy('string_take')
 make_dummy('string_startswith')
@@ -283,6 +282,19 @@ def print_bits(machine, s, b):
     print s + b.string_of_bits()
     return ()
 
+def print_string(machine, *args):
+    print _tup_join(*args)
+    return ()
+
+def _tup_join(*args):
+    if len(args) == 0:
+        return ''
+    if len(args) == 1:
+        return args[0]
+    else:
+        return args[0] + _tup_join(*args[1:])
+
+
 def prerr_bits(machine, s, b):
     os.write(STDERR, "%s%s\n" % (s, b.string_of_bits()))
     return ()
@@ -343,6 +355,24 @@ def append(machine, bv1, bv2):
 @purefunction
 def bitvector_concat_bv_bv(machine, bv1, width, bv2):
     return (bv1 << width) | bv2
+
+@purefunction
+def bitvector_concat_bv_gbv_wrapped_res(machine, bv1, width, gbv):
+    return gbv.prepend_small(width, bv1)
+
+@purefunction
+def bitvector_concat_bv_n_zeros_wrapped_res(machine, bv1, width, nzeros):
+    return bitvector.bv_concat_n_zero_bits(width, bv1, nzeros)
+
+@purefunction
+def bitvector_concat_bv_gbv_truncate_to(machine, bv1, width, gbv, target_width):
+    return gbv.prepend_small_then_truncate_unwrapped_res(width, bv1, target_width)
+
+@purefunction
+def bitvector_concat_bv_bv_n_zeros_truncate(machine, bv1, width1, bv2, width2, nzeros, target_width):
+    res = (bv1 << width2) | bv2
+    res <<= nzeros
+    return _mask(target_width, res)
 
 @purefunction
 def append_64(machine, bv, v):
@@ -464,8 +494,22 @@ def sail_truncate(machine, bv, i):
     return bv.truncate(i)
 
 @purefunction
+def truncate_unwrapped_res(machine, bv, length):
+    return bv.subrange_unwrapped_res(length - 1, 0)
+
+@unwrap("o i")
+@purefunction
+def sail_truncateLSB(machine, bv, i):
+    return bv.truncate_lsb(i)
+
+@purefunction
 def truncate_bv_i(machine, bv, i):
     return _mask(i, bv)
+
+@unwrap("o")
+@purefunction
+def count_leading_zeros(machine, bv):
+    return bitvector.Integer.fromint(bv.count_leading_zeros())
 
 # integers
 

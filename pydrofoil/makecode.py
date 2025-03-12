@@ -490,7 +490,7 @@ class __extend__(parse.Union):
                 with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
                     codegen.emit("_field_info = []")
                     # default field values
-                    if type(rtyp) is types.Struct:
+                    if isinstance(rtyp, types.Struct):
                         for fieldname, fieldtyp in sorted(rtyp.internalfieldtyps.iteritems()):
                             codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value, bare=True))
                             codegen.emit("_field_info.append((%r, %s, %s, %r, %r))" % (

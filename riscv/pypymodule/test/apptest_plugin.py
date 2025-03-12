@@ -21,12 +21,12 @@ def test_step():
 def test_run():
     cpu = _pydrofoil.RISCV64(addielf)
     cpu.run(100)
-    assert cpu.read_register("pc") == 0x800001e8
+    assert cpu.read_register("pc") == 0x800001f0
 
 def test_run32():
     cpu = _pydrofoil.RISCV32(addielf32)
     cpu.run(100)
-    assert cpu.read_register("pc") == 0x800001e8
+    assert cpu.read_register("pc") == 0x800001f0
 
 def test_read_write_register():
     cpu = _pydrofoil.RISCV64(addielf)
@@ -112,7 +112,7 @@ def test_various_registers():
     assert cpu.read_register("htif_done") == False
     cpu.write_register("htif_done", 12)
     assert cpu.read_register("htif_done") == True
-    assert cpu.read_register("misa") == 0x800000000034112d
+    assert cpu.read_register("misa") == 0x800000000034112F
 
 def test_register_info():
     _pydrofoil.sailtypes.Tuple # side effect :-(
@@ -216,8 +216,9 @@ def test_union_enum():
 
 def test_struct():
     bv = _pydrofoil.bitvector(16, 0xf)
-    tlb = _pydrofoil.RISCV64().types.TLB_Entry(1, bv, False, bv, bv, bv, bv, bv, bv)
-    assert tlb.age == 1
+    bv64 = _pydrofoil.bitvector(64, 0xf)
+    tlb = _pydrofoil.RISCV64().types.TLB_Entry(bv64, bv, False, bv64, bv64, bv64, bv64, bv64, bv64)
+    assert tlb.age == bv64
 
 def test_struct_sail_type():
     cls = _pydrofoil.sailtypes.Struct
@@ -228,7 +229,6 @@ def test_struct_sail_type():
     fields = dict(typ.fields)
     assert isinstance(fields['age'], _pydrofoil.sailtypes.SmallFixedBitVector)
     assert fields['age'].width == 64
-    assert isinstance(fields['asid'], _pydrofoil.sailtypes.GenericBitVector)
 
 def test_tuplestruct():
     m = _pydrofoil.RISCV64()
@@ -242,11 +242,11 @@ def test_call_function():
     assert m.lowlevel.privLevel_to_bits("Machine")    == 0b11
     assert m.lowlevel.privLevel_to_bits("Supervisor") == 0b01
 
-def test_call_function_writeCSR():
+def test_call_function_write_CSR():
     m = _pydrofoil.RISCV64()
     old = m.read_register("misa")
     new = old | (0b111 << 27)
-    m.lowlevel.writeCSR(0x301, new)
+    m.lowlevel.write_CSR(0x301, new)
     val = m.read_register("misa")
     assert val == old
 

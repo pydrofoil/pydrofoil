@@ -42,13 +42,6 @@ class CodeEmitter(object):
         if len(self.blocks) == 1:
             self.emit_block_ops(self.blocks[0])
             return
-        mutated_structtypes = compute_mutated_struct_types(self.graph)
-        for arg in self.graph.args:
-            if isinstance(arg.resolved_type, types.Struct) and not arg.resolved_type.tuplestruct:
-                # copy all struct arguments where structs of the same type are
-                # mutated in this function
-                if arg.resolved_type in mutated_structtypes:
-                    codegen.emit("%s = %s.copy_into(machine)" % (arg.name, arg.name))
         # first give out variable names
         for block in self.blocks:
             for index, op in enumerate(block.operations):
@@ -91,6 +84,8 @@ class CodeEmitter(object):
         if isinstance(op, ir.Cast):
             return True
         if isinstance(op, ir.UnionCast):
+            return True
+        if isinstance(op, ir.RefOf):
             return True
         if op.name == "@not":
             return True
@@ -219,7 +214,7 @@ class CodeEmitter(object):
 
     def emit_op_UnionVariantCheck(self, op):
         clsname = self.codegen.getname(op.name)
-        self._op_helper(op, "not isinstance(%s, %s)" % (self._get_arg(op.args[0]), clsname))
+        self._op_helper(op, "not %s.check_variant(%s)" % (clsname, self._get_arg(op.args[0])))
 
     def emit_op_UnionCast(self, op):
         clsname = self.codegen.getname(op.name)
@@ -229,6 +224,10 @@ class CodeEmitter(object):
         pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
         args = ", ".join([self._get_arg(arg) for arg in op.args])
         self._op_helper(op, "%s(%s)" % (pyname, args))
+
+    def emit_op_StructCopy(self, op):
+        pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
+        self._op_helper(op, "%s.copy_into(machine)" % self._get_arg(op.args[0]))
 
     def emit_op_Cast(self, op):
         fromtyp = op.args[0].resolved_type
@@ -263,9 +262,7 @@ class CodeEmitter(object):
         self._op_helper(op, op.resolved_type.uninitialized_value)
 
     def emit_op_RefOf(self, op):
-        arg, = op.args
-        assert isinstance(arg, ir.GlobalRead)
-        regname = arg.name
+        regname = op.name
         register = self.codegen.all_registers[regname]
         pyname = register.register_ref_name
         #name = "ref_%s" % (regname, )
@@ -385,13 +382,4 @@ def count_uses(graph):
         for arg in block.next.getargs():
             uses[arg] += 1
     return uses
-
-def compute_mutated_struct_types(graph):
-    result = set()
-    for block in graph.iterblocks():
-        for op in block.operations:
-            if not isinstance(op, ir.FieldWrite):
-                continue
-            result.add(op.args[0].resolved_type)
-    return result
 

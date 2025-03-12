@@ -55,7 +55,7 @@ Developer Log
 22.06.2022:
 ==
 - participants: CF, JW, NR
-- introdution to the whole stack of layers for Nico
+- introduction to the whole stack of layers for Nico
 
 21.06.2022:
 ==

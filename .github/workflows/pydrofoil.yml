@@ -24,12 +24,17 @@ jobs:
         os: [ubuntu-20.04, macos-latest]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: riscv/sail-riscv
         path: sail-riscv
+
+    - name: Set up PyPy 2.7
+      uses: actions/setup-python@v5
+      with:
+        python-version: "pypy-2.7-v7.3.10"
 
     - name: install dependencies and create virtualenv
       run: |
@@ -69,21 +74,21 @@ jobs:
         ./pydrofoil-riscv --jit off riscv/input/rv64-linux-4.15.0-gcc-7.2.0-64mb.bbl -l 230000000
 
     - name: Upload binary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pydrofoil-riscv-${{ matrix.os }}
         path: ./pydrofoil-riscv
 
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tests.xml-${{ matrix.os }}
         path: pydrofoil-riscv-tests.xml
 
     - name: Upload event payload
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: event.json-${{ matrix.os }}
         path: ${{ github.event_path }}

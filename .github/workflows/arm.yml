@@ -24,16 +24,16 @@ jobs:
         os: [ubuntu-20.04]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up PyPy 2.7
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "pypy-2.7-v7.3.10"
 
     - name: Restore cached IR
       id: cache-ir-restore
-      uses: actions/cache/restore@v3
+      uses: actions/cache/restore@v4
       with:
         path: arm/armv9.ir
         key: ${{ matrix.os }}
@@ -49,7 +49,7 @@ jobs:
     - name: Save cached IR
       if: steps.cache-ir-restore.outputs.cache-hit != 'true'
       id: cache-ir-save
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       with:
         path: arm/armv9.ir
         key: ${{ steps.cache-ir-restore.outputs.cache-primary-key }}

@@ -511,6 +511,12 @@ def truncate_bv_i(machine, bv, i):
 def count_leading_zeros(machine, bv):
     return bitvector.Integer.fromint(bv.count_leading_zeros())
 
+# for debugging
+
+def debug_check_bv_fits(bv, size):
+    assert _mask(size, bv) == bv
+    return bv
+
 # integers
 
 @purefunction

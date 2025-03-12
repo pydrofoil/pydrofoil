@@ -404,6 +404,21 @@ class SmallBitVector(BitVector):
     def pack(self):
         return (self.size(), self.val, None)
 
+    def count_leading_zeros(self):
+        return self._count_leading_zeros(self.size(), self.val)
+
+    @staticmethod
+    @jit.elidable
+    def _count_leading_zeros(size, val):
+        count = 0
+        mask = r_uint(1) << (size - 1)
+        for i in range(size - 1, -1, -1):
+            if val & mask:
+                break
+            count += 1
+            mask >>= 1
+        return count
+
 
 UNITIALIZED_BV = SmallBitVector(42, r_uint(0x42))
 
@@ -1178,6 +1193,7 @@ class Integer(object):
 
     @staticmethod
     def from_bigint(rval):
+        jit.jit_debug("Integer.from_bigint")
         data, sign = array_and_sign_from_rbigint(rval)
         return Integer.from_data_and_sign(data, sign)
 
@@ -1260,10 +1276,12 @@ class SmallInteger(Integer):
             n = -1
         else:
             n = self.val >> start
-        if n > 0:
+        if n >= 0:
             return SparseBitVector(len, r_uint(n))
-        jit.jit_debug("SmallInteger.slice large width negative case")
-        return from_bigint(len, rbigint.fromint(n))
+        size = GenericBitVector._data_size(len)
+        res = [r_uint(-1)] * size
+        res[0] = r_uint(n)
+        return GenericBitVector(len, res, normalize=True)
 
     def slice_unwrapped_res(self, len, start):
         if start >= 64:
@@ -1514,12 +1532,16 @@ class BigInteger(Integer):
         return "".join(res)
 
     def toint(self):
-        if self.sign == 0:
+        return self._sign_and_data_toint(self.sign, self.data)
+
+    @staticmethod
+    def _sign_and_data_toint(sign, data):
+        if sign == 0:
             return 0
-        if len(self.data) > 1:
+        if len(data) > 1:
             raise ValueError
-        digit = self.data[0]
-        if self.sign == -1:
+        digit = data[0]
+        if sign == -1:
             if digit == (r_uint(1) << 63):
                 return MININT
             if digit & (r_uint(1) << 63):
@@ -1545,15 +1567,22 @@ class BigInteger(Integer):
         jit.jit_debug("BigInteger.tobigint")
         return rbigint_from_array_and_sign(self.data, self.sign)
 
-    def slice(self, len, start):
-        if len <= 64:
-            return SmallBitVector(len, self.slice_unwrapped_res(len, start))
-        jit.jit_debug("BitInteger.slice")
+    def slice(self, length, start):
+        if length <= 64:
+            return SmallBitVector(length, self.slice_unwrapped_res(length, start))
         if start == 0:
+            size = GenericBitVector._data_size(length)
+            if self.sign > 0:
+                res = self.data[:size]
+                if len(res) < size:
+                    res = res + [r_uint(0)] * (size - len(res))
+                return GenericBitVector(length, res, normalize=True)
+            jit.jit_debug("BitInteger.slice")
             n = self.tobigint()
         else:
+            jit.jit_debug("BitInteger.slice")
             n = self.rshift(start).tobigint()
-        return from_bigint(len, n)
+        return from_bigint(length, n)
 
     def set_slice_int(self, len, start, bv):
         jit.jit_debug("BigInteger.set_slice_int")
@@ -1779,14 +1808,20 @@ class BigInteger(Integer):
         return shift
 
     def tmod(self, other):
-        jit.jit_debug("BigInteger.tmod")
         if isinstance(other, SmallInteger) and int_in_valid_range(other.val):
             other = other.val
             if other == 0:
                 raise ZeroDivisionError
+            if self.sign == 0:
+                return INT_ZERO
+            if other > 0 and other & (other - 1) == 0 and self.sign >= 0:
+                # can use mask
+                return Integer.fromint(intmask(self.data[0] & (other - 1)))
+            jit.jit_debug("BigInteger.tmod")
             div, rem = bigint_divrem1(self.tobigint(), other)
             return SmallInteger(rem)
 
+        jit.jit_debug("BigInteger.tmod")
         other = other.tobigint()
         if other.get_sign() == 0:
             raise ZeroDivisionError

@@ -25,7 +25,7 @@ jobs:
       with:
         script: |
           var fs = require('fs');
-          var artifacts = await github.actions.listWorkflowRunArtifacts({
+          var artifacts = await github.rest.actions.listWorkflowRunArtifacts({
              owner: context.repo.owner,
              repo: context.repo.repo,
              run_id: ${{github.event.workflow_run.id }},
@@ -36,7 +36,7 @@ jobs:
           var count = matchArtifacts.length;
           for (var i = 0; i < count; i++) {
             var matchArtifact = matchArtifacts[i];
-            var download = await github.actions.downloadArtifact({
+            var download = await github.rest.actions.downloadArtifact({
                owner: context.repo.owner,
                repo: context.repo.repo,
                artifact_id: matchArtifact.id,
@@ -55,7 +55,7 @@ jobs:
       uses: EnricoMi/publish-unit-test-result-action@v2
       with:
         commit: ${{ github.event.workflow_run.head_sha }}
-        event_file: "event.json-ubuntu-20.04/event.json"
+        event_file: "event.json-ubuntu-22.04/event.json"
         event_name: ${{ github.event.workflow_run.event }}
         files: 
         junit_files: "**/pydrofoil-riscv-tests.xml"

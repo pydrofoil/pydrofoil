@@ -207,15 +207,18 @@ def length_unwrapped_res(machine, gbv):
     return gbv.size()
 
 @unwrap("o i")
+@purefunction
 @objectmodel.always_inline
 def sign_extend(machine, gbv, size):
     return gbv.sign_extend(size)
 
 @objectmodel.always_inline
+@purefunction
 def sign_extend_bv_i_i(machine, bv, width, targetwidth):
     m = r_uint(1) << (width - 1)
     return _mask(targetwidth, (bv ^ m) - m)
 
+@purefunction
 def sign_extend_o_i_unwrapped_res(machine, bv, size):
     assert size <= 64
     assert isinstance(bv, bitvector.SmallBitVector)
@@ -232,6 +235,7 @@ def zero_extend(machine, gbv, size):
 def zero_extend_bv_i_i(machine, bv, width, targetwidth):
     return bv # XXX correct?
 
+@purefunction
 def zero_extend_o_i_unwrapped_res(machine, bv, size):
     assert size <= 64
     assert isinstance(bv, bitvector.SmallBitVector)
@@ -253,24 +257,31 @@ def neq_bits(machine, gvba, gvbb):
 def neq_bits_bv_bv(machine, bva, bvb):
     return bva != bvb
 
+@purefunction
 def xor_bits(machine, gvba, gvbb):
     return gvba.xor(gvbb)
 
+@purefunction
 def xor_vec_bv_bv(machine, bva, bvb):
     return bva ^ bvb
 
+@purefunction
 def and_bits(machine, gvba, gvbb):
     return gvba.and_(gvbb)
 
+@purefunction
 def and_vec_bv_bv(machine, bva, bvb):
     return bva & bvb
 
+@purefunction
 def or_bits(machine, gvba, gvbb):
     return gvba.or_(gvbb)
 
+@purefunction
 def or_vec_bv_bv(machine, bva, bvb):
     return bva | bvb
 
+@purefunction
 def not_bits(machine, gvba):
     return gvba.invert()
 
@@ -318,17 +329,21 @@ def shiftr(machine, gbv, i):
 def shiftr_bv_i(machine, a, width, i):
     return _mask(width, a >> i)
 
+@purefunction
 @unwrap("o i")
 def arith_shiftr(machine, gbv, i):
     return gbv.arith_rshift(i)
 
+@purefunction
 def arith_shiftr_bv_i(machine, a, width, i):
     signed = signed_bv(machine, a, width)
     return _mask(width, r_uint(signed >> i))
 
+@purefunction
 def shift_bits_left(machine, gbv, gbva):
     return gbv.lshift_bits(gbva)
 
+@purefunction
 def shift_bits_right(machine, gbv, gbva):
     return gbv.rshift_bits(gbva)
 
@@ -458,9 +473,11 @@ def vector_subrange_fixed_bv_i_i(machine, v, n, m):
 def slice_fixed_bv_i_i(machine, v, start, length):
     return vector_subrange_fixed_bv_i_i(machine, v, start + length - 1, start)
 
+@purefunction
 def string_of_bits(machine, gbv):
     return gbv.string_of_bits()
 
+@purefunction
 def decimal_string_of_bits(machine, sbits):
     return str(sbits)
 
@@ -482,6 +499,12 @@ def ones(machine, num):
         return bitvector.from_ruint(num, r_uint(-1))
     else:
         return bitvector.from_bigint(num, rbigint.fromint(-1))
+
+@purefunction
+def ones_zero_extended_unwrapped_res(machine, num_ones, width):
+    num_ones = min(num_ones, width)
+    assert num_ones <= 64
+    return safe_lshift(None, r_uint(1), num_ones) - 1
 
 @unwrap("i")
 @purefunction
@@ -510,6 +533,43 @@ def truncate_bv_i(machine, bv, i):
 @purefunction
 def count_leading_zeros(machine, bv):
     return bitvector.Integer.fromint(bv.count_leading_zeros())
+
+@objectmodel.always_inline
+@purefunction
+def pack_smallfixedbitvector(machine, width, val):
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        from pydrofoil.ir import CantFold
+        raise CantFold
+    return width, val, None
+
+@objectmodel.always_inline
+@purefunction
+def pack_machineint(machine, val):
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        from pydrofoil.ir import CantFold
+        raise CantFold
+    return val, None
+
+@objectmodel.always_inline
+@purefunction
+def packed_field_cast_smallfixedbitvector(machine, targetwidth, (width, val, data)):
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        from pydrofoil.ir import CantFold
+        raise CantFold
+    assert width == targetwidth
+    return val
+
+@objectmodel.always_inline
+@purefunction
+def packed_field_int_to_int64(machine, (val, data)):
+    # equivalent to Integer.unpack(val, data).toint()
+    if not objectmodel.we_are_translated() and machine == "constfolding":
+        from pydrofoil.ir import CantFold
+        raise CantFold
+    if data is None:
+        return val
+    return bitvector.BigInteger._sign_and_data_toint(val, data)
+
 
 # for debugging
 
@@ -584,6 +644,24 @@ def eq(machine, ia, ib):
     import pdb;pdb.set_trace()
 
 @purefunction
+def lt_unsigned64(machine, ua, ub):
+    assert isinstance(ua, r_uint)
+    assert isinstance(ub, r_uint)
+    return ua < ub
+
+@purefunction
+def lteq_unsigned64(machine, ua, ub):
+    assert isinstance(ua, r_uint)
+    assert isinstance(ub, r_uint)
+    return ua <= ub
+
+@purefunction
+def gteq_unsigned64(machine, ua, ub):
+    assert isinstance(ua, r_uint)
+    assert isinstance(ub, r_uint)
+    return ua >= ub
+
+@purefunction
 @objectmodel.specialize.argtype(1)
 def add_int(machine, ia, ib):
     return ia.add(ib)
@@ -591,6 +669,34 @@ def add_int(machine, ia, ib):
 @purefunction
 def add_o_i_wrapped_res(machine, a, b):
     return a.int_add(b)
+
+@purefunction
+def add_unsigned_bv64_unsigned_bv64_wrapped_res(machine, a, b):
+    res = a + b
+    if res < a:
+        a = bitvector.Integer.from_ruint(a)
+        b = bitvector.Integer.from_ruint(b)
+        return a.add(b)
+    else:
+        return Integer.from_ruint(res)
+
+@purefunction
+def lteq_add4_unsigned_bv64(machine, a, b, c, d):
+    # returns a + b <= c + d, where a, b, c, d are 64 bit bvs, interpreted as unsigned ints
+    x = a + b
+    y = c + d
+    if x >= a and y >= c: # both unsigned adds don't overflow
+        return x <= y
+    else:
+        # slow path, unlikely
+        a = bitvector.Integer.from_ruint(a)
+        b = bitvector.Integer.from_ruint(b)
+        c = bitvector.Integer.from_ruint(c)
+        d = bitvector.Integer.from_ruint(d)
+        x = a.add(b)
+        y = c.add(d)
+        return x.le(y)
+    
 
 @purefunction
 def add_i_i_wrapped_res(machine, a, b):
@@ -755,6 +861,7 @@ def _int_to_int64_memo(r):
 def int64_to_int(machine, i):
     return Integer.fromint(i)
 
+@purefunction
 def string_to_int(machine, s):
     return Integer.fromstr(s)
 
@@ -774,9 +881,11 @@ def pow2(machine, x):
 def neg_int(machine, x):
     return x.neg()
 
+@purefunction
 def dec_str(machine, x):
     return x.str()
 
+@purefunction
 def hex_str(machine, x):
     return x.hex()
 
@@ -945,6 +1054,15 @@ def vector_update_list(machine, l, index, element):
     l = l[:]
     l[index] = element
     return l
+
+@unwrap("i o")
+@objectmodel.specialize.argtype(2)
+def vector_init(machine, length, element):
+    return [element] * length
+
+@purefunction
+def vec_length_unwrapped_res(machine, l):
+    return len(l)
 
 @objectmodel.specialize.argtype(1, 3)
 def helper_vector_update_inplace_o_i_o(machine, vec, index, element):
@@ -1313,12 +1431,38 @@ def softfloat_f64muladd(machine, rm, v1, v2, v3):
 # memory emulation
 
 
-def read_mem(machine, address):
-    return machine.g.mem.read(address, 1)
+@unwrap("o o o i")
+def read_mem(machine, read_kind, addr_size, addr, n):
+    assert addr_size in (64, 32)
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        res = mem.read(addr, n)
+        return bitvector.SmallBitVector(n*8, res)
+    else:
+        return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
 
-def write_mem(machine, address, data):
-    machine.g.mem.write(address, 1, data)
-    return True
+@unwrap("o o o i")
+def read_mem_exclusive(machine, read_kind, addr_size, addr, n):
+    assert addr_size in (64, 32)
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        res = mem.read(addr, n)
+        return bitvector.SmallBitVector(n*8, res)
+    else:
+        return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
+
+@unwrap("o o o i")
+def read_mem_ifetch(machine, read_kind, addr_size, addr, n):
+    assert addr_size in (64, 32)
+    mem = jit.promote(machine.g).mem
+    addr = addr.touint()
+    if n == 1 or n == 2 or n == 4 or n == 8:
+        res = mem.read(addr, n, executable_flag=True)
+        return bitvector.SmallBitVector(n*8, res)
+    else:
+        return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
 
 @unwrap("o o o i")
 def platform_read_mem(machine, read_kind, addr_size, addr, n):
@@ -1326,20 +1470,24 @@ def platform_read_mem(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
     addr = addr.touint()
     if n == 1 or n == 2 or n == 4 or n == 8:
-        res = mem.read(addr, n, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
+        res = mem.read(addr, n)
         return bitvector.SmallBitVector(n*8, res)
     else:
         return _platform_read_mem_slowpath(machine, mem, read_kind, addr, n)
 
 def platform_read_mem_o_i_bv_i(machine, read_kind, addr_size, addr, n):
     mem = jit.promote(machine.g).mem
-    return mem.read(addr, n, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
+    return mem.read(addr, n)
+
+def fast_read_mem_i_bv_i_isfetch(machine, addr_size, addr, n, isfetch):
+    mem = jit.promote(machine.g).mem
+    return mem.read(addr, n, executable_flag=isfetch)
 
 @jit.unroll_safe
 def _platform_read_mem_slowpath(machine, mem, read_kind, addr, n):
     value = None
     for i in range(n - 1, -1, -1):
-        byteval = mem.read(addr + i, 1, executable_flag=read_kind==machine.g._pydrofoil_enum_read_ifetch_value)
+        byteval = mem.read(addr + i, 1)
         nextbyte = bitvector.SmallBitVector(8, byteval)
         if value is None:
             value = nextbyte
@@ -1385,6 +1533,9 @@ def monomorphize(machine, addr):
 make_dummy("read_register_from_vector")
 make_dummy("write_register_from_vector")
 
+make_dummy("emulator_read_tag")
+make_dummy("emulator_write_tag")
+
 # argument handling
 
 @objectmodel.specialize.arg(4)
@@ -1414,13 +1565,14 @@ def parse_args(argv, shortname, longname="", want_arg=True, many=False):
     if many:
         return reslist
 
-def parse_flag(argv, flagname):
-    return bool(parse_args(argv, flagname, want_arg=False))
+def parse_flag(argv, flagname, longname=""):
+    return bool(parse_args(argv, flagname, longname=longname, want_arg=False))
 
 
 
 class RegistersBase(object):
     _immutable_fields_ = []
+    _attrs_ = ['have_exception', 'throw_location', 'current_exception', 'g', '_reg_zfloat_fflags', '_reg_zfloat_result']
 
     have_exception = False
     throw_location = None

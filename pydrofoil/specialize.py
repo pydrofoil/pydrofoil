@@ -86,13 +86,22 @@ class Specializer(object):
         if restype is original_restype:
             return newcall
         if restype is types.MachineInt():
-            return optimizer._make_int64_to_int(newcall)
+            if original_restype is types.Int():
+                return optimizer._make_int64_to_int(newcall)
+            else:
+                assert original_restype is types.Packed(types.Int())
+                return optimizer.newop(
+                        "@pack_machineint", [newcall], original_restype)
         if isinstance(restype, types.SmallFixedBitVector):
-            assert original_restype is types.GenericBitVector()
-            return optimizer.newcast(newcall, types.GenericBitVector())
+            if original_restype is types.GenericBitVector():
+                return optimizer.newcast(newcall, types.GenericBitVector())
+            else:
+                assert original_restype is types.Packed(types.GenericBitVector())
+                return optimizer.newop(
+                        "@pack_smallfixedbitvector", [ir.MachineIntConstant(restype.width), newcall], original_restype)
         if isinstance(restype, types.Struct):
             fields = []
-            for fieldtyp, fieldtyp_orig, name in zip(restype.typs, original_restype.typs, restype.names):
+            for fieldtyp, fieldtyp_orig, name in zip(restype.typs, original_restype.internaltyps, restype.names):
                 field = ir.FieldAccess(name, [newcall], fieldtyp)
                 optimizer.newoperations.append(field)
                 converted_field = self._reconstruct_result(fieldtyp, fieldtyp_orig, field, optimizer)
@@ -217,6 +226,16 @@ class Specializer(object):
             except ir.NoMatchException:
                 pass
             else:
+                return res, "bv%s" % resulttyp.width
+        elif returnvalue.resolved_type is types.Packed(types.Int()):
+            if type(returnvalue) is ir.Operation and returnvalue.name == '@pack_machineint':
+                res = returnvalue.args[0]
+                resulttyp = res.resolved_type
+                return res, "i"
+        elif returnvalue.resolved_type is types.Packed(types.GenericBitVector()):
+            if type(returnvalue) is ir.Operation and returnvalue.name == '@pack_smallfixedbitvector':
+                res = returnvalue.args[1]
+                resulttyp = res.resolved_type
                 return res, "bv%s" % resulttyp.width
         elif isinstance(returnvalue.resolved_type, types.Struct) and returnvalue.resolved_type.tuplestruct and isinstance(returnvalue, ir.StructConstruction):
             fields = []
@@ -385,6 +404,7 @@ class FixpointSpecializer(object):
         self.inlinable_functions = {}
         self.specialization_functions = {}
         self.all_graph_by_name = {}
+        self.method_graphs_by_name = {} # name -> list of graphs
         self.inline_dependencies = defaultdict(set) # graph -> {graphs}
         self.program_entrypoints = entrypoints
         # attributes for printing

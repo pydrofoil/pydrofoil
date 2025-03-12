@@ -21,20 +21,57 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-22.04]
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: recursive
 
     - name: Set up PyPy 2.7
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "pypy-2.7-v7.3.10"
 
     - name: install dependencies and create virtualenv
       run: |
-        make pypy_binary/bin/python
+        make pypy_binary_nightly
         make pypy2/rpython/bin/rpython
+
+    - name: install opam
+      run: |
+        sudo add-apt-repository -y ppa:avsm/ppa
+        sudo apt install -y opam zlib1g-dev pkg-config libgmp-dev z3
+
+    - name: Restore cached opam
+      id: cache-opam-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ~/.opam
+          sail/_opam
+        key: ${{ matrix.os }}
+
+    - name: Setup opam
+      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+      run: |
+        opam init --disable-sandboxing -y
+        opam switch create sail/ -y
+
+    - name: Save cached opam
+      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+      id: cache-opam-save
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.opam
+          sail/_opam
+        key: ${{ steps.cache-opam-restore.outputs.cache-primary-key }}
+
+    - name: Generate ir files
+      run: |
+        touch sail/_opam/bin/sail
+        make regen-cheriot-ir-files
 
     - name: Test with pytest
       run: |
@@ -46,15 +83,15 @@ jobs:
 
     - name: Run CHERIoT tests
       run: |
-        ./pydrofoil-riscv cheriot/input/hello_world -l 491627
-        ./pydrofoil-riscv cheriot/input/test_suite
+        ./pydrofoil-cheriot cheriot/input/hello_world -l 491627
+        ./pydrofoil-cheriot cheriot/input/test-suite
 
     - name: Run allocator_benchmark
       run: |
-        ./pydrofoil-riscv cheriot/input/allocator_benchmark -l 274595167
+        ./pydrofoil-cheriot cheriot/input/allocator-benchmark -l 274595167
 
     - name: Upload binary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pydrofoil-cheriot-${{ matrix.os }}
         path: ./pydrofoil-cheriot

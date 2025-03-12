@@ -159,6 +159,7 @@ class SSABuilder(object):
         #if random.random() < 0.01:
         #    self.view = 1
         #mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
+        graph.check()
         insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
         light_simplify(graph, self.codegen)
@@ -295,12 +296,22 @@ class SSABuilder(object):
                 obj = self._get_arg(op.obj)
                 typ = obj.resolved_type
                 for field in firstfields:
-                    typ = typ.fieldtyps[field]
+                    typ = typ.internalfieldtyps[field]
+                    if isinstance(typ, types.Packed):
+                        import pdb;pdb.set_trace()
                     obj = self._addop(FieldAccess(field, [obj], typ))
 
                 fieldval = self._get_arg(op.value)
-                typ = typ.fieldtyps[lastfield]
-                if fieldval.resolved_type != typ:
+                typ = typ.internalfieldtyps[lastfield]
+                if isinstance(typ, types.Packed):
+                    if typ.typ != fieldval.resolved_type:
+                        if typ.typ is types.GenericBitVector() or isinstance(typ.typ, types.BigFixedBitVector):
+                            fieldval = self._addop(Cast(fieldval, typ.typ))
+                        else:
+                            import pdb;pdb.set_trace()
+                    fieldval = self._addop(PackPackedField(fieldval))
+                    assert fieldval.resolved_type == typ
+                elif fieldval.resolved_type != typ:
                     fieldval = self._addop(Cast(fieldval, typ, op.sourcepos))
                 self._addop(FieldWrite(lastfield, [obj, fieldval], types.Unit(), op.sourcepos))
 
@@ -316,11 +327,15 @@ class SSABuilder(object):
                     obj = self._get_arg(op.lhs.obj)
                     typ = obj.resolved_type
                     for field in firstfields:
-                        typ = typ.fieldtyps[field]
+                        typ = typ.internalfieldtyps[field]
+                        assert not isinstance(typ, types.Packed)
                         obj = self._addop(FieldAccess(field, [obj], typ))
-                    typ = typ.fieldtyps[lastfield]
-                    if rhs.resolved_type != typ:
-                        import pdb;pdb.set_trace()
+                    typ = typ.internalfieldtyps[lastfield]
+                    if isinstance(typ, types.Packed):
+                        if typ.typ != rhs.resolved_type:
+                            import pdb;pdb.set_trace()
+                        rhs = self._addop(PackPackedField(rhs))
+                    elif rhs.resolved_type != typ:
                         rhs = self._addop(Cast(rhs, typ, op.sourcepos))
                     self._addop(FieldWrite(lastfield, [obj, rhs], types.Unit(), op.sourcepos))
                 else:
@@ -374,7 +389,17 @@ class SSABuilder(object):
             if parseval.name in self.codegen.let_values:
                 res = self.codegen.let_values[parseval.name]
                 if isinstance(res, StructConstruction):
-                    res = self._addop(StructConstruction(res.name, res.args[:], res.resolved_type, res.sourcepos))
+                    args = []
+                    for arg in res.args:
+                        if isinstance(arg, Constant):
+                            args.append(arg)
+                        elif isinstance(arg, Cast) and isinstance(arg.args[0], Constant):
+                            args.append(self._addop(Cast(arg.args[0], arg.resolved_type)))
+                        elif isinstance(arg, Operation) and arg.name == INT_TO_INT64_NAME and isinstance(arg.args[0], Constant):
+                            args.append(self._addop(Operation(INT_TO_INT64_NAME, [arg.args[0]], arg.resolved_type)))
+                        else:
+                            assert 0, "not implemented so far"
+                    res = self._addop(StructConstruction(res.name, args, res.resolved_type, res.sourcepos))
                 return res
             if isinstance(parseval.resolved_type, types.Enum):
                 if parseval.name in parseval.resolved_type.elements:
@@ -387,9 +412,26 @@ class SSABuilder(object):
             args = self._get_args(parseval.fieldvalues)
             for index, fieldname in enumerate(parseval.fieldnames):
                 arg = args[index]
-                targettyp = parseval.resolved_type.fieldtyps[fieldname]
+                targettyp = parseval.resolved_type.internalfieldtyps[fieldname]
                 if arg.resolved_type != targettyp:
-                    args[index] = self._addop(Cast(arg, targettyp))
+                    if targettyp is types.MachineInt():
+                        assert arg.resolved_type == types.Int()
+                        castop = Operation(INT_TO_INT64_NAME, [arg], types.MachineInt())
+                    elif targettyp is types.Int():
+                        assert arg.resolved_type == types.MachineInt()
+                        castop = Operation(INT64_TO_INT_NAME, [arg], targettyp)
+                    elif isinstance(targettyp, types.Packed):
+                        if targettyp.typ is not arg.resolved_type:
+                            if targettyp.typ is types.Int():
+                                assert arg.resolved_type == types.MachineInt()
+                                arg = self._addop(Operation(INT64_TO_INT_NAME, [arg], targettyp.typ))
+                            else:
+                                assert targettyp.typ is types.GenericBitVector()
+                                arg = self._addop(Cast(arg, targettyp.typ))
+                        castop = PackPackedField(arg)
+                    else:
+                        castop = Cast(arg, targettyp)
+                    args[index] = self._addop(castop)
             ssaop = StructConstruction(parseval.name, args, parseval.resolved_type)
             self._addop(ssaop)
             return ssaop
@@ -399,8 +441,11 @@ class SSABuilder(object):
                 index = parseval.obj.fieldnames.index(parseval.element)
                 return self._get_arg(parseval.obj.fieldvalues[index])
             arg = self._get_arg(parseval.obj)
-            ssaop = FieldAccess(parseval.element, [arg], parseval.resolved_type)
+            internalfieldtyp = arg.resolved_type.internalfieldtyps[parseval.element]
+            ssaop = FieldAccess(parseval.element, [arg], internalfieldtyp)
             self._addop(ssaop)
+            if isinstance(internalfieldtyp, types.Packed):
+                ssaop = self._addop(UnpackPackedField(ssaop))
             return ssaop
         elif isinstance(parseval, parse.Cast):
             arg = self._get_arg(parseval.expr)
@@ -501,6 +546,8 @@ def extract_global_value(graph, name):
     return value
 
 
+INT_TO_INT64_NAME = "zz5izDzKz5i64"
+INT64_TO_INT_NAME = "zz5i64zDzKz5i"
 
 # graph
 
@@ -800,6 +847,7 @@ class Graph(object):
                 for prevblock in op.prevblocks:
                     assert prevblock in entrymap
                     assert prevblock in entry
+                assert len({val.resolved_type for val in op.prevvalues}) == 1
         # check that all the used values are defined somewhere
         for block in entrymap:
             defined_vars = defined_vars_per_block[block]
@@ -833,6 +881,9 @@ class Graph(object):
 # values
 
 class Value(object):
+    def is_union_creation(self):
+        return False
+
     def _repr(self, print_varnames):
         return repr(self)
 
@@ -878,7 +929,7 @@ class Operation(Value):
         self.varname_hint = varname_hint
 
     def __repr__(self):
-        return "%s(%r, %r, %r)" % (self.__class__.__name__, self.name, self.args, self.sourcepos)
+        return "%s(%r, %r, %r, %r)" % (self.__class__.__name__, self.name, self.args, self.resolved_type, self.sourcepos)
 
     def _repr(self, print_varnames):
         return self._get_print_name(print_varnames)
@@ -894,6 +945,10 @@ class Operation(Value):
                 self.args[index] = replacements[arg]
                 res = True
         return res
+
+    def is_union_creation(self):
+        return isinstance(self.resolved_type, types.Union) and type(self) is Operation and self.name in self.resolved_type.variants
+
 
 class Cast(Operation):
     can_have_side_effects = False
@@ -932,7 +987,7 @@ class FieldAccess(Operation):
     can_have_side_effects = False
 
     def __repr__(self):
-        return "FieldAccess(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
+        return "%s(%r, %r, %r)" % (self.__class__.__name__, self.name, self.args, self.resolved_type)
 
 class FieldWrite(Operation):
     def __init__(self, name, args, resolved_type=None, sourcepos=None, varname_hint=None):
@@ -941,7 +996,7 @@ class FieldWrite(Operation):
         Operation.__init__(self, name, args, resolved_type, sourcepos, varname_hint)
 
     def __repr__(self):
-        return "FieldWrite(%r, %r)" % (self.name, self.args)
+        return "%s(%r, %r)" % (self.__class__.__name__, self.name, self.args)
 
 class UnionVariantCheck(Operation):
     can_have_side_effects = False
@@ -950,6 +1005,7 @@ class UnionVariantCheck(Operation):
         return "UnionVariantCheck(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
 class UnionCast(Operation):
+    can_have_side_effects = False
     def __repr__(self):
         return "UnionCast(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
 
@@ -1009,6 +1065,29 @@ class NonSSAAssignment(Operation):
 class Comment(Operation):
     def __init__(self, comment):
         Operation.__init__(self, comment, [], types.Unit())
+
+
+class UnpackPackedField(Operation):
+    can_have_side_effects = False
+
+    def __init__(self, arg, sourcepos=None):
+        assert isinstance(arg.resolved_type, types.Packed)
+        Operation.__init__(self, "$unpack", [arg], arg.resolved_type.typ, sourcepos)
+
+    def __repr__(self):
+        return "UnpackPackedField(%s)" % self.args[0]
+
+
+class PackPackedField(Operation):
+    can_have_side_effects = False
+
+    def __init__(self, arg, sourcepos=None):
+        assert isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.BigFixedBitVector))
+        Operation.__init__(self, "$pack", [arg], types.Packed(arg.resolved_type), sourcepos)
+
+    def __repr__(self):
+        return "PackPackedField(%s)" % self.args[0]
+
 
 class Phi(Value):
     can_have_side_effects = False
@@ -1143,7 +1222,6 @@ class GenericBitVectorConstant(Constant):
             value = hex(int(val))
         else:
             value = bin(int(val))
-        #import pdb;pdb.set_trace()
         if isinstance(self.value, (bitvector.SparseBitVector, bitvector.SmallBitVector)):
             return "bitvector.from_ruint(%s, r_uint(%s))" % (size, self.value.val)
         return "bitvector.from_bigint(%s, rbigint.fromlong(%s))" % (size, value)
@@ -1383,6 +1461,8 @@ class GraphPage(BaseGraphPage):
 
 # some simple graph simplifications
 
+class CantFold(Exception):
+    pass
 
 TIMINGS = defaultdict(float)
 COUNTS = defaultdict(int)
@@ -1496,6 +1576,7 @@ def _bare_optimize(graph, codegen):
     res = join_blocks(graph, codegen) or res
     res = remove_dead(graph, codegen) or res
     res = simplify_phis(graph, codegen) or res
+    res = sink_allocate(graph, codegen) or res
     res = inline(graph, codegen) or res
     res = remove_superfluous_union_checks(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=False) or res
@@ -1503,6 +1584,7 @@ def _bare_optimize(graph, codegen):
     res = swap_not(graph, codegen) or res
     res = optimize_with_range_info(graph, codegen) or res
     res = cse_global_reads(graph, codegen) or res
+    res = cse_field_reads(graph, codegen) or res
     res = remove_superfluous_union_checks(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph, codegen) or res
@@ -1519,8 +1601,6 @@ def localopt(graph, codegen, do_double_casts=True):
 
 @repeat
 def remove_dead(graph, codegen):
-    def is_union_creation(value):
-        return isinstance(value.resolved_type, types.Union) and type(value) is Operation and value.name in value.resolved_type.variants
     def can_remove_op(op):
         if not op.can_have_side_effects:
             return True
@@ -1528,7 +1608,7 @@ def remove_dead(graph, codegen):
             return True
         if op.name == "@eq":
             return True
-        if is_union_creation(op):
+        if op.is_union_creation():
             return True
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
@@ -2111,13 +2191,13 @@ class BaseOptimizer(object):
             return self._extract_machineint(arg)
         except NoMatchException:
             # call int_to_int64
-            return self.newop("zz5izDzKz5i64", [arg], types.MachineInt())
+            return self.newop(INT_TO_INT64_NAME, [arg], types.MachineInt())
 
     def _make_int64_to_int(self, arg, sourcepos=None):
-        return self.newop("zz5i64zDzKz5i", [arg], types.Int(), sourcepos)
+        return self.newop(INT64_TO_INT_NAME, [arg], types.Int(), sourcepos)
 
     def _make_int_to_int64(self, arg, sourcepos=None):
-        return self.newop("zz5izDzKz5i64", [arg], types.MachineInt(), sourcepos)
+        return self.newop(INT_TO_INT64_NAME, [arg], types.MachineInt(), sourcepos)
 
     def _get_op_replacement(self, value):
         while value in self.replacements:
@@ -2174,7 +2254,7 @@ class BaseOptimizer(object):
         if isinstance(arg, Cast):
             import pdb;pdb.set_trace()
         # check whether we have a cast as an available expression (ie "above" us)
-        key = (Operation, 'zz5izDzKz5i64', self._cse_comparison_tuple([arg]), types.MachineInt())
+        key = (Operation, INT_TO_INT64_NAME, self._cse_comparison_tuple([arg]), types.MachineInt())
         if self.cse_op_available_in_block and key in self.cse_op_available_in_block:
             return self.cse_op_available_in_block[key]
         if self.newoperations is not None:
@@ -2212,8 +2292,8 @@ class BaseOptimizer(object):
         return num
 
     def _must_be_non_negative(self, arg):
-         return isinstance(arg, Operation) and arg.name in (
-                "@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res")
+        return isinstance(arg, Operation) and arg.name in (
+                "@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res", "@vec_length_unwrapped_res")
 
 def is_pow_2(num):
     return num & (num - 1) == 0
@@ -2244,6 +2324,9 @@ class LocalOptimizer(BaseOptimizer):
         if op.resolved_type is arg.resolved_type:
             block.operations[index] = None
             return arg
+        if isinstance(op.resolved_type, types.SmallFixedBitVector):
+            if isinstance(arg, UnpackPackedField):
+                return self.newop("@packed_field_cast_smallfixedbitvector", [MachineIntConstant(op.resolved_type.width), arg.args[0]], op.resolved_type, op.sourcepos)
         if self.do_double_casts and isinstance(arg, Cast):
             arg2, = self._args(arg)
             if arg2.resolved_type is op.resolved_type:
@@ -2251,10 +2334,51 @@ class LocalOptimizer(BaseOptimizer):
                 return arg2
             return self.newcast(arg2, op.resolved_type, op.sourcepos, op.varname_hint)
 
+    def _optimize_PackPackedField(self, op, block, index):
+        arg, = self._args(op)
+        if isinstance(arg, UnpackPackedField):
+            return arg.args[0]
+        if arg.resolved_type is types.GenericBitVector():
+            arg, typ = self._extract_smallfixedbitvector(arg)
+            return self.newop("@pack_smallfixedbitvector", [MachineIntConstant(typ.width), arg], op.resolved_type, op.sourcepos)
+        elif op.args[0].resolved_type is types.Int():
+            arg = self._extract_machineint(arg)
+            return self.newop("@pack_machineint", [arg], op.resolved_type, op.sourcepos)
+
+    def _optimize_UnpackPackedField(self, op, block, index):
+        arg, = self._args(op)
+        if not isinstance(op.args[0], FieldAccess):
+            if type(arg) is Operation and arg.name == "@pack_smallfixedbitvector":
+                return self.newcast(arg.args[1], op.resolved_type, op.sourcepos, op.varname_hint)
+            if type(arg) is Operation and arg.name == "@pack_machineint":
+                return self.newop(INT64_TO_INT_NAME, [arg.args[0]], types.Int(), arg.sourcepos)
+            if isinstance(arg, PackPackedField):
+                return arg.args[0]
+            if not isinstance(arg, Phi):
+                import pdb;pdb.set_trace()
+            else:
+                l = []
+                for prevvalue, prevblock in zip(arg.prevvalues, arg.prevblocks):
+                    unpack = UnpackPackedField(prevvalue)
+                    prevblock.operations.append(unpack)
+                    l.append(unpack)
+                phi = self.newphi(
+                    arg.prevblocks,
+                    l,
+                    arg.resolved_type.typ)
+                self.newoperations.pop()
+                self.newoperations.insert(0, phi)
+                return phi
+
+
     def _optimize_Operation(self, op, block, index):
+        if op.name in self.codegen.method_graphs_by_name and op.args[0].is_union_creation():
+            variants = self.codegen.method_graphs_by_name[op.name]
+            if op.args[0].name in variants:
+                op.name = variants[op.args[0].name].name
         name = self._builtinname(op.name)
-        if name in supportcode.all_unwraps:
-            specs, unwrapped_name = supportcode.all_unwraps[name]
+        if name.lstrip('@') in supportcode.all_unwraps:
+            specs, unwrapped_name = supportcode.all_unwraps[name.lstrip('@')]
             # these are unconditional unwraps, just rewrite them right here
             assert len(specs) == len(op.args)
             newargs = []
@@ -2321,6 +2445,8 @@ class LocalOptimizer(BaseOptimizer):
                 return None
         try:
             res = func("constfolding", *runtimeargs)
+        except CantFold:
+            return None # silent
         except (Exception, AssertionError) as e:
             print "generict const-folding failed", name, op, "with error", e, "arguments", args
             return None
@@ -2481,7 +2607,7 @@ class LocalOptimizer(BaseOptimizer):
             fields = []
             for index, name in enumerate(op.resolved_type.names):
                 values = []
-                fieldtyp = op.resolved_type.fieldtyps[name]
+                fieldtyp = op.resolved_type.internalfieldtyps[name]
                 for arg in op.prevvalues:
                     if isinstance(arg, DefaultValue):
                         values.append(DefaultValue(fieldtyp))
@@ -2495,24 +2621,38 @@ class LocalOptimizer(BaseOptimizer):
             res = StructConstruction(op.resolved_type.name, fields, op.resolved_type)
             self.newoperations.append(res)
             return res
+        if isinstance(op.resolved_type, types.Union):
+            names = set()
+            for arg in op.prevvalues:
+                if type(arg) is not Operation:
+                    return
+                if len(arg.args) != 1:
+                    return
+                names.add(arg.name)
+            if len(names) != 1:
+                return
+            variant, = names
+            if variant not in op.resolved_type.variants:
+                return
+            self._need_dead_code_removal = True
+            arg = self.newphi(op.prevblocks, [arg.args[0] for arg in op.prevvalues],
+                              op.prevvalues[0].args[0].resolved_type)
+            return self.newop(variant, [arg], op.resolved_type)
 
     def _optimize_NonSSAAssignment(self, op, block, index):
         return REMOVE
 
     def _optimize_UnionVariantCheck(self, op, block, index):
-        def is_union_creation(value):
-            assert isinstance(value.resolved_type, types.Union)
-            return type(value) is Operation and value.name in value.resolved_type.variants
         arg, = self._args(op)
         if type(arg) is Operation:
             if arg.name == op.name:
                 return BooleanConstant.FALSE
-            if is_union_creation(arg):
+            if arg.is_union_creation():
                 return BooleanConstant.TRUE
         if not isinstance(arg, Phi):
             return
         phi = arg
-        if not all(is_union_creation(value) for value in phi.prevvalues):
+        if not all(value.is_union_creation() for value in phi.prevvalues):
             return
 
         results = []
@@ -2531,14 +2671,34 @@ class LocalOptimizer(BaseOptimizer):
         return None
 
     def _optimize_UnionCast(self, op, block, index):
-        def is_union_creation(value):
-            assert isinstance(value.resolved_type, types.Union)
-            return type(value) is Operation and value.name in value.resolved_type.variants
         arg0, = self._args(op)
-        if is_union_creation(arg0) and arg0.name == op.name:
+        if arg0.is_union_creation() and arg0.name == op.name:
             assert len(arg0.args) == 1
             assert arg0.args[0].resolved_type == op.resolved_type
             return arg0.args[0]
+
+    def _optimize_StructCopy(self, op, block, index):
+        from pydrofoil.emitfunction import count_uses
+        arg0, = self._args(op)
+        if isinstance(arg0, UnionCast) and block.operations[index - 1] is arg0:
+            # a unioncast just before the copy does not need copying again
+            uses = count_uses(self.graph)
+            if uses[arg0] == 1:
+                return arg0
+        if isinstance(arg0, Phi):
+            if all(isinstance(arg, StructConstruction) for arg in arg0.prevvalues):
+                uses = count_uses(self.graph)
+                if op.resolved_type.tuplestruct or all(uses[arg] == 1 for arg in arg0.prevvalues):
+                    return arg0
+
+    def _optimize_StructConstruction(self, op, block, index):
+        args = self._args(op)
+        if op.resolved_type.tuplestruct and all(isinstance(arg, FieldAccess) for arg in args):
+            fieldreadargs = {arg.args[0] for arg in args}
+            if len(fieldreadargs) == 1:
+                res, = fieldreadargs
+                if res.resolved_type == op.resolved_type:
+                    return res
 
     @symmetric
     def optimize_eq_bits(self, op, arg0, arg1):
@@ -2588,6 +2748,14 @@ class LocalOptimizer(BaseOptimizer):
             return MachineIntConstant(arg0.number)
         if not isinstance(arg0, Operation):
             return
+        if isinstance(arg0, UnpackPackedField):
+            return self.newop(
+                "@packed_field_int_to_int64",
+                [arg0.args[0]],
+                op.resolved_type,
+                op.sourcepos,
+                op.varname_hint)
+
         if (
             not isinstance(arg0, Operation)
             or self._builtinname(arg0.name) != "int64_to_int"
@@ -2660,6 +2828,15 @@ class LocalOptimizer(BaseOptimizer):
 
     def _cmp_generic_optimization(self, op, arg0, arg1):
         assert arg0.resolved_type is arg1.resolved_type
+        if arg0.resolved_type is not types.MachineInt():
+            if (isinstance(arg0, Operation) and arg0.name == "@unsigned_bv_wrapped_res"
+                    and isinstance(arg1, Operation) and arg1.name == "@unsigned_bv_wrapped_res"):
+                newname = "@" + self._builtinname(op.name).lstrip("@") + "_unsigned64"
+                return self.newop(newname, [arg0.args[0],
+                                            arg1.args[0]],
+                                  op.resolved_type,
+                                  op.sourcepos,
+                                  op.varname_hint)
         add_components, sub_components, constant, useful = self._add_sub_extract_components(arg0, arg1)
         if useful:
             if len(add_components) + len(sub_components) <= 1 and isinstance(constant, int):
@@ -2706,6 +2883,16 @@ class LocalOptimizer(BaseOptimizer):
             else:
                 return BooleanConstant.frombool(arg0.number <= arg1.number)
         else:
+            if (isinstance(arg0, Operation) and
+                    arg0.name == "@add_unsigned_bv64_unsigned_bv64_wrapped_res" and
+                    isinstance(arg1, Operation) and
+                    arg1.name == "@add_unsigned_bv64_unsigned_bv64_wrapped_res"):
+                return self.newop(
+                    "@lteq_add4_unsigned_bv64",
+                    arg0.args + arg1.args,
+                    types.Bool(),
+                    op.sourcepos,
+                    op.varname_hint)
             try:
                 arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
             except NoMatchException:
@@ -2849,8 +3036,8 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_not_bits(self, op):
         (arg0,) = self._args(op)
-        #if isinstance(arg0, parse.OperationExpr) and arg0.name == "@zeros_i":
-        #    return parse.OperationExpr("@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos)
+        if isinstance(arg0, Operation) and arg0.name == "@zeros_i":
+            return self.newop("@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         return self.newcast(
@@ -3095,6 +3282,15 @@ class LocalOptimizer(BaseOptimizer):
         try:
             arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         except NoMatchException:
+            if isinstance(arg0, Operation) and arg0.name == '@ones_i':
+                arg0arg0, = self._args(arg0)
+                return self.newop(
+                    "@ones_zero_extended_unwrapped_res",
+                    [arg0arg0, arg1],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
             raise
         if typ0.width == arg1.number:
             res = arg0
@@ -3272,8 +3468,32 @@ class LocalOptimizer(BaseOptimizer):
                 return self._make_int_to_int64(res)
         return res
 
+    def _extract_unsigned_bv64(self, value):
+        if (isinstance(value, Operation) and
+                value.name == "@unsigned_bv_wrapped_res" and
+                isinstance(value.args[1], MachineIntConstant) and
+                value.args[1].number == 64):
+            return value.args[0]
+        elif isinstance(value, IntConstant):
+            if 0 <= value.number < 2 ** 64:
+                return SmallBitVectorConstant(r_uint(value.number), types.SmallFixedBitVector(64))
+        elif isinstance(value, MachineIntConstant):
+            if value.number >= 0:
+                return SmallBitVectorConstant(r_uint(value.number), types.SmallFixedBitVector(64))
+        raise NoMatchException
+
     @symmetric
     def optimize_add_int(self, op, arg0, arg1):
+        try:
+            bvarg0 = self._extract_unsigned_bv64(arg0)
+            bvarg1 = self._extract_unsigned_bv64(arg1)
+        except NoMatchException:
+            pass
+        else:
+            return self.newop("@add_unsigned_bv64_unsigned_bv64_wrapped_res",
+                              [bvarg0, bvarg1],
+                              op.resolved_type, op.sourcepos, op.varname_hint)
+
         res = self._general_add_sub_opt(op)
         if res is not None:
             return res
@@ -3291,6 +3511,15 @@ class LocalOptimizer(BaseOptimizer):
         if res is not None:
             return res
         arg0, arg1 = self._args(op)
+        try:
+            bvarg0 = self._extract_unsigned_bv64(arg0)
+            bvarg1 = self._extract_unsigned_bv64(arg1)
+        except NoMatchException:
+            pass
+        else:
+            return self.newop("@add_unsigned_bv64_unsigned_bv64_wrapped_res",
+                              [bvarg0, bvarg1],
+                              op.resolved_type, op.sourcepos, op.varname_hint)
         num0 = num1 = None
         try:
             num1 = self._extract_number(arg1)
@@ -3787,6 +4016,32 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type,
         )
 
+    def optimize_shift_bits_left(self, op):
+        arg0, arg1 = self._args(op)
+        intarg1 = self.newop(
+            "@sail_unsigned",
+            [arg1],
+            types.Int())
+        return self.newop(
+            "@shiftl",
+            [arg0, intarg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint)
+
+    def optimize_shift_bits_right(self, op):
+        arg0, arg1 = self._args(op)
+        intarg1 = self.newop(
+            "@sail_unsigned",
+            [arg1],
+            types.Int())
+        return self.newop(
+            "@shiftr",
+            [arg0, intarg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint)
+
     def optimize_arith_shiftr_o_i(self, op):
         arg0, arg1 = self._args(op)
         try:
@@ -3811,6 +4066,15 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_length(self, op):
         arg0, = self._args(op)
+        if isinstance(op.args[0].resolved_type, types.Vec):
+            res = self.newop(
+                    "@vec_length_unwrapped_res",
+                    [arg0],
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+            )
+            return self._make_int64_to_int(res, op.sourcepos)
         res = self.newop(
                 "@length_unwrapped_res",
                 [arg0],
@@ -3994,7 +4258,7 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type
         )
 
-    def optimize_platform_read_mem_o_o_o_i(self, op):
+    def optimize_platform_read_mem_o_o_o_i(self, op, isfetch=False):
         arg0, arg1, arg2, arg3 = self._args(op)
         arg2, typ = self._extract_smallfixedbitvector(arg2)
         arg3 = self._extract_number(arg3)
@@ -4005,14 +4269,18 @@ class LocalOptimizer(BaseOptimizer):
         assert typ.width in (32, 64)
         return self.newcast(
             self.newop(
-                "@platform_read_mem_o_i_bv_i",
-                [arg0, arg1, arg2, arg3],
+                "@fast_read_mem_i_bv_i_isfetch",
+                [arg1, arg2, arg3, BooleanConstant.frombool(isfetch)],
                 types.SmallFixedBitVector(arg3.number * 8),
                 op.sourcepos,
                 op.varname_hint,
             ),
             op.resolved_type
         )
+    optimize_read_mem_o_o_o_i = optimize_platform_read_mem_o_o_o_i
+
+    def optimize_read_mem_ifetch_o_o_o_i(self, op):
+        return self.optimize_platform_read_mem_o_o_o_i(op, isfetch=True)
 
     def optimize_UINT64_C(self, op):
         arg0, = self._args(op)
@@ -4020,11 +4288,36 @@ class LocalOptimizer(BaseOptimizer):
         assert arg0.number == 0
         return GenericBitVectorConstant(bitvector.from_ruint(0, r_uint(0)))
 
+    def optimize_monomorphize(self, op):
+        arg0, = self._args(op)
+        return arg0
+
+    def optimize_branch_announce(self, op):
+        return UnitConstant.UNIT
+
+    def optimize_instr_announce(self, op):
+        return UnitConstant.UNIT
+
+    def optimize_packed_field_cast_smallfixedbitvector(self, op):
+        arg0, arg1 = self._args(op)
+        if not isinstance(arg1, FieldAccess):
+            if arg1.name == "@pack_smallfixedbitvector":
+                assert arg0.number == arg1.args[0].number
+                return arg1.args[1]
+            import pdb;pdb.set_trace()
+
+    def optimize_packed_field_int_to_int64(self, op):
+        arg0, = self._args(op)
+        if not isinstance(arg0, FieldAccess) and isinstance(arg0, Operation):
+            if arg0.name == "@pack_machineint":
+                return arg0.args[0]
 
 @repeat
 def inline(graph, codegen):
     # don't add blocks to functions that are already really big and need to be
     # split later
+    #if graph.name == "zhex_bits_2_forwards":
+    #    import pdb;pdb.set_trace()
     really_huge_function = graph.has_more_than_n_blocks(1000)
     changed = False
     for block in graph.iterblocks():
@@ -4042,7 +4335,7 @@ def inline(graph, codegen):
                         index = 0
                         changed = True
                         continue
-                elif not really_huge_function and not subgraph.has_loop:
+                elif not really_huge_function and not subgraph.has_loop and subgraph is not graph:
                     # complicated case
                     _inline(graph, codegen, block, index, subgraph)
                     remove_empty_blocks(graph, codegen)
@@ -4299,7 +4592,7 @@ def find_anticipated_casts(graph):
         for op in block.operations:
             if isinstance(op, Cast) and isinstance(op.resolved_type, types.SmallFixedBitVector):
                 s.add((op.args[0], op.resolved_type))
-            if isinstance(op, Operation) and op.name == 'zz5izDzKz5i64':
+            if isinstance(op, Operation) and op.name == INT_TO_INT64_NAME:
                 s.add((op.args[0], op.resolved_type))
     return anticipated_casts
 
@@ -4368,6 +4661,38 @@ def cse_global_reads(graph, codegen):
     return False
 
 @repeat
+def sink_allocate(graph, codegen):
+    changed = False
+    for block in graph.iterblocks():
+        newoperations = []
+        alloc = None
+        count = 0
+        for op in block.operations:
+            if isinstance(op, Allocate):
+                count += 1
+        if count != 1:
+            continue
+        for index, op in enumerate(block.operations):
+            if (alloc is None and 
+                    isinstance(op, Allocate) and
+                    index + 1 < len(block.operations) and
+                    op not in block.operations[index + 1].getargs()):
+                alloc = op
+                continue
+            if alloc in op.getargs():
+                newoperations.append(alloc)
+                newoperations.extend(block.operations[index:])
+                changed = True
+                break
+            newoperations.append(op)
+        else:
+            if alloc:
+                newoperations.append(alloc)
+        if changed:
+            block.operations = newoperations
+    return changed
+
+@repeat
 def partial_allocation_removal(graph, codegen):
     # local removal only so far
     def escape(value):
@@ -4381,7 +4706,7 @@ def partial_allocation_removal(graph, codegen):
                 if name in fields:
                     fieldvalue = escape(fields[name])
                 else:
-                    fieldvalue = DefaultValue(typ.fieldtyps[name])
+                    fieldvalue = DefaultValue(typ.internalfieldtyps[name])
                 fieldvalues.append(fieldvalue)
             op = StructConstruction(typ.name, fieldvalues, typ, value.sourcepos)
             newoperations.append(op)
@@ -4427,7 +4752,7 @@ def partial_allocation_removal(graph, codegen):
                     typ = op.resolved_type
                     fields = {}
                     for fieldname in typ.names:
-                        fieldvalue = FieldAccess(fieldname, [op.args[0]], typ.fieldtyps[fieldname])
+                        fieldvalue = FieldAccess(fieldname, [op.args[0]], typ.internalfieldtyps[fieldname])
                         newoperations.append(fieldvalue)
                         fields[fieldname] = fieldvalue
                     virtuals_in_block[op] = fields
@@ -4440,6 +4765,7 @@ def partial_allocation_removal(graph, codegen):
             if isinstance(op, FieldAccess):
                 obj = get_repr(op.args[0])
                 if obj in virtuals_in_block:
+                    assert op.resolved_type is virtuals_in_block[obj][op.name].resolved_type
                     replacements[op] = virtuals_in_block[obj][op.name]
                     continue
             if isinstance(op, GlobalWrite) and op.name in codegen.all_registers:
@@ -4453,7 +4779,7 @@ def partial_allocation_removal(graph, codegen):
                         if name in fields:
                             fieldvalue = escape(fields[name])
                         else:
-                            fieldvalue = DefaultValue(typ.fieldtyps[name])
+                            fieldvalue = DefaultValue(typ.internalfieldtyps[name])
                         newoperations.append(FieldWrite(name, [target, fieldvalue]))
                     continue
 
@@ -4476,6 +4802,74 @@ def partial_allocation_removal(graph, codegen):
                 break
     return changes
 
+
+@repeat
+def cse_field_reads(graph, codegen):
+    # very simple forward load-after-load and load-after-store pass for struct fields
+    def leaves_structs_alone(op):
+        if not op.can_have_side_effects:
+            return True
+        if isinstance(op, Comment):
+            return True
+        if op.name == "@not":
+            return True
+        if op.name == "@eq":
+            return True
+        name = op.name.lstrip("@$")
+        name = codegen.builtin_names.get(name, name)
+        return type(op) is Operation and name in supportcode.purefunctions
+
+    replacements = {}
+    available = {} # block -> block -> prev_op
+
+    entrymap = graph.make_entrymap()
+    blocks = topo_order_best_attempt(graph)
+    for block in blocks:
+        available_in_block = {} # (type, fieldname) -> (source, result)
+        prev_blocks = entrymap[block]
+        if prev_blocks:
+            if len(prev_blocks) == 1:
+                available_in_block = available[prev_blocks[0]].copy()
+            else:
+                # intersection of what's available in the previous blocks
+                for key, val in available[prev_blocks[0]].iteritems():
+                    if not all(available.get(prev_block, {}).get(key, None) == val
+                               for prev_block in prev_blocks):
+                        continue
+                    available_in_block[key] = val
+        available[block] = available_in_block
+        for index, op in enumerate(block.operations):
+            if isinstance(op, FieldAccess):
+                key = (op.args[0].resolved_type, op.name)
+                if key in available_in_block:
+                    source, res = available_in_block[key]
+                    if source is op.args[0]:
+                        replacements[op] = res
+                        block.operations[index] = None
+                        continue
+                available_in_block[key] = (op.args[0], op)
+            elif isinstance(op, FieldWrite):
+                key = (op.args[0].resolved_type, op.name)
+                available_in_block[key] = (op.args[0], op.args[1])
+                continue
+            elif isinstance(op, StructConstruction):
+                for arg, typ, name in zip(op.args, op.resolved_type.typs, op.resolved_type.names):
+                    available_in_block[op.resolved_type, name] = (op, arg)
+            elif not leaves_structs_alone(op):
+                available_in_block.clear()
+                continue
+            else:
+                continue
+    if replacements:
+        for block in blocks:
+            block.operations = [op for op in block.operations if op is not None]
+        while 1:
+            # XXX do them in one go somehow
+            changed = graph.replace_ops(replacements)
+            if not changed:
+                break
+        return True
+    return False
 
 # ____________________________________________________________
 # dominator-tree based algorithms

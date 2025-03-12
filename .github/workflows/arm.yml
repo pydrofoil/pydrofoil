@@ -21,15 +21,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-22.04]
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
     - name: Set up PyPy 2.7
       uses: actions/setup-python@v5
       with:
         python-version: "pypy-2.7-v7.3.10"
+
+    - name: Download PyPy nightly and install dependencies
+      run: |
+        make pypy_binary_nightly
+        make pypy2/rpython/bin/rpython
 
     - name: Restore cached IR
       id: cache-ir-restore
@@ -56,12 +63,11 @@ jobs:
 
     - name: Run ARM unit test
       run: |
-        make pydrofoil-test-arm
+        PYPY_GC_MAX=12GB PYTHONPATH=.:pypy2 ./pypy_binary/bin/python pypy2/pytest.py -vs arm/
 
     - name: build ARM
       run: |
-        make pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir
-        PYTHONPATH=. pypy_binary/bin/python pypy2/rpython/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py --no-arm-regen
+        PYTHONPATH=. pypy_binary/bin/python pypy2/rpython/bin/rpython -Ojit --translation-withsmallfuncsets=0 --output=pydrofoil-arm arm/targetarm.py --no-arm-regen
 
     - name: boot linux
       run: |
@@ -70,3 +76,10 @@ jobs:
     - name: show jit summary booting
       run: |
         cat summary
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: pydrofoil-arm-${{ matrix.os }}
+        path: ./pydrofoil-arm
+

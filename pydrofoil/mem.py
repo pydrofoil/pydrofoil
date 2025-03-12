@@ -96,7 +96,7 @@ class FlatMemory(MemBase):
         else:
             mem = [r_uint(0)] * (size // 8)
         self.mem = mem
-        self.status = [MEM_STATUS_NORMAL] * size
+        self.status = [MEM_STATUS_NORMAL] * (size // 8)
         self.version = Version()
 
         self.mmap = mmap

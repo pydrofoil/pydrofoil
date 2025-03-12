@@ -32,7 +32,7 @@ jobs:
 
     - name: Add opam2 PPA and install opam (macos)
       run: |
-        brew install opam pkg-config z3 zlib
+        brew install opam z3 zlib
       if: contains(matrix.os, 'macos')
 
     - name: Init opam
@@ -41,7 +41,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         repository: riscv/sail-riscv
-        ref: 23f18200b771174e601fb58e7a857291fb32d063
+        ref: 87f8bb34d629163563515a82102c48b722ab9058
 
     - uses: actions/checkout@v4
       with:

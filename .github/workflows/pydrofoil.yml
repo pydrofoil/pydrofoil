@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-latest]
+        os: [ubuntu-22.04, macos-latest]
 
     steps:
     - uses: actions/checkout@v4
@@ -34,19 +34,20 @@ jobs:
     - name: Set up PyPy 2.7
       uses: actions/setup-python@v5
       with:
-        python-version: "pypy-2.7-v7.3.10"
+        python-version: "pypy-2.7-v7.3.17"
 
     - name: install dependencies and create virtualenv
       run: |
-        make pypy_binary/bin/python
+        make pypy_binary_nightly
         make pypy2/rpython/bin/rpython
 
     - name: Test with pytest
       run: |
-        HYPOTHESIS_PROFILE=ci make pydrofoil-test
+        make pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o
+        ./pypy_binary/bin/python -X faulthandler pypy2/pytest.py -vs pydrofoil/ riscv/
 
     - name: Test Coverage for Bitvectors, Integers and Reals
-      if: matrix.os == 'ubuntu-20.04'
+      if: matrix.os == 'ubuntu-22.04'
       run: |
         ./pypy_binary/bin/python -m coverage run pypy2/pytest.py --hypothesis-profile=coverage -v pydrofoil/test/test_supportcode.py pydrofoil/test/test_real.py
         ./pypy_binary/bin/python -m coverage report --include=pydrofoil/bitvector.py --fail-under=99 -m

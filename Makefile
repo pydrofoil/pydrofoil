@@ -32,6 +32,7 @@ endif
 		isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		model/prelude.sail \
 		model/riscv_xlen64.sail \
+		model/riscv_xlen.sail \
 		model/riscv_flen_D.sail \
 		model/riscv_vlen.sail \
 		model/prelude_mem_metadata.sail \
@@ -53,7 +54,7 @@ endif
 		model/riscv_misa_ext.sail \
 		model/riscv_vreg_type.sail \
 		model/riscv_vext_regs.sail \
-		model/riscv_csr_map.sail \
+		model/riscv_csr_begin.sail \
 		model/riscv_vext_control.sail \
 		model/riscv_next_regs.sail \
 		model/riscv_sys_exceptions.sail \
@@ -62,34 +63,33 @@ endif
 		model/riscv_softfloat_interface.sail \
 		model/riscv_fdext_regs.sail \
 		model/riscv_fdext_control.sail \
-		model/riscv_csr_ext.sail \
 		model/riscv_sys_control.sail \
 		model/riscv_platform.sail \
 		model/riscv_mem.sail \
-		model/riscv_pte.sail \
-		model/riscv_ptw.sail \
 		model/riscv_vmem_common.sail \
+		model/riscv_vmem_pte.sail \
+		model/riscv_vmem_ptw.sail \
 		model/riscv_vmem_tlb.sail \
-		model/riscv_vmem_sv39.sail \
-		model/riscv_vmem_sv48.sail \
-		model/riscv_vmem_rv64.sail \
+		model/riscv_vmem.sail \
 		model/riscv_types_kext.sail \
 		model/riscv_insts_begin.sail \
 		model/riscv_insts_base.sail \
 		model/riscv_insts_aext.sail \
-		model/riscv_insts_cext.sail \
+		model/riscv_insts_zca.sail \
 		model/riscv_insts_mext.sail \
 		model/riscv_insts_zicsr.sail \
 		model/riscv_insts_next.sail \
 		model/riscv_insts_hints.sail \
 		model/riscv_insts_fext.sail \
-		model/riscv_insts_cfext.sail \
+		model/riscv_insts_zcf.sail \
 		model/riscv_insts_dext.sail \
-		model/riscv_insts_cdext.sail \
+		model/riscv_insts_zcd.sail \
+		model/riscv_insts_svinval.sail \
 		model/riscv_insts_zba.sail \
 		model/riscv_insts_zbb.sail \
 		model/riscv_insts_zbc.sail \
 		model/riscv_insts_zbs.sail \
+		model/riscv_insts_zcb.sail \
 		model/riscv_insts_zfh.sail \
 		model/riscv_insts_zfa.sail \
 		model/riscv_insts_zkn.sail \
@@ -98,27 +98,33 @@ endif
 		model/riscv_insts_zbkx.sail \
 		model/riscv_insts_zicond.sail \
 		model/riscv_insts_vext_utils.sail \
+		model/riscv_insts_vext_fp_utils.sail \
 		model/riscv_insts_vext_vset.sail \
 		model/riscv_insts_vext_arith.sail \
 		model/riscv_insts_vext_fp.sail \
 		model/riscv_insts_vext_mem.sail \
 		model/riscv_insts_vext_mask.sail \
 		model/riscv_insts_vext_vm.sail \
+		model/riscv_insts_vext_fp_vm.sail \
 		model/riscv_insts_vext_red.sail \
+		model/riscv_insts_vext_fp_red.sail \
+		model/riscv_insts_zicbom.sail \
+		model/riscv_insts_zicboz.sail \
 		model/riscv_jalr_seq.sail \
 		model/riscv_insts_end.sail \
+		model/riscv_csr_end.sail \
 		model/riscv_step_common.sail \
 		model/riscv_step_ext.sail \
 		model/riscv_decode_ext.sail \
 		model/riscv_fetch.sail \
 		model/riscv_step.sail \
-		model/riscv_analysis.sail \
 		model/main.sail \
 		-o ${PWD}/riscv/riscv_model_RV64 \
 		&& \
 		${PWD}/isla/isla-sail/isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		model/prelude.sail \
 		model/riscv_xlen32.sail \
+		model/riscv_xlen.sail \
 		model/riscv_flen_D.sail \
 		model/riscv_vlen.sail \
 		model/prelude_mem_metadata.sail \
@@ -140,7 +146,7 @@ endif
 		model/riscv_misa_ext.sail \
 		model/riscv_vreg_type.sail \
 		model/riscv_vext_regs.sail \
-		model/riscv_csr_map.sail \
+		model/riscv_csr_begin.sail \
 		model/riscv_vext_control.sail \
 		model/riscv_next_regs.sail \
 		model/riscv_sys_exceptions.sail \
@@ -149,33 +155,33 @@ endif
 		model/riscv_softfloat_interface.sail \
 		model/riscv_fdext_regs.sail \
 		model/riscv_fdext_control.sail \
-		model/riscv_csr_ext.sail \
 		model/riscv_sys_control.sail \
 		model/riscv_platform.sail \
 		model/riscv_mem.sail \
-		model/riscv_pte.sail \
-		model/riscv_ptw.sail \
 		model/riscv_vmem_common.sail \
+		model/riscv_vmem_pte.sail \
+		model/riscv_vmem_ptw.sail \
 		model/riscv_vmem_tlb.sail \
-		model/riscv_vmem_sv32.sail \
-		model/riscv_vmem_rv32.sail \
+		model/riscv_vmem.sail \
 		model/riscv_types_kext.sail \
 		model/riscv_insts_begin.sail \
 		model/riscv_insts_base.sail \
 		model/riscv_insts_aext.sail \
-		model/riscv_insts_cext.sail \
+		model/riscv_insts_zca.sail \
 		model/riscv_insts_mext.sail \
 		model/riscv_insts_zicsr.sail \
 		model/riscv_insts_next.sail \
 		model/riscv_insts_hints.sail \
 		model/riscv_insts_fext.sail \
-		model/riscv_insts_cfext.sail \
+		model/riscv_insts_zcf.sail \
 		model/riscv_insts_dext.sail \
-		model/riscv_insts_cdext.sail \
+		model/riscv_insts_zcd.sail \
+		model/riscv_insts_svinval.sail \
 		model/riscv_insts_zba.sail \
 		model/riscv_insts_zbb.sail \
 		model/riscv_insts_zbc.sail \
 		model/riscv_insts_zbs.sail \
+		model/riscv_insts_zcb.sail \
 		model/riscv_insts_zfh.sail \
 		model/riscv_insts_zfa.sail \
 		model/riscv_insts_zkn.sail \
@@ -184,15 +190,21 @@ endif
 		model/riscv_insts_zbkx.sail \
 		model/riscv_insts_zicond.sail \
 		model/riscv_insts_vext_utils.sail \
+		model/riscv_insts_vext_fp_utils.sail \
 		model/riscv_insts_vext_vset.sail \
 		model/riscv_insts_vext_arith.sail \
 		model/riscv_insts_vext_fp.sail \
 		model/riscv_insts_vext_mem.sail \
 		model/riscv_insts_vext_mask.sail \
 		model/riscv_insts_vext_vm.sail \
+		model/riscv_insts_vext_fp_vm.sail \
 		model/riscv_insts_vext_red.sail \
+		model/riscv_insts_vext_fp_red.sail \
+		model/riscv_insts_zicbom.sail \
+		model/riscv_insts_zicboz.sail \
 		model/riscv_jalr_seq.sail \
 		model/riscv_insts_end.sail \
+		model/riscv_csr_end.sail \
 		model/riscv_step_common.sail \
 		model/riscv_step_ext.sail \
 		model/riscv_decode_ext.sail \
@@ -230,7 +242,7 @@ pydrofoil-test-arm: pypy2/rpython/bin/rpython pypy_binary/bin/python pypy2/rpyth
 
 .PHONY: pydrofoil-arm
 pydrofoil-arm: pypy_binary/bin/python pypy2/rpython/bin/rpython arm/armv9.ir ## Build the Pydrofoil ARM emulator
-	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --translation-withsmallfuncsets=0 --translation-jit_opencoder_model=big --output=pydrofoil-arm arm/targetarm.py
+	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --translation-withsmallfuncsets=0 --output=pydrofoil-arm arm/targetarm.py
 
 sail-arm/arm-v9.4-a/src/v8_base.sail: ## Clone the sail-arm submodule
 	git submodule update --init --depth 1
@@ -326,6 +338,16 @@ regen-cheriot-ir-files: sail-cheriot/src/cheri_cap_common.sail isla/isla-sail/pl
 pypy_binary/bin/python:  ## Download a PyPy binary
 	mkdir -p pypy_binary
 	python3 get_pypy_to_download.py
+	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
+	rm pypy.tar.bz2
+	./pypy_binary/bin/python -m ensurepip
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5
+
+.PHONY: pypy_binary_nightly
+pypy_binary_nightly:  ## Download a nightly PyPy binary (instead of stable)
+	rm -rf pypy_binary
+	mkdir pypy_binary
+	python3 get_pypy_to_download.py --nightly
 	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
 	rm pypy.tar.bz2
 	./pypy_binary/bin/python -m ensurepip

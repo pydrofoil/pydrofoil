@@ -99,7 +99,7 @@ def test_dis_instructions(riscvmain):
     m = riscvmain._machinecls()
     supportcoderiscv.init_mem(m)
     entry = supportcoderiscv.load_sail(m, elf)
-    supportcoderiscv.init_sail(m, entry)
+    m._reg_zPC = supportcoderiscv.init_sail(m, entry)
     m.g.config_print_instr = False
     m.g.config_print_reg = False
     m.g.config_print_mem_access = False
@@ -123,3 +123,8 @@ def test_dis_instructions(riscvmain):
         m.run_sail(1, False)
         res.append(outriscv.func_zassembly_forwards(m, outriscv.func_zext_decode(m, m._reg_zinstbits)))
     assert "illegal" not in "\n".join(res)
+
+def test_enable_options_smoke_test(riscvmain):
+    elf = elfs[0]
+    riscvmain(['executable', elf, "--enable-dirty-update", "--enable-misaligned", "--mtval-has-illegal-inst-bits", "--ram-size", 128])
+

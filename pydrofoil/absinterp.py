@@ -314,10 +314,10 @@ class AbstractInterpreter(object):
         elif isinstance(block.next, ir.ConditionalGoto):
             # first, check if one of the paths is dead
             cond = self._bounds(block.next.booleanvalue)
-            if cond == TRUE:
+            if cond is not None and cond == TRUE:
                 self._merge_values(self.current_values, block.next.truetarget)
                 return
-            elif cond == FALSE:
+            elif cond is not None and cond == FALSE:
                 self._merge_values(self.current_values, block.next.falsetarget)
                 return
             truevalues, falsevalues = self.analyze_condition(block.next.booleanvalue)
@@ -455,6 +455,12 @@ class AbstractInterpreter(object):
         return self._bounds(op.args[0])
 
     def analyze_unsigned_bv(self, op):
+        _, arg1 = self._argbounds(op)
+        if not arg1.isconstant():
+            return
+        return Range(0, 2**arg1.low - 1)
+
+    def analyze_unsigned_bv_wrapped_res(self, op):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():
             return

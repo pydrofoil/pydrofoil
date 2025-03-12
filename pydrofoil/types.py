@@ -92,10 +92,14 @@ class Struct(Type):
         self.names_list = [demangle(name) for name in names]
         self.typs = typs
         self.typs_list = list(typs)
+        self.internaltyps = tuple((Packed(typ) if typ.packed_field_size else typ) for typ in typs)
         self.fieldtyps = {}
+        self.internalfieldtyps = {}
         assert len(names) == len(typs)
-        for name, typ in zip(names, typs):
+        for name, typ, internaltyp in zip(names, self.typs, self.internaltyps):
             self.fieldtyps[name] = typ
+            self.internalfieldtyps[name] = internaltyp
+        self.tuplestruct = tuplestruct
 
     def sail_repr(self):
         from pydrofoil.mangle import demangle
@@ -318,3 +322,13 @@ class Real(Type):
 
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
+
+@unique
+class Packed(Type):
+    def __init__(self, typ):
+        self.uninitialized_value = typ.packed_field_pack(typ.uninitialized_value)
+        self.typ = typ
+
+    def __repr__(self):
+        return "%s(%s)" % (type(self).__name__, self.typ)
+

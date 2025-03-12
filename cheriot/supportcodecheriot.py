@@ -12,6 +12,7 @@ from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
 from rpython.rlib.rrandom import Random
 from rpython.rlib import jit
 from rpython.rlib import rsignal
+from rpython.rlib import debug as rdebug
 
 import time
 
@@ -55,54 +56,6 @@ def write_tag_bool(machine, addr, tag):
     addr <<= 3 # this is log2_cap_size in the cheriot model
     return machine.g.mem.write_tag_bit(addr, tag)
 
-# rough memory layout:
-# | rom | clint | .... | ram <htif inside> ram
-
-@jit.not_in_trace
-def _observe_addr_range(machine, pc, addr, width, ranges):
-    index = _find_index(ranges, addr, width)
-    jit.promote(machine.g)._mem_addr_range_next = index
-
-@jit.elidable
-def _get_likely_addr_range(g, pc, ranges):
-    # not really at all elidable, but it does not matter. the result is only
-    # used to produce some guards
-    return g._mem_addr_range_next
-
-def _find_index(ranges, addr, width):
-    for index, (start, stop) in enumerate(ranges):
-        if start <= addr and addr + width < stop:
-            return index
-    return -1
-
-@specialize.argtype(0)
-def promote_addr_region(machine, addr, width, offset, executable_flag):
-    g = jit.promote(machine.g)
-    width = intmask(machine.word_width_bytes(width))
-    addr = intmask(addr)
-    jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
-    if not jit.we_are_jitted() or jit.isconstant(addr) or not jit.isconstant(width):
-        return
-    if executable_flag:
-        return
-    pc = machine._reg_zPC
-    _observe_addr_range(machine, pc, addr, width, g._mem_ranges)
-    range_index = _get_likely_addr_range(g, pc, g._mem_ranges)
-    if range_index < 0 or width > 8:
-        return
-    # the next line produces two guards
-    if g._mem_ranges[range_index][0] <= addr and addr < g._mem_ranges[range_index][1] - width:
-        if width == 8 and addr & ((r_uint(1)<<63) | 0b111) == 0:
-            # it's aligned and the highest bit is not set. tell the jit that the
-            # last three bits and the highest bit are zero. can be removed with
-            # known bits analysis later
-            jit.record_exact_value(addr & 1, 0)
-            jit.record_exact_value(addr & 0b111, 0)
-            jit.record_exact_value((addr + width) & 0b111, 0)
-            jit.record_exact_value(r_uint(addr) & (r_uint(1)<<63), 0)
-            jit.record_exact_value((r_uint(addr) >> 1) & 1, 0)
-            jit.record_exact_value((r_uint(addr) >> 2) & 1, 0)
-    return
 
 class Globals(object):
     _immutable_fields_ = [
@@ -116,7 +69,6 @@ class Globals(object):
     ]
 
     def __init__(self):
-        self._mem_addr_range_next = -1
         self.mem = None
         self.rv_enable_pmp                  = False
         self.rv_enable_zfinx                = False
@@ -151,7 +103,7 @@ class Globals(object):
         self.reservation = r_uint(0)
         self.reservation_valid = False
 
-        self.dump_dict = None
+        self.dump_dict = {}
 
         self.config_print_instr = True
         self.config_print_reg = True
@@ -161,17 +113,6 @@ class Globals(object):
         self.config_print_rvfi = False
 
         self.cpu_hz = 1000000000 # 1 GHz
-
-    def _init_ranges(self):
-        self._mem_ranges = [
-            (intmask(self.rv_rom_base), intmask(self.rv_rom_base + self.rv_rom_size)),
-            (intmask(self.rv_clint_base), intmask(self.rv_clint_base + self.rv_clint_size)),
-            (intmask(self.rv_ram_base), intmask(self.rv_htif_tohost)),
-            (intmask(self.rv_htif_tohost), intmask(self.rv_htif_tohost + 16)),
-            (intmask(self.rv_htif_tohost + 16), intmask(self.rv_ram_base + self.rv_ram_size)),
-        ]
-        for a, b in self._mem_ranges:
-            assert b >= 8
 
     def _create_dtb(self):
         from pydrofoil.dtb import DeviceTree
@@ -215,8 +156,6 @@ class Globals(object):
                 d.add_property(b"compatible", b"ucb,htif0")
         self.dtb = d.to_binary()
 
-
-DEFAULT_RSTVEC = 0x00001000
 
 def rv_16_random_bits(machine):
     # pseudo-random for determinism for now
@@ -297,9 +236,6 @@ def load_reservation(machine, addr):
     #print "reservation <- 0x%x" % (addr, )
     return ()
 
-def speculate_conditional(machine, _):
-    return True
-
 @specialize.argtype(0)
 def check_mask(machine):
     return r_uint(0x00000000FFFFFFFF) if is_32bit_model(machine) else r_uint(0xffffffffffffffff)
@@ -329,9 +265,6 @@ def memea(len, n):
 
 
 # sim stuff
-
-def plat_term_write_impl(c):
-    os.write(1, c)
 
 @specialize.argtype(0)
 def init_sail(machine, elf_entry):
@@ -535,13 +468,6 @@ def _main(argv, *machineclasses):
     #close_logs()
     return 0
 
-def get_printable_location(pc, do_show_times, insn_limit, tick, g):
-    if tick:
-        return "TICK 0x%x" % (pc, )
-    if g.dump_dict and pc in g.dump_dict:
-        return "0x%x: %s" % (pc, g.dump_dict[pc])
-    return hex(pc)
-
 
 
 def load_sail(machine, fn):
@@ -598,6 +524,42 @@ def get_config_print_platform(machine, _):
 def get_config_print_exception(machine, _):
     return machine.g.config_print_exception
 
+@specialize.argtype(0)
+def promote_addr_region(machine, addr, width, executable_flag):
+    g = jit.promote(machine.g)
+    addr = intmask(addr)
+    jit.jit_debug("promote_addr_region", width, executable_flag, jit.isconstant(width))
+    if not jit.we_are_jitted() or not jit.isconstant(width):
+        return
+    if executable_flag:
+        jit.promote(addr)
+        jit.jit_debug("ram ifetch", intmask(addr))
+        mem = jit.promote(machine.g).mem
+        # read and ignore the result, the JIT will do the rest
+        res = mem.read(r_uint(addr), width, executable_flag=True)
+        return
+
+def patch_checked_mem_function(outriscv, name):
+    func = getattr(outriscv, name)
+    varnames = func.func_code.co_varnames
+    if "read" in name:
+        assert varnames[:4] == ('machine', 'zt', 'zpaddr', 'zwidth')
+        def patched(machine, zt, zpaddr, zwidth, *args):
+            executable_flag = outriscv.Union_zAccessTypezIEext_access_typez5zK_zExecutezIEext_access_typez5zK.check_variant(zt)
+            promote_addr_region(machine, zpaddr, zwidth, executable_flag)
+            return func(machine, zt, zpaddr, zwidth, *args)
+        patched.func_name += "_" + func.func_name
+        setattr(outriscv, name, patched)
+    else:
+        assert "write" in name
+        assert varnames[:4] == ('machine', 'zwk', 'zpaddr', 'zwidth')
+        def patched(machine, zwk, zpaddr, zwidth, *args):
+            promote_addr_region(machine, zpaddr, zwidth, False)
+            return func(machine, zwk, zpaddr, zwidth, *args)
+        patched.func_name += "_" + func.func_name
+        setattr(outriscv, name, patched)
+
+
 def get_main(outriscv):
     if "g" not in RegistersBase._immutable_fields_:
         RegistersBase._immutable_fields_.append("g")
@@ -607,10 +569,10 @@ def get_main(outriscv):
     def get_printable_location(pc, do_show_times, insn_limit, tick, pcc_bits, g):
         if tick:
             return "TICK 0x%x" % (pc, )
+        capstring = outriscv.func_zcapToString(None, outriscv.func_zcapBitsToCapability(None, True, pcc_bits))
         if g.dump_dict and pc in g.dump_dict:
-            return "%s 0x%x: %s" % (prefix, pc, g.dump_dict[pc])
-        return outriscv.func_zcapToString(None, outriscv.func_zcapBitsToCapability(None, True, pcc_bits))
-        return hex(pc)
+            return "%s %s: %s" % (prefix, capstring, g.dump_dict[pc])
+        return capstring
 
     driver = JitDriver(
         get_printable_location=get_printable_location,
@@ -620,15 +582,21 @@ def get_main(outriscv):
         name=prefix,
         is_recursive=True)
 
-    phys_mem_read = outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False
-    def phys_mem_read_patched(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta):
-        # read and ignore the result, the JIT will do the rest?
-        jit.jit_debug("ram ifetch", intmask(zpaddr))
-        mem = jit.promote(machine.g).mem
-        res = mem.read(zpaddr, 2, executable_flag=True)
-        res = phys_mem_read(machine, zt, zpaddr, zwidth, zaq, zrl, zres, zmeta)
-        return res
-    outriscv.func_zphys_mem_read_specialized_o_o_2_False_False_False_False = phys_mem_read_patched
+    for name in dir(outriscv):
+        if name.startswith("func_zchecked_mem_"):
+            patch_checked_mem_function(outriscv, name)
+
+    @jit.not_in_trace
+    def disassemble_current_inst(pc, m):
+        if rdebug.have_debug_prints_for('jit-log-opt'):
+            instbits = m._reg_zinstbits
+            if instbits & 0b11 != 0b11:
+                # compressed instruction
+                ast = outriscv.func_zencdec_compressed_backwards(m, m._reg_zinstbits)
+            else:
+                ast = outriscv.func_zext_decode(m, m._reg_zinstbits)
+            dis = outriscv.func_zassembly_forwards(m, ast)
+            m.g.dump_dict[pc] = dis
 
     class Machine(outriscv.Machine):
         _immutable_fields_ = ['g']
@@ -657,8 +625,6 @@ def get_main(outriscv):
             step_no = 0
             insn_cnt = 0
             tick = False
-
-            self.g._init_ranges()
 
             self.g.interval_start = self.g.total_start = time.time()
             prev_pc = 0
@@ -702,6 +668,9 @@ def get_main(outriscv):
                     raise ValueError
                 rv_insns_per_tick = g.rv_insns_per_tick
                 if stepped:
+                    if jit.we_are_jitted():
+                        disassemble_current_inst(prev_pc, self)
+
                     step_no += 1
                     if rv_insns_per_tick:
                         insn_cnt += 1

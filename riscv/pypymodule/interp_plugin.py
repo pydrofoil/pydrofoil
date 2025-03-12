@@ -385,7 +385,7 @@ class MachineAbstractBase(object):
             entry = load_sail(space, self.machine, elf)
         else:
             entry = self.machine.g.rv_ram_base
-        init_sail(space, self.machine, entry)
+        self.machine.set_pc(init_sail(space, self.machine, entry))
         self._step_no = 0
         self._insn_cnt = 0 # used to check whether a tick has been reached
         self._tick = False # should the next step tick

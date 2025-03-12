@@ -83,9 +83,11 @@ class CodeEmitter(object):
     def _can_print_op_anywhere(self, op):
         if isinstance(op, ir.Cast):
             return True
-        if isinstance(op, ir.UnionCast):
-            return True
         if isinstance(op, ir.RefOf):
+            return True
+        if isinstance(op, ir.UnpackPackedField):
+            return True
+        if isinstance(op, ir.PackPackedField):
             return True
         if op.name == "@not":
             return True
@@ -247,24 +249,26 @@ class CodeEmitter(object):
         self._op_helper(op, arg)
 
     def emit_op_FieldAccess(self, op):
-        read = op.resolved_type.packed_field_read("%s.%s" % (self._get_arg(op.args[0]), op.name))
+        read = op.resolved_type.packed_field_read("%s.%s" % (self._get_arg(op.args[0]), op.name), bare=True)
         return self._op_helper(op, read)
 
     def emit_op_FieldWrite(self, op):
         lhs = "%s.%s" % (self._get_arg(op.args[0]), op.name)
-        write = op.args[1].resolved_type.packed_field_write(lhs, self._get_arg(op.args[1]))
+        assert op.args[0].resolved_type.internalfieldtyps[op.name] == op.args[1].resolved_type
+        write = op.args[1].resolved_type.packed_field_write(lhs, self._get_arg(op.args[1]), bare=True)
         self.codegen.emit(write)
 
     def emit_op_RefAssignment(self, op):
         self.codegen.emit("%s.update_with(machine, %s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
 
     def emit_op_Allocate(self, op):
-        self._op_helper(op, op.resolved_type.uninitialized_value)
+        pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
+        self._op_helper(op, 'objectmodel.instantiate(%s)' % pyname)
 
     def emit_op_RefOf(self, op):
         regname = op.name
         register = self.codegen.all_registers[regname]
-        pyname = register.register_ref_name
+        pyname = register.make_register_ref(self.codegen)
         #name = "ref_%s" % (regname, )
         #with self.codegen.cached_declaration(regname, name) as pyname:
         #    with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
@@ -292,6 +296,17 @@ class CodeEmitter(object):
 
     def emit_op_Phi(self, op):
         pass
+
+    def emit_op_UnpackPackedField(self, op):
+        assert op.args[0].resolved_type.typ.packed_field_size > 1
+        read = op.resolved_type.packed_field_unpack(self._get_arg(op.args[0]))
+        return self._op_helper(op, read)
+
+    def emit_op_PackPackedField(self, op):
+        assert op.args[0].resolved_type.packed_field_size > 1
+        read = op.args[0].resolved_type.packed_field_pack(self._get_arg(op.args[0]))
+        return self._op_helper(op, read)
+
 
     # ________________________________________________
     # jumps etc
@@ -377,6 +392,8 @@ def count_uses(graph):
     uses = defaultdict(int)
     for block in graph.iterblocks():
         for op in block.operations:
+            if op is None:
+                continue
             for arg in op.getargs():
                 uses[arg] += 1
         for arg in block.next.getargs():

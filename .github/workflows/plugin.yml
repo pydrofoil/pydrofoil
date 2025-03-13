@@ -1,4 +1,4 @@
-name: Pydrofoil
+name: Pydrofoil-PyPy-plugin
 
 on:
   push:

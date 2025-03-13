@@ -230,9 +230,12 @@ def test_struct_sail_type():
     assert isinstance(fields['age'], _pydrofoil.sailtypes.SmallFixedBitVector)
     assert fields['age'].width == 64
 
-def test_tuplestruct():
+def test_struct_type():
     m = _pydrofoil.RISCV64()
-    assert m.lowlevel.encdec_mul_op_backwards(3) == (True, False, False)
+    struct = m.lowlevel.encdec_mul_op_backwards(3)
+    assert struct.high == True
+    assert struct.signed_rs1 == False
+    assert struct.signed_rs2 == False
 
 # functions
 

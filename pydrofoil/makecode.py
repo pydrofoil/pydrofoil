@@ -312,8 +312,6 @@ class Codegen(specialize.FixpointSpecializer):
                 self.emit("@staticmethod")
                 with self.emit_indent("def convert_from_pypy(space, w_value):"):
                     self.emit("return %s(%s._convert_from(space, w_value))" % (pyname, pyname))
-                structtyp.convert_to_pypy = "%s.convert_to_pypy" % pyname
-                structtyp.convert_from_pypy = "%s.convert_from_pypy" % pyname
             elif structtyp.tuplestruct:
                 self.emit("@staticmethod")
                 with self.emit_indent("def convert_to_pypy(space, self):"):
@@ -333,10 +331,16 @@ class Codegen(specialize.FixpointSpecializer):
                             fieldtyp.convert_from_pypy, index))
                     self.emit(")")
 
-                structtyp.convert_to_pypy = "%s.convert_to_pypy" % pyname
-                structtyp.convert_from_pypy = "%s.convert_from_pypy" % pyname
             else:
                 emit_pypy_typ = True
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_to_pypy(space, self):"):
+                    self.emit("return self")
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_from_pypy(space, w_value):"):
+                    self.emit("return space.interp_w(%s, w_value)" % (pyname, ))
+            structtyp.convert_to_pypy = "%s.convert_to_pypy" % pyname
+            structtyp.convert_from_pypy = "%s.convert_from_pypy" % pyname
         if emit_pypy_typ:
             self.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
                 pyname, demangle(structtyp.name), pyname, repr(structtyp)))

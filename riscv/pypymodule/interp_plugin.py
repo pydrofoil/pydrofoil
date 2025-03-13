@@ -272,8 +272,21 @@ W_BoundSailFunction.typedef = TypeDef("sail-function",
 
 def _init_functions(machinecls, functions):
     d = {}
+    function_info_dict = {}
     for function_info in functions:
+        function_info_dict[function_info[1]] = function_info
         _make_function(function_info, d, machinecls)
+
+    #for sail_name in list(d):
+    #    if not sail_name.endswith('_backwards'):
+    #        continue
+    #    name = sail_name[:-len('_backwards')]
+    #    forwards_name = name + '_forwards'
+    #    if forwards_name not in d:
+    #        continue
+    #    if name in d:
+    #        continue
+    #    _make_forwards_backwards_function(
 
     @jit.elidable
     def get_sail_func(name):

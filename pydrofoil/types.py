@@ -13,6 +13,7 @@ def unique(cls):
         res = base_new(cls, *args)
         instances[args] = res
         res.convert_to_pypy = "supportcode.generate_convert_to_pypy_error(%r)" % (cls.__name__ + str(id(res)))
+        res.convert_from_pypy = "supportcode.generate_convert_from_pypy_error(%r)" % (cls.__name__ + str(id(res)))
         return res
     cls.__new__ = staticmethod(__new__)
     return cls
@@ -29,8 +30,6 @@ def singleton(cls):
 class Type(W_Root):
     __metaclass__ = extendabletype
     uninitialized_value = '"uninitialized_value"' # often fine for rpython!
-
-    convert_from_pypy = "supportcode.convert_from_pypy_error"
 
     def sail_repr(self):
         return repr(self)

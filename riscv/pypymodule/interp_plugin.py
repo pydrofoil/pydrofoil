@@ -36,9 +36,9 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None):
     _init_functions(W_RISCV32, machinecls32._all_functions)
 
 def wrap_fn(fn):
-    def wrapped_fn(space, *args):
+    def wrapped_fn(space, machine, *args):
         try:
-            return fn(*args)
+            res = fn(machine, *args)
         except supportcoderiscv.SailError as e:
             w_module = space.getbuiltinmodule('_pydrofoil')
             w_error = space.getattr(w_module, space.newtext('SailAssertionError'))
@@ -47,8 +47,9 @@ def wrap_fn(fn):
             if not objectmodel.we_are_translated():
                 import pdb; pdb.xpm()
             raise oefmt(space.w_SystemError, "internal error, please report a bug: %s", str(e))
-        if w_machine.machine.have_exception:
+        if machine.have_exception:
             raise oefmt(space.w_SystemError, "sail exception")
+        return res
     wrapped_fn.func_name = "wrap_" + fn.func_name
     return wrapped_fn
 
@@ -283,6 +284,7 @@ def _init_functions(machinecls, functions):
     for function_info in functions:
         function_info_dict[function_info[1]] = function_info
         _make_function(function_info, d, machinecls)
+    import pdb;pdb.set_trace()
 
     #for sail_name in list(d):
     #    if not sail_name.endswith('_backwards'):
@@ -348,7 +350,18 @@ class SailFunctionAdaptor(object):
         if len(args_w) != self.num_args:
             raise oefmt(space.w_TypeError, "Sail function %s takes exactly %d arguments, got %d",
                         self.sail_name, self.num_args, len(args_w))
-        return self._call(space, w_machine, args_w)
+        try:
+            return self._call(space, w_machine, args_w)
+        except supportcoderiscv.SailError as e:
+            w_module = space.getbuiltinmodule('_pydrofoil')
+            w_error = space.getattr(w_module, space.newtext('SailAssertionError'))
+            raise OperationError(w_error, space.newtext(e.msg))
+        except OperationError:
+            raise
+        except Exception as e:
+            if not objectmodel.we_are_translated():
+                import pdb; pdb.xpm()
+            raise oefmt(space.w_SystemError, "internal error, please report a bug: %s", str(e))
 
 def _make_function_adaptor(argument_converters, machinecls, cache={}):
     key = tuple(argument_converters + [machinecls])
@@ -356,7 +369,7 @@ def _make_function_adaptor(argument_converters, machinecls, cache={}):
     if key in cache:
         return cache[key]
 
-    converters = unrolling_iterable(argument_converters)
+    _convert_args = _make_argument_converter_func(argument_converters)
 
     class Adaptor(SailFunctionAdaptor):
         _immutable_ = True
@@ -369,29 +382,29 @@ def _make_function_adaptor(argument_converters, machinecls, cache={}):
 
         def _call(self, space, w_machine, args_w):
             assert isinstance(w_machine, machinecls)
-            args = (w_machine.machine, )
-            i = 0
-            for conv in converters:
-                args += (conv(space, args_w[i]), )
-                i += 1
-            try:
-                return self.func(space, *args)
-            except supportcoderiscv.SailError as e:
-                w_module = space.getbuiltinmodule('_pydrofoil')
-                w_error = space.getattr(w_module, space.newtext('SailAssertionError'))
-                raise OperationError(w_error, space.newtext(e.msg))
-            except OperationError:
-                raise
-            except Exception as e:
-                if not objectmodel.we_are_translated():
-                    import pdb; pdb.xpm()
-                raise oefmt(space.w_SystemError, "internal error, please report a bug: %s", str(e))
+            args = _convert_args(space, args_w)
+            res = self.func(space, w_machine.machine, *args)
             if w_machine.machine.have_exception:
                 raise oefmt(space.w_SystemError, "sail exception")
+            return res
 
     cache[key] = Adaptor
     return Adaptor
 
+def _make_argument_converter_func(argument_converters, cache={}):
+    key = tuple(argument_converters)
+    if key in cache:
+        return cache[key]
+    converters = unrolling_iterable(argument_converters)
+    def convert(space, args_w):
+        args = ()
+        i = 0
+        for conv in converters:
+            args += (conv(space, args_w[i]), )
+            i += 1
+        return args
+    cache[key] = convert
+    return convert
 
 class MachineAbstractBase(object):
     def __init__(self, space, elf=None, dtb=False):

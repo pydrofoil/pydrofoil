@@ -651,6 +651,11 @@ class __extend__(parse.Union):
                     with codegen.emit_indent("if %s.check_variant(a):" % (pyname, )):
                         codegen.emit("return %s_W(%s.convert(a))" % (pyname, pyname))
                 codegen.emit("assert 0, 'unreachable'")
+            with codegen.emit_indent("def to_sail(self):"):
+                codegen.emit("raise NotImplementedError('abstract base class')")
+            with codegen.emit_indent("def eq(self, other):"):
+                codegen.emit("if not isinstance(other, %s): return False" % wrapped_basename)
+                codegen.emit("return self.to_sail() == other.to_sail()")
         for name, typ, pyname in zip(self.names, self.types, self.pynames):
             wrapped_pyname = pyname + "_W"
             with codegen.emit_indent("class %s(%s):" % (wrapped_pyname, wrapped_basename)):

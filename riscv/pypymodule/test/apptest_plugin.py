@@ -247,6 +247,7 @@ def test_compact_union():
     m = _pydrofoil.RISCV64()
     x = m.lowlevel.read_kind_of_flags_specialized_o_o_False(True, True, False)
     assert x[0] == 'Read_RISCV_strong_acquire'
+    assert x == x
 
 # functions
 

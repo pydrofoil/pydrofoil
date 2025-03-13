@@ -1637,6 +1637,12 @@ def cache2(func):
     return cached_func
 
 @cache1
+def generate_convert_to_pypy_error(typname):
+    def convert_to_pypy_error(space, val):
+        raise ValueError
+    return convert_to_pypy_error
+
+@cache1
 def generate_convert_to_pypy_bitvector_ruint(width):
 
     def c(space, val):

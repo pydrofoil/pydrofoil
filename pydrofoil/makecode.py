@@ -646,11 +646,11 @@ class __extend__(parse.Union):
             codegen.emit("_field_info = []")
             codegen.emit("@staticmethod")
             codegen.emit("@objectmodel.specialize.arg_or_var(0)")
-            with codegen.emit_indent("def construct(a):"):
+            with codegen.emit_indent("def convert_to_pypy(a):"):
                 for name, typ, pyname in zip(self.names, self.types, self.pynames):
-                    with codegen.emit_indent("if a & %s.TAG_MASK == %s.%s_tag:" % (self.pyname, self.pyname, name)):
+                    with codegen.emit_indent("if %s.check_variant(a):" % (pyname, )):
                         codegen.emit("return %s_W(%s.convert(a))" % (pyname, pyname))
-                    codegen.emit("assert 0, 'unreachable'")
+                codegen.emit("assert 0, 'unreachable'")
         for name, typ, pyname in zip(self.names, self.types, self.pynames):
             wrapped_pyname = pyname + "_W"
             with codegen.emit_indent("class %s(%s):" % (wrapped_pyname, wrapped_basename)):
@@ -671,7 +671,7 @@ class __extend__(parse.Union):
         with codegen.emit_indent("def convert_to_pypy_%s(space, arg):" % self.name):
             codegen.emit("return %s.convert_to_pypy(arg)" % wrapped_basename)
         codegen.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
-            self.name, demangle(self.name), wrapped_basename, repr(uniontyp)))
+            self.pyname, demangle(self.name), wrapped_basename, repr(uniontyp)))
 
 
 def to_uint_bits(codegen, typ, name):

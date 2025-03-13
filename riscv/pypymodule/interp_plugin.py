@@ -131,7 +131,7 @@ def _init_types(cls, all_type_info):
                 if type_info[0].startswith("Union_"):
                     invent_python_cls_union(space, w_mod, type_info, cls)
                 else:
-                    type_info[0].startswith("Struct_")
+                    assert type_info[0].startswith("Struct_")
                     invent_python_cls_struct(space, w_mod, type_info, cls)
             self.w_mod = w_mod
     cls.TypesCache = TypesCache

@@ -243,6 +243,11 @@ def test_big_fixed_bitvectors():
     assert len(big) == 65536
     assert big == 0
 
+def test_compact_union():
+    m = _pydrofoil.RISCV64()
+    x = m.lowlevel.read_kind_of_flags_specialized_o_o_False(True, True, False)
+    assert x[0] == 'Read_RISCV_strong_acquire'
+
 # functions
 
 def test_call_function():

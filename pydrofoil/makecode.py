@@ -607,8 +607,6 @@ class __extend__(parse.Union):
             uninitialized_value = (uninitialized_value << bits_tag) | number
             codegen.emit("UNINIT = r_uint(0x%x)" % (uninitialized_value, ))
         uniontyp.uninitialized_value = "%s.UNINIT" % (self.pyname, )
-        del uniontyp.convert_from_pypy
-        del uniontyp.convert_to_pypy
         for name, typ in zip(self.names, self.types):
             rtyp = typ.resolve_type(codegen)
             pyname = self.pyname + "_" + name
@@ -637,6 +635,40 @@ class __extend__(parse.Union):
                     codegen.emit("u >>= %s.SHIFT" % (self.pyname, ))
                     converted = from_uint_bits(codegen, rtyp, 'u')
                     codegen.emit("return %s" % (converted, ))
+        # python support, bit messy
+        wrapped_basename = self.pyname + "_W"
+        with codegen.emit_indent("class %s(supportcode.ObjectBase):" % (wrapped_basename, )):
+            codegen.emit("_all_subclasses = []")
+            codegen.emit("_field_info = []")
+            codegen.emit("@staticmethod")
+            codegen.emit("@objectmodel.specialize.arg_or_var(0)")
+            with codegen.emit_indent("def construct(a):"):
+                for name, typ, pyname in zip(self.names, self.types, self.pynames):
+                    with codegen.emit_indent("if a & %s.TAG_MASK == %s.%s_tag:" % (self.pyname, self.pyname, name)):
+                        codegen.emit("return %s_W(%s.convert(a))" % (pyname, pyname))
+                    codegen.emit("assert 0, 'unreachable'")
+        for name, typ, pyname in zip(self.names, self.types, self.pynames):
+            wrapped_pyname = pyname + "_W"
+            with codegen.emit_indent("class %s(%s):" % (wrapped_pyname, wrapped_basename)):
+                codegen.emit("_field_info = []")
+                with codegen.emit_indent("def __init__(self, a):"):
+                    codegen.emit('self.val = a')
+                with codegen.emit_indent("def to_sail(self):"):
+                    codegen.emit("return %s.construct(self.val)" % (pyname, ))
+                rtyp = typ.resolve_type(codegen)
+                codegen.emit("_field_info.append(('val', %s, %s, %r))" % (
+                    rtyp.convert_to_pypy,
+                    rtyp.convert_from_pypy,
+                    repr(rtyp)))
+            codegen.emit("%s._all_subclasses.append((%r, %r, %s))" % (
+                wrapped_basename, wrapped_pyname, demangle(name), wrapped_pyname))
+        with codegen.emit_indent("def convert_from_pypy_%s(space, w_arg):" % self.name):
+            codegen.emit("return w_arg.to_sail()")
+        with codegen.emit_indent("def convert_to_pypy_%s(space, arg):" % self.name):
+            codegen.emit("return %s.convert_to_pypy(arg)" % wrapped_basename)
+        codegen.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
+            self.name, demangle(self.name), wrapped_basename, repr(uniontyp)))
+
 
 def to_uint_bits(codegen, typ, name):
     if isinstance(typ, types.Enum):

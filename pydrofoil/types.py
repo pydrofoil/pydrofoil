@@ -134,6 +134,8 @@ class Vec(Type):
     def __init__(self, typ):
         assert isinstance(typ, Type)
         self.typ = typ
+        self.convert_from_pypy = "supportcode.generate_convert_from_pypy_vec(%s)" % (typ.convert_from_pypy, )
+        self.convert_to_pypy = "supportcode.generate_convert_to_pypy_vec(%s)" % (typ.convert_to_pypy, )
 
     def sail_repr(self):
         return "vector(?, %s)" % (self.typ.sail_repr(), )
@@ -149,6 +151,8 @@ class FVec(Type):
         assert isinstance(typ, Type)
         self.number = number
         self.typ = typ
+        self.convert_from_pypy = "supportcode.generate_convert_from_pypy_fvec(%s, %s)" % (number, typ.convert_from_pypy, )
+        self.convert_to_pypy = "supportcode.generate_convert_to_pypy_fvec(%s, %s)" % (number, typ.convert_to_pypy, )
 
     def sail_repr(self):
         return "vector(%s, %s)" % (self.number, self.typ.sail_repr())

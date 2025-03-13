@@ -236,6 +236,13 @@ def test_struct_type():
     assert struct.high == True
     assert struct.signed_rs1 == False
     assert struct.signed_rs2 == False
+    #assert repr(struct) == ''
+
+def test_convert_fvec():
+    m = _pydrofoil.RISCV64()
+    res = m.read_register('pmpcfg_n')
+    assert res == [_pydrofoil.bitvector(8, 0)] * 64
+    m.write_register('pmpcfg_n', [_pydrofoil.bitvector(8, 0)] * 64)
 
 def test_big_fixed_bitvectors():
     m = _pydrofoil.RISCV64()
@@ -256,6 +263,11 @@ def test_call_function():
     assert m.lowlevel.privLevel_to_bits("User")       == 0b00
     assert m.lowlevel.privLevel_to_bits("Machine")    == 0b11
     assert m.lowlevel.privLevel_to_bits("Supervisor") == 0b01
+
+def test_call_function_argument_error():
+    m = _pydrofoil.RISCV64()
+    with raises(TypeError):
+        m.lowlevel.privLevel_to_bits(1234)
 
 def test_call_function_write_CSR():
     m = _pydrofoil.RISCV64()

@@ -696,7 +696,7 @@ def lteq_add4_unsigned_bv64(machine, a, b, c, d):
         x = a.add(b)
         y = c.add(d)
         return x.le(y)
-    
+
 
 @purefunction
 def add_i_i_wrapped_res(machine, a, b):
@@ -1756,3 +1756,35 @@ def convert_from_pypy_bitvector(space, w_val):
 def convert_to_pypy_bitvector(space, val):
     return val
 
+@cache1
+def generate_convert_from_pypy_vec(func):
+    def convert_from_pypy_vec(space, w_val):
+        list_w = space.listview(w_val)
+        return [func(space, w_el) for w_el in list_w][:]
+    convert_from_pypy_vec.__name__ += "_" + func.__name__
+    return convert_from_pypy_vec
+
+@cache1
+def generate_convert_to_pypy_vec(func):
+    def convert_to_pypy_vec(space, val):
+        return space.newlist([func(space, el) for el in val])
+    convert_to_pypy_vec.__name__ += "_" + func.__name__
+    return convert_to_pypy_vec
+
+@cache2
+def generate_convert_from_pypy_fvec(size, func):
+    from pypy.interpreter.error import oefmt
+    def convert_from_pypy_fvec(space, w_val):
+        list_w = space.listview(w_val)
+        if len(list_w) != size:
+            raise oefmt(space.w_ValueError, 'expected list of length %d, got %d', size, len(list_w))
+        return [func(space, w_el) for w_el in list_w][:]
+    convert_from_pypy_fvec.__name__ += "_" + func.__name__
+    return convert_from_pypy_fvec
+
+@cache2
+def generate_convert_to_pypy_fvec(size, func):
+    def convert_to_pypy_fvec(space, val):
+        return space.newlist([func(space, el) for el in val])
+    convert_to_pypy_fvec.__name__ += "_" + func.__name__
+    return convert_to_pypy_fvec

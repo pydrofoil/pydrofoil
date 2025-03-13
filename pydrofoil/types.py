@@ -233,6 +233,8 @@ class BigFixedBitVector(Type):
         assert width > 64
         self.width = width
         self.uninitialized_value = "bitvector.SparseBitVector(%s, r_uint(0))" % width
+        self.convert_to_pypy = "supportcode.generate_convert_to_pypy_big_fixed_bitvector(%s)" % width
+        self.convert_from_pypy = "supportcode.generate_convert_from_pypy_big_fixed_bitvector(%s)" % width
 
     def sail_repr(self):
         return "bits(%s)" % (self.width, )

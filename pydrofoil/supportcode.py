@@ -1656,6 +1656,26 @@ def generate_convert_from_pypy_bitvector_ruint(width):
     c.func_name = "convert_from_pypy_bitvector_ruint_%s" % width
     return c
 
+@cache1
+def generate_convert_to_pypy_big_fixed_bitvector(width):
+    def c(space, val):
+        assert val.size() == width
+        return val
+    c.func_name = "convert_to_pypy_big_fixed_bitvector_%s" % width
+    return c
+
+@cache1
+def generate_convert_from_pypy_big_fixed_bitvector(width):
+    from pypy.interpreter.error import oefmt
+    def c(space, w_val):
+        if isinstance(w_val, bitvector.BitVector):
+            if w_val.size() != width:
+                raise oefmt(space.w_ValueError, "expected bitvector of size %d, got size %d", width, w_val.size())
+            return w_val
+        return bitvector.from_ruint(width, space.uint_w(w_val))
+    c.func_name = "convert_from_pypy_big_fixed_bitvector_%s" % width
+    return c
+
 @cache2
 def generate_convert_to_pypy_enum(cls, name):
     from pypy.interpreter.error import oefmt

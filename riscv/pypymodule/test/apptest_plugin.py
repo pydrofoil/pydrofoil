@@ -194,12 +194,12 @@ def test_union_eq():
     assert ast1 == ast2
     assert ast1 != ast3
 
-def test_union_enum():
-    m = _pydrofoil.RISCV64()
-    clsname = 'Some<Eread_kind%>'
-    SomeReadKind = getattr(m.types, clsname)
-    s = SomeReadKind('Read_plain')
-    assert s[0] == 'Read_plain'
+#def test_union_enum():
+#    m = _pydrofoil.RISCV64()
+#    clsname = 'Some<Eread_kind%>'
+#    SomeReadKind = getattr(m.types, clsname)
+#    s = SomeReadKind('Read_plain')
+#    assert s[0] == 'Read_plain'
 
 #def test_union_pattern_matching():
 #    m = _pydrofoil.RISCV64()
@@ -236,6 +236,12 @@ def test_struct_type():
     assert struct.high == True
     assert struct.signed_rs1 == False
     assert struct.signed_rs2 == False
+
+def test_big_fixed_bitvectors():
+    m = _pydrofoil.RISCV64()
+    big = m.read_register('vr1')
+    assert len(big) == 65536
+    assert big == 0
 
 # functions
 

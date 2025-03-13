@@ -647,7 +647,10 @@ class __extend__(BitVector):
             if masking_allowed or bv.tobigint().eq(value):
                 return bv
         else:
-            masked_val = ruint_mask(self.size(), val)
+            if self.size() > 64:
+                masked_val = val
+            else:
+                masked_val = ruint_mask(self.size(), val)
             if masking_allowed or masked_val == val:
                 return BitVector.from_ruint(self.size(), val)
         return None

@@ -500,18 +500,27 @@ class __extend__(parse.Union):
                     codegen.emit("_field_info = []")
                     # default field values
                     if isinstance(rtyp, types.Struct):
-                        for fieldname, fieldtyp in sorted(rtyp.internalfieldtyps.iteritems()):
-                            codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value, bare=True))
-                            codegen.emit("_field_info.append((%r, %s, %s, %r, %r))" % (
+                        for fieldname, internalfieldtyp in sorted(rtyp.internalfieldtyps.iteritems()):
+                            codegen.emit(internalfieldtyp.packed_field_write(fieldname, internalfieldtyp.uninitialized_value, bare=True))
+                        for fieldname, internalfieldtyp in sorted(rtyp.internalfieldtyps.iteritems()):
+                            fieldtyp = rtyp.fieldtyps[fieldname]
+                            getter = None
+                            if isinstance(internalfieldtyp, types.Packed):
+                                getter = "get_" + fieldname
+                                with codegen.emit_indent("def %s(self):" % (getter, )):
+                                    codegen.emit("return %s" % fieldtyp.packed_field_read('self.%s' % fieldname))
+                            codegen.emit("_field_info.append((%r, %s, %s, %r, %r, %s))" % (
                                 fieldname, fieldtyp.convert_to_pypy, fieldtyp.convert_from_pypy,
                                 repr(fieldtyp),
-                                demangle(fieldname)))
+                                demangle(fieldname),
+                                getter))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
-                        codegen.emit("_field_info.append(('a', %s, %s, %r))" % (
+                        codegen.emit("_field_info.append(('a', %s, %s, %r, '?', None))" % (
                             rtyp.convert_to_pypy,
                             rtyp.convert_from_pypy,
                             repr(rtyp)))
+                    codegen.emit()
                     self.make_init(codegen, rtyp, typ, pyname)
                     self.make_eq(codegen, rtyp, typ, pyname)
                     self.make_convert(codegen, rtyp, typ, pyname)
@@ -670,7 +679,7 @@ class __extend__(parse.Union):
                 with codegen.emit_indent("def to_sail(self):"):
                     codegen.emit("return %s.construct(self.val)" % (pyname, ))
                 rtyp = typ.resolve_type(codegen)
-                codegen.emit("_field_info.append(('val', %s, %s, %r))" % (
+                codegen.emit("_field_info.append(('val', %s, %s, %r, '?', None))" % (
                     rtyp.convert_to_pypy,
                     rtyp.convert_from_pypy,
                     repr(rtyp)))

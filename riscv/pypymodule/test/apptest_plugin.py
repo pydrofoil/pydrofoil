@@ -302,6 +302,10 @@ def test_packed_struct_fields():
     res = m.lowlevel.read_ram_specialized_o_o_o_False("Read_plain",2,3,4)
     assert res == (_pydrofoil.bitvector(24, 0x000000), ())
 
+    at = getattr(m.types, 'Execute<u>')()
+    res = m.lowlevel.phys_mem_read_specialized_o_o_o_o_o_True_False(at,2,4,False,False,True,False)
+    assert repr(res) == 'MemValue<(b,u)>(bitvector(32, 0x00000000), ())'
+
 def test_call_rx():
     m = _pydrofoil.RISCV64()
     assert m.lowlevel.rX(0) == 0

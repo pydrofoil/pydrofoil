@@ -238,15 +238,17 @@ def _make_union_eq(space, machinecls, basecls):
 
 def _make_union_getitem(space, machinecls, subcls, sail_type):
     unroll_get_fields = unrolling_iterable(
-        [(index, info[0], info[1], 'Packed' in info[3]) for index, info in enumerate(subcls._field_info)])
+        [(index, info[0], info[1], info[5]) for index, info in enumerate(subcls._field_info)])
     @unwrap_spec(index='index')
     def descr_getitem(self, space, index):
         assert isinstance(self, subcls)
-        for i, fieldname, convert, packed in unroll_get_fields:
+        for i, fieldname, convert, getter in unroll_get_fields:
             if index == i:
-                if not packed:
-                    return convert(space, getattr(self, fieldname))
-                raise oefmt(space.w_SystemError, 'reading packed field is not supported yet')
+                if getter is not None:
+                    val = getter(self)
+                else:
+                    val = getattr(self, fieldname)
+                return convert(space, val)
         raise oefmt(space.w_IndexError, "index out of bound")
     return _interp2app_unique_name_as_method(descr_getitem, machinecls, subcls)
 
@@ -404,6 +406,8 @@ class MachineAbstractBase(object):
         else:
             entry = self.machine.g.rv_ram_base
         self.machine.set_pc(init_sail(space, self.machine, entry))
+        self.machine.g._init_ranges()
+
         self._step_no = 0
         self._insn_cnt = 0 # used to check whether a tick has been reached
         self._tick = False # should the next step tick

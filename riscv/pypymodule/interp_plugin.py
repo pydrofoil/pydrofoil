@@ -159,7 +159,7 @@ def invent_python_cls_union(space, w_mod, type_info, machinecls):
         subcls.typedef = TypeDef(sub_sail_name,
             cls.typedef,
             __new__=_make_union_new(space, machinecls, subcls, sub_sail_name),
-            __getitem__=_make_union_getitem(space, machinecls, subcls),
+            __getitem__=_make_union_getitem(space, machinecls, subcls, sail_type),
         )
         subcls.typedef.acceptable_as_base_class = False
         space.setattr(w_mod, space.newtext(sub_sail_name), space.gettypefor(subcls))
@@ -167,11 +167,14 @@ def invent_python_cls_union(space, w_mod, type_info, machinecls):
 def invent_python_cls_struct(space, w_mod, type_info, machinecls):
     pyname, sail_name, cls, sail_type_repr = type_info
     sail_type = eval(sail_type_repr, types.__dict__)
-    descr_getitem = _make_union_getitem(space, machinecls, cls)
     def bind(convert, fieldname):
-        def get_field(self, space):
-            assert isinstance(self, cls)
-            return convert(space, getattr(self, fieldname))
+        if isinstance(sail_type.internalfieldtyps[fieldname], types.Packed):
+            def get_field(self, space):
+                raise oefmt(space.w_SystemError, 'reading packed field is not supported yet')
+        else:
+            def get_field(self, space):
+                assert isinstance(self, cls)
+                return convert(space, getattr(self, fieldname))
         return get_field
     kwargs = {}
     for index, (fieldname, convert_to, convert_from, sail_repr, sail_fieldname) in enumerate(cls._field_info):
@@ -233,15 +236,17 @@ def _make_union_eq(space, machinecls, basecls):
         return space.newbool(self.eq(w_other))
     return _interp2app_unique_name_as_method(descr_eq, machinecls, basecls)
 
-def _make_union_getitem(space, machinecls, subcls):
+def _make_union_getitem(space, machinecls, subcls, sail_type):
     unroll_get_fields = unrolling_iterable(
-        [(index, info[0], info[1]) for index, info in enumerate(subcls._field_info)])
+        [(index, info[0], info[1], 'Packed' in info[3]) for index, info in enumerate(subcls._field_info)])
     @unwrap_spec(index='index')
     def descr_getitem(self, space, index):
         assert isinstance(self, subcls)
-        for i, fieldname, convert in unroll_get_fields:
+        for i, fieldname, convert, packed in unroll_get_fields:
             if index == i:
-                return convert(space, getattr(self, fieldname))
+                if not packed:
+                    return convert(space, getattr(self, fieldname))
+                raise oefmt(space.w_SystemError, 'reading packed field is not supported yet')
         raise oefmt(space.w_IndexError, "index out of bound")
     return _interp2app_unique_name_as_method(descr_getitem, machinecls, subcls)
 

@@ -297,6 +297,11 @@ def test_call_encdec_backwards():
     res = m.lowlevel.assembly_forwards(ast)
     assert res == 'andi a5, zero, 0x0'
 
+def test_packed_struct_fields():
+    m = _pydrofoil.RISCV64()
+    res = m.lowlevel.read_ram_specialized_o_o_o_False("Read_plain",2,3,4)
+    assert res == (_pydrofoil.bitvector(24, 0x000000), ())
+
 def test_call_rx():
     m = _pydrofoil.RISCV64()
     assert m.lowlevel.rX(0) == 0

@@ -318,8 +318,10 @@ class Codegen(specialize.FixpointSpecializer):
                     self.emit("return space.newtuple([")
                     for name in structtyp.names:
                         fieldtyp = structtyp.fieldtyps[name]
-                        self.emit("    %s(space, self.%s)," % (
-                            fieldtyp.convert_to_pypy, name))
+                        internalfieldtyp = structtyp.internalfieldtyps[name]
+                        field = internalfieldtyp.packed_field_read('self.%s' % name)
+                        self.emit("    %s(space, %s)," % (
+                            fieldtyp.convert_to_pypy, field))
                     self.emit("])")
                 self.emit("@staticmethod")
                 with self.emit_indent("def convert_from_pypy(space, w_value):"):
@@ -327,10 +329,13 @@ class Codegen(specialize.FixpointSpecializer):
                     self.emit("return %s(" % pyname)
                     for index, name in enumerate(structtyp.names):
                         fieldtyp = structtyp.fieldtyps[name]
-                        self.emit("    %s(space, args[%s])," % (
-                            fieldtyp.convert_from_pypy, index))
+                        internalfieldtyp = structtyp.internalfieldtyps[name]
+                        value = "%s(space, args[%s])" % (
+                            fieldtyp.convert_from_pypy, index)
+                        if isinstance(internalfieldtyp, types.Packed):
+                            value = fieldtyp.packed_field_pack(value)
+                        self.emit("    %s," % (value, ))
                     self.emit(")")
-
             else:
                 emit_pypy_typ = True
                 self.emit("@staticmethod")

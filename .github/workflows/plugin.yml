@@ -28,6 +28,8 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
+        sudo apt install -y libffi-dev pkg-config zlib1g-dev libbz2-dev libsqlite3-dev libncurses5-dev libexpat1-dev libssl-dev libgdbm-dev tk-dev libgc-dev liblzma-dev libncursesw5-dev patchelf
+
         make pypy_binary/bin/python
         make pypy2/rpython/bin/rpython
 

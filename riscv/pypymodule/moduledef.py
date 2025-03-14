@@ -8,10 +8,14 @@ class TypesModule(MixedModule):
         'BigFixedBitVector': 'interp_types.BigFixedBitVector',
         'GenericBitVector': 'interp_types.GenericBitVector',
         'Union': 'interp_types.Union',
+        'String': 'interp_types.String',
         'Struct': 'interp_types.RegularStruct',
         'Tuple': 'interp_types.TupleStruct',
         'Bool': 'interp_types.Bool',
         'Enum': 'interp_types.Enum',
+        'Real': 'interp_types.Real',
+        'Int': 'interp_types.Int',
+        'MachineInt': 'interp_types.MachineInt',
     }
 
     appleveldefs = {}

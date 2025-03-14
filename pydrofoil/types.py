@@ -20,6 +20,8 @@ def unique(cls):
 
 def singleton(cls):
     cls._INSTANCE = cls()
+    cls._INSTANCE.convert_to_pypy = "supportcode.generate_convert_to_pypy_error(%r)" % (cls.__name__ + str(id(cls._INSTANCE)))
+    cls._INSTANCE.convert_from_pypy = "supportcode.generate_convert_from_pypy_error(%r)" % (cls.__name__ + str(id(cls._INSTANCE)))
 
     def __new__(cls):
         return cls._INSTANCE
@@ -112,7 +114,7 @@ class Struct(Type):
         extra = ''
         if self.tuplestruct:
             extra = ', True'
-        return "%s(%r, %r, %r%s)" % (type(self).__name__, self.name, self.names, self.typs, extra)
+        return "Struct(%r, %r, %r%s)" % (self.name, self.names, self.typs, extra)
 
 class RegularStruct(Struct):
     tuplestruct = False

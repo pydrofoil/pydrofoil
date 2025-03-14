@@ -42,4 +42,4 @@ class Module(MixedModule):
     def __init__(self, space, w_name):
         from riscv.pypymodule import interp_plugin
         MixedModule.__init__(self, space, w_name)
-        interp_plugin._patch_machineclasses()
+        interp_plugin._patch_machineclasses(space=space)

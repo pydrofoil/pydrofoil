@@ -236,7 +236,7 @@ def test_struct_type():
     assert struct.high == True
     assert struct.signed_rs1 == False
     assert struct.signed_rs2 == False
-    #assert repr(struct) == ''
+    assert repr(struct) == 'mul_op(True, False, False)'
 
 def test_convert_fvec():
     m = _pydrofoil.RISCV64()
@@ -255,6 +255,7 @@ def test_compact_union():
     x = m.lowlevel.read_kind_of_flags_specialized_o_o_False(True, True, False)
     assert x[0] == 'Read_RISCV_strong_acquire'
     assert x == x
+    assert repr(x) == "Some<Eread_kind%>('Read_RISCV_strong_acquire')"
 
 # functions
 

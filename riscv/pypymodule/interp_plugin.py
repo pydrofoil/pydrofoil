@@ -6,7 +6,7 @@ from pypy.interpreter.baseobjspace import W_Root
 from pypy.interpreter.error import oefmt, oefmt_attribute_error, OperationError
 from pypy.interpreter.typedef import (TypeDef, interp2app, GetSetProperty,
     descr_get_dict, make_weakref_descr)
-from pypy.interpreter.gateway import unwrap_spec, interpindirect2app
+from pypy.interpreter.gateway import unwrap_spec, interpindirect2app, applevel
 from pypy.interpreter.module import Module
 
 from riscv import supportcoderiscv
@@ -15,7 +15,7 @@ from pydrofoil import mem as mem_mod
 from pydrofoil.bitvector import BitVector, ruint_mask
 from pydrofoil import types
 
-def _patch_machineclasses(machinecls64=None, machinecls32=None):
+def _patch_machineclasses(machinecls64=None, machinecls32=None, space=None):
     from riscv import supportcoderiscv
     from riscv.targetriscv import _make_code
     if "machinecls64" in globals():
@@ -34,6 +34,8 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None):
     _init_types(W_RISCV32, machinecls32._all_type_names)
     _init_functions(W_RISCV64, machinecls64._all_functions)
     _init_functions(W_RISCV32, machinecls32._all_functions)
+    space.fromcache(W_RISCV64.TypesCache)
+    space.fromcache(W_RISCV32.TypesCache)
 
 def wrap_fn(fn):
     def wrapped_fn(space, machine, *args):
@@ -182,6 +184,7 @@ def invent_python_cls_struct(space, w_mod, type_info, machinecls):
         kwargs[sail_fieldname] = GetSetProperty(bind(convert_to, fieldname), cls=cls)
     cls.typedef = TypeDef(sail_name,
         __new__=_make_union_new(space, machinecls, cls, sail_type.name),
+        __repr__=_make_struct_repr(space, machinecls, cls),
         sail_type = sail_type,
         **kwargs
     )
@@ -225,9 +228,7 @@ def _make_union_len(space, machinecls, basecls):
 
 def _make_union_repr(space, machinecls, basecls):
     def descr_repr(self, space):
-        w_tup = space.call_function(space.w_tuple, self)
-        w_name = space.getattr(space.type(self), space.newtext("__name__"))
-        return space.add(w_name, space.repr(w_tup))
+        return app_repr_union(space, self)
     return _interp2app_unique_name_as_method(descr_repr, machinecls, basecls)
 
 def _make_union_eq(space, machinecls, basecls):
@@ -253,6 +254,10 @@ def _make_union_getitem(space, machinecls, subcls, sail_type):
         raise oefmt(space.w_IndexError, "index out of bound")
     return _interp2app_unique_name_as_method(descr_getitem, machinecls, subcls)
 
+def _make_struct_repr(space, machinecls, basecls):
+    def descr_repr(self, space):
+        return app_repr_struct(space, self)
+    return _interp2app_unique_name_as_method(descr_repr, machinecls, basecls)
 
 class W_BoundSailFunction(W_Root):
     def __init__(self, w_machine, func):
@@ -284,7 +289,6 @@ def _init_functions(machinecls, functions):
     for function_info in functions:
         function_info_dict[function_info[1]] = function_info
         _make_function(function_info, d, machinecls)
-    import pdb;pdb.set_trace()
 
     #for sail_name in list(d):
     #    if not sail_name.endswith('_backwards'):
@@ -838,3 +842,15 @@ BitVector.typedef = TypeDef("bitvector",
     sign_extend = interp2app(BitVector.descr_sign_extend),
 )
 BitVector.typedef.acceptable_as_base_class = False
+
+# ________________________________________________
+
+import os
+appfile = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app_helpers.py')
+
+with open(appfile, "r") as f:
+    content = f.read()
+
+app = applevel(content, filename=__file__)
+app_repr_union = app.interphook('repr_union')
+app_repr_struct = app.interphook('repr_struct')

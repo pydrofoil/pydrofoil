@@ -673,12 +673,13 @@ class __extend__(parse.Union):
         for name, typ, pyname in zip(self.names, self.types, self.pynames):
             wrapped_pyname = pyname + "_W"
             with codegen.emit_indent("class %s(%s):" % (wrapped_pyname, wrapped_basename)):
+                rtyp = typ.resolve_type(codegen)
+                codegen.emit("val = %s" % rtyp.uninitialized_value)
                 codegen.emit("_field_info = []")
                 with codegen.emit_indent("def __init__(self, a):"):
                     codegen.emit('self.val = a')
                 with codegen.emit_indent("def to_sail(self):"):
                     codegen.emit("return %s.construct(self.val)" % (pyname, ))
-                rtyp = typ.resolve_type(codegen)
                 codegen.emit("_field_info.append(('val', %s, %s, %r, '?', None))" % (
                     rtyp.convert_to_pypy,
                     rtyp.convert_from_pypy,

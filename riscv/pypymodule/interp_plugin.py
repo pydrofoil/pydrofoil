@@ -93,6 +93,7 @@ def _init_register_names(cls, _all_register_names):
     def lookup_register(space, name):
         for attrname, pyname, getter, setter, sail_type in unrolling_register_info:
             if pyname == name:
+                assert sail_type is not None
                 return getter, setter, sail_type
         raise oefmt(space.w_ValueError, "register not found")
     cls._lookup_register = lookup_register
@@ -106,7 +107,7 @@ def _init_register_names(cls, _all_register_names):
         except ValueError:
             if not objectmodel.we_are_translated():
                 import pdb; pdb.xpm()
-            raise oefmt(space.w_TypeError, "could not convert register value to Python object (Sail type %s)", sail_type)
+            raise oefmt(space.w_TypeError, "could not convert register value to Python object (Sail type %S)", sail_type)
     cls._get_register_value = get_register_value
 
     def set_register_value(self, name, w_value):
@@ -118,7 +119,7 @@ def _init_register_names(cls, _all_register_names):
         except ValueError:
             if not objectmodel.we_are_translated():
                 import pdb; pdb.xpm()
-            raise oefmt(space.w_TypeError, "could not convert Python object to register value (Sail type %s)", sail_type)
+            raise oefmt(space.w_TypeError, "could not convert Python object to register value (Sail type %S)", sail_type)
     cls._set_register_value = set_register_value
 
     class State:

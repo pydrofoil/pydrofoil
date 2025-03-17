@@ -1,6 +1,8 @@
 from pytest import raises, skip
 
-import _pydrofoil
+def setup_module(mod):
+    import _pydrofoil
+    mod._pydrofoil = _pydrofoil
 
 import os
 from os.path import dirname

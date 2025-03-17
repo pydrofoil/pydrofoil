@@ -674,6 +674,8 @@ def _main(argv, *machineclasses):
     if we_are_translated():
         rsignal.pypysig_setflag(rsignal.SIGINT)
 
+    machine.g._init_ranges()
+
     for i in range(iterations):
         machine.run_sail(limit, print_kips)
         if i:

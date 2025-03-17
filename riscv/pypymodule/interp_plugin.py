@@ -104,7 +104,9 @@ def _init_register_names(cls, _all_register_names):
         try:
             return getter(space, self.machine)
         except ValueError:
-            raise oefmt(space.w_TypeError, "could not convert register value to Python object (Sail type %S)", sail_type)
+            if not objectmodel.we_are_translated():
+                import pdb; pdb.xpm()
+            raise oefmt(space.w_TypeError, "could not convert register value to Python object (Sail type %s)", sail_type)
     cls._get_register_value = get_register_value
 
     def set_register_value(self, name, w_value):
@@ -114,7 +116,9 @@ def _init_register_names(cls, _all_register_names):
         try:
             setter(space, self.machine, w_value)
         except ValueError:
-            raise oefmt(space.w_TypeError, "could not convert Python object to register value (Sail type %S)", sail_type)
+            if not objectmodel.we_are_translated():
+                import pdb; pdb.xpm()
+            raise oefmt(space.w_TypeError, "could not convert Python object to register value (Sail type %s)", sail_type)
     cls._set_register_value = set_register_value
 
     class State:

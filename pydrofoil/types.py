@@ -20,8 +20,10 @@ def unique(cls):
 
 def singleton(cls):
     cls._INSTANCE = cls()
-    cls._INSTANCE.convert_to_pypy = "supportcode.generate_convert_to_pypy_error(%r)" % (cls.__name__ + str(id(cls._INSTANCE)))
-    cls._INSTANCE.convert_from_pypy = "supportcode.generate_convert_from_pypy_error(%r)" % (cls.__name__ + str(id(cls._INSTANCE)))
+    if not hasattr(cls._INSTANCE, 'convert_to_pypy'):
+        cls._INSTANCE.convert_to_pypy = "supportcode.generate_convert_to_pypy_error(%r)" % (cls.__name__ + str(id(cls._INSTANCE)))
+    if not hasattr(cls._INSTANCE, 'convert_from_pypy'):
+        cls._INSTANCE.convert_from_pypy = "supportcode.generate_convert_from_pypy_error(%r)" % (cls.__name__ + str(id(cls._INSTANCE)))
 
     def __new__(cls):
         return cls._INSTANCE

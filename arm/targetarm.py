@@ -7,6 +7,9 @@ outarm = os.path.join(toplevel, "arm", "generated", "outarm.py")
 
 sys.setrecursionlimit(20000) # otherwise jitcode writing fails
 
+from rpython.rlib.rsre import rsre_constants
+rsre_constants.V37 = False # horrible hack 2, circumvent weird skip in rlib/
+
 PROMOTED_REGISTERS = set("""
 z__empam_implemented
 z__mpam_implemented

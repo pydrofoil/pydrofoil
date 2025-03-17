@@ -1,5 +1,7 @@
 from pytest import raises, skip
 
+import _pydrofoil
+
 import os
 from os.path import dirname
 

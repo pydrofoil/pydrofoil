@@ -225,7 +225,7 @@ pypy-c-pydrofoil-riscv: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofo
 	rm -f pypy-c-pydrofoil-riscv
 	cd pypy2/pypy/goal && \
 	PYTHONPATH=../../../ ../../../pypy_binary/bin/python ../../rpython/bin/rpython -Ojit targetpypystandalone.py --ext=riscv.pypymodule && \
-	mv pypy3.11-c pypy-c-pydrofoil-riscv
+	mv pypy3.11-c pypy-c-pydrofoil-riscv && \
 	ln -s pypy-c-pydrofoil-risc ../../../pypy-c-pydrofoil-riscv && \
 	./pypy-c-pydrofoil-riscv ../../lib_pypy/pypy_tools/build_cffi_imports.py && \
 	cd -

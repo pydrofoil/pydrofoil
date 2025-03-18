@@ -40,7 +40,10 @@ jobs:
 
     - name: Translate pypy with plugin
       run: |
+	pwd
         make pypy-c-pydrofoil-riscv
+	pwd
+	ls -l pypy-c-pydrofoil-riscv
 
     - name: Package
       run: |

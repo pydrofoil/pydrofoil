@@ -70,8 +70,8 @@ our preprint_. To cite this work, please use the following BibTex snippet:
     Background: Optimizations <background_optimizations>
     Arm <arm>
     CHERIoT <cheriot>
+    Scripting API <scripting-api>
     Useful links <useful_links>
-    Changelog <changelog>
 
 .. __: https://github.com/rems-project/sail
 .. __: https://github.com/riscv/sail-riscv

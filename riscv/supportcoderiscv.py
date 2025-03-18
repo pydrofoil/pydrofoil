@@ -633,6 +633,7 @@ def _main(argv, *machineclasses):
         ram_size = int(ram_size)
         print "setting ram-size to %s MiB" % ram_size
         machine.g.rv_ram_size = r_uint(ram_size << 20)
+    init_mem(machine)
     if blob:
         if check_file_missing(blob):
             return -1
@@ -673,6 +674,8 @@ def _main(argv, *machineclasses):
     if we_are_translated():
         rsignal.pypysig_setflag(rsignal.SIGINT)
 
+    machine.g._init_ranges()
+
     for i in range(iterations):
         machine.run_sail(limit, print_kips)
         if i:
@@ -688,9 +691,7 @@ def get_printable_location(pc, do_show_times, insn_limit, tick, g):
         return "0x%x: %s" % (pc, g.dump_dict[pc])
     return hex(pc)
 
-
-
-def load_sail(machine, fn):
+def init_mem(machine, memwrappercls=None):
     g = machine.g
     oldmem = g.mem
     if oldmem:
@@ -698,7 +699,13 @@ def load_sail(machine, fn):
     mem1 = mem_mod.FlatMemory(False)
     mem2 = mem_mod.FlatMemory(False, g.rv_ram_size)
     mem = mem_mod.SplitMemory(mem1, 0, mem1.size, mem2, g.rv_ram_base, g.rv_ram_size)
+    if memwrappercls is not None:
+        mem = memwrappercls(mem)
     g.mem = mem
+
+def load_sail(machine, fn):
+    g = machine.g
+    mem = machine.g.mem
     with open(fn, "rb") as f:
         entrypoint = elf.elf_read_process_image(mem, f) # load process image
     with open(fn, "rb") as f:
@@ -846,6 +853,17 @@ def get_main(outriscv, rv64):
         def step(self, *args):
             return outriscv.func_zstep(self, *args)
 
+        def disassemble_last_instruction(self):
+            instbits = self._reg_zinstbits
+            if instbits & 0b11 != 0b11: # compressed
+                ast = outriscv.func_zencdec_compressed_backwards(
+                    self, instbits)
+            else:
+                ast = outriscv.func_zext_decode(
+                    self, instbits)
+            return outriscv.func_zassembly_forwards(
+                self, ast)
+
         def run_sail(self, insn_limit, do_show_times):
             self.step_no = 0
             # we update self.step_no only every TICK, *unless*:
@@ -855,8 +873,6 @@ def get_main(outriscv, rv64):
             need_step_no = do_show_times or self.g.config_print_instr or (insn_limit and insn_limit - self.step_no < self.g.rv_insns_per_tick)
             insn_cnt = 0
             tick = False
-
-            self.g._init_ranges()
 
             self.g.interval_start = self.g.total_start = time.time()
             prev_pc = 0

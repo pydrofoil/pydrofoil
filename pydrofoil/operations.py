@@ -27,12 +27,12 @@ class __extend__(types.Type):
 class __extend__(types.Packed):
     def packed_field_read(self, sarg, bare=False):
         if not bare:
-            import pdb;pdb.set_trace()
+            pass # import pdb;pdb.set_trace()
         return self.typ.packed_field_read(sarg, bare=bare)
 
     def packed_field_write(self, lhs, rhs, bare=False):
         if not bare:
-            import pdb;pdb.set_trace()
+            pass # import pdb;pdb.set_trace()
         return self.typ.packed_field_write(lhs, rhs, bare=bare)
 
     def packed_field_copy(self, lhs, rhs):

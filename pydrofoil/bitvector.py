@@ -1,4 +1,7 @@
 import sys
+
+from pypy.interpreter.baseobjspace import W_Root
+
 from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, \
         _divrem1, intsign, int_in_valid_range
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
@@ -8,6 +11,7 @@ from rpython.rlib.objectmodel import always_inline, specialize, \
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 from rpython.rlib import jit
+from rpython.tool.pairtype import extendabletype
 
 MININT = -sys.maxint - 1
 MAXINT = sys.maxint
@@ -77,7 +81,8 @@ class MaskHolder(object):
 
 MASKS = MaskHolder()
 
-class BitVector(object):
+class BitVector(W_Root):
+    __metaclass__ = extendabletype
     _attrs_ = ['_size']
     _immutable_fields_ = ['_size']
 
@@ -115,6 +120,9 @@ class BitVector(object):
     @not_rpython
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
+
+    from_ruint = staticmethod(from_ruint)
+    from_bigint = staticmethod(from_bigint)
 
     def append(self, other):
         if isinstance(other, SmallBitVector) and other.size() == 64:

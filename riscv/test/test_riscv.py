@@ -97,6 +97,7 @@ def test_dis_instructions(riscvmain):
     from riscv.generated import outriscv
     elf = elfs[0]
     m = riscvmain._machinecls()
+    supportcoderiscv.init_mem(m)
     entry = supportcoderiscv.load_sail(m, elf)
     m._reg_zPC = supportcoderiscv.init_sail(m, entry)
     m.g.config_print_instr = False

@@ -54,6 +54,9 @@ class MemBase(object):
             value = value >> 8
         assert not value
 
+    def memory_info(self):
+        return None
+
 # every word starts out as NORMAL. can transition to IMMUTABLE when used as
 # executable memory, which does not need a version change. transitioning from
 # NORMAL to MUTABLE does not need a version change either. only a transition
@@ -189,6 +192,9 @@ class FlatMemory(MemBase):
         #print "mark_word_immutable", mem_offset
         self.status[mem_offset] = MEM_STATUS_IMMUTABLE
 
+    def memory_info(self):
+        return [(0, self.size)]
+
 
 class TaggedFlatMemory(FlatMemory):
     def __init__(self, mmap=False, size=FlatMemory.SIZE, base_addr=0):
@@ -295,6 +301,12 @@ class BlockMemory(MemBase):
         value <<= inword_addr * 8
         block[block_offset] = (olddata & ~mask) | value
 
+    def memory_info(self):
+        res = []
+        for block_addr in self.blocks:
+            block_offset = block_addr << self.ADDRESS_BITS_BLOCK
+            res.append(block_offset, block_offset + self.BLOCK_SIZE)
+        return res
 
 class TaggedBlockMemory(BlockMemory):
     def __init__(self):
@@ -406,3 +418,6 @@ class SplitMemory(MemBase):
     def close(self):
         self.mem1.close()
         self.mem2.close()
+
+    def memory_info(self):
+        return [(self.address_base1, self.address_end1), (self.address_base2, self.address_end2)]

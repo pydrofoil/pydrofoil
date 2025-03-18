@@ -42,10 +42,6 @@ jobs:
       run: |
         make pypy-c-pydrofoil-riscv
 
-    - name: Run plugin tests
-      run: |
-        make plugin-riscv-tests
-
     - name: Package
       run: |
         make pypy-c-pydrofoil-riscv-package
@@ -54,4 +50,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         path: pypy-pydrofoil-scripting-experimental.tar.bz2
+
+    - name: Run plugin tests
+      run: |
+        make plugin-riscv-tests
 

@@ -35,6 +35,7 @@ thorough description of how the project works, please refer to our
 If you want to cite this work, please use the following bibtex snippet:
 
 <details>
+
 ```
 @article{Bolz-Tereick2025-au,
   title         = "Pydrofoil: accelerating Sail-based instruction set
@@ -72,4 +73,5 @@ If you want to cite this work, please use the following bibtex snippet:
   eprint        = "2503.04389"
 }
 ```
+
 </details>

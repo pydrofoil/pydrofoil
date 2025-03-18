@@ -198,12 +198,12 @@ def test_union_eq():
     assert ast1 == ast2
     assert ast1 != ast3
 
-#def test_union_enum():
-#    m = _pydrofoil.RISCV64()
-#    clsname = 'Some<Eread_kind%>'
-#    SomeReadKind = getattr(m.types, clsname)
-#    s = SomeReadKind('Read_plain')
-#    assert s[0] == 'Read_plain'
+def test_union_enum():
+    m = _pydrofoil.RISCV64()
+    clsname = 'Some<Eread_kind%>'
+    SomeReadKind = getattr(m.types, clsname)
+    s = SomeReadKind('Read_plain')
+    assert s[0] == 'Read_plain'
 
 #def test_union_pattern_matching():
 #    m = _pydrofoil.RISCV64()

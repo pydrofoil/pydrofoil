@@ -233,7 +233,9 @@ pypy2/lib/pypy3.11/site-packages/pytest/__init__.py:
 
 .PHONY: plugin-riscv-tests
 plugin-riscv-tests: pypy2/lib/pypy3.11/site-packages/pytest/__init__.py ## Run the tests for the PyPy Pydrofoil RISC-V plugin
-	./pypy-c-pydrofoil-riscv -m pytest riscv/plugin/
+	./pypy-c-pydrofoil-riscv -m pytest riscv/pypymodule/test/apptest_plugin.py
+	#./pypy-c-pydrofoil-riscv -m pytest riscv/plugin/
+
 
 ## ARM model targets
 

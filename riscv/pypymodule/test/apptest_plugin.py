@@ -399,3 +399,7 @@ def test_append():
     b1 = _pydrofoil.bitvector(4, 0b1100)
     assert b0 @ b1 == _pydrofoil.bitvector(10, 0b1101001100)
 
+def test_bitvector_to_int():
+    b0 = _pydrofoil.bitvector(6, 7)
+    assert list(range(10))[b0] == 7
+    assert int(b0) == 7

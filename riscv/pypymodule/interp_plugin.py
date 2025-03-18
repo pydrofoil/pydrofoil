@@ -811,6 +811,10 @@ class __extend__(BitVector):
         """ Sign-extend the bitvector to width target_size. """
         return self.sign_extend(target_size)
 
+    def descr_index(self, space):
+        """ Interpret the bitvector as an integer """
+        return self.descr_unsigned(space)
+
 
 @unwrap_spec(width=int, value=r_uint)
 def bitvector_descr_new(w_type, space, width, value):
@@ -839,6 +843,8 @@ BitVector.typedef = TypeDef("bitvector",
     __matmul__ = interp2app(BitVector.descr_matmul),
 
     __invert__ = interp2app(BitVector.descr_invert),
+
+    __index__ = interp2app(BitVector.descr_index),
 
     signed = interp2app(BitVector.descr_signed),
     unsigned = interp2app(BitVector.descr_unsigned),

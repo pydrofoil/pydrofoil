@@ -316,6 +316,10 @@ def test_next_functions_arent_exposed():
     m = _pydrofoil.RISCV64()
     assert not hasattr(m.lowlevel, 'encdec_backwards_next_0')
 
+def test_inlined_functions_are_exposed():
+    m = _pydrofoil.RISCV64()
+    assert m.lowlevel.bit_to_bool(0) is False
+
 def test_packed_struct_fields():
     m = _pydrofoil.RISCV64()
     res = m.lowlevel.read_ram_specialized_o_o_o_False("Read_plain",2,3,4)

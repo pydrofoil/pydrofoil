@@ -92,6 +92,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@signed_bv", "supportcode.signed_bv")
         self.add_global("@unsigned_bv_wrapped_res", "supportcode.unsigned_bv_wrapped_res")
         self.add_global("@unsigned_bv", "supportcode.unsigned_bv")
+        self.add_global("@sail_unsigned", "supportcode.sail_unsigned")
         self.add_global("@zero_extend_bv_i_i", "supportcode.zero_extend_bv_i_i")
         self.add_global("@zero_extend_o_i_unwrapped_res", "supportcode.zero_extend_o_i_unwrapped_res")
         self.add_global("@sign_extend_bv_i_i", "supportcode.sign_extend_bv_i_i")
@@ -129,6 +130,8 @@ class Codegen(specialize.FixpointSpecializer):
         # a function that returns True, False or None
         self.should_inline = should_inline if should_inline is not None else lambda name: None
         self.let_values = {}
+        # all sail function names
+        self.sail_function_names = set()
         # (graphs, funcs, args, kwargs) to emit at the end
         self._all_graphs = []
         self.sail_filenames = None
@@ -220,8 +223,8 @@ class Codegen(specialize.FixpointSpecializer):
             with self.emit_code_type("declarations"):
                 yield name
 
-    def getcode(self):
-        self.finish_graphs()
+    def getcode(self, export_everything=False):
+        self.finish_graphs(export_everything=export_everything)
         res = ["\n".join(self.declarations)]
         res.append("def let_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
         res.append("\n".join(self.code))
@@ -246,13 +249,13 @@ class Codegen(specialize.FixpointSpecializer):
         self.schedule_graph_specialization(graph)
         self._all_graphs.append((graph, emit_function, args, kwargs))
 
-    def finish_graphs(self):
+    def finish_graphs(self, export_everything=False):
         self.print_persistent_msg("============== FINISHING ==============")
         from pydrofoil.ir import print_stats
         t1 = time.time()
         self.specialize_all()
         unspecialized_graphs = []
-        if self.program_entrypoints is None:
+        if self.program_entrypoints is None or export_everything:
             program_entrypoints = [g for g, _, _, _ in self._all_graphs]
         else:
             program_entrypoints = self.program_entrypoints + ["zinitializze_registers"]
@@ -402,7 +405,8 @@ class Codegen(specialize.FixpointSpecializer):
             toline += 1
         return "".join(lines[fromline:toline]).strip()
 
-def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
+def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None,
+                        export_everything=False):
     from pydrofoil.infer import infer
     t1 = time.time()
     ast = parse.parser.parse(parse.lexer.lex(s))
@@ -433,7 +437,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline
         c.emit("        self.g = supportcode.Globals()")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     ast.make_code(c)
-    return c.getcode()
+    return c.getcode(export_everything=export_everything)
 
 
 # ____________________________________________________________
@@ -913,6 +917,7 @@ class __extend__(parse.Function):
         from pydrofoil.splitgraph import split_completely
         pyname = codegen.getname(self.name)
         assert pyname.startswith("func_")
+        codegen.sail_function_names.add(self.name)
         #if codegen.globalnames[self.name].pyname is not None:
         #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
         #    return

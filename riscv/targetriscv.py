@@ -22,13 +22,13 @@ def should_inline(name):
     if "request_is_exclusive" in name:
         return True
 
-def _make_code(rv64=True):
+def _make_code(rv64=True, export_everything=False):
     print "making python code"
     with open(riscvirs[rv64], "rb") as f:
         s = f.read()
     support_code = "from riscv import supportcoderiscv as supportcode"
     entrypoints = "ztick_clock ztick_platform zinit_model zstep zext_decode".split()
-    res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', }, entrypoints=entrypoints, should_inline=should_inline)
+    res = parse_and_make_code(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', }, entrypoints=entrypoints, should_inline=should_inline, export_everything=export_everything)
     with open(outriscvpys[rv64], "w") as f:
         f.write(res)
     if rv64:

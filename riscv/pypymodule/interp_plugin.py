@@ -21,10 +21,10 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None, space=None):
     if "machinecls64" in globals():
         return
     if machinecls64 is None:
-        mod64 = _make_code(True)
+        mod64 = _make_code(True, export_everything=True)
         machinecls64 = supportcoderiscv.get_main(mod64, True)._machinecls
     if machinecls32 is None:
-        mod32 = _make_code(False)
+        mod32 = _make_code(False, export_everything=True)
         machinecls32 = supportcoderiscv.get_main(mod32, False)._machinecls
     globals()["machinecls64"] = machinecls64
     globals()["machinecls32"] = machinecls32

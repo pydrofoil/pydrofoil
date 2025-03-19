@@ -205,6 +205,16 @@ def test_union_enum():
     s = SomeReadKind('Read_plain')
     assert s[0] == 'Read_plain'
 
+def test_union_hash():
+    m = _pydrofoil.RISCV64()
+    ast1 = m.types.ADDIW(2045, 3, 5)
+    ast1a = m.types.ADDIW(2045, 3, 5)
+    ast2 = m.types.ADDIW(2045, 3, 12)
+    assert ast1 == ast1a
+    assert ast1 != ast2
+    assert hash(ast1) == hash(ast1a)
+    assert hash(ast1) != hash(ast2)
+
 #def test_union_pattern_matching():
 #    m = _pydrofoil.RISCV64()
 #    ADDIW = m.types.ADDIW
@@ -407,6 +417,24 @@ def test_append():
     b1 = _pydrofoil.bitvector(4, 0b1100)
     assert b0 @ b1 == _pydrofoil.bitvector(10, 0b1101001100)
 
+def test_bitvector_to_int():
+    b0 = _pydrofoil.bitvector(6, 7)
+    assert list(range(10))[b0] == 7
+    assert int(b0) == 7
+
+def test_bitvector_hash():
+    m = _pydrofoil.RISCV64()
+    val = 0b110100
+    bv1 = _pydrofoil.bitvector(6, val)
+    bv1a = _pydrofoil.bitvector(6, val)
+    bv2 = _pydrofoil.bitvector(7, val)
+    bv3 = _pydrofoil.bitvector(6, 0b110101)
+    assert bv1 == bv1a
+    assert bv1 != bv2
+    assert bv1 != bv3
+    assert hash(bv1) == hash(bv1a)
+    assert hash(bv1) != hash(bv2)
+    assert hash(bv1) != hash(bv3)
 
 # ________________________________________________
 # testing the sail types

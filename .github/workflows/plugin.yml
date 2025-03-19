@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# Limit tests to latest commit on branches other than main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   build:
 
@@ -35,8 +40,21 @@ jobs:
 
     - name: Translate pypy with plugin
       run: |
+        pwd
         make pypy-c-pydrofoil-riscv
+        pwd
+        ls -l pypy-c-pydrofoil-riscv
+
+    - name: Package
+      run: |
+        make pypy-c-pydrofoil-riscv-package
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        path: pypy-pydrofoil-scripting-experimental.tar.bz2
 
     - name: Run plugin tests
       run: |
         make plugin-riscv-tests
+

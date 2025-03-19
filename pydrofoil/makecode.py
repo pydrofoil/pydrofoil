@@ -938,7 +938,7 @@ class __extend__(parse.Function):
             functyp = codegen.globalnames[self.name].typ
             for graph2, graph2typ in split_completely(graph, self, functyp, codegen):
                 codegen.add_global(graph2.name, graph2.name, graph2typ)
-                codegen.add_graph(graph2, self.emit_regular_function, graph2.name)
+                codegen.add_graph(graph2, self.emit_regular_function, graph2.name, export_to_python=False)
         else:
             if usefully_specializable(graph):
                 codegen.specialization_functions[self.name] = Specializer(graph, codegen)

@@ -334,6 +334,25 @@ def test_sailfunction_doc():
     m = _pydrofoil.RISCV64()
     doc = m.lowlevel.encdec_backwards.__doc__
     assert "encdec_backwards" in doc
+    doc = m.lowlevel.aes_mixcolumn_inv.__doc__
+    assert doc == '''\
+Sail function
+aes_mixcolumn_inv
+/* 32-bit to 32-bit AES inverse MixColumn */
+val aes_mixcolumn_inv : bits(32) -> bits(32)
+function aes_mixcolumn_inv(x) = {
+  let s0 : bits (8) = x[ 7.. 0];
+  let s1 : bits (8) = x[15.. 8];
+  let s2 : bits (8) = x[23..16];
+  let s3 : bits (8) = x[31..24];
+  let b0 : bits (8) = gfmul(s0, 0xE) ^ gfmul(s1, 0xB) ^ gfmul(s2, 0xD) ^ gfmul(s3, 0x9);
+  let b1 : bits (8) = gfmul(s0, 0x9) ^ gfmul(s1, 0xE) ^ gfmul(s2, 0xB) ^ gfmul(s3, 0xD);
+  let b2 : bits (8) = gfmul(s0, 0xD) ^ gfmul(s1, 0x9) ^ gfmul(s2, 0xE) ^ gfmul(s3, 0xB);
+  let b3 : bits (8) = gfmul(s0, 0xB) ^ gfmul(s1, 0xD) ^ gfmul(s2, 0x9) ^ gfmul(s3, 0xE);
+  b3 @ b2 @ b1 @ b0 /* Return value */
+}
+'''
+
 
 def test_sailfunction_type():
     m = _pydrofoil.RISCV64()

@@ -131,6 +131,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.let_values = {}
         # (graphs, funcs, args, kwargs) to emit at the end
         self._all_graphs = []
+        self.sail_filenames = None
 
     def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -237,7 +238,7 @@ class Codegen(specialize.FixpointSpecializer):
                 emit_function_code(graph, None, codegen)
             argument_converters = "[" + ", ".join([arg.resolved_type.convert_from_pypy for arg in graph.args]) + "]"
             result_converter = functyp.restype.convert_to_pypy
-            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r, None))" % (
                 pyname, demangle(graph.name).replace('speciali\x8cd', 'specialized'), pyname, argument_converters, result_converter, repr(functyp)))
         self.add_graph(graph, emit_extra)
 
@@ -355,6 +356,52 @@ class Codegen(specialize.FixpointSpecializer):
 
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
 
+    def extract_source(self, graph):
+        import os, ast
+        if self.sail_filenames is None:
+            return None
+        def split_sourcepos(sourcepos):
+            if sourcepos is None:
+                return None
+            sourcepos = sourcepos.strip('`')
+            if sourcepos.count(' ') != 1:
+                return None
+            fileindex, ranges = sourcepos.split(' ')
+            fileindex = int(fileindex)
+            if ranges.count('-') != 1:
+                return None
+            from_, to_ = ranges.split('-')
+            from_line, from_column = from_.split(':')
+            to_line, to_column = to_.split(':')
+            return (fileindex, int(from_line), int(from_column), int(to_line), int(to_column))
+        sourcepos = {split_sourcepos(getattr(op, 'sourcepos', None)) for op, _ in graph.iterblockops()}
+        if None in sourcepos:
+            return None
+        files = {info[0] for info in sourcepos}
+        if len(files) != 1:
+            return None
+        fileindex, = files
+        fn = ast.literal_eval(self.sail_filenames[fileindex])
+        if not os.path.isabs(fn):
+            fn = os.path.join('../sail-riscv', fn) # TODO
+        if not os.path.isfile(fn):
+            return None # TODO
+        fromline = min(info[1] for info in sourcepos) - 1
+        toline = max(info[3] for info in sourcepos)
+        with open(fn) as f:
+            lines = f.readlines()
+        if fromline < 0 or toline >= len(lines):
+            return None
+        while fromline > 0:
+            if not lines[fromline].strip():
+                break
+            fromline -= 1
+        while toline < len(lines):
+            if not lines[toline].strip():
+                break
+            toline += 1
+        return "".join(lines[fromline:toline]).strip()
+
 def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
     from pydrofoil.infer import infer
     t1 = time.time()
@@ -401,6 +448,11 @@ class __extend__(parse.File):
         import traceback
         failure_count = 0
         t1 = time.time()
+        files = None
+        for index, decl in enumerate(self.declarations):
+            if isinstance(decl, parse.Files):
+                codegen.sail_filenames = decl.filenames
+                break
         for index, decl in enumerate(self.declarations):
             codegen.print_highlevel_task("MAKING IR FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl))
             try:
@@ -872,11 +924,12 @@ class __extend__(parse.Function):
             self._emit_methods(blocks, codegen)
             argument_converters = "[" + ", ".join([arg.convert_from_pypy for arg in self.resolved_type.argtype.elements]) + "]"
             result_converter = self.resolved_type.restype.convert_to_pypy
-            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r, None))" % (
                 pyname, demangle(self.name), pyname, argument_converters, result_converter, repr(self.resolved_type)))
             return
         codegen.print_debug_msg("making SSA IR")
         graph = construct_ir(self, codegen)
+        source = codegen.extract_source(graph)
         inlinable = should_inline(graph, codegen.should_inline)
         if inlinable:
             codegen.inlinable_functions[self.name] = graph
@@ -890,10 +943,10 @@ class __extend__(parse.Function):
             if usefully_specializable(graph):
                 codegen.specialization_functions[self.name] = Specializer(graph, codegen)
 
-        codegen.add_graph(graph, self.emit_regular_function, pyname)
+        codegen.add_graph(graph, self.emit_regular_function, pyname, source=source)
         del self.body # save memory, don't need to keep the parse tree around
 
-    def emit_regular_function(self, graph, codegen, pyname):
+    def emit_regular_function(self, graph, codegen, pyname, source=None, export_to_python=True):
         from pydrofoil.ir import Return
         with self._scope(codegen, pyname, actual_args=graph.args):
             emit_function_code(graph, self, codegen)
@@ -902,8 +955,9 @@ class __extend__(parse.Function):
         for block in graph.iterblocks():
             if isinstance(block.next, Return):
                 result_converter = block.next.value.resolved_type.convert_to_pypy
-        codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
-            pyname, demangle(graph.name), pyname, argument_converters, result_converter, repr(self.resolved_type)))
+        if export_to_python:
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r, %r))" % (
+                pyname, demangle(graph.name), pyname, argument_converters, result_converter, repr(self.resolved_type), source))
         codegen.emit()
 
     @contextmanager

@@ -281,8 +281,8 @@ class W_BoundSailFunction(W_Root):
     def descr_doc(self, space):
         return space.newtext("""\
 Sail function
-%s
-""" % (self.func.sail_name, ))
+%s%s
+""" % (self.func.sail_name, '\n' + self.func.source if self.func.source is not None else ''))
 
     def descr_sail_type(self, space):
         return self.func.sail_type
@@ -345,21 +345,22 @@ def _init_functions(machinecls, functions):
     machinecls.W_Lowlevel = W_Lowlevel
 
 def _make_function(function_info, d, machinecls):
-    pyname, sail_name, func, argument_converters, result_converter, sail_type_repr = function_info
+    pyname, sail_name, func, argument_converters, result_converter, sail_type_repr, source = function_info
     adaptor_class = _make_function_adaptor(argument_converters, machinecls)
     def py(space, *args):
         res = func(*args)
         return result_converter(space, res)
     py.func_name += pyname
     sail_type = eval(sail_type_repr, types.__dict__)
-    adaptor = d[sail_name] = adaptor_class(py, sail_name, sail_type)
+    adaptor = d[sail_name] = adaptor_class(py, sail_name, sail_type, source)
 
 
 class SailFunctionAdaptor(object):
     num_args = -1
     sail_name = ''
     _immutable_ = True
-    _attrs_ = ['num_args', 'sail_name', 'sail_type']
+    source = None
+    _attrs_ = ['num_args', 'sail_name', 'sail_type', 'source']
 
     def call(self, space, w_machine, args_w):
         if len(args_w) != self.num_args:
@@ -390,10 +391,11 @@ def _make_function_adaptor(argument_converters, machinecls, cache={}):
         _immutable_ = True
         num_args = len(argument_converters)
 
-        def __init__(self, func, sail_name, sail_type):
+        def __init__(self, func, sail_name, sail_type, source=None):
             self.func = func
             self.sail_name = sail_name
             self.sail_type = sail_type
+            self.source = source
 
         def _call(self, space, w_machine, args_w):
             assert isinstance(w_machine, machinecls)

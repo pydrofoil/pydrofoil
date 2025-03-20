@@ -10,7 +10,7 @@ pydrofoil-riscv: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/soft
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
 pydrofoil-test: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the pydrofoil implementation-level unit tests
-	./pypy_binary/bin/python pypy2/pytest.py -v pydrofoil/ riscv/
+	./pypy_binary/bin/python pypy2/pytest.py -v pydrofoil/ riscv/test/
 
 .PHONY: pypy-c-pydrofoil-riscv
 

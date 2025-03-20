@@ -386,7 +386,8 @@ class Codegen(specialize.FixpointSpecializer):
         fileindex, = files
         fn = ast.literal_eval(self.sail_filenames[fileindex])
         if not os.path.isabs(fn):
-            fn = os.path.join('../sail-riscv', fn) # TODO
+            base = os.getenv('RISCVMODELCHECKOUT') or '../sail-riscv' # TODO
+            fn = os.path.join(base, fn)
         if not os.path.isfile(fn):
             return None # TODO
         fromline = min(info[1] for info in sourcepos) - 1

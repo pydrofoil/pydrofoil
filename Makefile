@@ -239,6 +239,10 @@ pypy2/lib/pypy3.11/site-packages/pytest/__init__.py:
 	./pypy-c-pydrofoil-riscv -m ensurepip
 	./pypy-c-pydrofoil-riscv -m pip install pytest pdbpp
 
+.PHONY: plugin-riscv-tests-untranslated
+plugin-riscv-tests-untranslated: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the tests for the PyPy Pydrofoil RISC-V plugin, before building a binary
+	./pypy_binary/bin/python pypy2/pytest.py -v riscv/pypymodule/
+
 .PHONY: plugin-riscv-tests
 plugin-riscv-tests: pypy2/lib/pypy3.11/site-packages/pytest/__init__.py ## Run the tests for the PyPy Pydrofoil RISC-V plugin
 	./pypy-c-pydrofoil-riscv -m pytest riscv/pypymodule/test/apptest_plugin.py

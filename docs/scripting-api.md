@@ -247,7 +247,7 @@ t1 = time.time()
 try:
     for i in range(instructions):
         cpu.step()
-        histogram_pcs[str(cpu.read_register("pc"))] += 1
+        histogram_pcs[cpu.read_register("pc")] += 1
         dis = cpu.disassemble_last_instruction()
         histogram_instructions[dis] += 1
         histogram_mnemonic[dis.split()[0]] += 1

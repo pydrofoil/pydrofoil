@@ -205,6 +205,16 @@ def test_union_enum():
     s = SomeReadKind('Read_plain')
     assert s[0] == 'Read_plain'
 
+def test_union_hash():
+    m = _pydrofoil.RISCV64()
+    ast1 = m.types.ADDIW(2045, 3, 5)
+    ast1a = m.types.ADDIW(2045, 3, 5)
+    ast2 = m.types.ADDIW(2045, 3, 12)
+    assert ast1 == ast1a
+    assert ast1 != ast2
+    assert hash(ast1) == hash(ast1a)
+    assert hash(ast1) != hash(ast2)
+
 #def test_union_pattern_matching():
 #    m = _pydrofoil.RISCV64()
 #    ADDIW = m.types.ADDIW
@@ -302,6 +312,14 @@ def test_call_encdec_backwards():
     res = m.lowlevel.assembly_forwards(ast)
     assert res == 'andi a5, zero, 0x0'
 
+def test_next_functions_arent_exposed():
+    m = _pydrofoil.RISCV64()
+    assert not hasattr(m.lowlevel, 'encdec_backwards_next_0')
+
+def test_inlined_functions_are_exposed():
+    m = _pydrofoil.RISCV64()
+    assert m.lowlevel.bit_to_bool(0) is False
+
 def test_packed_struct_fields():
     m = _pydrofoil.RISCV64()
     res = m.lowlevel.read_ram_specialized_o_o_o_False("Read_plain",2,3,4)
@@ -324,6 +342,25 @@ def test_sailfunction_doc():
     m = _pydrofoil.RISCV64()
     doc = m.lowlevel.encdec_backwards.__doc__
     assert "encdec_backwards" in doc
+    doc = m.lowlevel.aes_mixcolumn_inv.__doc__
+    assert doc == '''\
+Sail function
+aes_mixcolumn_inv
+/* 32-bit to 32-bit AES inverse MixColumn */
+val aes_mixcolumn_inv : bits(32) -> bits(32)
+function aes_mixcolumn_inv(x) = {
+  let s0 : bits (8) = x[ 7.. 0];
+  let s1 : bits (8) = x[15.. 8];
+  let s2 : bits (8) = x[23..16];
+  let s3 : bits (8) = x[31..24];
+  let b0 : bits (8) = gfmul(s0, 0xE) ^ gfmul(s1, 0xB) ^ gfmul(s2, 0xD) ^ gfmul(s3, 0x9);
+  let b1 : bits (8) = gfmul(s0, 0x9) ^ gfmul(s1, 0xE) ^ gfmul(s2, 0xB) ^ gfmul(s3, 0xD);
+  let b2 : bits (8) = gfmul(s0, 0xD) ^ gfmul(s1, 0x9) ^ gfmul(s2, 0xE) ^ gfmul(s3, 0xB);
+  let b3 : bits (8) = gfmul(s0, 0xB) ^ gfmul(s1, 0xD) ^ gfmul(s2, 0x9) ^ gfmul(s3, 0xE);
+  b3 @ b2 @ b1 @ b0 /* Return value */
+}
+'''
+
 
 def test_sailfunction_type():
     m = _pydrofoil.RISCV64()
@@ -398,4 +435,23 @@ def test_append():
     b0 = _pydrofoil.bitvector(6, 0b110100)
     b1 = _pydrofoil.bitvector(4, 0b1100)
     assert b0 @ b1 == _pydrofoil.bitvector(10, 0b1101001100)
+
+def test_bitvector_to_int():
+    b0 = _pydrofoil.bitvector(6, 7)
+    assert list(range(10))[b0] == 7
+    assert int(b0) == 7
+
+def test_bitvector_hash():
+    m = _pydrofoil.RISCV64()
+    val = 0b110100
+    bv1 = _pydrofoil.bitvector(6, val)
+    bv1a = _pydrofoil.bitvector(6, val)
+    bv2 = _pydrofoil.bitvector(7, val)
+    bv3 = _pydrofoil.bitvector(6, 0b110101)
+    assert bv1 == bv1a
+    assert bv1 != bv2
+    assert bv1 != bv3
+    assert hash(bv1) == hash(bv1a)
+    assert hash(bv1) != hash(bv2)
+    assert hash(bv1) != hash(bv3)
 

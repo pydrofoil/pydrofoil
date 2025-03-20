@@ -29,6 +29,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         repository: riscv/sail-riscv
+        ref: 87f8bb34d629163563515a82102c48b722ab9058
         path: sail-riscv
 
     - name: install dependencies and create virtualenv
@@ -37,6 +38,10 @@ jobs:
 
         make pypy_binary/bin/python
         make pypy2/rpython/bin/rpython
+
+    - name: Run plugin tests untranslated
+      run: |
+        RISCVMODELCHECKOUT=sail-riscv/ make plugin-riscv-tests-untranslated
 
     - name: Translate pypy with plugin
       run: |
@@ -56,5 +61,5 @@ jobs:
 
     - name: Run plugin tests
       run: |
-        make plugin-riscv-tests
+        RISCVMODELCHECKOUT=sail-riscv/ make plugin-riscv-tests
 

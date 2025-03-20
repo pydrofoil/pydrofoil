@@ -9,3 +9,6 @@ def repr_union(union):
     fields = [repr(x) for x in union]
     fields = ", ".join(fields)
     return f"{union.__class__.__name__}({fields})"
+
+def hash_union(union):
+    return hash(tuple(union)) ^ 0x12482abf

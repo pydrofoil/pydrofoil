@@ -10,7 +10,7 @@ pydrofoil-riscv: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/soft
 	PYTHONPATH=. pypy_binary/bin/python ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-riscv riscv/targetriscv.py
 
 pydrofoil-test: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the pydrofoil implementation-level unit tests
-	./pypy_binary/bin/python pypy2/pytest.py -v pydrofoil/ riscv/
+	./pypy_binary/bin/python pypy2/pytest.py -v pydrofoil/ riscv/test/
 
 .PHONY: pypy-c-pydrofoil-riscv
 
@@ -238,6 +238,10 @@ pypy-c-pydrofoil-riscv-package: ## Package PyPy with Pydrofoil RISC-V plugin
 pypy2/lib/pypy3.11/site-packages/pytest/__init__.py:
 	./pypy-c-pydrofoil-riscv -m ensurepip
 	./pypy-c-pydrofoil-riscv -m pip install pytest pdbpp
+
+.PHONY: plugin-riscv-tests-untranslated
+plugin-riscv-tests-untranslated: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the tests for the PyPy Pydrofoil RISC-V plugin, before building a binary
+	./pypy_binary/bin/python pypy2/pytest.py -v riscv/pypymodule/
 
 .PHONY: plugin-riscv-tests
 plugin-riscv-tests: pypy2/lib/pypy3.11/site-packages/pytest/__init__.py ## Run the tests for the PyPy Pydrofoil RISC-V plugin

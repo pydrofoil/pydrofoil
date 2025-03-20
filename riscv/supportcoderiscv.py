@@ -192,6 +192,8 @@ class Globals(object):
 
         self.cpu_hz = 1000000000 # 1 GHz
 
+        self.elf_entry = 0
+
     def _init_ranges(self):
         self._mem_ranges = [
             (intmask(self.rv_rom_base), intmask(self.rv_rom_base + self.rv_rom_size)),
@@ -335,6 +337,8 @@ def plat_uart_base(machine, _):
 def plat_uart_size(machine, _):
     return 0x100
 
+def elf_entry(machine, _):
+    return Integer.fromint(int(machine.g.elf_entry))
 
 
 # Provides entropy for the scalar cryptography extension.
@@ -392,6 +396,7 @@ def instr_announce(machine, _):
 @specialize.argtype(0)
 def init_sail(machine, elf_entry):
     machine.init_model()
+    machine.g.elf_entry = elf_entry
     return init_sail_reset_vector(machine, elf_entry)
 
 @specialize.argtype(0)

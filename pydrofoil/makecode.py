@@ -92,6 +92,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@signed_bv", "supportcode.signed_bv")
         self.add_global("@unsigned_bv_wrapped_res", "supportcode.unsigned_bv_wrapped_res")
         self.add_global("@unsigned_bv", "supportcode.unsigned_bv")
+        self.add_global("@sail_unsigned", "supportcode.sail_unsigned")
         self.add_global("@zero_extend_bv_i_i", "supportcode.zero_extend_bv_i_i")
         self.add_global("@zero_extend_o_i_unwrapped_res", "supportcode.zero_extend_o_i_unwrapped_res")
         self.add_global("@sign_extend_bv_i_i", "supportcode.sign_extend_bv_i_i")
@@ -129,8 +130,11 @@ class Codegen(specialize.FixpointSpecializer):
         # a function that returns True, False or None
         self.should_inline = should_inline if should_inline is not None else lambda name: None
         self.let_values = {}
+        # all sail function names
+        self.sail_function_names = set()
         # (graphs, funcs, args, kwargs) to emit at the end
         self._all_graphs = []
+        self.sail_filenames = None
 
     def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -219,8 +223,8 @@ class Codegen(specialize.FixpointSpecializer):
             with self.emit_code_type("declarations"):
                 yield name
 
-    def getcode(self):
-        self.finish_graphs()
+    def getcode(self, export_everything=False):
+        self.finish_graphs(export_everything=export_everything)
         res = ["\n".join(self.declarations)]
         res.append("def let_init(machine):\n    " + "\n    ".join(self.runtimeinit or ["pass"]))
         res.append("\n".join(self.code))
@@ -237,7 +241,7 @@ class Codegen(specialize.FixpointSpecializer):
                 emit_function_code(graph, None, codegen)
             argument_converters = "[" + ", ".join([arg.resolved_type.convert_from_pypy for arg in graph.args]) + "]"
             result_converter = functyp.restype.convert_to_pypy
-            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r, None))" % (
                 pyname, demangle(graph.name).replace('speciali\x8cd', 'specialized'), pyname, argument_converters, result_converter, repr(functyp)))
         self.add_graph(graph, emit_extra)
 
@@ -245,13 +249,13 @@ class Codegen(specialize.FixpointSpecializer):
         self.schedule_graph_specialization(graph)
         self._all_graphs.append((graph, emit_function, args, kwargs))
 
-    def finish_graphs(self):
+    def finish_graphs(self, export_everything=False):
         self.print_persistent_msg("============== FINISHING ==============")
         from pydrofoil.ir import print_stats
         t1 = time.time()
         self.specialize_all()
         unspecialized_graphs = []
-        if self.program_entrypoints is None:
+        if self.program_entrypoints is None or export_everything:
             program_entrypoints = [g for g, _, _, _ in self._all_graphs]
         else:
             program_entrypoints = self.program_entrypoints + ["zinitializze_registers"]
@@ -355,7 +359,55 @@ class Codegen(specialize.FixpointSpecializer):
 
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
 
-def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
+    def extract_source(self, graph):
+        import os, ast
+        if self.sail_filenames is None:
+            return None
+        def split_sourcepos(sourcepos):
+            if sourcepos is None:
+                return None
+            sourcepos = sourcepos.strip('`')
+            if sourcepos.count(' ') != 1:
+                return None
+            fileindex, ranges = sourcepos.split(' ')
+            fileindex = int(fileindex)
+            if ranges.count('-') != 1:
+                return None
+            from_, to_ = ranges.split('-')
+            from_line, from_column = from_.split(':')
+            to_line, to_column = to_.split(':')
+            return (fileindex, int(from_line), int(from_column), int(to_line), int(to_column))
+        sourcepos = {split_sourcepos(getattr(op, 'sourcepos', None)) for op, _ in graph.iterblockops()}
+        if None in sourcepos:
+            return None
+        files = {info[0] for info in sourcepos}
+        if len(files) != 1:
+            return None
+        fileindex, = files
+        fn = ast.literal_eval(self.sail_filenames[fileindex])
+        if not os.path.isabs(fn):
+            base = os.getenv('RISCVMODELCHECKOUT') or '../sail-riscv' # TODO
+            fn = os.path.join(base, fn)
+        if not os.path.isfile(fn):
+            return None # TODO
+        fromline = min(info[1] for info in sourcepos) - 1
+        toline = max(info[3] for info in sourcepos)
+        with open(fn) as f:
+            lines = f.readlines()
+        if fromline < 0 or toline >= len(lines):
+            return None
+        while fromline > 0:
+            if not lines[fromline].strip():
+                break
+            fromline -= 1
+        while toline < len(lines):
+            if not lines[toline].strip():
+                break
+            toline += 1
+        return "".join(lines[fromline:toline]).strip()
+
+def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None,
+                        export_everything=False):
     from pydrofoil.infer import infer
     t1 = time.time()
     ast = parse.parser.parse(parse.lexer.lex(s))
@@ -386,7 +438,7 @@ def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline
         c.emit("        self.g = supportcode.Globals()")
         c.emit("UninitInt = bitvector.Integer.fromint(-0xfefee)")
     ast.make_code(c)
-    return c.getcode()
+    return c.getcode(export_everything=export_everything)
 
 
 # ____________________________________________________________
@@ -401,6 +453,11 @@ class __extend__(parse.File):
         import traceback
         failure_count = 0
         t1 = time.time()
+        files = None
+        for index, decl in enumerate(self.declarations):
+            if isinstance(decl, parse.Files):
+                codegen.sail_filenames = decl.filenames
+                break
         for index, decl in enumerate(self.declarations):
             codegen.print_highlevel_task("MAKING IR FOR %s/%s" % (index, len(self.declarations)), type(decl).__name__, getattr(decl, "name", decl))
             try:
@@ -861,6 +918,7 @@ class __extend__(parse.Function):
         from pydrofoil.splitgraph import split_completely
         pyname = codegen.getname(self.name)
         assert pyname.startswith("func_")
+        codegen.sail_function_names.add(self.name)
         #if codegen.globalnames[self.name].pyname is not None:
         #    print "duplicate!", self.name, codegen.globalnames[self.name].pyname
         #    return
@@ -872,11 +930,12 @@ class __extend__(parse.Function):
             self._emit_methods(blocks, codegen)
             argument_converters = "[" + ", ".join([arg.convert_from_pypy for arg in self.resolved_type.argtype.elements]) + "]"
             result_converter = self.resolved_type.restype.convert_to_pypy
-            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r, None))" % (
                 pyname, demangle(self.name), pyname, argument_converters, result_converter, repr(self.resolved_type)))
             return
         codegen.print_debug_msg("making SSA IR")
         graph = construct_ir(self, codegen)
+        source = codegen.extract_source(graph)
         inlinable = should_inline(graph, codegen.should_inline)
         if inlinable:
             codegen.inlinable_functions[self.name] = graph
@@ -885,15 +944,15 @@ class __extend__(parse.Function):
             functyp = codegen.globalnames[self.name].typ
             for graph2, graph2typ in split_completely(graph, self, functyp, codegen):
                 codegen.add_global(graph2.name, graph2.name, graph2typ)
-                codegen.add_graph(graph2, self.emit_regular_function, graph2.name)
+                codegen.add_graph(graph2, self.emit_regular_function, graph2.name, export_to_python=False)
         else:
             if usefully_specializable(graph):
                 codegen.specialization_functions[self.name] = Specializer(graph, codegen)
 
-        codegen.add_graph(graph, self.emit_regular_function, pyname)
+        codegen.add_graph(graph, self.emit_regular_function, pyname, source=source)
         del self.body # save memory, don't need to keep the parse tree around
 
-    def emit_regular_function(self, graph, codegen, pyname):
+    def emit_regular_function(self, graph, codegen, pyname, source=None, export_to_python=True):
         from pydrofoil.ir import Return
         with self._scope(codegen, pyname, actual_args=graph.args):
             emit_function_code(graph, self, codegen)
@@ -902,8 +961,9 @@ class __extend__(parse.Function):
         for block in graph.iterblocks():
             if isinstance(block.next, Return):
                 result_converter = block.next.value.resolved_type.convert_to_pypy
-        codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
-            pyname, demangle(graph.name), pyname, argument_converters, result_converter, repr(self.resolved_type)))
+        if export_to_python:
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r, %r))" % (
+                pyname, demangle(graph.name), pyname, argument_converters, result_converter, repr(self.resolved_type), source))
         codegen.emit()
 
     @contextmanager

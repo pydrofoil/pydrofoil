@@ -322,7 +322,7 @@ pypy_binary/bin/python:  ## Download a PyPy binary
 	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
 	rm pypy.tar.bz2
 	./pypy_binary/bin/python -m ensurepip
-	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5 "z3-solver==4.12.0.0" pygame
 
 .PHONY: pypy_binary_nightly
 pypy_binary_nightly:  ## Download a nightly PyPy binary (instead of stable)

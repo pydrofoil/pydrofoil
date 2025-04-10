@@ -242,10 +242,24 @@ def test_nand_compute_backwards():
     #graph.view()
     interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b1100))])
     res = interp.run()
-    assert isinstance(res, z3backend.Constant)
-    assert res.value.variant == "zC_D"
+    assert isinstance(res, z3backend.Enum)
+    assert res.value == "zC_D"
 
-    interp = z3backend.Interpreter(graph, [z3backend.Z3Value(z3.BitVec("x", 6))])
+    x = z3.BitVec("x", 6)
+    interp = z3backend.Interpreter(graph, [z3backend.Z3Value(x)])
     res = interp.run()
-    assert isinstance(res, z3backend.Constant)
-    assert res.value.variant == "zC_D"
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res.value).startswith("If(x == 42,\n   zC_ZERO,\n   If(x == 63,")
+
+    # Now try to eval created z3 fromula for a concrete value
+    solver = z3.Solver()
+    solver.add(x == 48) #=> opcode zC_A
+    solver.check()
+    result_enum = solver.model().eval(res.toz3()) # dont have access to 'real' z3 enum vars here
+    assert str(result_enum) == "zC_A"
+
+    solver = z3.Solver()
+    solver.add(x == 1) #=> no op
+    solver.check()
+    result_enum = solver.model().eval(res.toz3()) # dont have access to 'real' z3 enum vars here
+    assert str(result_enum) == "BaseException"

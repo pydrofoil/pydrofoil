@@ -2,7 +2,29 @@ import z3
 from pydrofoil import ir
 
 class Value(object):
-    pass
+
+    def __init__(self):
+        self.value = None
+    
+    def __str__(self):
+        return str(self.value)
+    
+    def __repr__(self):
+        return self.__str__()
+
+class Enum(Value):
+    
+    def __init__(self, name, variant):
+        self.enum_name = name
+        self.value = variant
+
+    def toz3(self):
+        ename = "enum_%s_%s" % (self.enum_name,self.value)
+        if not ename in Interpreter.enums:
+            Interpreter.create_z3_enum(self.enum_name, self.value)
+        z3val = Interpreter.enums[ename]    
+        self.toz3 = lambda self=None: z3val
+        return z3val
 
 class Constant(Value):
     
@@ -24,6 +46,7 @@ class Z3Value(Value):
 class Interpreter(object):
 
     fork_counter = 0
+    enums = {}
     
     def __init__(self, graph, args):
         self.graph = graph
@@ -33,6 +56,8 @@ class Interpreter(object):
         assert len(args) == len(graph.args)
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are either z3backend.Constant or z3backend.Z3Value
         assert not graph.has_loop
+        if "Exception_Base" not in Interpreter.enums:
+            self.create_z3_enum("Exception", "BaseException")
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
@@ -50,7 +75,7 @@ class Interpreter(object):
             cur_block = self.execute_next(next)
             if not cur_block:
                 break
-        self._debug_print(("returns", block))
+        #self._debug_print(("returns", block))
         return self.w_result
     
     def fork(self):
@@ -75,28 +100,36 @@ class Interpreter(object):
                 interp2 = self.fork()
                 w_res_true = interp1.run(next.truetarget)
                 w_res_false = interp2.run(next.falsetarget)
-                self.w_result = Z3Value(z3.If(w_cond.toz3(), w_res_true.toz3(), w_res_false.toz3()))
+                self.w_result = Z3Value(z3.If(w_cond.toz3(), w_res_true.toz3() , w_res_false.toz3() ))
                 return None
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
-            return None # TODO: arg
+            return None
         elif isinstance(next, ir.Raise):
-            self.w_result = Z3Value(z3.BitVecVal(0, 64) == z3.BitVecVal(1, 64)) # raising an errer => False 
+            self.w_result = Enum("Exception", "BaseException")#Z3Value(z3.BitVecVal(0, 64) == z3.BitVecVal(1, 64)) # raising an errer => False 
             return None
         else:
             assert 0, "implement %s" %str(next)
     
     def _debug_print(self, msg=""):
         print "interp_%s:" % self.forknum, msg
-            
+
+    @classmethod
+    def create_z3_enum(cls, name, variant):
+        """ create a z3 datatype for an enum and store in class var """
+        fname = "enum_%s_%s" % (name, variant)
+        Interpreter.enums[fname] = z3.BitVec(variant, 64)
+
+    def create_z3_enum_constraints(self):
+        # TODO: return fromula that makes all enum vars pairwise unequal
+        pass
+
     def convert(self, arg):
         """ wrap an argument """
         if isinstance(arg, ir.SmallBitVectorConstant):
             w_arg = Constant(arg.value)
         elif isinstance(arg, ir.EnumConstant):
-            # TODO:
-            #self._debug_print((dir(arg), arg.variant))
-            w_arg = Constant(arg)
+            w_arg = Enum(arg.resolved_type.name, arg.variant) # real z3 value created lazy on toz3() call
         elif isinstance(arg, ir.Constant):
             assert 0
         else:

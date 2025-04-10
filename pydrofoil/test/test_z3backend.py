@@ -140,7 +140,7 @@ def test_nand_compute_value():
     block38.next = Goto(block2, None)
     graph = Graph('zcompute_value', [za, zop], block0)
 
-def test_nand_compute_backwards():
+def test_nand_decode_compute_backwards():
     zarithmetic_op = Enum('zarithmetic_op', ('zC_ZERO', 'zC_ONE', 'zC_MINUSONE', 'zC_D', 'zC_A', 'zC_NOT_D', 'zC_NOT_A', 'zC_NEG_D', 'zC_NEG_A', 'zC_D_ADD_1', 'zC_A_ADD_1', 'zC_D_SUB_1', 'zC_A_SUB_1', 'zC_D_ADD_A', 'zC_D_SUB_A', 'zC_A_SUB_D', 'zC_D_AND_A', 'zC_D_OR_A'))
     zargz3 = Argument('zargz3', SmallFixedBitVector(6))
     block0 = Block()
@@ -263,3 +263,72 @@ def test_nand_compute_backwards():
     solver.check()
     result_enum = solver.model().eval(res.toz3()) # dont have access to 'real' z3 enum vars here
     assert str(result_enum) == "BaseException"
+
+
+def test_nand_decode_jump_backwards():
+    zjump = Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))
+    zargz3 = Argument('zargz3', SmallFixedBitVector(3))
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    block7 = Block()
+    block8 = Block()
+    block9 = Block()
+    block10 = Block()
+    block11 = Block()
+    block12 = Block()
+    block13 = Block()
+    block14 = Block()
+    block15 = Block()
+    block16 = Block()
+    block17 = Block()
+    i1 = block0.emit(Operation, '@eq_bits_bv_bv', [zargz3, SmallBitVectorConstant(0b0, SmallFixedBitVector(3))], Bool(), '`1 79:13-79:18', 'zz430')
+    block0.next = ConditionalGoto(i1, block1, block3, '`42')
+    block1.next = Goto(block2, None)
+    i2 = block2.emit_phi([block1, block4, block6, block8, block10, block12, block14, block16], [EnumConstant('zJDONT', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), EnumConstant('zJGT', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), EnumConstant('zJEQ', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), EnumConstant('zJGE', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), EnumConstant('zJLT', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), EnumConstant('zJNE', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), EnumConstant('zJLE', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), EnumConstant('zJMP', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP')))], zjump)
+    block2.next = Return(i2, None)
+    i3 = block3.emit(Operation, '@eq_bits_bv_bv', [zargz3, SmallBitVectorConstant(0b1, SmallFixedBitVector(3))], Bool(), '`1 80:13-80:18', 'zz426')
+    block3.next = ConditionalGoto(i3, block4, block5, '`44')
+    block4.next = Goto(block2, None)
+    i4 = block5.emit(Operation, '@eq_bits_bv_bv', [zargz3, SmallBitVectorConstant(0b10, SmallFixedBitVector(3))], Bool(), '`1 81:13-81:18', 'zz422')
+    block5.next = ConditionalGoto(i4, block6, block7, '`46')
+    block6.next = Goto(block2, None)
+    i5 = block7.emit(Operation, '@eq_bits_bv_bv', [zargz3, SmallBitVectorConstant(0b11, SmallFixedBitVector(3))], Bool(), '`1 82:13-82:18', 'zz418')
+    block7.next = ConditionalGoto(i5, block8, block9, '`48')
+    block8.next = Goto(block2, None)
+    i6 = block9.emit(Operation, '@eq_bits_bv_bv', [zargz3, SmallBitVectorConstant(0b100, SmallFixedBitVector(3))], Bool(), '`1 83:13-83:18', 'zz414')
+    block9.next = ConditionalGoto(i6, block10, block11, '`50')
+    block10.next = Goto(block2, None)
+    i7 = block11.emit(Operation, '@eq_bits_bv_bv', [zargz3, SmallBitVectorConstant(0b101, SmallFixedBitVector(3))], Bool(), '`1 84:13-84:18', 'zz410')
+    block11.next = ConditionalGoto(i7, block12, block13, '`52')
+    block12.next = Goto(block2, None)
+    i8 = block13.emit(Operation, '@eq_bits_bv_bv', [zargz3, SmallBitVectorConstant(0b110, SmallFixedBitVector(3))], Bool(), '`1 85:13-85:18', 'zz46')
+    block13.next = ConditionalGoto(i8, block14, block15, '`54')
+    block14.next = Goto(block2, None)
+    i9 = block15.emit(Operation, '@eq_bits_bv_bv', [zargz3, SmallBitVectorConstant(0b111, SmallFixedBitVector(3))], Bool(), '`1 86:13-86:18', 'zz42')
+    block15.next = ConditionalGoto(i9, block16, block17, '`56')
+    block16.next = Goto(block2, None)
+    block17.next = Raise(StringConstant('match'), '`57')
+    graph = Graph('zdecode_jump_backwards', [zargz3], block0)
+
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b11))])
+    res = interp.run()
+    assert isinstance(res, z3backend.Enum)
+    assert res.value == "zJGE"
+
+    x = z3.BitVec("x", 6)
+    interp = z3backend.Interpreter(graph, [z3backend.Z3Value(x)])
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res.value).startswith("If(x == 0,\n   zJDONT,\n   If(x == 1,")
+
+    # Now try to eval created z3 fromula for a concrete value
+    solver = z3.Solver()
+    solver.add(x == 7) #=> opcode zJMP
+    solver.check()
+    result_enum = solver.model().eval(res.toz3()) # dont have access to 'real' z3 enum vars here
+    assert str(result_enum) == "zJMP"

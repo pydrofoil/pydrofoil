@@ -1,5 +1,5 @@
-import pydrofoil.ir as ir
 import z3
+from pydrofoil import ir
 
 class Value(object):
     pass
@@ -22,15 +22,20 @@ class Z3Value(Value):
 
 
 class Interpreter(object):
+
+    fork_counter = 0
     
     def __init__(self, graph, args):
         self.graph = graph
         self.args = args
+        self.forknum = Interpreter.fork_counter
+        Interpreter.fork_counter += 1
         assert len(args) == len(graph.args)
-        self.environment = {graph.args[i]:args[i] for i in range(len(args))}
+        self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are either z3backend.Constant or z3backend.Z3Value
         assert not graph.has_loop
 
     def run(self, block=None):
+        """ interpret a graph, either begin with graph.startblock or the block passed as arg """
         if block:
             cur_block = block
         else:
@@ -45,13 +50,17 @@ class Interpreter(object):
             cur_block = self.execute_next(next)
             if not cur_block:
                 break
-        
+        self._debug_print(("returns", block))
         return self.w_result
     
     def fork(self):
-        asert 0,
+        """ create a copy of the interpreter """
+        f_interp = Interpreter(self.graph, self.args)
+        f_interp.environment = self.environment.copy()
+        return f_interp
 
     def execute_next(self, next):
+        """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
         if isinstance(next, ir.Goto):
             return next.target
         elif isinstance(next, ir.ConditionalGoto):
@@ -66,15 +75,27 @@ class Interpreter(object):
                 interp2 = self.fork()
                 w_res_true = interp1.run(next.truetarget)
                 w_res_false = interp2.run(next.falsetarget)
-                return z3.If(w_cond, w_res_true, w_res_false)
+                self.w_result = Z3Value(z3.If(w_cond.toz3(), w_res_true.toz3(), w_res_false.toz3()))
+                return None
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
             return None # TODO: arg
+        elif isinstance(next, ir.Raise):
+            self.w_result = Z3Value(z3.BitVecVal(0, 64) == z3.BitVecVal(1, 64)) # raising an errer => False 
+            return None
+        else:
+            assert 0, "implement %s" %str(next)
+    
+    def _debug_print(self, msg=""):
+        print "interp_%s:" % self.forknum, msg
             
     def convert(self, arg):
+        """ wrap an argument """
         if isinstance(arg, ir.SmallBitVectorConstant):
             w_arg = Constant(arg.value)
         elif isinstance(arg, ir.EnumConstant):
+            # TODO:
+            #self._debug_print((dir(arg), arg.variant))
             w_arg = Constant(arg)
         elif isinstance(arg, ir.Constant):
             assert 0
@@ -84,13 +105,14 @@ class Interpreter(object):
 
 
     def getargs(self, op):
+        """ get all wrapped args of an operation """
         res = []
         for arg in op.args:
             res.append(self.convert(arg))
         return res
 
     def execute_op(self, op):
-
+        """ execute an opearion and write result into environment """
         if isinstance(op, ir.Phi):
             index = op.prevblocks.index(self.prev_block)
             result = self.convert(op.prevvalues[index])

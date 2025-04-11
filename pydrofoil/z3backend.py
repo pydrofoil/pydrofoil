@@ -54,7 +54,8 @@ class Interpreter(object):
         self.forknum = Interpreter.fork_counter
         Interpreter.fork_counter += 1
         assert len(args) == len(graph.args)
-        self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are either z3backend.Constant or z3backend.Z3Value
+        self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of an z3backend.Value subclass
+        self.registers = {}
         assert not graph.has_loop
         if "Exception_Base" not in Interpreter.enums:
             self.create_z3_enum("Exception", "BaseException")
@@ -100,7 +101,7 @@ class Interpreter(object):
                 interp2 = self.fork()
                 w_res_true = interp1.run(next.truetarget)
                 w_res_false = interp2.run(next.falsetarget)
-                self.w_result = Z3Value(z3.If(w_cond.toz3(), w_res_true.toz3() , w_res_false.toz3() ))
+                self.w_result = Z3Value(z3.If(w_cond.toz3(), w_res_true.toz3(), w_res_false.toz3()))
                 return None
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
@@ -143,6 +144,16 @@ class Interpreter(object):
         for arg in op.args:
             res.append(self.convert(arg))
         return res
+    
+    def read_register(self, register):
+        """ read from register, creates new 'empty' z3 Val for registers on first access """
+        if register not in self.registers:
+            self.registers[register] = Z3Value(z3.BitVec("reg_%s" % register, 64))
+        return self.registers[register]
+    
+    def write_register(self, register, value):
+        """ write to register """
+        self.registers[register] = value
 
     def execute_op(self, op):
         """ execute an opearion and write result into environment """
@@ -150,7 +161,6 @@ class Interpreter(object):
             index = op.prevblocks.index(self.prev_block)
             result = self.convert(op.prevvalues[index])
             self.environment[op] = result
-            return
         elif op.name == "@eq_bits_bv_bv":
             arg0, arg1 = self.getargs(op)
             if isinstance(arg0, Constant) and isinstance(arg1, Constant):
@@ -158,5 +168,11 @@ class Interpreter(object):
             else:
                 result = Z3Value(arg0.toz3() == arg1.toz3())
             self.environment[op] = result
-            return
-        assert 0 
+        elif op.name == "zA":
+            result = self.read_register("A")
+            self.environment[op] = result
+        elif op.name == "zD":
+            result = self.read_register("D")
+            self.environment[op] = result
+        else:
+            assert 0 , str(op.name)

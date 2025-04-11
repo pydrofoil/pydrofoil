@@ -468,7 +468,14 @@ def test_nand_compute_value():
     block38.next = Goto(block2, None)
     graph = Graph('zcompute_value', [za, zop], block0)
     #graph.view()
-    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b111)), z3backend.Enum("zarithmetic_op", "zC_A")])
+
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b0)), z3backend.Enum("zarithmetic_op", "zC_A")])# a == 0 && op = zC_A => load register A
     res = interp.run()
-    assert isinstance(res, z3backend.Constant)
-    assert res.value == 0b111
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "reg_zA"
+
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b111)), z3backend.Enum("zarithmetic_op", "zC_A")])# a != 0 && op = zC_A => load mem[register_A]
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "mem[reg_zA]"
+    

@@ -54,8 +54,9 @@ class Interpreter(object):
         self.forknum = Interpreter.fork_counter
         Interpreter.fork_counter += 1
         assert len(args) == len(graph.args)
-        self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of an z3backend.Value subclass
+        self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
         self.registers = {}
+        self.memory = {}
         assert not graph.has_loop
         if "Exception_Base" not in Interpreter.enums:
             self.create_z3_enum("Exception", "BaseException")
@@ -83,6 +84,8 @@ class Interpreter(object):
         """ create a copy of the interpreter """
         f_interp = Interpreter(self.graph, self.args)
         f_interp.environment = self.environment.copy()
+        f_interp.registers = self.registers.copy()
+        f_interp.memory = self.memory.copy()
         return f_interp
 
     def execute_next(self, next):
@@ -126,7 +129,7 @@ class Interpreter(object):
         pass
 
     def convert(self, arg):
-        """ wrap an argument """
+        """ wrap an argument or load wrapped arg from env """
         if isinstance(arg, ir.SmallBitVectorConstant):
             w_arg = Constant(arg.value)
         elif isinstance(arg, ir.EnumConstant):
@@ -155,21 +158,32 @@ class Interpreter(object):
         """ write to register """
         self.registers[register] = value
 
+    def read_memory(self, addr):
+        """ read from memory, creates new 'empty' z3 Val for mem addresses on first access """
+        if addr not in self.memory:
+            self.memory[addr] = Z3Value(z3.BitVec("mem[%s]" % addr, 64))
+        return self.memory[addr]
+    
+    def wrte_memory(self, addr, value):
+        """ rwrite to memory """
+        self.memory[addr] = value
+
     def execute_op(self, op):
         """ execute an opearion and write result into environment """
         if isinstance(op, ir.Phi):
             index = op.prevblocks.index(self.prev_block)
             result = self.convert(op.prevvalues[index])
-            self.environment[op] = result
         elif op.name == "@eq_bits_bv_bv":
             arg0, arg1 = self.getargs(op)
             if isinstance(arg0, Constant) and isinstance(arg1, Constant):
                 result = Constant(arg0.value == arg1.value)
             else:
                 result = Z3Value(arg0.toz3() == arg1.toz3())
-            self.environment[op] = result
         elif isinstance(op, ir.GlobalRead):
             result = self.read_register(op.name)
-            self.environment[op] = result
+        elif op.name == "my_read_mem": # nand specific
+            addr,  = self.getargs(op)
+            result = self.read_memory(addr)
         else:
-            assert 0 , str(op.name)
+            assert 0 , str(op.name) + ", " + str(op)
+        self.environment[op] = result

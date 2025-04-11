@@ -474,8 +474,71 @@ def test_nand_compute_value():
     assert isinstance(res, z3backend.Z3Value)
     assert str(res) == "reg_zA"
 
-    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b111)), z3backend.Enum("zarithmetic_op", "zC_A")])# a != 0 && op = zC_A => load mem[register_A]
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b1)), z3backend.Enum("zarithmetic_op", "zC_A")])# a != 0 && op = zC_A => load mem[register_A]
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res) == "mem[reg_zA]"
+
+    # bitwise not registers 
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b1)), z3backend.Enum("zarithmetic_op", "zC_NOT_D")])# op = zC_NOT_D => not register_D
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "~reg_zD"
+
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b0)), z3backend.Enum("zarithmetic_op", "zC_NOT_A")])# a == 0 && op = zC_NOT_A => not register_A
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "~reg_zA"
+
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b1)), z3backend.Enum("zarithmetic_op", "zC_NOT_A")])# a != 0 &&op = zC_NOT_A => not register_A
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "~mem[reg_zA]"
+
+    # negate registers 
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b0)), z3backend.Enum("zarithmetic_op", "zC_NEG_A")])# a == 0 && op = zC_A => -register A
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "0 - reg_zA"
+
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b1)), z3backend.Enum("zarithmetic_op", "zC_NEG_A")])# a != 0 && op = zC_A => -mem[register_A]
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "0 - mem[reg_zA]"
+
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b1)), z3backend.Enum("zarithmetic_op", "zC_NEG_D")])# op = zC_NEG_D => -register_D
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "0 - reg_zD"
+
+    # add, and , or
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b0)), z3backend.Enum("zarithmetic_op", "zC_D_ADD_1")])# op = zC_D_ADD_1 => register_D + 1
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "reg_zD + 1"
+
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b0)), z3backend.Enum("zarithmetic_op", "zC_D_AND_A")])# op = zC_D_AND_A => D & A
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "reg_zD & reg_zA" 
+
+    interp = z3backend.Interpreter(graph, [z3backend.Constant(r_uint(0b0)), z3backend.Enum("zarithmetic_op", "zC_D_OR_A")])# op = zC_D_OR_A => D | A
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res) == "reg_zD | reg_zA"
+
+    # abstract
+    abs_za = z3.BitVec("za", 1)
+    abs_zop = z3.BitVec("zop", 64)
+    interp = z3backend.Interpreter(graph, [z3backend.Z3Value(abs_za), z3backend.Z3Value(abs_zop)])# op = ?
+    res = interp.run()
+    assert isinstance(res, z3backend.Z3Value)
+    assert str(res).startswith("If(za == 0,\n") #TODO: find better way to assert big z3 expr
     
+    #solver = z3.Solver()
+    #solver.add(abs_za == 1) 
+    #solver.add(abs_zop == z3backend.Interpreter.enums["enum_zarithmetic_op_zC_NOT_A"])
+    #solver.check()
+    #result = solver.model().eval(res.toz3())
+    #assert str(result) == "~mem[reg_zA]"
+

@@ -25,6 +25,10 @@ class Enum(Value):
         z3val = Interpreter.enums[ename]    
         self.toz3 = lambda self=None: z3val
         return z3val
+    
+    def __eq__(self, other):
+        if not isinstance(other, Enum): return False
+        return self.enum_name == other.enum_name and self.value == other.value
 
 class Constant(Value):
     
@@ -135,7 +139,10 @@ class Interpreter(object):
         elif isinstance(arg, ir.EnumConstant):
             w_arg = Enum(arg.resolved_type.name, arg.variant) # real z3 value created lazy on toz3() call
         elif isinstance(arg, ir.Constant):
-            assert 0
+            if isinstance(arg, ir.MachineIntConstant):
+                w_arg = Constant(arg.number)
+            else:
+                assert 0, "Some ir Constant " + str(arg) 
         else:
             w_arg = self.environment[arg]    
         return w_arg
@@ -179,9 +186,47 @@ class Interpreter(object):
                 result = Constant(arg0.value == arg1.value)
             else:
                 result = Z3Value(arg0.toz3() == arg1.toz3())
+        elif op.name == "@eq":
+            arg0, arg1 = self.getargs(op)
+            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+                result = Constant(arg0.value == arg1.value)
+            elif isinstance(arg0, Enum) and isinstance(arg1, Enum):
+                result = Constant(arg0 == arg1)
+            else:
+                result = Z3Value(arg0.toz3() == arg1.toz3())
+        elif op.name == "@not_vec_bv":
+            arg0, _ = self.getargs(op) # TODO: start using the passed width everywhere and not always 64 bit
+            if isinstance(arg0, Constant):
+                result = Constant(~arg0.value)
+            else:
+                result = Z3Value(~arg0.toz3())
+        elif op.name == "@sub_bits_bv_bv":
+            arg0, arg1, _ = self.getargs(op) 
+            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+                result = Constant(arg0.value - arg1.value)
+            else:
+                result = Z3Value(arg0.toz3() - arg1.toz3())
+        elif op.name == "@add_bits_bv_bv":
+            arg0, arg1, _ = self.getargs(op) 
+            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+                result = Constant(arg0.value + arg1.value)
+            else:
+                result = Z3Value(arg0.toz3() + arg1.toz3())
+        elif op.name == "@and_vec_bv_bv":
+            arg0, arg1 = self.getargs(op) 
+            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+                result = Constant(arg0.value & arg1.value)
+            else:
+                result = Z3Value(arg0.toz3() & arg1.toz3())
+        elif op.name == "@or_vec_bv_bv":
+            arg0, arg1 = self.getargs(op) 
+            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+                result = Constant(arg0.value | arg1.value)
+            else:
+                result = Z3Value(arg0.toz3() | arg1.toz3())
         elif isinstance(op, ir.GlobalRead):
             result = self.read_register(op.name)
-        elif op.name == "my_read_mem": # nand specific
+        elif op.name == "my_read_mem": # nand specific+
             addr,  = self.getargs(op)
             result = self.read_memory(addr)
         else:

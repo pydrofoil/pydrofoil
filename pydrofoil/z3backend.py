@@ -168,11 +168,8 @@ class Interpreter(object):
             else:
                 result = Z3Value(arg0.toz3() == arg1.toz3())
             self.environment[op] = result
-        elif op.name == "zA":
-            result = self.read_register("A")
-            self.environment[op] = result
-        elif op.name == "zD":
-            result = self.read_register("D")
+        elif isinstance(op, ir.GlobalRead):
+            result = self.read_register(op.name)
             self.environment[op] = result
         else:
             assert 0 , str(op.name)

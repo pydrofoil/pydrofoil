@@ -2,6 +2,7 @@ import sys
 import random
 import time
 from collections import defaultdict
+from typing import Generator
 
 from pydrofoil import parse, types, binaryop, operations, supportcode, bitvector
 
@@ -558,9 +559,9 @@ class Block(object):
         if operations is None:
             operations = []
         assert isinstance(operations, list)
-        self.operations = operations
+        self.operations = operations # type: list[Value]
         self.next = next
-        
+
     def __repr__(self):
         return "<Block operations=%s next=%s>" % (self.operations, self.next.__class__.__name__)
 
@@ -749,6 +750,7 @@ class Graph(object):
         return print_varnames
 
     def iterblocks(self):
+        # type: (Graph) -> Generator[Block]
         todo = [self.startblock]
         seen = set()
         while todo:
@@ -4673,7 +4675,7 @@ def sink_allocate(graph, codegen):
         if count != 1:
             continue
         for index, op in enumerate(block.operations):
-            if (alloc is None and 
+            if (alloc is None and
                     isinstance(op, Allocate) and
                     index + 1 < len(block.operations) and
                     op not in block.operations[index + 1].getargs()):

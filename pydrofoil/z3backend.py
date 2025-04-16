@@ -4,7 +4,10 @@ from pydrofoil import ir
 class Value(object):
 
     def __init__(self):
+        # TODO: Resolved_Type
         self.value = None
+        self._raise = False
+        self._type = None
     
     def __str__(self):
         return str(self.value)
@@ -12,58 +15,114 @@ class Value(object):
     def __repr__(self):
         return self.__str__()
 
-class Enum(Value):
+class Enum(Value):# AbstractConstant
+
+    @classmethod
+    def blank_raise_enum(cls): 
+        r_enum = Enum("","", None)
+        r_enum._raise = True
+        r_enum._type = None
+        return r_enum
     
-    def __init__(self, name, variant):
+    def __init__(self, name, variant, z3value):
         self.enum_name = name
-        self.value = variant
+        self.variant = variant
+        self.value = z3value
+        self._type = Enum
+        self._raise = False
 
     def toz3(self):
-        ename = "enum_%s_%s" % (self.enum_name,self.value)
-        if not ename in Interpreter.enums:
-            Interpreter.create_z3_enum(self.enum_name, self.value)
-        z3val = Interpreter.enums[ename]    
-        self.toz3 = lambda self=None: z3val
-        return z3val
+        return self.value
     
     def __eq__(self, other):
+        # So we can eval enums on Interpreter level
         if not isinstance(other, Enum): return False
-        return self.enum_name == other.enum_name and self.value == other.value
+        return self.enum_name == other.enum_name and self.variant == other.variant
 
-class Constant(Value):
+
+class AbstractConstant(Value):
+    pass
+
+class Constant(AbstractConstant):
     
     def __init__(self, val):
         self.value = val
+        self._type = Constant
+        self._raise = False
 
     def toz3(self):
         return int(self.value)
     
+class UnionConstant(AbstractConstant):
+
+    def __init__(self, variant_name, w_val):
+        self.variant_name = variant_name
+        self.w_val = w_val
+        self._type = UnionConstant
+        self._raise = False
+
 class Z3Value(Value):
     
     def __init__(self, val):
         self.value = val
+        self._type = Z3Value
+        self._raise = False
 
     def toz3(self):
         return self.value
+    
+    
+class SharedState(object):
+
+    def __init__(self, functions={}):
+        self.funcs = functions
+        self.enums = {}#enums
+        self.fork_counter = 0
+
+    def register_enum(self, name, variants):
+        """ register new enum """
+        ename = "enum_%s" % name
+        enum = z3.Datatype(ename)
+        # create enum variants
+        for variant in variants:
+            enum.declare(variant)
+        # hack: ir is tpye consistent but we need to model exceptions somehow and z3 cant do if(cond, ret_type_A, ret_type_B)
+        enum.declare("___Exception___")
+        # 
+        enum = enum.create()
+        # create mapping to easily use z3 enum variants 
+        mapping = {variant:getattr(enum, variant) for variant in variants}
+        mapping["___Exception___"] = getattr(enum, "___Exception___")
+        self.enums[ename] = (enum, mapping)
+
+    def deepcopy(self):# TODO:
+        """ for tests """
+        pass
+
+    def get_enum(self, name, variant):
+        return self.enums["enum_" + name][1][variant]
+
+    def get_basic_excpetion(self):
+        return Enum("Basic", "Exception", self.enums["enum_Basic"][1]["Exception"])
 
 
 class Interpreter(object):
-
-    fork_counter = 0
-    enums = {}
     
-    def __init__(self, graph, args):
+    def __init__(self, graph, args, shared_state=None):
+        self.cls = Interpreter
+        self.sharedstate = shared_state if shared_state != None else SharedState()
         self.graph = graph
         self.args = args
-        self.forknum = Interpreter.fork_counter
-        Interpreter.fork_counter += 1
+        self.forknum = self.sharedstate.fork_counter
+        self.sharedstate.fork_counter += 1
         assert len(args) == len(graph.args)
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
         self.registers = {}
         self.memory = {}
         assert not graph.has_loop
-        if "Exception_Base" not in Interpreter.enums:
-            self.create_z3_enum("Exception", "BaseException")
+        # TODO: Move this to SharedState
+        if not "enum_Basic" in self.sharedstate.enums:
+            self.create_z3_enum("Basic", ["Exception"])
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
@@ -81,16 +140,44 @@ class Interpreter(object):
             cur_block = self.execute_next(next)
             if not cur_block:
                 break
-        #self._debug_print(("returns", block))
         return self.w_result
     
     def fork(self):
-        """ create a copy of the interpreter """
-        f_interp = Interpreter(self.graph, self.args)
+        """ create a copy of the interpreter, for evaluating non constant branches """
+        cls = self.cls
+        f_interp = cls(self.graph, self.args, self.sharedstate)
         f_interp.environment = self.environment.copy()
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory.copy()
         return f_interp
+    
+    def call_fork(self):
+        """ create a copy of the interpreter, for evaluating func calls"""
+        pass
+
+    def cast_raise(self, w_to_cast, wtype):
+        if isinstance(wtype, Constant):
+            return Z3Value(z3.BitVec("Basic_Exception", 64))
+        elif isinstance(wtype, Enum):
+            return Enum(wtype.enum_name, "___Exception___", self.sharedstate.get_enum(wtype.enum_name, "___Exception___"))
+        else:
+            assert 0
+
+    def check_cast_raise(self, w0, w1):
+        """ specialise placeholder raise to certain type 
+            Z3 doesnt allow returning mixed types in if e.g. if(cond, BitVEcVal(117), raise_as_enum_variant)
+            So we replace that with the same type e.g. if(cond, BitVecVal(117), BitVec("raise"))"""
+        if w0._type == w1._type and w1._type != None:
+            return w0, w1 # all types set, doesnt even matter if raise or not
+        elif w0._raise and w1._raise and w0._type == w1._type and w1._type == None:
+            w0 = w1 = self.sharedstate.get_basic_excpetion()# case if(cond, raise A, raise B) # no type for raised Exceptions
+        elif w0._raise and w0._type == None:
+            w0 = self.cast_raise(w0, w1) # case if(cond, raise A, instance_of_type_B) # cast raised Exception to type B
+        elif w1._raise and w1._type == None:
+            w1 = self.cast_raise(w1, w0) # case if(cond, instance_of_type_A, raise B) # cast raised Exception to type A
+        else:
+            assert 0
+        return w0, w1
 
     def execute_next(self, next):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
@@ -108,39 +195,44 @@ class Interpreter(object):
                 interp2 = self.fork()
                 w_res_true = interp1.run(next.truetarget)
                 w_res_false = interp2.run(next.falsetarget)
-                self.w_result = Z3Value(z3.If(w_cond.toz3(), w_res_true.toz3(), w_res_false.toz3()))
-                return None
+                if w_res_true._raise or w_res_false._raise:
+                    w_res_true, w_res_false = self.check_cast_raise(w_res_true, w_res_false)
+                assert w_res_true._type == w_res_false._type, "types inconsistent"
+                z3cond = w_cond.toz3()
+                self.w_result = Z3Value(z3.If(z3cond, w_res_true.toz3(), w_res_false.toz3()))
+                self.registers = {reg:Z3Value(z3.If(z3cond, interp1.registers[reg].toz3(), interp2.registers[reg].toz3())) for reg in self.registers}
+                #TODO: Mem as z3 array merge here
+                self.w_result._type = w_res_true._type 
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
-            return None
         elif isinstance(next, ir.Raise):
-            self.w_result = Enum("Exception", "BaseException")#Z3Value(z3.BitVecVal(0, 64) == z3.BitVecVal(1, 64)) # raising an errer => False 
-            return None
+            self.w_result = Enum.blank_raise_enum()# raising an error 
         else:
             assert 0, "implement %s" %str(next)
+        return None
     
     def _debug_print(self, msg=""):
-        print "interp_%s:" % self.forknum, msg
+        print "%s__interp_%s:" % (self.cls, self.forknum), msg
 
-    @classmethod
-    def create_z3_enum(cls, name, variant):
-        """ create a z3 datatype for an enum and store in class var """
-        fname = "enum_%s_%s" % (name, variant)
-        Interpreter.enums[fname] = z3.BitVec(variant, 64)
-
-    def create_z3_enum_constraints(self):
-        # TODO: return fromula that makes all enum vars pairwise unequal
-        pass
+    def create_z3_enum(self, name, variants):
+        """ create a z3 datatype for an enum and store in shared state """
+        self.sharedstate.register_enum(name, variants)
 
     def convert(self, arg):
         """ wrap an argument or load wrapped arg from env """
         if isinstance(arg, ir.SmallBitVectorConstant):
             w_arg = Constant(arg.value)
+            w_arg._type = Constant
         elif isinstance(arg, ir.EnumConstant):
-            w_arg = Enum(arg.resolved_type.name, arg.variant) # real z3 value created lazy on toz3() call
+            enumname =  "enum_%s" % arg.resolved_type.name
+            if not enumname in self.sharedstate.enums:
+                self.create_z3_enum(arg.resolved_type.name, arg.resolved_type.elements)
+            z3variant = self.sharedstate.enums[enumname][1][arg.variant] # self.sharedstate.enums[enumname][0] is z3 Datatype obj [1] is mapping variant_name:z3variant
+            w_arg = Enum(arg.resolved_type.name, arg.variant, z3variant)
         elif isinstance(arg, ir.Constant):
             if isinstance(arg, ir.MachineIntConstant):
                 w_arg = Constant(arg.number)
+                w_arg._type = Constant
             else:
                 assert 0, "Some ir Constant " + str(arg) 
         else:
@@ -175,60 +267,90 @@ class Interpreter(object):
         """ rwrite to memory """
         self.memory[addr] = value
 
+    def exec_phi(self, op):
+        """ get value of actual predecessor """
+        index = op.prevblocks.index(self.prev_block)
+        return self.convert(op.prevvalues[index])
+    
     def execute_op(self, op):
-        """ execute an opearion and write result into environment """
+        """ execute an operation and write result into environment """
         if isinstance(op, ir.Phi):
-            index = op.prevblocks.index(self.prev_block)
-            result = self.convert(op.prevvalues[index])
-        elif op.name == "@eq_bits_bv_bv":
-            arg0, arg1 = self.getargs(op)
-            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-                result = Constant(arg0.value == arg1.value)
-            else:
-                result = Z3Value(arg0.toz3() == arg1.toz3())
-        elif op.name == "@eq":
-            arg0, arg1 = self.getargs(op)
-            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-                result = Constant(arg0.value == arg1.value)
-            elif isinstance(arg0, Enum) and isinstance(arg1, Enum):
-                result = Constant(arg0 == arg1)
-            else:
-                result = Z3Value(arg0.toz3() == arg1.toz3())
-        elif op.name == "@not_vec_bv":
-            arg0, _ = self.getargs(op) # TODO: start using the passed width everywhere and not always 64 bit
-            if isinstance(arg0, Constant):
-                result = Constant(~arg0.value)
-            else:
-                result = Z3Value(~arg0.toz3())
-        elif op.name == "@sub_bits_bv_bv":
-            arg0, arg1, _ = self.getargs(op) 
-            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-                result = Constant(arg0.value - arg1.value)
-            else:
-                result = Z3Value(arg0.toz3() - arg1.toz3())
-        elif op.name == "@add_bits_bv_bv":
-            arg0, arg1, _ = self.getargs(op) 
-            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-                result = Constant(arg0.value + arg1.value)
-            else:
-                result = Z3Value(arg0.toz3() + arg1.toz3())
-        elif op.name == "@and_vec_bv_bv":
-            arg0, arg1 = self.getargs(op) 
-            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-                result = Constant(arg0.value & arg1.value)
-            else:
-                result = Z3Value(arg0.toz3() & arg1.toz3())
-        elif op.name == "@or_vec_bv_bv":
-            arg0, arg1 = self.getargs(op) 
-            if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-                result = Constant(arg0.value | arg1.value)
-            else:
-                result = Z3Value(arg0.toz3() | arg1.toz3())
+            result = self.exec_phi(op)
         elif isinstance(op, ir.GlobalRead):
             result = self.read_register(op.name)
-        elif op.name == "my_read_mem": # nand specific+
-            addr,  = self.getargs(op)
-            result = self.read_memory(addr)
+        elif hasattr(self, "exec_%s" % op.name.replace("@","")):
+            func = getattr(self, "exec_%s" % op.name.replace("@",""))
+            result = func(op) # self passed implicitly
         else:
-            assert 0 , str(op.name) + ", " + str(op)
+            assert 0 , str(op.name) + ", " + str(op) + "," + "exec_%s" % op.name.replace("@","")
         self.environment[op] = result
+    
+    ### Generic Operations ###
+
+    def exec_eq_bits_bv_bv(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value == arg1.value)
+        else:
+            return Z3Value(arg0.toz3() == arg1.toz3())
+    
+    def exec_eq(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value == arg1.value)
+        elif isinstance(arg0, Enum) and isinstance(arg1, Enum):
+            return Constant(arg0 == arg1)
+        else:
+            return Z3Value(arg0.toz3() == arg1.toz3())
+        
+    def exec_not_vec_bv(self, op):
+        arg0, _ = self.getargs(op) # TODO: start using the passed width everywhere and not always 64 bit
+        if isinstance(arg0, Constant):
+            return Constant(~arg0.value)
+        else:
+            return Z3Value(~arg0.toz3())
+        
+    def exec_sub_bits_bv_bv(self, op):
+        arg0, arg1, _ = self.getargs(op) 
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value - arg1.value)
+        else:
+            return Z3Value(arg0.toz3() - arg1.toz3())
+
+    def exec_add_bits_bv_bv(self, op):
+        arg0, arg1, _ = self.getargs(op) 
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value + arg1.value)
+        else:
+            return Z3Value(arg0.toz3() + arg1.toz3())
+
+    def exec_and_vec_bv_bv(self, op):
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value & arg1.value)
+        else:
+            return Z3Value(arg0.toz3() & arg1.toz3())
+
+    def exec_or_vec_bv_bv(self, op):
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value | arg1.value)
+        else:
+            return Z3Value(arg0.toz3() | arg1.toz3())
+        
+    ### Arch specific Operations in subclass ###
+
+class NandInterpreter(Interpreter):
+    """ Interpreter subclass for nand2tetris CPU """
+
+    def __init__(self, graph, args, shared_state=None):
+        super().__init__(graph, args, shared_state)
+        self.cls = NandInterpreter
+    
+    ### Nand specific Operations ###
+
+    def exec_my_read_mem(self, op):
+        addr,  = self.getargs(op)
+        return self.read_memory(addr)
+
+        

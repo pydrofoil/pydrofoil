@@ -1,5 +1,6 @@
 import z3
 from pydrofoil import ir
+from copy import deepcopy
 
 class Value(object):
 
@@ -76,7 +77,7 @@ class SharedState(object):
 
     def __init__(self, functions={}):
         self.funcs = functions
-        self.enums = {}#enums
+        self.enums = {}
         self.fork_counter = 0
 
     def register_enum(self, name, variants):
@@ -86,7 +87,7 @@ class SharedState(object):
         # create enum variants
         for variant in variants:
             enum.declare(variant)
-        # hack: ir is tpye consistent but we need to model exceptions somehow and z3 cant do if(cond, ret_type_A, ret_type_B)
+        # hack: ir is type consistent but we need to model exceptions somehow and z3 cant do if(cond, ret_type_A, ret_type_B)
         enum.declare("___Exception___")
         # 
         enum = enum.create()
@@ -95,11 +96,26 @@ class SharedState(object):
         mapping["___Exception___"] = getattr(enum, "___Exception___")
         self.enums[ename] = (enum, mapping)
 
-    def deepcopy(self):# TODO:
+    def copy(self):
         """ for tests """
-        pass
+        copystate = SharedState(self.funcs.copy())
+        copystate.enums = self.enums.copy()
+        return copystate
+    
+    def get_abstract_enum_const_of_type(self, enum_name, var_name):
+        """ Returns Const of given type that is neither equal nor unequal to any variant of given enum type """
+        return z3.Const(var_name, self.get_enum_type(enum_name))
+    
+    def get_enum_type(self, name):
+        """ Returns the Z3 Datatype Object of this enum """
+        return self.enums["enum_" + name][0]
+
+    def get_w_enum(self, name, variant):
+        """ Returns the Z3 enum variant obj wrapped in Enum class """
+        return Enum(name, variant, self.get_enum(name, variant))
 
     def get_enum(self, name, variant):
+        """ Returns the Z3 enum variant obj """
         return self.enums["enum_" + name][1][variant]
 
     def get_basic_excpetion(self):
@@ -178,6 +194,15 @@ class Interpreter(object):
         else:
             assert 0
         return w0, w1
+    
+    def _assert_types(self, a, b):
+        """ sanity check """
+        if a._type == b._type:
+            assert 1
+        elif a._type in (Z3Value, Constant) and b._type in (Z3Value, Constant):
+            assert 1
+        else:
+            assert 0, str((a, b, a._type, b._type))
 
     def execute_next(self, next):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
@@ -197,7 +222,7 @@ class Interpreter(object):
                 w_res_false = interp2.run(next.falsetarget)
                 if w_res_true._raise or w_res_false._raise:
                     w_res_true, w_res_false = self.check_cast_raise(w_res_true, w_res_false)
-                assert w_res_true._type == w_res_false._type, "types inconsistent"
+                self._assert_types(w_res_true, w_res_false)
                 z3cond = w_cond.toz3()
                 self.w_result = Z3Value(z3.If(z3cond, w_res_true.toz3(), w_res_false.toz3()))
                 self.registers = {reg:Z3Value(z3.If(z3cond, interp1.registers[reg].toz3(), interp2.registers[reg].toz3())) for reg in self.registers}
@@ -344,7 +369,7 @@ class NandInterpreter(Interpreter):
     """ Interpreter subclass for nand2tetris CPU """
 
     def __init__(self, graph, args, shared_state=None):
-        super().__init__(graph, args, shared_state)
+        super(NandInterpreter, self).__init__(graph, args, shared_state)# py2 super 
         self.cls = NandInterpreter
     
     ### Nand specific Operations ###

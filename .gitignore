@@ -24,3 +24,4 @@ callgrind.out*
 riscv/generated/
 arm/generated/
 cheriot/generated/
+pydrofoil/test/nand2tetris/generated/

@@ -229,6 +229,7 @@ class Interpreter(object):
                 z3cond = w_cond.toz3()
                 self.w_result = Z3Value(z3.If(z3cond, w_res_true.toz3(), w_res_false.toz3()))
                 self.registers = {reg:Z3Value(z3.If(z3cond, interp1.registers[reg].toz3(), interp2.registers[reg].toz3())) for reg in self.registers}
+                self.memory = z3.If(z3cond, interp1.memory, interp2.memory)
                 #TODO: Mem as z3 array merge here
                 self.w_result._type = w_res_true._type 
         elif isinstance(next, ir.Return):

@@ -662,9 +662,19 @@ def test_nand_decode():
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("If(Extract(15, 15, zmergez3var) == 0,\n   zSomezIUinstrzIzKzK(zAINST(Concat(")
-    import pdb; pdb.set_trace()
-    merge = z3backend.Constant(0b0101010101010100)
+    merge = z3backend.Constant(0b1110101010000000)
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate)
     res = interp.run()
     assert isinstance(res, z3backend.UnionConstant)
-    assert res.variant_name == "zNonezIUinstrzIzKzK"
+    assert res.variant_name == "zSomezIUinstrzIzKzK"
+    assert res.w_val.variant_name == "zCINST"
+
+    merge = z3backend.Z3Value(z3.BitVecVal(0b1110101010000000, 16))
+    interp = z3backend.NandInterpreter(graph, [merge], sharedstate)
+    res = interp.run()
+    z3res = z3.simplify(res.value)
+    assert str(z3res) == """\
+zSomezIUinstrzIzKzK(zCINST(a(0,
+                             zC_ZERO,
+                             a(False, False, False),
+                             zJDONT)))"""

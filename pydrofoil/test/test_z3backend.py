@@ -649,12 +649,16 @@ def test_nand_decode():
     graph_zdecode_jump_backwards = get_zdecode_jump_backwards_graph()
     #graph.view()
 
-    zmergez3var
     funcs = {'zdecode_compute_backwards':graph_zdecode_jump_backwards,
              'zdecode_destination':graph_zdecode_destination,
              'zdecode_compute_backwards':graph_zdecode_compute_backwards}
     
-    interp = z3backend.NandInterpreter(graph, [], z3backend.SharedState(funcs))
+    sharedstate = z3backend.SharedState(funcs)
+    sharedstate.register_enum("zjump",('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))
+    
+
+    merge = z3backend.Z3Value(z3.BitVec("zmergez3var", 16))
+    interp = z3backend.NandInterpreter(graph, [merge], sharedstate)
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res) == "reg_zA"

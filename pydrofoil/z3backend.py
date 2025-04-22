@@ -1,5 +1,5 @@
 import z3
-from pydrofoil import ir
+from pydrofoil import ir, types
 from copy import deepcopy
 
 class Value(object):
@@ -56,11 +56,16 @@ class Constant(AbstractConstant):
     
 class UnionConstant(AbstractConstant):
 
-    def __init__(self, variant_name, w_val):
+    def __init__(self, variant_name, w_val, resolved_type, z3type):
         self.variant_name = variant_name
         self.w_val = w_val
         self._type = UnionConstant
         self._raise = False
+        self.resolved_type = resolved_type
+        self.z3type = z3type
+    
+    def toz3(self):
+        return int(self.value)
 
 class Z3Value(Value):
     
@@ -78,7 +83,58 @@ class SharedState(object):
     def __init__(self, functions={}):
         self.funcs = functions
         self.enums = {}
+        self.type_cache = {}
         self.fork_counter = 0
+
+    def get_z3_struct_type(self, resolved_type):
+        if resolved_type in self.type_cache:
+            return self.type_cache[resolved_type]
+        sname = "struct_%s" % resolved_type.name
+        struct = z3.Datatype(sname)
+        fields = []
+        # create struct
+        for fieldname, typ in resolved_type.internalfieldtyps.items():
+            fields.append((fieldname, self.convert_type_to_z3(typ)))
+    
+        struct.declare("a", *fields)
+        struct = struct.create()
+        self.type_cache[resolved_type] = struct
+        return struct
+
+    def get_z3_union_type(self, resolved_type):
+        if resolved_type in self.type_cache:
+            return self.type_cache[resolved_type]
+        uname = "union_%s" % resolved_type.name
+        union = z3.Datatype(uname)
+        # create union variants
+        for variant, typ in resolved_type.variants.items():
+            if typ is types.Unit():
+                union.declare(variant)
+            else:
+                union.declare(variant, ("a", self.convert_type_to_z3(typ)))
+        union = union.create()
+        self.type_cache[resolved_type] = union
+        return union
+    
+    def get_z3_enum_type(self, resolved_type):
+        if not resolved_type in self.type_cache:
+            enum = self.register_enum(resolved_type.name, resolved_type.elements)
+            self.type_cache[resolved_type] = enum
+        return self.type_cache[resolved_type]
+    
+    def convert_type_to_z3(self, typ):
+        if isinstance(typ, types.SmallFixedBitVector):
+            return z3.BitVecSort(typ.width)
+        elif isinstance(typ, types.Union):
+            return self.get_z3_union_type(typ)
+        elif isinstance(typ, types.Struct):
+            return self.get_z3_struct_type(typ)
+        elif isinstance(typ, types.Enum):
+            return self.get_z3_enum_type(typ)
+        elif isinstance(typ, types.Bool):
+            return z3.BoolSort()
+        else:
+            import pdb; pdb.set_trace()
 
     def register_enum(self, name, variants):
         """ register new enum """
@@ -95,6 +151,7 @@ class SharedState(object):
         mapping = {variant:getattr(enum, variant) for variant in variants}
         mapping["___Exception___"] = getattr(enum, "___Exception___")
         self.enums[ename] = (enum, mapping)
+        return enum
 
     def copy(self):
         """ for tests """
@@ -230,7 +287,6 @@ class Interpreter(object):
                 self.w_result = Z3Value(z3.If(z3cond, w_res_true.toz3(), w_res_false.toz3()))
                 self.registers = {reg:Z3Value(z3.If(z3cond, interp1.registers[reg].toz3(), interp2.registers[reg].toz3())) for reg in self.registers}
                 self.memory = z3.If(z3cond, interp1.memory, interp2.memory)
-                #TODO: Mem as z3 array merge here
                 self.w_result._type = w_res_true._type 
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
@@ -308,11 +364,17 @@ class Interpreter(object):
         elif hasattr(self, "exec_%s" % op.name.replace("@","")):
             func = getattr(self, "exec_%s" % op.name.replace("@",""))
             result = func(op) # self passed implicitly
+        elif op.is_union_creation():
+            result = self.exec_union_creation(op)
         else:
             assert 0 , str(op.name) + ", " + str(op) + "," + "exec_%s" % op.name.replace("@","")
         self.environment[op] = result
     
     ### Generic Operations ###
+
+    def exec_union_creation(self, op):
+        z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
+        return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
 
     def exec_eq_bits_bv_bv(self, op):
         arg0, arg1 = self.getargs(op)
@@ -338,6 +400,7 @@ class Interpreter(object):
             return Z3Value(~arg0.toz3())
         
     def exec_sub_bits_bv_bv(self, op):
+        # TODO: bitvec width benutzen
         arg0, arg1, _ = self.getargs(op) 
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
             return Constant(arg0.value - arg1.value)
@@ -365,6 +428,25 @@ class Interpreter(object):
         else:
             return Z3Value(arg0.toz3() | arg1.toz3())
         
+    def exec_vector_subrange_fixed_bv_i_i(self, op):
+        """ slice bitvector as bv[arg1:arg0] both inclusive """
+        arg0, arg1, arg2 = self.getargs(op)
+        # TODO: use supportcode func
+        # TODO: rhsift
+        if isinstance(arg0, Constant):
+            return Constant(arg0.value & ((2**arg1.value - 1) - (2**(arg2.value-1) - 1)))
+        else:
+            return Z3Value(arg0.toz3() & ((2**arg1.value - 1) - (2**(arg2.value-1) - 1)))
+        
+    def exec_zero_extend_bv_i_i(self, op):
+        """ extend bitvector from arg1 to arg2 with zeros """
+        arg0, arg1, arg2 = self.getargs(op)
+        if isinstance(arg0, Constant):
+            return Constant(arg0.value) # left zero extend doesnt change const int
+        else:
+            padding = z3.BitVec("padding", arg2.value - arg1.value)
+            return z3.Concat(padding, arg0.toz3())
+        
     ### Arch specific Operations in subclass ###
 
 class NandInterpreter(Interpreter):
@@ -377,7 +459,6 @@ class NandInterpreter(Interpreter):
     ### Nand specific Operations ###
 
     def exec_my_read_mem(self, op):
+        """ read from memory """
         addr,  = self.getargs(op)
         return Z3Value(self.read_memory(addr))
-
-        

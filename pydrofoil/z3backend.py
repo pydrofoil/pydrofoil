@@ -134,7 +134,7 @@ class Interpreter(object):
         assert len(args) == len(graph.args)
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
         self.registers = {}
-        self.memory = {}
+        self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
         assert not graph.has_loop
         # TODO: Move this to SharedState
         if not "enum_Basic" in self.sharedstate.enums:
@@ -163,12 +163,15 @@ class Interpreter(object):
         cls = self.cls
         f_interp = cls(self.graph, self.args, self.sharedstate)
         f_interp.environment = self.environment.copy()
+        # TODO: How to model x86_64's registers for 64,32 and 16 bit ?  
         f_interp.registers = self.registers.copy()
-        f_interp.memory = self.memory.copy()
+        f_interp.memory = self.memory # z3 array is immutable
         return f_interp
     
     def call_fork(self):
         """ create a copy of the interpreter, for evaluating func calls"""
+        #f_interp.registers = {}
+        #f_interp.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
         pass
 
     def cast_raise(self, w_to_cast, wtype):
@@ -284,13 +287,11 @@ class Interpreter(object):
 
     def read_memory(self, addr):
         """ read from memory, creates new 'empty' z3 Val for mem addresses on first access """
-        if addr not in self.memory:
-            self.memory[addr] = Z3Value(z3.BitVec("mem[%s]" % addr, 64))
-        return self.memory[addr]
+        return self.memory[addr.toz3()]
     
     def wrte_memory(self, addr, value):
         """ rwrite to memory """
-        self.memory[addr] = value
+        self.memory = z3.Store(self.memory, addr, value)
 
     def exec_phi(self, op):
         """ get value of actual predecessor """
@@ -376,6 +377,6 @@ class NandInterpreter(Interpreter):
 
     def exec_my_read_mem(self, op):
         addr,  = self.getargs(op)
-        return self.read_memory(addr)
+        return Z3Value(self.read_memory(addr))
 
         

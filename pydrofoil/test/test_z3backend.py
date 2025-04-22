@@ -528,7 +528,7 @@ def test_nand_compute_value():
     interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_A], sharedstate.copy())# a != 0 && op = zC_A => load mem[register_A]
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
-    assert str(res) == "mem[reg_zA]"
+    assert str(res) == "memory[reg_zA]"
 
     # bitwise not registers 
     enum_zC_NOT_D = sharedstate.get_w_enum("zarithmetic_op", "zC_NOT_D")
@@ -546,7 +546,7 @@ def test_nand_compute_value():
     interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_NOT_A], sharedstate.copy())# a != 0 &&op = zC_NOT_A => not register_A
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
-    assert str(res) == "~mem[reg_zA]"
+    assert str(res) == "~memory[reg_zA]"
 
     # negate registers 
     enum_zC_NEG_A = sharedstate.get_w_enum("zarithmetic_op", "zC_NEG_A")
@@ -555,10 +555,10 @@ def test_nand_compute_value():
     assert isinstance(res, z3backend.Z3Value)
     assert str(res) == "0 - reg_zA"
 
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_NEG_A], sharedstate.copy())# a != 0 && op = zC_A => -mem[register_A]
+    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_NEG_A], sharedstate.copy())# a != 0 && op = zC_A => -memory[register_A]
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
-    assert str(res) == "0 - mem[reg_zA]"
+    assert str(res) == "0 - memory[reg_zA]"
 
     enum_zC_NEG_D = sharedstate.get_w_enum("zarithmetic_op", "zC_NEG_D")
     interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_NEG_D], sharedstate.copy())# op = zC_NEG_D => -register_D
@@ -598,7 +598,7 @@ def test_nand_compute_value():
     solver.add(abs_zop == sharedstate.get_enum("zarithmetic_op", "zC_NOT_A"))
     solver.check()
     result = solver.model().eval(res.toz3())
-    assert str(result) == "~mem[reg_zA]"
+    assert str(result) == "~memory[reg_zA]"
 
 
 def test_nand_decode():
@@ -649,6 +649,7 @@ def test_nand_decode():
     graph_zdecode_jump_backwards = get_zdecode_jump_backwards_graph()
     #graph.view()
 
+    zmergez3var
     funcs = {'zdecode_compute_backwards':graph_zdecode_jump_backwards,
              'zdecode_destination':graph_zdecode_destination,
              'zdecode_compute_backwards':graph_zdecode_compute_backwards}

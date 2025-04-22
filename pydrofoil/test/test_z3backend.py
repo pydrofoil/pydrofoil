@@ -649,7 +649,7 @@ def test_nand_decode():
     graph_zdecode_jump_backwards = get_zdecode_jump_backwards_graph()
     #graph.view()
 
-    funcs = {'zdecode_compute_backwards':graph_zdecode_jump_backwards,
+    funcs = {'zdecode_jump_backwards':graph_zdecode_jump_backwards,
              'zdecode_destination':graph_zdecode_destination,
              'zdecode_compute_backwards':graph_zdecode_compute_backwards}
     
@@ -661,4 +661,10 @@ def test_nand_decode():
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate)
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
-    assert str(res) == "reg_zA"
+    assert str(res).startswith("If(Extract(15, 15, zmergez3var) == 0,\n   zSomezIUinstrzIzKzK(zAINST(Concat(")
+    import pdb; pdb.set_trace()
+    merge = z3backend.Constant(0b0101010101010100)
+    interp = z3backend.NandInterpreter(graph, [merge], sharedstate)
+    res = interp.run()
+    assert isinstance(res, z3backend.UnionConstant)
+    assert res.variant_name == "zNonezIUinstrzIzKzK"

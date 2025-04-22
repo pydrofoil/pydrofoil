@@ -54,6 +54,27 @@ class Constant(AbstractConstant):
     def toz3(self):
         return int(self.value)
     
+class BooleanConstant(AbstractConstant):
+    
+    def __init__(self, val):
+        self.value = val
+        self._type = BooleanConstant
+        self._raise = False
+
+    def toz3(self):
+        return self.value
+
+class UnitConstant(AbstractConstant):
+    
+    def __init__(self):
+        self._type = UnitConstant
+        self._raise = False
+
+    def toz3(self):
+        assert 0
+        return self.value
+    
+    
 class UnionConstant(AbstractConstant):
 
     def __init__(self, variant_name, w_val, resolved_type, z3type):
@@ -65,7 +86,23 @@ class UnionConstant(AbstractConstant):
         self.z3type = z3type
     
     def toz3(self):
-        return int(self.value)
+        if isinstance(self.w_val, UnitConstant):
+            return getattr(self.z3type, self.variant_name)
+        z3val = self.w_val.toz3()
+        return getattr(self.z3type, self.variant_name)(z3val)
+    
+class StructConstant(AbstractConstant):
+
+    def __init__(self, vals_w, resolved_type, z3type):
+        self.vals_w = vals_w
+        self._type = StructConstant
+        self._raise = False
+        self.resolved_type = resolved_type
+        self.z3type = z3type
+    
+    def toz3(self):
+        z3vals = [w_val.toz3() for w_val in self.vals_w]
+        return self.z3type.a(*z3vals)
 
 class Z3Value(Value):
     
@@ -217,7 +254,7 @@ class Interpreter(object):
     
     def fork(self):
         """ create a copy of the interpreter, for evaluating non constant branches """
-        cls = self.cls
+        cls = type(self)
         f_interp = cls(self.graph, self.args, self.sharedstate)
         f_interp.environment = self.environment.copy()
         # TODO: How to model x86_64's registers for 64,32 and 16 bit ?  
@@ -225,11 +262,13 @@ class Interpreter(object):
         f_interp.memory = self.memory # z3 array is immutable
         return f_interp
     
-    def call_fork(self):
+    def call_fork(self, graph, args):
         """ create a copy of the interpreter, for evaluating func calls"""
-        #f_interp.registers = {}
-        #f_interp.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
-        pass
+        cls = type(self)
+        f_interp = cls(graph, args, self.sharedstate)
+        f_interp.registers = self.registers.copy()
+        f_interp.memory = self.memory # z3 array is immutable
+        return f_interp
 
     def cast_raise(self, w_to_cast, wtype):
         if isinstance(wtype, Constant):
@@ -318,6 +357,10 @@ class Interpreter(object):
             if isinstance(arg, ir.MachineIntConstant):
                 w_arg = Constant(arg.number)
                 w_arg._type = Constant
+            elif isinstance(arg, ir.BooleanConstant):
+                w_arg = BooleanConstant(arg.value)
+            elif isinstance(arg, ir.UnitConstant):
+                w_arg = UnitConstant()
             else:
                 assert 0, "Some ir Constant " + str(arg) 
         else:
@@ -366,11 +409,31 @@ class Interpreter(object):
             result = func(op) # self passed implicitly
         elif op.is_union_creation():
             result = self.exec_union_creation(op)
+        elif op.name in self.sharedstate.funcs:
+            result = self.exec_func_call(op, self.sharedstate.funcs[op.name])
+        elif isinstance(op, ir.Comment):
+            return
+        elif isinstance(op, ir.StructConstruction):
+            result = self.exec_struct_construction(op)
         else:
             assert 0 , str(op.name) + ", " + str(op) + "," + "exec_%s" % op.name.replace("@","")
         self.environment[op] = result
     
     ### Generic Operations ###
+
+    
+    def exec_func_call(self, op, graph):
+        args = self.getargs(op)
+        interp_fork = self.call_fork(graph, args)
+        w_res = interp_fork.run()
+        self.registers = interp_fork.registers
+        self.memory = interp_fork.memory
+        return w_res
+
+    def exec_struct_construction(self, op):
+        z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
+        return StructConstant(self.getargs(op), op.resolved_type, z3type)
+
 
     def exec_union_creation(self, op):
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
@@ -436,7 +499,8 @@ class Interpreter(object):
         if isinstance(arg0, Constant):
             return Constant(arg0.value & ((2**arg1.value - 1) - (2**(arg2.value-1) - 1)))
         else:
-            return Z3Value(arg0.toz3() & ((2**arg1.value - 1) - (2**(arg2.value-1) - 1)))
+            return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
+            #return Z3Value(arg0.toz3() & ((2**arg1.value - 1) - (2**(arg2.value-1) - 1)))
         
     def exec_zero_extend_bv_i_i(self, op):
         """ extend bitvector from arg1 to arg2 with zeros """
@@ -445,7 +509,7 @@ class Interpreter(object):
             return Constant(arg0.value) # left zero extend doesnt change const int
         else:
             padding = z3.BitVec("padding", arg2.value - arg1.value)
-            return z3.Concat(padding, arg0.toz3())
+            return Z3Value(z3.Concat(padding, arg0.toz3()))
         
     ### Arch specific Operations in subclass ###
 

@@ -1,4 +1,5 @@
 import z3
+from pydrofoil import supportcode
 from pydrofoil import ir, types
 from copy import deepcopy
 
@@ -434,7 +435,6 @@ class Interpreter(object):
         z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
         return StructConstant(self.getargs(op), op.resolved_type, z3type)
 
-
     def exec_union_creation(self, op):
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
         return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
@@ -464,7 +464,7 @@ class Interpreter(object):
         
     def exec_sub_bits_bv_bv(self, op):
         # TODO: bitvec width benutzen
-        arg0, arg1, _ = self.getargs(op) 
+        arg0, arg1, arg2 = self.getargs(op) 
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
             return Constant(arg0.value - arg1.value)
         else:
@@ -494,13 +494,10 @@ class Interpreter(object):
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as bv[arg1:arg0] both inclusive """
         arg0, arg1, arg2 = self.getargs(op)
-        # TODO: use supportcode func
-        # TODO: rhsift
         if isinstance(arg0, Constant):
-            return Constant(arg0.value & ((2**arg1.value - 1) - (2**(arg2.value-1) - 1)))
+            return Constant(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value))
         else:
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
-            #return Z3Value(arg0.toz3() & ((2**arg1.value - 1) - (2**(arg2.value-1) - 1)))
         
     def exec_zero_extend_bv_i_i(self, op):
         """ extend bitvector from arg1 to arg2 with zeros """

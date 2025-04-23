@@ -35,6 +35,16 @@ class EffectInfo(object):
             % (self.register_reads, self.register_writes)
         )
 
+    def __eq__(self, other):
+        return (
+            isinstance(other, EffectInfo)
+            and self.register_reads == other.register_reads
+            and self.register_writes == other.register_writes
+        )
+
+    def __ne__(self, other):
+        return not self == other
+
 
 class _EffectComputationState(object):
     def __init__(self):

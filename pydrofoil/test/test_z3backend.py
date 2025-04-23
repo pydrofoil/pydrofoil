@@ -659,23 +659,22 @@ def test_nand_decode():
              'zdecode_compute_backwards':graph_zdecode_compute_backwards}
     
     sharedstate = z3backend.SharedState(funcs)
-    sharedstate.register_enum("zjump",('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))
-    
 
     merge = z3backend.Z3Value(z3.BitVec("zmergez3var", 16))
-    interp = z3backend.NandInterpreter(graph, [merge], sharedstate)
+    interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("If(Extract(15, 15, zmergez3var) == 0,\n   zSomezIUinstrzIzKzK(zAINST(Concat(")
     merge = z3backend.Constant(0b1110101010000000)
-    interp = z3backend.NandInterpreter(graph, [merge], sharedstate)
+    interp = z3backend.NandInterpreter(graph, [merge],  sharedstate.copy())
     res = interp.run()
     assert isinstance(res, z3backend.UnionConstant)
     assert res.variant_name == "zSomezIUinstrzIzKzK"
     assert res.w_val.variant_name == "zCINST"
+    interp.w_raises.toz3() == False
 
     merge = z3backend.Z3Value(z3.BitVecVal(0b1110101010000000, 16))
-    interp = z3backend.NandInterpreter(graph, [merge], sharedstate)
+    interp = z3backend.NandInterpreter(graph, [merge],  sharedstate.copy())
     res = interp.run()
     z3res = z3.simplify(res.value)
     assert str(z3res) == """\
@@ -683,3 +682,13 @@ zSomezIUinstrzIzKzK(zCINST(a(0,
                              zC_ZERO,
                              a(False, False, False),
                              zJDONT)))"""
+    assert z3.simplify(interp.w_raises.toz3()) == False # TODO: sometimes its a python False and sometimes its a z3 expr (ok for z3 as py True is auto casted to z3 on use but assert failes)
+
+
+    merge = z3backend.Z3Value(z3.BitVecVal(0b10000000, 16))
+    interp = z3backend.NandInterpreter(graph, [merge],  sharedstate.copy())
+    res = interp.run()
+    z3res = z3.simplify(res.value)
+    assert str(z3res) == """zSomezIUinstrzIzKzK(zAINST(Concat(padding, 128)))"""
+
+

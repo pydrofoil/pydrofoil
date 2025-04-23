@@ -1,7 +1,6 @@
 import z3
 from pydrofoil import supportcode
 from pydrofoil import ir, types
-from copy import deepcopy
 
 class Value(object):
 
@@ -9,7 +8,6 @@ class Value(object):
         # TODO: Resolved_Type
         self.value = None
         self._raise = False
-        self._type = None
     
     def __str__(self):
         return str(self.value)
@@ -18,19 +16,11 @@ class Value(object):
         return self.__str__()
 
 class Enum(Value):# AbstractConstant
-
-    @classmethod
-    def blank_raise_enum(cls): 
-        r_enum = Enum("","", None)
-        r_enum._raise = True
-        r_enum._type = None
-        return r_enum
     
     def __init__(self, name, variant, z3value):
         self.enum_name = name
         self.variant = variant
         self.value = z3value
-        self._type = Enum
         self._raise = False
 
     def toz3(self):
@@ -45,11 +35,11 @@ class Enum(Value):# AbstractConstant
 class AbstractConstant(Value):
     pass
 
+
 class Constant(AbstractConstant):
     
     def __init__(self, val):
         self.value = val
-        self._type = Constant
         self._raise = False
 
     def toz3(self):
@@ -59,29 +49,33 @@ class BooleanConstant(AbstractConstant):
     
     def __init__(self, val):
         self.value = val
-        self._type = BooleanConstant
         self._raise = False
 
     def toz3(self):
         return self.value
 
+class RaiseConstant(AbstractConstant):
+
+    def __init__(self, kind):
+        self.kind = kind
+
+    def __str__(self):
+        return self.kind
+
 class UnitConstant(AbstractConstant):
     
     def __init__(self):
-        self._type = UnitConstant
         self._raise = False
 
     def toz3(self):
         assert 0
         return self.value
     
-    
 class UnionConstant(AbstractConstant):
 
     def __init__(self, variant_name, w_val, resolved_type, z3type):
         self.variant_name = variant_name
         self.w_val = w_val
-        self._type = UnionConstant
         self._raise = False
         self.resolved_type = resolved_type
         self.z3type = z3type
@@ -96,7 +90,6 @@ class StructConstant(AbstractConstant):
 
     def __init__(self, vals_w, resolved_type, z3type):
         self.vals_w = vals_w
-        self._type = StructConstant
         self._raise = False
         self.resolved_type = resolved_type
         self.z3type = z3type
@@ -109,7 +102,6 @@ class Z3Value(Value):
     
     def __init__(self, val):
         self.value = val
-        self._type = Z3Value
         self._raise = False
 
     def toz3(self):
@@ -181,13 +173,10 @@ class SharedState(object):
         # create enum variants
         for variant in variants:
             enum.declare(variant)
-        # hack: ir is type consistent but we need to model exceptions somehow and z3 cant do if(cond, ret_type_A, ret_type_B)
-        enum.declare("___Exception___")
         # 
         enum = enum.create()
         # create mapping to easily use z3 enum variants 
         mapping = {variant:getattr(enum, variant) for variant in variants}
-        mapping["___Exception___"] = getattr(enum, "___Exception___")
         self.enums[ename] = (enum, mapping)
         return enum
 
@@ -234,6 +223,8 @@ class Interpreter(object):
         # TODO: Move this to SharedState
         if not "enum_Basic" in self.sharedstate.enums:
             self.create_z3_enum("Basic", ["Exception"])
+        self.w_exception = Z3Value(z3.StringVal("No Exception"))
+        self.w_raises = Z3Value(False)
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
@@ -271,39 +262,6 @@ class Interpreter(object):
         f_interp.memory = self.memory # z3 array is immutable
         return f_interp
 
-    def cast_raise(self, w_to_cast, wtype):
-        if isinstance(wtype, Constant):
-            return Z3Value(z3.BitVec("Basic_Exception", 64))
-        elif isinstance(wtype, Enum):
-            return Enum(wtype.enum_name, "___Exception___", self.sharedstate.get_enum(wtype.enum_name, "___Exception___"))
-        else:
-            assert 0
-
-    def check_cast_raise(self, w0, w1):
-        """ specialise placeholder raise to certain type 
-            Z3 doesnt allow returning mixed types in if e.g. if(cond, BitVEcVal(117), raise_as_enum_variant)
-            So we replace that with the same type e.g. if(cond, BitVecVal(117), BitVec("raise"))"""
-        if w0._type == w1._type and w1._type != None:
-            return w0, w1 # all types set, doesnt even matter if raise or not
-        elif w0._raise and w1._raise and w0._type == w1._type and w1._type == None:
-            w0 = w1 = self.sharedstate.get_basic_excpetion()# case if(cond, raise A, raise B) # no type for raised Exceptions
-        elif w0._raise and w0._type == None:
-            w0 = self.cast_raise(w0, w1) # case if(cond, raise A, instance_of_type_B) # cast raised Exception to type B
-        elif w1._raise and w1._type == None:
-            w1 = self.cast_raise(w1, w0) # case if(cond, instance_of_type_A, raise B) # cast raised Exception to type A
-        else:
-            assert 0
-        return w0, w1
-    
-    def _assert_types(self, a, b):
-        """ sanity check """
-        if a._type == b._type:
-            assert 1
-        elif a._type in (Z3Value, Constant) and b._type in (Z3Value, Constant):
-            assert 1
-        else:
-            assert 0, str((a, b, a._type, b._type))
-
     def execute_next(self, next):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
         if isinstance(next, ir.Goto):
@@ -320,18 +278,35 @@ class Interpreter(object):
                 interp2 = self.fork()
                 w_res_true = interp1.run(next.truetarget)
                 w_res_false = interp2.run(next.falsetarget)
-                if w_res_true._raise or w_res_false._raise:
-                    w_res_true, w_res_false = self.check_cast_raise(w_res_true, w_res_false)
-                self._assert_types(w_res_true, w_res_false)
                 z3cond = w_cond.toz3()
-                self.w_result = Z3Value(z3.If(z3cond, w_res_true.toz3(), w_res_false.toz3()))
+
+                # Handle Exceptions, when a raise block raises the forks result is an instance of RaiseConstant
+                if isinstance(w_res_true, RaiseConstant) and isinstance(w_res_false, RaiseConstant):
+                    self.w_result = RaiseConstant("/") # result of computation
+                    # Exception as String e.g. z3.If(cond, z3.StringVal("Excpetion A"), z3.StringVal("No Exception/ Exception B"))
+                    self.w_exception = Z3Value(z3.If(z3cond, z3.StringVal(str(w_res_true)), z3.StringVal(str(w_res_false)))) 
+                    self.w_raises = Z3Value(True) # bool cond for raise
+                elif isinstance(w_res_true, RaiseConstant):
+                    self.w_result = w_res_false
+                    self.w_exception = Z3Value(z3.If(z3cond, z3.StringVal(str(w_res_true)), interp2.w_exception.toz3())) 
+                    self.w_raises = Z3Value(z3.If(z3cond, True, interp2.w_raises.toz3()))
+                elif isinstance(w_res_false, RaiseConstant):
+                    self.w_result = w_res_true
+                    self.w_exception = Z3Value(z3.If(z3cond, interp1.w_exception.toz3(), z3.StringVal(str(w_res_false)))) 
+                    self.w_raises = Z3Value(z3.If(z3cond, interp1.w_raises.toz3(), True))
+                else:
+                    self.w_result = Z3Value(z3.If(z3cond, w_res_true.toz3(), w_res_false.toz3()))
+                    self.w_exception = Z3Value(z3.If(z3cond, interp1.w_exception.toz3(), interp2.w_exception.toz3())) 
+                    self.w_raises = Z3Value(z3.If(z3cond, interp1.w_raises.toz3(), interp2.w_raises.toz3()))
+
+                # TODO: maybe we dont need any merges on raise??
                 self.registers = {reg:Z3Value(z3.If(z3cond, interp1.registers[reg].toz3(), interp2.registers[reg].toz3())) for reg in self.registers}
                 self.memory = z3.If(z3cond, interp1.memory, interp2.memory)
-                self.w_result._type = w_res_true._type 
+
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
         elif isinstance(next, ir.Raise):
-            self.w_result = Enum.blank_raise_enum()# raising an error 
+            self.w_result = RaiseConstant(str(next.kind))
         else:
             assert 0, "implement %s" %str(next)
         return None
@@ -347,7 +322,6 @@ class Interpreter(object):
         """ wrap an argument or load wrapped arg from env """
         if isinstance(arg, ir.SmallBitVectorConstant):
             w_arg = Constant(arg.value)
-            w_arg._type = Constant
         elif isinstance(arg, ir.EnumConstant):
             enumname =  "enum_%s" % arg.resolved_type.name
             if not enumname in self.sharedstate.enums:
@@ -357,7 +331,6 @@ class Interpreter(object):
         elif isinstance(arg, ir.Constant):
             if isinstance(arg, ir.MachineIntConstant):
                 w_arg = Constant(arg.number)
-                w_arg._type = Constant
             elif isinstance(arg, ir.BooleanConstant):
                 w_arg = BooleanConstant(arg.value)
             elif isinstance(arg, ir.UnitConstant):

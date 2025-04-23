@@ -302,10 +302,15 @@ def test_nand_decode_compute_backwards():
     assert str(result_enum) == "zC_A"
 
     solver = z3.Solver()
-    solver.add(x == 1) #=> no op
+    solver.add(x == 1) #=> no op => should raise
     solver.check()
-    result_enum = solver.model().eval(res.toz3()) # dont have access to 'real' z3 enum vars here
-    assert str(result_enum) == "___Exception___"
+    result = solver.model().eval(res.toz3()) # interpreter returns invalid result on raised exception
+    exception_occured = solver.model().eval(interp.w_raises.toz3())
+    assert exception_occured
+
+    exception = solver.model().eval(interp.w_exception.toz3())
+    assert str(exception)[:-3].endswith("match")# TODO: how do i get a str out of a z3 String
+
 
 def get_zdecode_jump_backwards_graph():
     zjump = Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))

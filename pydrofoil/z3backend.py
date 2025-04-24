@@ -202,10 +202,6 @@ class SharedState(object):
         """ Returns the Z3 enum variant obj """
         return self.enums["enum_" + name][1][variant]
 
-    def get_basic_excpetion(self):
-        return Enum("Basic", "Exception", self.enums["enum_Basic"][1]["Exception"])
-
-
 class Interpreter(object):
     
     def __init__(self, graph, args, shared_state=None):
@@ -220,9 +216,6 @@ class Interpreter(object):
         self.registers = {}
         self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
         assert not graph.has_loop
-        # TODO: Move this to SharedState
-        if not "enum_Basic" in self.sharedstate.enums:
-            self.create_z3_enum("Basic", ["Exception"])
         self.w_exception = Z3Value(z3.StringVal("No Exception"))
         self.w_raises = Z3Value(False)
 

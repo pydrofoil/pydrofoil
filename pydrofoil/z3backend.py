@@ -60,7 +60,7 @@ class RaiseConstant(AbstractConstant):
         self.kind = kind
 
     def __str__(self):
-        return self.kind
+        return "Raise Exception: " + self.kind
 
 class UnitConstant(AbstractConstant):
     
@@ -70,6 +70,10 @@ class UnitConstant(AbstractConstant):
     def toz3(self):
         assert 0
         return self.value
+    
+    def __str__(self):
+        return "UNIT"
+
     
 class UnionConstant(AbstractConstant):
 
@@ -114,6 +118,9 @@ class SharedState(object):
         self.funcs = functions
         self.enums = {}
         self.type_cache = {}
+        self.field_cache = {}
+        self.type_cast_cache = {}
+        self.inv_type_cast_cache = {}
         self.fork_counter = 0
 
     def get_z3_struct_type(self, resolved_type):
@@ -122,13 +129,15 @@ class SharedState(object):
         sname = "struct_%s" % resolved_type.name
         struct = z3.Datatype(sname)
         fields = []
+        raw_fields = [] 
         # create struct
         for fieldname, typ in resolved_type.internalfieldtyps.items():
-            fields.append((fieldname, self.convert_type_to_z3(typ)))
-    
+            fields.append((fieldname, self.convert_type_to_z3_type(typ)))
+            raw_fields.append((fieldname, typ))
         struct.declare("a", *fields)
         struct = struct.create()
         self.type_cache[resolved_type] = struct
+        self.field_cache[resolved_type] = raw_fields
         return struct
 
     def get_z3_union_type(self, resolved_type):
@@ -137,22 +146,55 @@ class SharedState(object):
         uname = "union_%s" % resolved_type.name
         union = z3.Datatype(uname)
         # create union variants
+        # TODO: save raw_fields in field cache
         for variant, typ in resolved_type.variants.items():
             if typ is types.Unit():
                 union.declare(variant)
             else:
-                union.declare(variant, ("a", self.convert_type_to_z3(typ)))
+                union.declare(variant, ("a", self.convert_type_to_z3_type(typ)))
         union = union.create()
         self.type_cache[resolved_type] = union
         return union
     
+    def ir_union_variant_to_z3_type(self, from_instance, union_type, to_specialized_variant, to_type):
+        """ create or get an instance of to_type as cast variant of given union variant
+            args must be types not names """
+        if not isinstance(to_type, tuple):# normal types and structs
+            key = (from_instance, union_type, to_specialized_variant, to_type)
+            if not key in self.type_cast_cache:
+                self.type_cast_cache[key] = self.convert_type_to_z3_instance(to_type, str(key))
+                self.inv_type_cast_cache[self.type_cast_cache[key]] = key
+            return self.type_cast_cache[key]
+        else: # union and enum
+            assert 0
+
     def get_z3_enum_type(self, resolved_type):
+        """ get declared z3 enum type via ir type """
         if not resolved_type in self.type_cache:
             enum = self.register_enum(resolved_type.name, resolved_type.elements)
             self.type_cache[resolved_type] = enum
         return self.type_cache[resolved_type]
     
-    def convert_type_to_z3(self, typ):
+    def convert_type_to_z3_instance(self, typ, name=""):
+        """ create instance from ir type 
+            e.g. for casting between types """
+        if isinstance(typ, types.SmallFixedBitVector):
+            return z3.BitVec(name, typ.width)
+        elif isinstance(typ, types.Union):
+            assert 0, "TODO"
+        elif isinstance(typ, types.Struct):
+            z3type = self.get_z3_struct_type(typ)
+            field_types = self.field_cache[typ]
+            instances = [self.convert_type_to_z3_instance(ftyp) for _, ftyp in field_types]
+            return z3type.a(*instances)
+        elif isinstance(typ, types.Enum):
+            return z3.Const(typ.name + "__" + name, self.get_z3_enum_type(typ))
+        elif isinstance(typ, types.Bool):
+            return z3.Bool(name)
+        else:
+            import pdb; pdb.set_trace()
+
+    def convert_type_to_z3_type(self, typ):
         if isinstance(typ, types.SmallFixedBitVector):
             return z3.BitVecSort(typ.width)
         elif isinstance(typ, types.Union):
@@ -181,7 +223,7 @@ class SharedState(object):
         return enum
 
     def copy(self):
-        """ for tests """
+        """ copy state for tests """
         copystate = SharedState(self.funcs.copy())
         copystate.enums = self.enums.copy()
         return copystate
@@ -208,16 +250,18 @@ class Interpreter(object):
         self.cls = Interpreter
         self.sharedstate = shared_state if shared_state != None else SharedState()
         self.graph = graph
+        assert not graph.has_loop
         self.args = args
-        self.forknum = self.sharedstate.fork_counter
-        self.sharedstate.fork_counter += 1
         assert len(args) == len(graph.args)
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
+        self.forknum = self.sharedstate.fork_counter
+        self.sharedstate.fork_counter += 1
         self.registers = {}
         self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
-        assert not graph.has_loop
         self.w_exception = Z3Value(z3.StringVal("No Exception"))
         self.w_raises = Z3Value(False)
+        self.w_result_none = Z3Value(True)
+        self.unconditional_raise = False # set to true to stop executioon of ops after encountering an unconditional raise
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
@@ -233,7 +277,7 @@ class Interpreter(object):
             next = cur_block.next
             self.prev_block = cur_block
             cur_block = self.execute_next(next)
-            if not cur_block:
+            if (not cur_block) or self.unconditional_raise:
                 break
         return self.w_result
     
@@ -254,6 +298,41 @@ class Interpreter(object):
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
         return f_interp
+    
+    def merge_raise(self, z3cond, w_res_true, w_res_false, interp1, interp2):
+        """ Handle Exceptions, when a raise block raises the forks result is an instance of RaiseConstant """
+        if isinstance(w_res_true, RaiseConstant) and isinstance(w_res_false, RaiseConstant):
+            self.w_result = RaiseConstant("/") # result of computation
+            # Exception as String e.g. z3.If(cond, z3.StringVal("Excpetion A"), z3.StringVal("No Exception/ Exception B"))
+            self.w_exception = Z3Value(z3.If(z3cond, z3.StringVal(str(w_res_true)), z3.StringVal(str(w_res_false)))) 
+            self.w_raises = Z3Value(True) # bool cond for raise
+            self.w_result_none = Z3Value(True) # raise and raise  dont return any value
+        elif isinstance(w_res_true, RaiseConstant):
+            self.w_exception = Z3Value(z3.If(z3cond, z3.StringVal(str(w_res_true)), interp2.w_exception.toz3())) 
+            self.w_raises = Z3Value(z3.If(z3cond, True, interp2.w_raises.toz3()))
+        elif isinstance(w_res_false, RaiseConstant):
+            self.w_exception = Z3Value(z3.If(z3cond, interp1.w_exception.toz3(), z3.StringVal(str(w_res_false)))) 
+            self.w_raises = Z3Value(z3.If(z3cond, interp1.w_raises.toz3(), True))
+        else:
+            self.w_exception = Z3Value(z3.If(z3cond, interp1.w_exception.toz3(), interp2.w_exception.toz3())) 
+            self.w_raises = Z3Value(z3.If(z3cond, interp1.w_raises.toz3(), interp2.w_raises.toz3()))
+
+    def merge_result(self, z3cond, w_res_true, w_res_false, interp1, interp2):
+        """ Handle Unit ~ None, when we return a UNIT we must handle it without converting it to z3
+            Neither raise nor UNIT return somthing """
+        if ((isinstance(w_res_true, (UnitConstant, RaiseConstant)) and isinstance(w_res_false, UnitConstant))
+            or (isinstance(w_res_false, (UnitConstant, RaiseConstant)) and isinstance(w_res_true, UnitConstant))):
+            self.w_result = UnitConstant() # parent interpreter must handle this or this is the generel return value
+            self.w_result_none = Z3Value(True)
+        elif isinstance(w_res_true, (UnitConstant, RaiseConstant)): 
+            self.w_result = w_res_false
+            self.w_result_none = Z3Value(z3.If(z3cond, True, interp2.w_result_none.toz3()))
+        elif isinstance(w_res_false, (UnitConstant, RaiseConstant)):
+            self.w_result = w_res_true
+            self.w_result_none = Z3Value(z3.If(z3cond, interp1.w_result_none.toz3(), True))
+        else:
+            self.w_result = Z3Value(z3.If(z3cond, w_res_true.toz3(), w_res_false.toz3()))
+            self.w_result_none = Z3Value(z3.If(z3cond, interp1.w_result_none.toz3(), interp2.w_result_none.toz3()))
 
     def execute_next(self, next):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
@@ -273,26 +352,12 @@ class Interpreter(object):
                 w_res_false = interp2.run(next.falsetarget)
                 z3cond = w_cond.toz3()
 
-                # Handle Exceptions, when a raise block raises the forks result is an instance of RaiseConstant
-                if isinstance(w_res_true, RaiseConstant) and isinstance(w_res_false, RaiseConstant):
-                    self.w_result = RaiseConstant("/") # result of computation
-                    # Exception as String e.g. z3.If(cond, z3.StringVal("Excpetion A"), z3.StringVal("No Exception/ Exception B"))
-                    self.w_exception = Z3Value(z3.If(z3cond, z3.StringVal(str(w_res_true)), z3.StringVal(str(w_res_false)))) 
-                    self.w_raises = Z3Value(True) # bool cond for raise
-                elif isinstance(w_res_true, RaiseConstant):
-                    self.w_result = w_res_false
-                    self.w_exception = Z3Value(z3.If(z3cond, z3.StringVal(str(w_res_true)), interp2.w_exception.toz3())) 
-                    self.w_raises = Z3Value(z3.If(z3cond, True, interp2.w_raises.toz3()))
-                elif isinstance(w_res_false, RaiseConstant):
-                    self.w_result = w_res_true
-                    self.w_exception = Z3Value(z3.If(z3cond, interp1.w_exception.toz3(), z3.StringVal(str(w_res_false)))) 
-                    self.w_raises = Z3Value(z3.If(z3cond, interp1.w_raises.toz3(), True))
-                else:
-                    self.w_result = Z3Value(z3.If(z3cond, w_res_true.toz3(), w_res_false.toz3()))
-                    self.w_exception = Z3Value(z3.If(z3cond, interp1.w_exception.toz3(), interp2.w_exception.toz3())) 
-                    self.w_raises = Z3Value(z3.If(z3cond, interp1.w_raises.toz3(), interp2.w_raises.toz3()))
+                # merge excepions, remove not needed branches of one interp raises
+                self.merge_raise(z3cond, w_res_true, w_res_false, interp1, interp2)
+                # merge results, remove not needed branches of one interp returns UNIT
+                self.merge_result(z3cond, w_res_true, w_res_false, interp1, interp2)
 
-                # TODO: maybe we dont need any merges on raise??
+                # merge memory and registers
                 self.registers = {reg:Z3Value(z3.If(z3cond, interp1.registers[reg].toz3(), interp2.registers[reg].toz3())) for reg in self.registers}
                 self.memory = z3.If(z3cond, interp1.memory, interp2.memory)
 
@@ -357,8 +422,8 @@ class Interpreter(object):
         return self.memory[addr.toz3()]
     
     def wrte_memory(self, addr, value):
-        """ rwrite to memory """
-        self.memory = z3.Store(self.memory, addr, value)
+        """ write to memory """
+        self.memory = z3.Store(self.memory, addr.toz3(), value.toz3())
 
     def exec_phi(self, op):
         """ get value of actual predecessor """
@@ -369,13 +434,23 @@ class Interpreter(object):
         """ execute an operation and write result into environment """
         if isinstance(op, ir.Phi):
             result = self.exec_phi(op)
+        elif isinstance(op, ir.UnionCast):
+            result = self.exec_union_cast(op)
         elif isinstance(op, ir.GlobalRead):
             result = self.read_register(op.name)
+        elif isinstance(op, ir.GlobalWrite):
+            ### TODO: Are register writes supposed to return the written value?? ###
+            self.write_register(op.name, self.getargs(op)[0])
+            return
         elif hasattr(self, "exec_%s" % op.name.replace("@","")):
             func = getattr(self, "exec_%s" % op.name.replace("@",""))
             result = func(op) # self passed implicitly
+            if result == None:
+                return
         elif op.is_union_creation():
             result = self.exec_union_creation(op)
+        elif isinstance(op, ir.FieldAccess):
+            result = self.exec_field_access(op)
         elif op.name in self.sharedstate.funcs:
             result = self.exec_func_call(op, self.sharedstate.funcs[op.name])
         elif isinstance(op, ir.Comment):
@@ -388,22 +463,55 @@ class Interpreter(object):
     
     ### Generic Operations ###
 
-    
     def exec_func_call(self, op, graph):
         args = self.getargs(op)
         interp_fork = self.call_fork(graph, args)
         w_res = interp_fork.run()
         self.registers = interp_fork.registers
         self.memory = interp_fork.memory
+        if isinstance(w_res, RaiseConstant):# case: func raises without condition
+            self.w_raises = Z3Value(z3.Or(self.w_raises.toz3(), True))
+            self.w_exception = Z3Value(z3.If(True, z3.StringVal(w_res.kind), self.w_exception.toz3())) 
+            self.unconditional_raise = True
+            self.w_result = RaiseConstant()
+            # doesnt matter if we write RaiseConstant into env, interpreter returns after this
+            # either it is the result of the general execution or the parent interpreter will handle the Raise 
+        else: # case: func did or didnt raise, but raise was behind a condition, so that any RaiseConstants are already gone
+            self.w_raises = Z3Value(z3.Or(self.w_raises.toz3(), interp_fork.w_raises.toz3()))
+            self.w_exception = Z3Value(z3.If(interp_fork.w_raises.toz3(), interp_fork.w_exception.toz3(), self.w_exception.toz3())) 
         return w_res
 
     def exec_struct_construction(self, op):
         z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
         return StructConstant(self.getargs(op), op.resolved_type, z3type)
-
+    
+    def exec_field_access(self, op):
+        """ access field of struct """
+        field = op.name
+        struct, = self.getargs(op)
+        struct_type = op.args[0].resolved_type
+        struct_type_z3 = self.sharedstate.get_z3_struct_type(struct_type)
+        res = getattr(struct_type_z3, field)(struct.toz3())# get accessor from slot with getattr
+        return Z3Value(res)
+        
+    def exec_union_cast(self, op):
+        ### TODO: Problems: 1. No connection between A and cast_A ~ if we later in solver set A == Something, that doesnt influence cast_A
+        ###                 2. Enums e.g. color enum: red, blue and green are unequal per def. but after cast to bvs, they arent unequal anymore
+        ### TODO: is this a cast like in java: "int y = 7; byte x = (byte) y;"
+        ###       or does this just specialize an instance of a union to one if its subtypes like: Union(Bird, (Duck, Goose), ...), UnionCast(instance_of_Bird, Duck) ?
+        union_type = op.args[0].resolved_type
+        to_specialized_variant = op.name # unsure if that is the meaning 
+        res_type = op.resolved_type
+        instance, = self.getargs(op)
+        z3_cast_instance = self.sharedstate.ir_union_variant_to_z3_type(instance, union_type, to_specialized_variant, res_type)
+        return Z3Value(z3_cast_instance)
+    
     def exec_union_creation(self, op):
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
         return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
+
+    def exec_signed_bv(self, op):
+        assert 0, "TODO"
 
     def exec_eq_bits_bv_bv(self, op):
         arg0, arg1 = self.getargs(op)
@@ -435,6 +543,10 @@ class Interpreter(object):
             return Constant(arg0.value - arg1.value)
         else:
             return Z3Value(arg0.toz3() - arg1.toz3())
+
+    def exec_add_bits_int_bv_i(self, op):
+        # TODO: is this ok?
+        return self.exec_add_bits_bv_bv(op)
 
     def exec_add_bits_bv_bv(self, op):
         arg0, arg1, _ = self.getargs(op) 
@@ -489,3 +601,9 @@ class NandInterpreter(Interpreter):
         """ read from memory """
         addr,  = self.getargs(op)
         return Z3Value(self.read_memory(addr))
+    
+    def exec_my_write_mem(self, op):
+        """ write value to memory """
+        ### TODO: Are mem writes supposed to return the written value?? ###
+        addr, value  = self.getargs(op)
+        self.wrte_memory(addr, value)

@@ -248,7 +248,7 @@ def test_nand_decode_jump_backwards():
     result_enum = solver.model().eval(res.toz3()) # dont have access to 'real' z3 enum vars here
     assert str(result_enum) == "zJMP"
 
-def test_nand_compute_value():
+def get_nand_zcompute_value_graph():
     zarithmetic_op = Enum('zarithmetic_op', ('zC_ZERO', 'zC_ONE', 'zC_MINUSONE', 'zC_D', 'zC_A', 'zC_NOT_D', 'zC_NOT_A', 'zC_NEG_D', 'zC_NEG_A', 'zC_D_ADD_1', 'zC_A_ADD_1', 'zC_D_SUB_1', 'zC_A_SUB_1', 'zC_D_ADD_A', 'zC_D_SUB_A', 'zC_A_SUB_D', 'zC_D_AND_A', 'zC_D_OR_A'))
     za = Argument('za', SmallFixedBitVector(1))
     zop = Argument('zop', zarithmetic_op)
@@ -382,6 +382,10 @@ def test_nand_compute_value():
     i4.prevvalues[0] = i38
     block38.next = Goto(block2, None)
     graph = Graph('zcompute_value', [za, zop], block0)
+    return graph
+
+def test_nand_compute_value():
+    graph = get_nand_zcompute_value_graph()
     #graph.view()
 
     # state is modified each Interpreter.run, thus we need to deepcopy it or create new state
@@ -575,6 +579,106 @@ def test_nand_zexecute_zainst():
     res = interp.run()
     assert isinstance(res, z3backend.UnitConstant)
 
+def get_zassign_dest_graph():
+    ztuplez3z5bool_z5bool_z5bool = Struct('ztuplez3z5bool_z5bool_z5bool', ('ztuplez3z5bool_z5bool_z5bool0', 'ztuplez3z5bool_z5bool_z5bool1', 'ztuplez3z5bool_z5bool_z5bool2'), (Bool(), Bool(), Bool()), True)
+    zgsz381 = Argument('zgsz381', ztuplez3z5bool_z5bool_z5bool)
+    zvalue = Argument('zvalue', SmallFixedBitVector(16))
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    i2 = block0.emit(FieldAccess, 'ztuplez3z5bool_z5bool_z5bool0', [zgsz381], Bool(), None, None)
+    i3 = block0.emit(FieldAccess, 'ztuplez3z5bool_z5bool_z5bool1', [zgsz381], Bool(), None, None)
+    i4 = block0.emit(FieldAccess, 'ztuplez3z5bool_z5bool_z5bool2', [zgsz381], Bool(), None, None)
+    block0.next = ConditionalGoto(i4, block1, block2, '`1 150:4-150:38')
+    i5 = block1.emit(GlobalRead, 'zA', [], SmallFixedBitVector(16), None, None)
+    i6 = block1.emit(Operation, 'my_write_mem', [i5, zvalue], Unit(), '`1 150:16-150:35', 'zz44')
+    block1.next = Goto(block2, None)
+    block2.next = ConditionalGoto(i2, block3, block4, '`1 151:4-151:28')
+    i7 = block3.emit(GlobalWrite, 'zA', [zvalue], SmallFixedBitVector(16), None, None)
+    block3.next = Goto(block4, None)
+    block4.next = ConditionalGoto(i3, block5, block6, '`1 152:4-152:28')
+    i8 = block5.emit(GlobalWrite, 'zD', [zvalue], SmallFixedBitVector(16), None, None)
+    block5.next = Goto(block6, None)
+    block6.next = Return(UnitConstant.UNIT, None)
+    graph = Graph('zassign_dest', [zgsz381, zvalue], block0)
+    return graph
+
+def get_zmaybe_jump_graph():
+    zjump = Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))
+    zvalue = Argument('zvalue', SmallFixedBitVector(16))
+    zj = Argument('zj', zjump)
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    block7 = Block()
+    block8 = Block()
+    block9 = Block()
+    block10 = Block()
+    block11 = Block()
+    block12 = Block()
+    block13 = Block()
+    block14 = Block()
+    block15 = Block()
+    block16 = Block()
+    i2 = block0.emit(Operation, '@eq', [EnumConstant('zJDONT', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), zj], Bool(), '`1 157:6-157:11', None)
+    block0.next = ConditionalGoto(i2, block1, block3, '`1 157:6-157:11')
+    i3 = block1.emit(GlobalRead, 'zPC', [], SmallFixedBitVector(16), None, None)
+    i4 = block1.emit(Operation, '@add_bits_int_bv_i', [i3, MachineIntConstant(16), MachineIntConstant(1)], SmallFixedBitVector(16), '`1 166:38-166:44', 'zz43')
+    i5 = block1.emit(GlobalWrite, 'zPC', [i4], SmallFixedBitVector(16), None, None)
+    block1.next = Goto(block2, None)
+    block2.next = Return(UnitConstant.UNIT, None)
+    i6 = block3.emit(Operation, '@eq', [EnumConstant('zJGT', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), zj], Bool(), '`1 158:6-158:9', None)
+    block3.next = ConditionalGoto(i6, block4, block7, '`1 158:6-158:9')
+    i7 = block4.emit(Operation, '@signed_bv', [zvalue, MachineIntConstant(16)], MachineInt(), '`1 158:15-158:28', 'zz434')
+    i8 = block4.emit(Operation, '@gt', [i7, MachineIntConstant(0)], Bool(), '`1 158:15-158:32', 'zz44')
+    block4.next = Goto(block5, None)
+    i9 = block5.emit_phi([block4, block8, block10, block12, block14, block16], [i8, None, None, None, None, None], Bool())
+    block5.next = ConditionalGoto(i9, block6, block1, '`1 166:4-166:46')
+    i10 = block6.emit(GlobalRead, 'zA', [], SmallFixedBitVector(16), None, None)
+    i11 = block6.emit(GlobalWrite, 'zPC', [i10], SmallFixedBitVector(16), None, None)
+    block6.next = Goto(block2, None)
+    i12 = block7.emit(Operation, '@eq', [EnumConstant('zJEQ', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), zj], Bool(), '`1 159:6-159:9', None)
+    block7.next = ConditionalGoto(i12, block8, block9, '`1 159:6-159:9')
+    i13 = block8.emit(Operation, '@signed_bv', [zvalue, MachineIntConstant(16)], MachineInt(), '`1 159:15-159:28', 'zz429')
+    i14 = block8.emit(Operation, '@eq', [i13, MachineIntConstant(0)], Bool(), '`1 159:15-159:33', 'zz44')
+    i9.prevvalues[1] = i14
+    block8.next = Goto(block5, None)
+    i15 = block9.emit(Operation, '@eq', [EnumConstant('zJGE', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), zj], Bool(), '`1 160:6-160:9', None)
+    block9.next = ConditionalGoto(i15, block10, block11, '`1 160:6-160:9')
+    i16 = block10.emit(Operation, '@signed_bv', [zvalue, MachineIntConstant(16)], MachineInt(), '`1 160:15-160:28', 'zz424')
+    i17 = block10.emit(Operation, '@gteq', [i16, MachineIntConstant(0)], Bool(), '`1 160:15-160:33', 'zz44')
+    i9.prevvalues[2] = i17
+    block10.next = Goto(block5, None)
+    i18 = block11.emit(Operation, '@eq', [EnumConstant('zJLT', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), zj], Bool(), '`1 161:6-161:9', None)
+    block11.next = ConditionalGoto(i18, block12, block13, '`1 161:6-161:9')
+    i19 = block12.emit(Operation, '@signed_bv', [zvalue, MachineIntConstant(16)], MachineInt(), '`1 161:15-161:28', 'zz419')
+    i20 = block12.emit(Operation, '@lt', [i19, MachineIntConstant(0)], Bool(), '`1 161:15-161:32', 'zz44')
+    i9.prevvalues[3] = i20
+    block12.next = Goto(block5, None)
+    i21 = block13.emit(Operation, '@eq', [EnumConstant('zJNE', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), zj], Bool(), '`1 162:6-162:9', None)
+    block13.next = ConditionalGoto(i21, block14, block15, '`1 162:6-162:9')
+    i22 = block14.emit(Operation, '@signed_bv', [zvalue, MachineIntConstant(16)], MachineInt(), '`1 162:15-162:28', 'zz414')
+    i23 = block14.emit(Comment, 'inlined zneq_int', [], Unit(), None, None)
+    i24 = block14.emit(Operation, '@eq', [i22, MachineIntConstant(0)], Bool(), '`0 100:35-100:47', 'zz40')
+    i25 = block14.emit(Operation, '@not', [i24], Bool(), '`0 100:26-100:48', 'return')
+    i9.prevvalues[4] = i25
+    block14.next = Goto(block5, None)
+    i26 = block15.emit(Operation, '@eq', [EnumConstant('zJLE', Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), zj], Bool(), '`1 163:6-163:9', None)
+    block15.next = ConditionalGoto(i26, block16, block6, '`1 163:6-163:9')
+    i27 = block16.emit(Operation, '@signed_bv', [zvalue, MachineIntConstant(16)], MachineInt(), '`1 163:15-163:28', 'zz49')
+    i28 = block16.emit(Operation, '@lteq', [i27, MachineIntConstant(0)], Bool(), '`1 163:15-163:33', 'zz44')
+    i9.prevvalues[5] = i28
+    block16.next = Goto(block5, None)
+    graph = Graph('zmaybe_jump', [zvalue, zj], block0)
+    return graph
 
 def test_nand_zexecute_zcint():
     zinstr = Union('zinstr', ('zAINST', 'zCINST'), (SmallFixedBitVector(16), Struct('ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump', ('ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3'), (SmallFixedBitVector(1), Enum('zarithmetic_op', ('zC_ZERO', 'zC_ONE', 'zC_MINUSONE', 'zC_D', 'zC_A', 'zC_NOT_D', 'zC_NOT_A', 'zC_NEG_D', 'zC_NEG_A', 'zC_D_ADD_1', 'zC_A_ADD_1', 'zC_D_SUB_1', 'zC_A_SUB_1', 'zC_D_ADD_A', 'zC_D_SUB_A', 'zC_A_SUB_D', 'zC_D_AND_A', 'zC_D_OR_A')), Struct('ztuplez3z5bool_z5bool_z5bool', ('ztuplez3z5bool_z5bool_z5bool0', 'ztuplez3z5bool_z5bool_z5bool1', 'ztuplez3z5bool_z5bool_z5bool2'), (Bool(), Bool(), Bool()), True), Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), True)))
@@ -595,7 +699,11 @@ def test_nand_zexecute_zcint():
     block0.next = Return(UnitConstant.UNIT, None)
     graph = Graph('zexecute_zCINST', [zmergez3var], block0)
 
-    sharedstate = z3backend.SharedState({})
+    funcs = {"zcompute_value": get_nand_zcompute_value_graph(),
+             "zassign_dest": get_zassign_dest_graph(),
+             "zmaybe_jump": get_zmaybe_jump_graph()}
+
+    sharedstate = z3backend.SharedState(funcs)
     merge = z3backend.Z3Value(z3.BitVec("zmergez3var", 16))
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
     res = interp.run()

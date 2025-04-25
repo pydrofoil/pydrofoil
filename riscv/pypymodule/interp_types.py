@@ -10,7 +10,7 @@ from pydrofoil.types import *
 class __extend__(Type):
     _attrs_ = []
 
-Type.typedef = TypeDef("_pydrofoil.types.SailType",
+Type.typedef = TypeDef("_pydrofoil.sailtypes.SailType",
     __doc__ = """Instances of (subclasses of) this class represents a Sail
                  type. """,
 )
@@ -22,7 +22,7 @@ class __extend__(Union):
                      for index, name in enumerate(self.names_list)]
         return space.newlist(res_w)
 
-Union.typedef = TypeDef("_pydrofoil.types.Union", Type.typedef,
+Union.typedef = TypeDef("_pydrofoil.sailtypes.Union", Type.typedef,
     name = interp_attrproperty("demangled_name", Union, "the name of the union type", "newtext"),
     constructors = GetSetProperty(Union.descr_get_constructors),
 )
@@ -34,7 +34,7 @@ class __extend__(Enum):
                     for element in self.elements_list]
         return space.newlist(res_w)
 
-Enum.typedef = TypeDef("_pydrofoil.types.Enum", Type.typedef,
+Enum.typedef = TypeDef("_pydrofoil.sailtypes.Enum", Type.typedef,
     name = interp_attrproperty("demangled_name", Enum, "the name of the enum type", "newtext"),
     elements = GetSetProperty(Enum.descr_get_elements),
 )
@@ -45,7 +45,7 @@ class __extend__(RegularStruct):
         res_w = [space.newtuple2(space.newtext(name), self.typs_list[index])
                      for index, name in enumerate(self.names_list)]
         return space.newlist(res_w)
-RegularStruct.typedef = TypeDef("_pydrofoil.types.Struct", Type.typedef,
+RegularStruct.typedef = TypeDef("_pydrofoil.sailtypes.Struct", Type.typedef,
     name = interp_attrproperty("demangled_name", RegularStruct, "the name of the struct type", "newtext"),
     fields = GetSetProperty(RegularStruct.descr_get_fields),
 )
@@ -63,7 +63,7 @@ class __extend__(TupleStruct):
             raise oefmt(space.w_IndexError, "index out of range")
         return self.typs_list[index]
 
-TupleStruct.typedef = TypeDef("_pydrofoil.types.Tuple", Type.typedef,
+TupleStruct.typedef = TypeDef("_pydrofoil.sailtypes.Tuple", Type.typedef,
     __len__ = interp2app(TupleStruct.descr_len),
     __getitem__ = interp2app(TupleStruct.descr_getitem),
 )
@@ -71,21 +71,21 @@ TupleStruct.typedef.acceptable_as_base_class = False
 
 class __extend__(Ref):
     pass
-Ref.typedef = TypeDef("_pydrofoil.types.Ref", Type.typedef,
+Ref.typedef = TypeDef("_pydrofoil.sailtypes.Ref", Type.typedef,
     of = interp_attrproperty_w("typ", Ref)
 )
 Ref.typedef.acceptable_as_base_class = False
 
 class __extend__(Vec):
     pass
-Vec.typedef = TypeDef("_pydrofoil.types.Vec", Type.typedef,
+Vec.typedef = TypeDef("_pydrofoil.sailtypes.Vec", Type.typedef,
     of = interp_attrproperty_w("typ", Vec)
 )
 Vec.typedef.acceptable_as_base_class = False
 
 class __extend__(FVec):
     pass
-FVec.typedef = TypeDef("_pydrofoil.types.FVec", Type.typedef,
+FVec.typedef = TypeDef("_pydrofoil.sailtypes.FVec", Type.typedef,
     of = interp_attrproperty_w("typ", FVec),
     length = interp_attrproperty("number", FVec, None, "newint"),
 )
@@ -96,7 +96,7 @@ class __extend__(Function):
         return space.newlist(self.argument_list[:])
     def descr_get_result(self, space):
         return self.restype
-Function.typedef = TypeDef("_pydrofoil.types.Function", Type.typedef,
+Function.typedef = TypeDef("_pydrofoil.sailtypes.Function", Type.typedef,
     arguments = GetSetProperty(Function.descr_get_arguments),
     result = GetSetProperty(Function.descr_get_result),
 )
@@ -104,69 +104,69 @@ Function.typedef.acceptable_as_base_class = False
 
 class __extend__(List):
     pass
-List.typedef = TypeDef("_pydrofoil.types.List", Type.typedef,
+List.typedef = TypeDef("_pydrofoil.sailtypes.List", Type.typedef,
 )
 List.typedef.acceptable_as_base_class = False
 
 class __extend__(NullType):
     pass
-NullType.typedef = TypeDef("_pydrofoil.types.Null", Type.typedef,
+NullType.typedef = TypeDef("_pydrofoil.sailtypes.Null", Type.typedef,
 )
 NullType.typedef.acceptable_as_base_class = False
 
 class __extend__(SmallFixedBitVector):
     pass
-SmallFixedBitVector.typedef = TypeDef("_pydrofoil.types.SmallFixedBitVector", Type.typedef,
+SmallFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.SmallFixedBitVector", Type.typedef,
     width = interp_attrproperty("width", SmallFixedBitVector, "the width of the bitvector", "newint"),
 )
 SmallFixedBitVector.typedef.acceptable_as_base_class = False
 
 class __extend__(BigFixedBitVector):
     pass
-BigFixedBitVector.typedef = TypeDef("_pydrofoil.types.BigFixedBitVector", Type.typedef,
+BigFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.BigFixedBitVector", Type.typedef,
     width = interp_attrproperty("width", BigFixedBitVector, "the width of the bitvector", "newint"),
 )
 BigFixedBitVector.typedef.acceptable_as_base_class = False
 
 class __extend__(GenericBitVector):
     pass
-GenericBitVector.typedef = TypeDef("_pydrofoil.types.GenericBitVector", Type.typedef,
+GenericBitVector.typedef = TypeDef("_pydrofoil.sailtypes.GenericBitVector", Type.typedef,
 )
 GenericBitVector.typedef.acceptable_as_base_class = False
 
 class __extend__(MachineInt):
     pass
-MachineInt.typedef = TypeDef("_pydrofoil.types.MachineInt", Type.typedef,
+MachineInt.typedef = TypeDef("_pydrofoil.sailtypes.MachineInt", Type.typedef,
 )
 MachineInt.typedef.acceptable_as_base_class = False
 
 class __extend__(Int):
     pass
-Int.typedef = TypeDef("_pydrofoil.types.Int", Type.typedef,
+Int.typedef = TypeDef("_pydrofoil.sailtypes.Int", Type.typedef,
 )
 Int.typedef.acceptable_as_base_class = False
 
 class __extend__(Bool):
     pass
-Bool.typedef = TypeDef("_pydrofoil.types.Bool", Type.typedef,
+Bool.typedef = TypeDef("_pydrofoil.sailtypes.Bool", Type.typedef,
 )
 Bool.typedef.acceptable_as_base_class = False
 
 class __extend__(Unit):
     pass
-Unit.typedef = TypeDef("_pydrofoil.types.Unit", Type.typedef,
+Unit.typedef = TypeDef("_pydrofoil.sailtypes.Unit", Type.typedef,
 )
 Unit.typedef.acceptable_as_base_class = False
 
 class __extend__(String):
     pass
-String.typedef = TypeDef("_pydrofoil.types.String", Type.typedef,
+String.typedef = TypeDef("_pydrofoil.sailtypes.String", Type.typedef,
 )
 String.typedef.acceptable_as_base_class = False
 
 class __extend__(Real):
     pass
-Real.typedef = TypeDef("_pydrofoil.types.Real", Type.typedef,
+Real.typedef = TypeDef("_pydrofoil.sailtypes.Real", Type.typedef,
 )
 Real.typedef.acceptable_as_base_class = False
 

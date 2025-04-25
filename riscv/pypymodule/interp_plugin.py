@@ -21,10 +21,10 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None, space=None):
     if "machinecls64" in globals():
         return
     if machinecls64 is None:
-        mod64 = _make_code(True)
+        mod64 = _make_code(True, export_everything=True)
         machinecls64 = supportcoderiscv.get_main(mod64, True)._machinecls
     if machinecls32 is None:
-        mod32 = _make_code(False)
+        mod32 = _make_code(False, export_everything=True)
         machinecls32 = supportcoderiscv.get_main(mod32, False)._machinecls
     globals()["machinecls64"] = machinecls64
     globals()["machinecls32"] = machinecls32
@@ -157,6 +157,7 @@ def invent_python_cls_union(space, w_mod, type_info, machinecls):
         __len__=_make_union_len(space, machinecls, cls),
         __repr__=_make_union_repr(space, machinecls, cls),
         __eq__=_make_union_eq(space, machinecls, cls),
+        __hash__=_make_union_hash(space, machinecls, cls),
         sail_type = sail_type
     )
     cls.typedef.acceptable_as_base_class = False
@@ -243,6 +244,11 @@ def _make_union_eq(space, machinecls, basecls):
         return space.newbool(self.eq(w_other))
     return _interp2app_unique_name_as_method(descr_eq, machinecls, basecls)
 
+def _make_union_hash(space, machinecls, basecls):
+    def descr_hash(self, space):
+        return app_hash_union(space, self)
+    return _interp2app_unique_name_as_method(descr_hash, machinecls, basecls)
+
 def _make_union_getitem(space, machinecls, subcls, sail_type):
     unroll_get_fields = unrolling_iterable(
         [(index, info[0], info[1], info[5]) for index, info in enumerate(subcls._field_info)])
@@ -275,8 +281,8 @@ class W_BoundSailFunction(W_Root):
     def descr_doc(self, space):
         return space.newtext("""\
 Sail function
-%s
-""" % (self.func.sail_name, ))
+%s%s
+""" % (self.func.sail_name, '\n' + self.func.source if self.func.source is not None else ''))
 
     def descr_sail_type(self, space):
         return self.func.sail_type
@@ -339,21 +345,22 @@ def _init_functions(machinecls, functions):
     machinecls.W_Lowlevel = W_Lowlevel
 
 def _make_function(function_info, d, machinecls):
-    pyname, sail_name, func, argument_converters, result_converter, sail_type_repr = function_info
+    pyname, sail_name, func, argument_converters, result_converter, sail_type_repr, source = function_info
     adaptor_class = _make_function_adaptor(argument_converters, machinecls)
     def py(space, *args):
         res = func(*args)
         return result_converter(space, res)
     py.func_name += pyname
     sail_type = eval(sail_type_repr, types.__dict__)
-    adaptor = d[sail_name] = adaptor_class(py, sail_name, sail_type)
+    adaptor = d[sail_name] = adaptor_class(py, sail_name, sail_type, source)
 
 
 class SailFunctionAdaptor(object):
     num_args = -1
     sail_name = ''
     _immutable_ = True
-    _attrs_ = ['num_args', 'sail_name', 'sail_type']
+    source = None
+    _attrs_ = ['num_args', 'sail_name', 'sail_type', 'source']
 
     def call(self, space, w_machine, args_w):
         if len(args_w) != self.num_args:
@@ -384,10 +391,11 @@ def _make_function_adaptor(argument_converters, machinecls, cache={}):
         _immutable_ = True
         num_args = len(argument_converters)
 
-        def __init__(self, func, sail_name, sail_type):
+        def __init__(self, func, sail_name, sail_type, source=None):
             self.func = func
             self.sail_name = sail_name
             self.sail_type = sail_type
+            self.source = source
 
         def _call(self, space, w_machine, args_w):
             assert isinstance(w_machine, machinecls)
@@ -725,7 +733,8 @@ class __extend__(BitVector):
             return space.newint(0)
 
     def descr_eq(self, space, w_other):
-        w_other = self._pypy_coerce(space, w_other)
+        if not isinstance(w_other, BitVector):
+            w_other = self._pypy_coerce(space, w_other)
         if w_other is None:
             return space.w_NotImplemented
         if self.size() != w_other.size():
@@ -811,6 +820,13 @@ class __extend__(BitVector):
         """ Sign-extend the bitvector to width target_size. """
         return self.sign_extend(target_size)
 
+    def descr_index(self, space):
+        """ Interpret the bitvector as an integer """
+        return self.descr_unsigned(space)
+
+    def descr_hash(self, space):
+        return space.newint(self.tobigint().hash() ^ self.size())
+
 
 @unwrap_spec(width=int, value=r_uint)
 def bitvector_descr_new(w_type, space, width, value):
@@ -840,6 +856,9 @@ BitVector.typedef = TypeDef("bitvector",
 
     __invert__ = interp2app(BitVector.descr_invert),
 
+    __index__ = interp2app(BitVector.descr_index),
+    __hash__ = interp2app(BitVector.descr_hash),
+
     signed = interp2app(BitVector.descr_signed),
     unsigned = interp2app(BitVector.descr_unsigned),
 
@@ -859,3 +878,4 @@ with open(appfile, "r") as f:
 app = applevel(content, filename=__file__)
 app_repr_union = app.interphook('repr_union')
 app_repr_struct = app.interphook('repr_struct')
+app_hash_union = app.interphook('hash_union')

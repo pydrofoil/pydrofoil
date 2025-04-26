@@ -4601,19 +4601,25 @@ def find_anticipated_casts(graph):
 
 @repeat
 def cse_global_reads(graph, codegen):
+    from pydrofoil.effectinfo import EffectInfo
     # very simple forward load-after-load pass
-    def leaves_globals_alone(op):
+    def get_effect(op):
+        # type: (Operation) -> EffectInfo | None
         if not op.can_have_side_effects:
-            return True
+            return EffectInfo()
         if isinstance(op, Comment):
-            return True
+            return EffectInfo()
         if op.name == "@not":
-            return True
+            return EffectInfo()
         if op.name == "@eq":
-            return True
+            return EffectInfo()
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
-        return type(op) is Operation and name in supportcode.purefunctions
+        if type(op) is Operation:
+            if name in supportcode.purefunctions:
+                return EffectInfo()
+            return codegen.get_effects(op.name)
+        return None
 
     replacements = {}
     available = {} # block -> block -> prev_op
@@ -4637,20 +4643,23 @@ def cse_global_reads(graph, codegen):
         for index, op in enumerate(block.operations):
             if isinstance(op, GlobalRead):
                 key = (op.name, op.resolved_type)
+                if key in available_in_block:
+                    block.operations[index] = None
+                    replacements[op] = available_in_block[key]
+                else:
+                    available_in_block[key] = op
             elif isinstance(op, GlobalWrite):
                 key = (op.name, op.resolved_type)
                 available_in_block[key] = op.args[0]
                 continue
-            elif not leaves_globals_alone(op):
+            effectinfo = get_effect(op)
+            if effectinfo is None:
                 available_in_block.clear()
-                continue
             else:
-                continue
-            if key in available_in_block:
-                block.operations[index] = None
-                replacements[op] = available_in_block[key]
-            else:
-                available_in_block[key] = op
+                for key in list(available_in_block):
+                    globalname, _ = key
+                    if globalname in effectinfo.register_writes:
+                        del available_in_block[key]
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]

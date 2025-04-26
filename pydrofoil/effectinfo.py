@@ -30,9 +30,9 @@ class EffectInfo(object):
         )
 
     def __repr__(self):
-        return (
-            "EffectInfo(register_reads=%s, register_writes=%s)"
-            % (self.register_reads, self.register_writes)
+        return "EffectInfo(register_reads=%s, register_writes=%s)" % (
+            self.register_reads,
+            self.register_writes,
         )
 
     def __eq__(self, other):
@@ -49,7 +49,7 @@ class EffectInfo(object):
 class _EffectComputationState(object):
     def __init__(self):
         self.effect_map = defaultdict(EffectInfo)  # type: dict[str, EffectInfo]
-        self.caller_map = defaultdict(set) # type: dict[str, set[str]]
+        self.caller_map = defaultdict(set)  # type: dict[str, set[str]]
         self.todo_set = set()  # type: set[str]
 
     def analyze_all(self, graph_map):

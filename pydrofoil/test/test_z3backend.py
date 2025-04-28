@@ -707,4 +707,4 @@ def test_nand_zexecute_zcint():
     merge = z3backend.Z3Value(z3.BitVec("zmergez3var", 16))
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
     res = interp.run()
-    assert 0
+    assert isinstance(res, z3backend.UnitConstant)

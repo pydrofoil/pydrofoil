@@ -530,6 +530,54 @@ class Interpreter(object):
             return Constant(arg0 == arg1)
         else:
             return Z3Value(arg0.toz3() == arg1.toz3())
+    
+    def exec_gt(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value > arg1.value)
+        else:
+            # TODO: check if the 'default' interpretation of bv's is unsigned
+            if arg0._signed or arg1._signed:
+                return Z3Value(arg0.toz3() > arg1.toz3())
+            else:
+                return Z3Value(z3.UGT(arg0.toz3(), arg1.toz3()))
+    
+    def exec_gteq(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value >= arg1.value)
+        else:
+            if arg0._signed or arg1._signed:
+                return Z3Value(arg0.toz3() >= arg1.toz3())
+            else:
+                return Z3Value(z3.UGE(arg0.toz3(), arg1.toz3()))
+            
+    def exec_lt(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value < arg1.value)
+        else:
+            if arg0._signed or arg1._signed:
+                return Z3Value(arg0.toz3() < arg1.toz3())
+            else:
+                return Z3Value(z3.ULT(arg0.toz3(), arg1.toz3()))
+            
+    def exec_lteq(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(arg0.value <= arg1.value)
+        else:
+            if arg0._signed or arg1._signed:
+                return Z3Value(arg0.toz3() <= arg1.toz3())
+            else:
+                return Z3Value(z3.ULE(arg0.toz3(), arg1.toz3()))
+            
+    def exec_not(self, op):
+        arg0, = self.getargs(op)
+        if isinstance(arg0, Constant):
+            return Constant(not arg0.value)
+        else:
+            return Z3Value(not arg0.toz3())
         
     def exec_not_vec_bv(self, op):
         arg0, _ = self.getargs(op) # TODO: start using the passed width everywhere and not always 64 bit
@@ -539,7 +587,6 @@ class Interpreter(object):
             return Z3Value(~arg0.toz3())
         
     def exec_sub_bits_bv_bv(self, op):
-        # TODO: bitvec width benutzen
         arg0, arg1, arg2 = self.getargs(op) 
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
             return Constant(arg0.value - arg1.value)

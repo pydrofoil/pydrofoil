@@ -7,7 +7,7 @@ class Value(object):
     def __init__(self):
         # TODO: Resolved_Type
         self.value = None
-        self._raise = False
+        self._signed = False
     
     def __str__(self):
         return str(self.value)
@@ -21,7 +21,6 @@ class Enum(Value):# AbstractConstant
         self.enum_name = name
         self.variant = variant
         self.value = z3value
-        self._raise = False
 
     def toz3(self):
         return self.value
@@ -40,7 +39,6 @@ class Constant(AbstractConstant):
     
     def __init__(self, val):
         self.value = val
-        self._raise = False
 
     def toz3(self):
         return int(self.value)
@@ -49,7 +47,6 @@ class BooleanConstant(AbstractConstant):
     
     def __init__(self, val):
         self.value = val
-        self._raise = False
 
     def toz3(self):
         return self.value
@@ -65,9 +62,10 @@ class RaiseConstant(AbstractConstant):
 class UnitConstant(AbstractConstant):
     
     def __init__(self):
-        self._raise = False
+        pass
 
     def toz3(self):
+        """ should never be called """
         assert 0
         return self.value
     
@@ -80,7 +78,6 @@ class UnionConstant(AbstractConstant):
     def __init__(self, variant_name, w_val, resolved_type, z3type):
         self.variant_name = variant_name
         self.w_val = w_val
-        self._raise = False
         self.resolved_type = resolved_type
         self.z3type = z3type
     
@@ -94,7 +91,6 @@ class StructConstant(AbstractConstant):
 
     def __init__(self, vals_w, resolved_type, z3type):
         self.vals_w = vals_w
-        self._raise = False
         self.resolved_type = resolved_type
         self.z3type = z3type
     
@@ -106,7 +102,6 @@ class Z3Value(Value):
     
     def __init__(self, val):
         self.value = val
-        self._raise = False
 
     def toz3(self):
         return self.value
@@ -511,7 +506,14 @@ class Interpreter(object):
         return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
 
     def exec_signed_bv(self, op):
-        assert 0, "TODO"
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, Constant): # arg2 is width
+            res = Constant(arg0.value)
+        else:
+            res = Z3Value(arg0.toz3())
+        # we must know if a bv must be interpreted as signed or unsigned
+        res._signed = True
+        return res
 
     def exec_eq_bits_bv_bv(self, op):
         arg0, arg1 = self.getargs(op)

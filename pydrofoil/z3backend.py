@@ -114,9 +114,7 @@ class SharedState(object):
         self.registers = registers # type: dict[str, types.Type]
         self.enums = {}
         self.type_cache = {}
-        self.field_cache = {}
-        self.type_cast_cache = {}
-        self.inv_type_cast_cache = {}
+        self.union_field_cache = {} # (union_name,union_field):z3_type
         self.fork_counter = 0
 
     def get_z3_struct_type(self, resolved_type):
@@ -125,15 +123,12 @@ class SharedState(object):
         sname = "struct_%s" % resolved_type.name
         struct = z3.Datatype(sname)
         fields = []
-        raw_fields = [] 
         # create struct
         for fieldname, typ in resolved_type.internalfieldtyps.items():
             fields.append((fieldname, self.convert_type_to_z3_type(typ)))
-            raw_fields.append((fieldname, typ))
         struct.declare("a", *fields)
         struct = struct.create()
         self.type_cache[resolved_type] = struct
-        self.field_cache[resolved_type] = raw_fields
         return struct
 
     def get_z3_union_type(self, resolved_type):
@@ -142,26 +137,33 @@ class SharedState(object):
         uname = "union_%s" % resolved_type.name
         union = z3.Datatype(uname)
         # create union variants
-        # TODO: save raw_fields in field cache
         for variant, typ in resolved_type.variants.items():
             if typ is types.Unit():
                 union.declare(variant)
+                self.union_field_cache[(uname, variant)] = None # TODO: is this ok? this could go horribly wrong
             else:
-                union.declare(variant, ("a", self.convert_type_to_z3_type(typ)))
+                z3typ = self.convert_type_to_z3_type(typ)
+                self.union_field_cache[(uname, variant)] = z3typ
+                union.declare(variant, ("acc_" + variant, z3typ))# why
         union = union.create()
         self.type_cache[resolved_type] = union
         return union
     
-    def ir_union_variant_to_z3_type(self, from_instance, union_type, to_specialized_variant, to_type):
+    def ir_union_variant_to_z3_type(self, instance, union_type, field, to_type):
         """ create or get an instance of to_type as cast variant of given union variant
             args must be types not names """
-        if not isinstance(to_type, tuple):# normal types and structs
-            key = (from_instance, union_type, to_specialized_variant, to_type)
-            if not key in self.type_cast_cache:
-                self.type_cast_cache[key] = self.convert_type_or_instance_to_z3_instance(to_type, str(key))
-                self.inv_type_cast_cache[self.type_cast_cache[key]] = key
-            return self.type_cast_cache[key]
-        else: # union and enum
+        if not isinstance(to_type, tuple):# union
+            assert isinstance(union_type, types.Union), "only unions allowed"
+            union_type_z3 = self.get_z3_union_type(union_type)
+            ftype = self.union_field_cache[(union_type_z3.name(), field)]
+            typechecker = getattr(union_type_z3, "is_" + field)
+            ### dont call accessor here, wont work ### 
+            accessor = getattr(union_type_z3, "acc_" + field)
+            ### dont call accessor here, wont work ### 
+            default_value = z3.FreshConst(ftype, "error_in_typecast")
+            ### call accessor only in z3 if ###
+            return z3.If(typechecker(instance.toz3()), accessor(instance.toz3()), default_value)
+        else:
             assert 0
 
     def get_z3_enum_type(self, resolved_type):
@@ -176,21 +178,6 @@ class SharedState(object):
             e.g. for casting between types """
         z3type = self.convert_type_to_z3_type(typ)
         return z3.FreshConst(z3type, prefix=name or "temp")
-        """if isinstance(typ, types.SmallFixedBitVector):
-            return z3.BitVec(name, typ.width)
-        elif isinstance(typ, types.Union):
-            assert 0, "TODO"
-        elif isinstance(typ, types.Struct):
-            z3type = self.get_z3_struct_type(typ)
-            field_types = self.field_cache[typ]
-            instances = [self.convert_type_or_instance_to_z3_instance(ftyp) for _, ftyp in field_types]
-            return z3type.a(*instances)
-        elif isinstance(typ, types.Enum):
-            return z3.Const(typ.name + "__" + name, self.get_z3_enum_type(typ))
-        elif isinstance(typ, types.Bool) or typ == types.Bool:
-            return z3.Bool(name)
-        else:
-            import pdb; pdb.set_trace()"""
 
     def convert_type_to_z3_type(self, typ):
         if isinstance(typ, types.SmallFixedBitVector):
@@ -201,7 +188,7 @@ class SharedState(object):
             return self.get_z3_struct_type(typ)
         elif isinstance(typ, types.Enum):
             return self.get_z3_enum_type(typ)
-        elif isinstance(typ, types.Bool):
+        elif isinstance(typ, types.Bool) or typ == types.Bool:
             return z3.BoolSort()
         else:
             import pdb; pdb.set_trace()
@@ -222,13 +209,26 @@ class SharedState(object):
 
     def copy(self):
         """ copy state for tests """
-        copystate = SharedState(list(self.funcs), self.registers.copy())
+        copystate = SharedState(self.funcs.copy(), self.registers.copy())
         copystate.enums = self.enums.copy()
         return copystate
     
+    ## TODO: get_abstract... funcs can be unified to one, but requires test refactoring
+
     def get_abstract_enum_const_of_type(self, enum_name, var_name):
         """ Returns Const of given type that is neither equal nor unequal to any variant of given enum type """
+        # TODO: change Const to FreshConst (needs test refactoring)
         return z3.Const(var_name, self.get_enum_type(enum_name))
+    
+    def get_abstract_union_const_of_type(self, union_type, var_name):
+        """ Returns Const of given type that is neither equal nor unequal to any variant of given enum type """
+        return z3.FreshConst(self.get_z3_union_type(union_type), prefix=var_name or "temp")
+    
+    def get_abstract_struct_const_of_type(self, struct_type, var_name):
+        """ Returns Const of given type that is neither equal nor unequal to any variant of given enum type """
+        return z3.FreshConst(self.get_z3_struct_type(struct_type), prefix=var_name or "temp")
+    
+    ## 
     
     def get_enum_type(self, name):
         """ Returns the Z3 Datatype Object of this enum """
@@ -257,8 +257,9 @@ class Interpreter(object):
         self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
         self.w_exception = Z3Value(z3.StringVal("No Exception"))
         self.w_raises = Z3Value(False)
+        ### TODO: Technicaly RPython cant return different types from a func, so this None handling, could be removed ???
         self.w_result_none = Z3Value(True)
-        self.unconditional_raise = False # set to true to stop executioon of ops after encountering an unconditional raise
+        self.unconditional_raise = False # set to true to stop execution after encountering an unconditional raise
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
@@ -303,7 +304,7 @@ class Interpreter(object):
             # Exception as String e.g. z3.If(cond, z3.StringVal("Excpetion A"), z3.StringVal("No Exception/ Exception B"))
             self.w_exception = Z3Value(z3.If(z3cond, z3.StringVal(str(w_res_true)), z3.StringVal(str(w_res_false)))) 
             self.w_raises = Z3Value(True) # bool cond for raise
-            self.w_result_none = Z3Value(True) # raise and raise  dont return any value
+            self.w_result_none = Z3Value(True) # raise and raise dont return any value
         elif isinstance(w_res_true, RaiseConstant):
             self.w_exception = Z3Value(z3.If(z3cond, z3.StringVal(str(w_res_true)), interp2.w_exception.toz3())) 
             self.w_raises = Z3Value(z3.If(z3cond, True, interp2.w_raises.toz3()))
@@ -405,7 +406,7 @@ class Interpreter(object):
         return res
     
     def read_register(self, register):
-        """ read from register, creates new 'empty' z3 Val for registers on first access """
+        """ read from register, (registers must be all created on class init) """
         return self.registers[register]
     
     def write_register(self, register, value):
@@ -490,13 +491,13 @@ class Interpreter(object):
         return Z3Value(res)
         
     def exec_union_cast(self, op):
-        ### TODO: Problems: 1. No connection between A and cast_A ~ if we later in solver set A == Something, that doesnt influence cast_A
-        ###                 2. Enums e.g. color enum: red, blue and green are unequal per def. but after cast to bvs, they arent unequal anymore
-        ### TODO: is this a cast like in java: "int y = 7; byte x = (byte) y;"
-        ###       or does this just specialize an instance of a union to one if its subtypes like: Union(Bird, (Duck, Goose), ...), UnionCast(instance_of_Bird, Duck) ?
+        ###  this cas specializes an instance of a union to one if its subtypes like:
+        ###    union(bird, (duck, goose), ...)
+        ###    instance_of_duck = UnionCast(instance_of_bird, duck)
+        ### TODO: Did RPython already check that the types fit, or could that fail?
         union_type = op.args[0].resolved_type
-        to_specialized_variant = op.name # unsure if that is the meaning 
-        res_type = op.resolved_type
+        to_specialized_variant = op.name 
+        res_type = op.resolved_type# TODO: res_type can be removed, maybe ? 
         instance, = self.getargs(op)
         z3_cast_instance = self.sharedstate.ir_union_variant_to_z3_type(instance, union_type, to_specialized_variant, res_type)
         return Z3Value(z3_cast_instance)
@@ -638,7 +639,7 @@ class Interpreter(object):
     ### Arch specific Operations in subclass ###
 
 class NandInterpreter(Interpreter):
-    """ Interpreter subclass for nand2tetris CPU """
+    """ Interpreter subclass for nand2tetris ISA """
 
     def __init__(self, graph, args, shared_state=None):
         super(NandInterpreter, self).__init__(graph, args, shared_state)# py2 super 
@@ -659,4 +660,5 @@ class NandInterpreter(Interpreter):
         self.wrte_memory(addr, value)
 
 class RiscvInterpreter(Interpreter):
+    """ Interpreter subclass for RiscV ISA """
     pass

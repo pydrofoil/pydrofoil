@@ -109,8 +109,9 @@ class Z3Value(Value):
     
 class SharedState(object):
 
-    def __init__(self, functions={}):
+    def __init__(self, functions={}, registers={}):
         self.funcs = functions
+        self.registers = registers # type: dict[str, types.Type]
         self.enums = {}
         self.type_cache = {}
         self.field_cache = {}
@@ -157,7 +158,7 @@ class SharedState(object):
         if not isinstance(to_type, tuple):# normal types and structs
             key = (from_instance, union_type, to_specialized_variant, to_type)
             if not key in self.type_cast_cache:
-                self.type_cast_cache[key] = self.convert_type_to_z3_instance(to_type, str(key))
+                self.type_cast_cache[key] = self.convert_type_or_instance_to_z3_instance(to_type, str(key))
                 self.inv_type_cast_cache[self.type_cast_cache[key]] = key
             return self.type_cast_cache[key]
         else: # union and enum
@@ -170,24 +171,26 @@ class SharedState(object):
             self.type_cache[resolved_type] = enum
         return self.type_cache[resolved_type]
     
-    def convert_type_to_z3_instance(self, typ, name=""):
+    def convert_type_or_instance_to_z3_instance(self, typ, name=""):
         """ create instance from ir type 
             e.g. for casting between types """
-        if isinstance(typ, types.SmallFixedBitVector):
+        z3type = self.convert_type_to_z3_type(typ)
+        return z3.FreshConst(z3type, prefix=name or "temp")
+        """if isinstance(typ, types.SmallFixedBitVector):
             return z3.BitVec(name, typ.width)
         elif isinstance(typ, types.Union):
             assert 0, "TODO"
         elif isinstance(typ, types.Struct):
             z3type = self.get_z3_struct_type(typ)
             field_types = self.field_cache[typ]
-            instances = [self.convert_type_to_z3_instance(ftyp) for _, ftyp in field_types]
+            instances = [self.convert_type_or_instance_to_z3_instance(ftyp) for _, ftyp in field_types]
             return z3type.a(*instances)
         elif isinstance(typ, types.Enum):
             return z3.Const(typ.name + "__" + name, self.get_z3_enum_type(typ))
-        elif isinstance(typ, types.Bool):
+        elif isinstance(typ, types.Bool) or typ == types.Bool:
             return z3.Bool(name)
         else:
-            import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()"""
 
     def convert_type_to_z3_type(self, typ):
         if isinstance(typ, types.SmallFixedBitVector):
@@ -219,7 +222,7 @@ class SharedState(object):
 
     def copy(self):
         """ copy state for tests """
-        copystate = SharedState(self.funcs.copy())
+        copystate = SharedState(list(self.funcs), self.registers.copy())
         copystate.enums = self.enums.copy()
         return copystate
     
@@ -251,8 +254,7 @@ class Interpreter(object):
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
         self.forknum = self.sharedstate.fork_counter
         self.sharedstate.fork_counter += 1
-        self.registers = {}
-        self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
+        self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
         self.w_exception = Z3Value(z3.StringVal("No Exception"))
         self.w_raises = Z3Value(False)
         self.w_result_none = Z3Value(True)
@@ -404,8 +406,6 @@ class Interpreter(object):
     
     def read_register(self, register):
         """ read from register, creates new 'empty' z3 Val for registers on first access """
-        if register not in self.registers:
-            self.registers[register] = Z3Value(z3.BitVec("reg_%s" % register, 64))
         return self.registers[register]
     
     def write_register(self, register, value):
@@ -642,6 +642,7 @@ class NandInterpreter(Interpreter):
 
     def __init__(self, graph, args, shared_state=None):
         super(NandInterpreter, self).__init__(graph, args, shared_state)# py2 super 
+        self.memory = z3.Array('memory', z3.BitVecSort(16), z3.BitVecSort(16))
         self.cls = NandInterpreter
     
     ### Nand specific Operations ###
@@ -656,3 +657,6 @@ class NandInterpreter(Interpreter):
         ### TODO: Are mem writes supposed to return the written value?? ###
         addr, value  = self.getargs(op)
         self.wrte_memory(addr, value)
+
+class RiscvInterpreter(Interpreter):
+    pass

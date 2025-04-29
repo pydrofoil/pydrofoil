@@ -42,6 +42,15 @@ def make_code(rv64=True):
     outriscv = _make_code(rv64)
     return supportcoderiscv.get_main(outriscv, rv64)
 
+def make_codegen(rv64=True):
+    from riscv import supportcoderiscv
+    print "making codegen"
+    with open(riscvirs[rv64], "rb") as f:
+        s = f.read()
+    support_code = "from riscv import supportcoderiscv as supportcode"
+    entrypoints = "ztick_clock ztick_platform zinit_model zstep zext_decode".split()
+    return parse_and_optimize_return_codegen(s, support_code, {'zPC', 'znextPC', 'zMisa_chunk_0', 'zcur_privilege', 'zMstatus_chunk_0', }, entrypoints=entrypoints, should_inline=should_inline)
+
 def make_code_combined():
     from riscv import supportcoderiscv
     mod64 = _make_code(True)

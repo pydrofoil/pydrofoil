@@ -702,9 +702,19 @@ def test_nand_zexecute_zcint():
     funcs = {"zcompute_value": get_nand_zcompute_value_graph(),
              "zassign_dest": get_zassign_dest_graph(),
              "zmaybe_jump": get_zmaybe_jump_graph()}
+    
+    registers = {"zA": SmallFixedBitVector(16),
+                 "zC": SmallFixedBitVector(16),
+                 "zD": SmallFixedBitVector(16),
+                 "zPC": SmallFixedBitVector(16)}
 
-    sharedstate = z3backend.SharedState(funcs)
+    sharedstate = z3backend.SharedState(funcs, registers)
     merge = z3backend.Z3Value(z3.BitVec("zmergez3var", 16))
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
+    import pdb;pdb.set_trace()
     res = interp.run()
+    is_exception, is_none = interp.w_raises, interp.w_result_none
     assert isinstance(res, z3backend.UnitConstant)
+    assert str(is_none) == "True"
+    #assert str(is_exception).startswith("IF ")
+    assert str(interp.registers["zA"]) == "fgfg"

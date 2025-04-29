@@ -323,6 +323,20 @@ def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline
     ast.make_code(c)
     return c.getcode()
 
+def parse_and_optimize_return_codegen(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
+    from pydrofoil.infer import infer
+    t1 = time.time()
+    ast = parse.parser.parse(parse.lexer.lex(s))
+    t2 = time.time()
+    print "parsing took", round(t2 - t1, 2)
+    context = infer(ast)
+    t3 = time.time()
+    print "infer took", round(t3 - t2, 2)
+    c = Codegen(promoted_registers, should_inline=should_inline, entrypoints=entrypoints)
+    ast.make_code(c)
+    c.finish_graphs()
+    return c
+
 
 # ____________________________________________________________
 # declarations

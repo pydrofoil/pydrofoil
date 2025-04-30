@@ -1,3 +1,4 @@
+from pydrofoil.effectinfo import EffectInfo, compute_all_effects
 from rpython.rlib.rsre import rsre_constants
 rsre_constants.V37 = False # horrible hack, circumvent weird skip
 
@@ -131,6 +132,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.let_values = {}
         # (graphs, funcs, args, kwargs) to emit at the end
         self._all_graphs = []
+        self._effect_infos = None
 
     def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -355,6 +357,14 @@ class Codegen(specialize.FixpointSpecializer):
 
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
 
+    def get_effects(self, function_name):
+        # type: (str) -> EffectInfo | None
+        # TODO copy this to regular code gen
+        if self._effect_infos is None:
+            self._effect_infos = compute_all_effects(self.all_graph_by_name)
+        return self._effect_infos.get(function_name)
+
+
 def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
     from pydrofoil.infer import infer
     t1 = time.time()
@@ -476,7 +486,7 @@ class __extend__(parse.Union):
             uniontyp = types.Union(self.name, names, tuple(rtyps))
             codegen.add_named_type(self.name, self.pyname, uniontyp, self)
             uniontyp.compact_union = False
-            bits = bits_needed(uniontyp) 
+            bits = bits_needed(uniontyp)
             if bits <= 64:
                 uniontyp.compact_union = True
                 self._implement_compact_union(codegen, uniontyp)

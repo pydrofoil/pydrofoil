@@ -2,5 +2,3 @@ import sys
 if sys.version_info.major == 2:
     import __builtin__
     sys.modules['builtins'] = __builtin__ # horrible hack 1, make pytest not break?!
-    from rpython.rlib.rsre import rsre_constants
-    rsre_constants.V37 = False # horrible hack 2, circumvent weird skip in rlib/

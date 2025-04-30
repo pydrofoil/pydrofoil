@@ -1,4 +1,8 @@
 import sys
+
+from rpython.rlib.rsre import rsre_constants
+rsre_constants.V37 = False # horrible hack, circumvent weird skip in rlib/
+
 from rply import LexerGenerator, LexingError, ParserGenerator, ParsingError
 from rply.token import BaseBox
 

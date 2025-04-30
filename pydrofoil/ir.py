@@ -4606,18 +4606,18 @@ def cse_global_reads(graph, codegen):
     def get_effect(op):
         # type: (Operation) -> EffectInfo | None
         if not op.can_have_side_effects:
-            return EffectInfo()
+            return EffectInfo.BOTTOM
         if isinstance(op, Comment):
-            return EffectInfo()
+            return EffectInfo.BOTTOM
         if op.name == "@not":
-            return EffectInfo()
+            return EffectInfo.BOTTOM
         if op.name == "@eq":
-            return EffectInfo()
+            return EffectInfo.BOTTOM
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
         if type(op) is Operation:
             if name in supportcode.purefunctions:
-                return EffectInfo()
+                return EffectInfo.BOTTOM
             return codegen.get_effects(op.name)
         return None
 
@@ -4816,19 +4816,23 @@ def partial_allocation_removal(graph, codegen):
 
 @repeat
 def cse_field_reads(graph, codegen):
+    from pydrofoil.effectinfo import EffectInfo
     # very simple forward load-after-load and load-after-store pass for struct fields
-    def leaves_structs_alone(op):
+    def get_effects(op):
+        # type: (Operation) -> EffectInfo | None
         if not op.can_have_side_effects:
-            return True
+            return EffectInfo.BOTTOM
         if isinstance(op, Comment):
-            return True
+            return EffectInfo.BOTTOM
         if op.name == "@not":
-            return True
+            return EffectInfo.BOTTOM
         if op.name == "@eq":
-            return True
+            return EffectInfo.BOTTOM
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
-        return type(op) is Operation and name in supportcode.purefunctions
+        if type(op) is Operation and name in supportcode.purefunctions:
+            return EffectInfo.BOTTOM
+        return codegen.get_effects(op.name)
 
     replacements = {}
     available = {} # block -> block -> prev_op
@@ -4862,15 +4866,16 @@ def cse_field_reads(graph, codegen):
             elif isinstance(op, FieldWrite):
                 key = (op.args[0].resolved_type, op.name)
                 available_in_block[key] = (op.args[0], op.args[1])
-                continue
             elif isinstance(op, StructConstruction):
                 for arg, typ, name in zip(op.args, op.resolved_type.typs, op.resolved_type.names):
                     available_in_block[op.resolved_type, name] = (op, arg)
-            elif not leaves_structs_alone(op):
-                available_in_block.clear()
-                continue
             else:
-                continue
+                effects = get_effects(op)
+                if effects is None:
+                    available_in_block.clear()
+                else:
+                    for key in effects.struct_writes:
+                        available_in_block.pop(key, None)
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]

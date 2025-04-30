@@ -86,6 +86,18 @@ class UnionConstant(AbstractConstant):
             return getattr(self.z3type, self.variant_name)
         z3val = self.w_val.toz3()
         return getattr(self.z3type, self.variant_name)(z3val)
+
+class NonLazyUnionConstant(UnionConstant):
+    """ This istance cannot be None (UNIT)"""
+
+    def __init__(self, variant_name, z3val, resolved_type, z3type):
+        self.variant_name = variant_name
+        self.z3val = z3val
+        self.resolved_type = resolved_type
+        self.z3type = z3type
+    
+    def toz3(self):
+        return self.z3val
     
 class StructConstant(AbstractConstant):
 
@@ -97,6 +109,17 @@ class StructConstant(AbstractConstant):
     def toz3(self):
         z3vals = [w_val.toz3() for w_val in self.vals_w]
         return self.z3type.a(*z3vals)
+    
+class NonLazyStructConstant(StructConstant):
+
+    def __init__(self, z3val, resolved_type, z3type):
+        self.vals_w = None
+        self.resolved_type = resolved_type
+        self.z3type = z3type
+        self.value = z3val
+    
+    def toz3(self):
+        return self.value
 
 class Z3Value(Value):
     
@@ -126,6 +149,7 @@ class SharedState(object):
         # create struct
         for fieldname, typ in resolved_type.internalfieldtyps.items():
             fields.append((fieldname, self.convert_type_to_z3_type(typ)))
+        # TODO: give the constructor a real names that contain struct name, calling it 'a' makes results very hard to read
         struct.declare("a", *fields)
         struct = struct.create()
         self.type_cache[resolved_type] = struct
@@ -478,6 +502,7 @@ class Interpreter(object):
         return w_res
 
     def exec_struct_construction(self, op):
+        """ Execute a Lazy Struct creation"""
         z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
         return StructConstant(self.getargs(op), op.resolved_type, z3type)
     
@@ -495,14 +520,42 @@ class Interpreter(object):
         ###    union(bird, (duck, goose), ...)
         ###    instance_of_duck = UnionCast(instance_of_bird, duck)
         ### TODO: Did RPython already check that the types fit, or could that fail?
+        ### if yes => remove typecheck in sharedstate.ir_union_variant_to_z3_type
         union_type = op.args[0].resolved_type
         to_specialized_variant = op.name 
         res_type = op.resolved_type# TODO: res_type can be removed, maybe ? 
         instance, = self.getargs(op)
-        z3_cast_instance = self.sharedstate.ir_union_variant_to_z3_type(instance, union_type, to_specialized_variant, res_type)
-        return Z3Value(z3_cast_instance)
+        if isinstance(instance, Z3Value):
+            z3_cast_instance = self.sharedstate.ir_union_variant_to_z3_type(instance, union_type, to_specialized_variant, res_type)
+            return Z3Value(z3_cast_instance)
+        elif isinstance(instance, UnionConstant):
+            # TODO: if z3 formula could be solved and result is a UnionConstant, interp will keep it as Z3Value
+            if hasattr(instance.z3type, to_specialized_variant):
+                if isinstance(res_type, types.Struct):
+                    new_z3_type = self.sharedstate.get_z3_struct_type(res_type)
+                    typechecker = getattr(instance.z3type, "is_" + to_specialized_variant)
+                    ### dont call accessor here, wont work ### 
+                    accessor = getattr(instance.z3type, "acc_" + to_specialized_variant)
+                    ### dont call accessor here, wont work ### 
+                    default_value = z3.FreshConst(new_z3_type, "error_in_typecast")
+                    new_z3_value = z3.If(typechecker(instance.toz3()), accessor(instance.toz3()), default_value)
+                    # This returns the complete z3 struct instance not the arguments
+                    new_instance = NonLazyStructConstant(new_z3_value, res_type, new_z3_value.sort())
+                elif isinstance(res_type, types.Enum):
+                    #new_z3_type = self.sharedstate.get_z3_enum_type(res_type)
+                    assert 0
+                elif isinstance(res_type, types.Union):
+                    #new_z3_type = self.sharedstate.get_z3_union_type(res_type)
+                    assert 0
+                return new_instance
+            else:
+                assert 0, "this should absolutely not happen"
+        else:
+            assert 0
+
     
     def exec_union_creation(self, op):
+        """ Execute a Lazy Union creation"""
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
         return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
 

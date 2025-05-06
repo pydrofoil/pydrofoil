@@ -738,7 +738,6 @@ def test_nand_zexecute_zcint():
 
 def test_nand_decode_execute_opcode():
     ### test decoding and execute an instruction ###
-    ### TODO: improve testing API, unpacking, simplifying and re-packing values like 646546 times is very annoying
 
     exec_graph = get_zexecute_zcint_graph()
     funcs = {"zcompute_value": get_nand_zcompute_value_graph(),
@@ -753,13 +752,13 @@ def test_nand_decode_execute_opcode():
     # build opcode fore D = D + 1
     opcode = 0b1110011111010000
     decode_graph = get_nand_decode_graph()
-    merge = z3backend.Z3Value(z3.BitVecVal(opcode, 16))
+    merge = z3backend.Constant(opcode)
     interp_decode = z3backend.NandInterpreter(decode_graph, [merge], sharedstate.copy())
     # this gives us the enum constant for D = D + 1
     opt_w_decoded_instr_expr = interp_decode.run()
     # simplify so only option(INST) remains
     opt_decoded_instr = z3.simplify(opt_w_decoded_instr_expr.toz3())
-    # Need ir-type of option to exctract value
+    # Need ir-type of option to extract value
     zoptionzIUinstrzIzKzK = Union('zoptionzIUinstrzIzKzK', ('zNonezIUinstrzIzKzK', 'zSomezIUinstrzIzKzK'), (Unit(), Union('zinstr', ('zAINST', 'zCINST'), (SmallFixedBitVector(16), Struct('ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump', ('ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3'), (SmallFixedBitVector(1), Enum('zarithmetic_op', ('zC_ZERO', 'zC_ONE', 'zC_MINUSONE', 'zC_D', 'zC_A', 'zC_NOT_D', 'zC_NOT_A', 'zC_NEG_D', 'zC_NEG_A', 'zC_D_ADD_1', 'zC_A_ADD_1', 'zC_D_SUB_1', 'zC_A_SUB_1', 'zC_D_ADD_A', 'zC_D_SUB_A', 'zC_A_SUB_D', 'zC_D_AND_A', 'zC_D_OR_A')), Struct('ztuplez3z5bool_z5bool_z5bool', ('ztuplez3z5bool_z5bool_z5bool0', 'ztuplez3z5bool_z5bool_z5bool1', 'ztuplez3z5bool_z5bool_z5bool2'), (Bool(), Bool(), Bool()), True), Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), True)))))
     zinstr = Union('zinstr', ('zAINST', 'zCINST'), (SmallFixedBitVector(16), Struct('ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump', ('ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3'), (SmallFixedBitVector(1), Enum('zarithmetic_op', ('zC_ZERO', 'zC_ONE', 'zC_MINUSONE', 'zC_D', 'zC_A', 'zC_NOT_D', 'zC_NOT_A', 'zC_NEG_D', 'zC_NEG_A', 'zC_D_ADD_1', 'zC_A_ADD_1', 'zC_D_SUB_1', 'zC_A_SUB_1', 'zC_D_ADD_A', 'zC_D_SUB_A', 'zC_A_SUB_D', 'zC_D_AND_A', 'zC_D_OR_A')), Struct('ztuplez3z5bool_z5bool_z5bool', ('ztuplez3z5bool_z5bool_z5bool0', 'ztuplez3z5bool_z5bool_z5bool1', 'ztuplez3z5bool_z5bool_z5bool2'), (Bool(), Bool(), Bool()), True), Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), True)))
     # get value out of 'option'
@@ -767,26 +766,24 @@ def test_nand_decode_execute_opcode():
                                                                                zoptionzIUinstrzIzKzK,
                                                                                "zSomezIUinstrzIzKzK",
                                                                                zinstr)
-    # now simplify again
-    decoded_instr = z3.simplify(decoded_instr_expr)
-    assert str(decoded_instr) == "zCINST(a(0, zC_D_ADD_1, a(False, True, False), zJDONT))"
+    # now simplify to assert
+    assert str(z3.simplify(decoded_instr_expr)) == "zCINST(a(0, zC_D_ADD_1, a(False, True, False), zJDONT))"
     # zC_D_ADD_1 => compute D+1
     # a(False, True, False) => (dont store in reg A, store in reg D, dont store in Mem[reg_A])
     # nJDONT => dont jump
     # 
     # now execute instruction
-    # Use NonLazyUnionConstant here, cause UnionConstant holds its args as w_vals and then builds z3 union instance on zoz3() call
-    # But that would be very hard to do here
-    concrete_mergevar = z3backend.NonLazyUnionConstant("zCINST", decoded_instr, zinstr, sharedstate.get_z3_union_type(zinstr))
-    interp = z3backend.NandInterpreter(exec_graph, [concrete_mergevar], sharedstate.copy())
+    interp = z3backend.NandInterpreter(exec_graph, [opt_w_decoded_instr_expr.w_val], sharedstate.copy())
+    d_old = interp.registers['zD']
     res = interp.run()
     is_exception, is_none = interp.w_raises, interp.w_result_none
 
     assert isinstance(res, z3backend.UnitConstant)
     assert str(is_none) == "True"
     assert str(z3.simplify(is_exception.toz3())) == "False"
-    zD_res = z3.simplify(interp.registers["zD"].toz3())
-    split_zD_res = str(zD_res).split("+")
-    assert split_zD_res[0] == "1 "
-    assert split_zD_res[1].startswith(" init_zD!")
+
+    zD_res = interp.registers["zD"].toz3()
+    solver = z3.Solver()
+    res = solver.check(z3.Not(zD_res == d_old.toz3() + 1))
+    assert res == z3.unsat
     

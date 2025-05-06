@@ -86,6 +86,9 @@ class UnionConstant(AbstractConstant):
             return getattr(self.z3type, self.variant_name)
         z3val = self.w_val.toz3()
         return getattr(self.z3type, self.variant_name)(z3val)
+    
+    def __str__(self):
+        return "%s(%s)" % (self.variant_name, self.w_val)
 
 class NonLazyUnionConstant(UnionConstant):
     """ This istance cannot be None (UNIT)"""
@@ -109,6 +112,9 @@ class StructConstant(AbstractConstant):
     def toz3(self):
         z3vals = [w_val.toz3() for w_val in self.vals_w]
         return self.z3type.a(*z3vals)
+    
+    def __str__(self):
+        return "<StructConstant %s %s>" % (self.vals_w, self.resolved_type.name)
     
 class NonLazyStructConstant(StructConstant):
 
@@ -362,7 +368,7 @@ class Interpreter(object):
             return next.target
         elif isinstance(next, ir.ConditionalGoto):
             w_cond = self.convert(next.booleanvalue)
-            if isinstance(w_cond, Constant):
+            if isinstance(w_cond, BooleanConstant):
                 if w_cond.value:
                     return next.truetarget
                 return next.falsetarget
@@ -512,6 +518,9 @@ class Interpreter(object):
         struct, = self.getargs(op)
         struct_type = op.args[0].resolved_type
         struct_type_z3 = self.sharedstate.get_z3_struct_type(struct_type)
+        if isinstance(struct, StructConstant):
+            index = struct.resolved_type.names.index(op.name)
+            return struct.vals_w[index]
         res = getattr(struct_type_z3, field)(struct.toz3())# get accessor from slot with getattr
         return Z3Value(res)
         
@@ -520,7 +529,7 @@ class Interpreter(object):
         ###    union(bird, (duck, goose), ...)
         ###    instance_of_duck = UnionCast(instance_of_bird, duck)
         ### TODO: Did RPython already check that the types fit, or could that fail?
-        ### if yes => remove typecheck in sharedstate.ir_union_variant_to_z3_type
+        ###       if yes => remove typecheck in sharedstate.ir_union_variant_to_z3_type
         union_type = op.args[0].resolved_type
         to_specialized_variant = op.name 
         res_type = op.resolved_type# TODO: res_type can be removed, maybe ? 
@@ -529,7 +538,9 @@ class Interpreter(object):
             z3_cast_instance = self.sharedstate.ir_union_variant_to_z3_type(instance, union_type, to_specialized_variant, res_type)
             return Z3Value(z3_cast_instance)
         elif isinstance(instance, UnionConstant):
-            # TODO: if z3 formula could be solved and result is a UnionConstant, interp will keep it as Z3Value
+            assert op.name == instance.variant_name
+            return instance.w_val
+        elif isinstance(instance, NonLazyUnionConstant):
             if hasattr(instance.z3type, to_specialized_variant):
                 if isinstance(res_type, types.Struct):
                     new_z3_type = self.sharedstate.get_z3_struct_type(res_type)
@@ -572,23 +583,23 @@ class Interpreter(object):
     def exec_eq_bits_bv_bv(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value == arg1.value)
+            return BooleanConstant(arg0.value == arg1.value)
         else:
             return Z3Value(arg0.toz3() == arg1.toz3())
     
     def exec_eq(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value == arg1.value)
+            return BooleanConstant(arg0.value == arg1.value)
         elif isinstance(arg0, Enum) and isinstance(arg1, Enum):
-            return Constant(arg0 == arg1)
+            return BooleanConstant(arg0 == arg1)
         else:
             return Z3Value(arg0.toz3() == arg1.toz3())
     
     def exec_gt(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value > arg1.value)
+            return BooleanConstant(arg0.value > arg1.value)
         else:
             # TODO: check if the 'default' interpretation of bv's is unsigned
             if arg0._signed or arg1._signed:
@@ -599,7 +610,7 @@ class Interpreter(object):
     def exec_gteq(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value >= arg1.value)
+            return BooleanConstant(arg0.value >= arg1.value)
         else:
             if arg0._signed or arg1._signed:
                 return Z3Value(arg0.toz3() >= arg1.toz3())
@@ -609,7 +620,7 @@ class Interpreter(object):
     def exec_lt(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value < arg1.value)
+            return BooleanConstant(arg0.value < arg1.value)
         else:
             if arg0._signed or arg1._signed:
                 return Z3Value(arg0.toz3() < arg1.toz3())
@@ -619,7 +630,7 @@ class Interpreter(object):
     def exec_lteq(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value <= arg1.value)
+            return BooleanConstant(arg0.value <= arg1.value)
         else:
             if arg0._signed or arg1._signed:
                 return Z3Value(arg0.toz3() <= arg1.toz3())
@@ -628,8 +639,8 @@ class Interpreter(object):
             
     def exec_not(self, op):
         arg0, = self.getargs(op)
-        if isinstance(arg0, Constant):
-            return Constant(not arg0.value)
+        if isinstance(arg0, BooleanConstant):
+            return BooleanConstant(not arg0.value)
         else:
             return Z3Value(not arg0.toz3())
         

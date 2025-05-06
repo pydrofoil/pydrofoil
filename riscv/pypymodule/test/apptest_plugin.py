@@ -399,3 +399,22 @@ def test_append():
     b1 = _pydrofoil.bitvector(4, 0b1100)
     assert b0 @ b1 == _pydrofoil.bitvector(10, 0b1101001100)
 
+
+# ________________________________________________
+# testing the sail types
+
+def test_sailtype_new():
+    assert _pydrofoil.sailtypes.Bool() is _pydrofoil.sailtypes.Bool() # singleton
+    with raises(TypeError):
+        _pydrofoil.sailtypes.Struct()
+    assert _pydrofoil.sailtypes.SmallFixedBitVector(23).width == 23
+    for invalid_width in [-1, 0, 65, 1090123]:
+        with raises(ValueError):
+            _pydrofoil.sailtypes.SmallFixedBitVector(invalid_width)
+    with raises(ValueError):
+        _pydrofoil.sailtypes.BigFixedBitVector(64)
+    assert _pydrofoil.sailtypes.BigFixedBitVector(2321).width == 2321
+
+def test_sailtype_repr():
+    assert repr(_pydrofoil.sailtypes.SmallFixedBitVector(12)) == "_pydrofoil.sailtypes.SmallFixedBitVector(12)"
+

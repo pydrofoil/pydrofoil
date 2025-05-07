@@ -425,4 +425,6 @@ def test_sailtype_repr():
 def test_fvec():
     cpu = _pydrofoil.RISCV64()
     rs = dict(cpu.register_info())
-    assert rs['mhpmevent'].of.width == 64
+    fvectype = rs['mhpmevent']
+    assert fvectype.of.width == 64
+    assert repr(fvectype) == "<_pydrofoil.sailtypes.FVec 32 _pydrofoil.sailtypes.SmallFixedBitVector(64)>"

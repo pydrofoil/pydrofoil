@@ -93,10 +93,12 @@ Vec.typedef = TypeDef("_pydrofoil.sailtypes.Vec", Type.typedef,
 Vec.typedef.acceptable_as_base_class = False
 
 class __extend__(FVec):
-    pass
+    def descr_repr(self, space):
+        return space.newtext("<_pydrofoil.sailtypes.FVec %s %s>" % (self.number, space.text_w(space.repr(self.typ))))
 FVec.typedef = TypeDef("_pydrofoil.sailtypes.FVec", Type.typedef,
     of = interp_attrproperty_w("typ", FVec),
     length = interp_attrproperty("number", FVec, None, "newint"),
+    __repr__ = interp2app(FVec.descr_repr),
 )
 FVec.typedef.acceptable_as_base_class = False
 

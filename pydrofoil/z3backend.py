@@ -742,7 +742,7 @@ class NandInterpreter(Interpreter):
 
 class RiscvInterpreter(Interpreter):
     """ Interpreter subclass for RiscV ISA """
-    def __init__(self, graph, args, longmode=False, shared_state=None):
+    def __init__(self, graph, args, shared_state=None, longmode=False):
         bits = 64 if longmode else 32 # TODO: is this also called longmode on RiscV? 
         super(RiscvInterpreter, self).__init__(graph, args, shared_state)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(bits), z3.BitVecSort(bits))

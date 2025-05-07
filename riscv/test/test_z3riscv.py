@@ -18,7 +18,7 @@ def riscvsharedstate(riscv_first_shared_state):
 
 def test_decode(riscvsharedstate):
     graph = riscvsharedstate.funcs['zencdec_backwards']
-    interp = z3backend.RiscvInterpreter(graph, [z3backend.Constant(r_uint(0b1100))], True, riscvsharedstate.copy())
+    interp = z3backend.RiscvInterpreter(graph, [z3backend.Constant(r_uint(0b1100))], riscvsharedstate.copy(), longmode=True)
     res = interp.run()
     assert isinstance(res, z3backend.UnionConstant)
     assert res.variant == "zC_D"

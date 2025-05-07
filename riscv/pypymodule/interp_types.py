@@ -81,9 +81,13 @@ class __extend__(TupleStruct):
             raise oefmt(space.w_IndexError, "index out of range")
         return self.typs_list[index]
 
+    def descr_repr(self, space):
+        return space.newtext("<_pydrofoil.sailtypes.Tuple (%s)>" % ", ".join([space.text_w(space.repr(typ)) for typ in self.typs_list]))
+
 TupleStruct.typedef = TypeDef("_pydrofoil.sailtypes.Tuple", Type.typedef,
     __len__ = interp2app(TupleStruct.descr_len),
     __getitem__ = interp2app(TupleStruct.descr_getitem),
+    __repr__ = interp2app(TupleStruct.descr_repr),
 )
 TupleStruct.typedef.acceptable_as_base_class = False
 

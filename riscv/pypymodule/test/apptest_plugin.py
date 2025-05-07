@@ -444,3 +444,7 @@ def test_struct_repr():
     cpu = _pydrofoil.RISCV64()
     assert repr(cpu.lowlevel.check_PTE_permission.sail_type.arguments[4]) == '<_pydrofoil.sailtypes.Struct PTE_Flags>'
 
+def test_tuple_repr():
+    cpu = _pydrofoil.RISCV64()
+    assert repr(dict(cpu.types.ast.sail_type.constructors)['ITYPE']) == '<_pydrofoil.sailtypes.Tuple (_pydrofoil.sailtypes.SmallFixedBitVector(12), _pydrofoil.sailtypes.SmallFixedBitVector(5), _pydrofoil.sailtypes.SmallFixedBitVector(5), <_pydrofoil.sailtypes.Enum iop { RISCV_ADDI RISCV_SLTI RISCV_SLTIU RISCV_XORI RISCV_ORI RISCV_ANDI }>)>'
+

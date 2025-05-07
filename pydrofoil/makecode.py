@@ -409,7 +409,7 @@ def parse_and_optimize_return_codegen(s, support_code, promoted_registers=set(),
     print "infer took", round(t3 - t2, 2)
     c = Codegen(promoted_registers, should_inline=should_inline, entrypoints=entrypoints)
     ast.make_code(c)
-    c.finish_graphs()
+    c.specialize_all()
     return c
 
 

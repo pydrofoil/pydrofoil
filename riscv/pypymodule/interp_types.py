@@ -87,9 +87,10 @@ Ref.typedef.acceptable_as_base_class = False
 
 class __extend__(Vec):
     def descr_repr(self, space):
-        return space.newtext("<_pydrofoil.sailtypes.FVec %s %s>" % (self.number, space.text_w(space.repr(self.typ))))
+        return space.newtext("<_pydrofoil.sailtypes.Vec %s>" % (space.text_w(space.repr(self.typ)), ))
 Vec.typedef = TypeDef("_pydrofoil.sailtypes.Vec", Type.typedef,
     of = interp_attrproperty_w("typ", Vec)
+    __repr__ = interp2app(Vec.descr_repr),
 )
 Vec.typedef.acceptable_as_base_class = False
 

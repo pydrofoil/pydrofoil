@@ -10,6 +10,15 @@ from pydrofoil.types import *
 class __extend__(Type):
     _attrs_ = []
 
+    _descroperation_shortcuts_installed = True # hack: don't install shortcuts
+
+    def descr_sailtype_repr(self, space):
+        return space.newtext(self._applevel_repr(space))
+
+    def _applevel_repr(self, space):
+        classname = space.getfulltypename(self)
+        return space.text_w(self.getrepr(space, '%s object' % (classname,)))
+
 def descr_type_new(space, w_cls):
     raise oefmt(space.w_TypeError, "can instantiate new sail types")
 
@@ -17,6 +26,7 @@ Type.typedef = TypeDef("_pydrofoil.sailtypes.SailType",
     __doc__ = """Instances of (subclasses of) this class represents a Sail
                  type. """,
     __new__ = interp2app(descr_type_new),
+    __repr__ = interp2app(Type.descr_sailtype_repr),
 )
 Type.typedef.acceptable_as_base_class = False
 
@@ -26,13 +36,12 @@ class __extend__(Union):
                      for index, name in enumerate(self.names_list)]
         return space.newlist(res_w)
 
-    def descr_repr(self, space):
-        return space.newtext("<_pydrofoil.sailtypes.Union %s>" % self.demangled_name)
+    def _applevel_repr(self, space):
+        return "<_pydrofoil.sailtypes.Union %s>" % self.demangled_name
 
 Union.typedef = TypeDef("_pydrofoil.sailtypes.Union", Type.typedef,
     name = interp_attrproperty("demangled_name", Union, "the name of the union type", "newtext"),
     constructors = GetSetProperty(Union.descr_get_constructors),
-    __repr__ = interp2app(Union.descr_repr),
 )
 Union.typedef.acceptable_as_base_class = False
 
@@ -42,14 +51,13 @@ class __extend__(Enum):
                     for element in self.elements_list]
         return space.newlist(res_w)
 
-    def descr_repr(self, space):
-        return space.newtext("<_pydrofoil.sailtypes.Enum %s { %s }>" % (self.demangled_name, " ".join(self.elements_list)))
+    def _applevel_repr(self, space):
+        return "<_pydrofoil.sailtypes.Enum %s { %s }>" % (self.demangled_name, " ".join(self.elements_list))
 
 
 Enum.typedef = TypeDef("_pydrofoil.sailtypes.Enum", Type.typedef,
     name = interp_attrproperty("demangled_name", Enum, "the name of the enum type", "newtext"),
     elements = GetSetProperty(Enum.descr_get_elements),
-    __repr__ = interp2app(Enum.descr_repr),
 )
 Enum.typedef.acceptable_as_base_class = False
 
@@ -59,13 +67,12 @@ class __extend__(RegularStruct):
                      for index, name in enumerate(self.names_list)]
         return space.newlist(res_w)
 
-    def descr_repr(self, space):
-        return space.newtext("<_pydrofoil.sailtypes.Struct %s>" % self.demangled_name)
+    def _applevel_repr(self, space):
+        return "<_pydrofoil.sailtypes.Struct %s>" % self.demangled_name
 
 RegularStruct.typedef = TypeDef("_pydrofoil.sailtypes.Struct", Type.typedef,
     name = interp_attrproperty("demangled_name", RegularStruct, "the name of the struct type", "newtext"),
     fields = GetSetProperty(RegularStruct.descr_get_fields),
-    __repr__ = interp2app(RegularStruct.descr_repr),
 )
 RegularStruct.typedef.acceptable_as_base_class = False
 
@@ -81,13 +88,12 @@ class __extend__(TupleStruct):
             raise oefmt(space.w_IndexError, "index out of range")
         return self.typs_list[index]
 
-    def descr_repr(self, space):
-        return space.newtext("<_pydrofoil.sailtypes.Tuple (%s)>" % ", ".join([space.text_w(space.repr(typ)) for typ in self.typs_list]))
+    def _applevel_repr(self, space):
+        return "<_pydrofoil.sailtypes.Tuple (%s)>" % ", ".join([typ._applevel_repr(space) for typ in self.typs_list])
 
 TupleStruct.typedef = TypeDef("_pydrofoil.sailtypes.Tuple", Type.typedef,
     __len__ = interp2app(TupleStruct.descr_len),
     __getitem__ = interp2app(TupleStruct.descr_getitem),
-    __repr__ = interp2app(TupleStruct.descr_repr),
 )
 TupleStruct.typedef.acceptable_as_base_class = False
 
@@ -99,21 +105,19 @@ Ref.typedef = TypeDef("_pydrofoil.sailtypes.Ref", Type.typedef,
 Ref.typedef.acceptable_as_base_class = False
 
 class __extend__(Vec):
-    def descr_repr(self, space):
-        return space.newtext("<_pydrofoil.sailtypes.Vec %s>" % (space.text_w(space.repr(self.typ)), ))
+    def _applevel_repr(self, space):
+        return"<_pydrofoil.sailtypes.Vec %s>" % (self.typ._applevel_repr(space), )
 Vec.typedef = TypeDef("_pydrofoil.sailtypes.Vec", Type.typedef,
     of = interp_attrproperty_w("typ", Vec),
-    __repr__ = interp2app(Vec.descr_repr),
 )
 Vec.typedef.acceptable_as_base_class = False
 
 class __extend__(FVec):
-    def descr_repr(self, space):
-        return space.newtext("<_pydrofoil.sailtypes.FVec %s %s>" % (self.number, space.text_w(space.repr(self.typ))))
+    def _applevel_repr(self, space):
+        return "<_pydrofoil.sailtypes.FVec %s %s>" % (self.number, self.typ._applevel_repr(space))
 FVec.typedef = TypeDef("_pydrofoil.sailtypes.FVec", Type.typedef,
     of = interp_attrproperty_w("typ", FVec),
     length = interp_attrproperty("number", FVec, None, "newint"),
-    __repr__ = interp2app(FVec.descr_repr),
 )
 FVec.typedef.acceptable_as_base_class = False
 
@@ -124,14 +128,13 @@ class __extend__(Function):
     def descr_get_result(self, space):
         return self.restype
 
-    def descr_repr(self, space):
-        args = ", ".join([space.text_w(space.repr(typ)) for typ in self.argument_list])
-        return space.newtext("<_pydrofoil.sailtypes.Function (%s) -> %s>" % (args, space.text_w(space.repr(self.restype))))
+    def _applevel_repr(self, space):
+        args = ", ".join([typ._applevel_repr(space) for typ in self.argument_list])
+        return "<_pydrofoil.sailtypes.Function (%s) -> %s>" % (args, self.restype._applevel_repr(space))
 
 Function.typedef = TypeDef("_pydrofoil.sailtypes.Function", Type.typedef,
     arguments = GetSetProperty(Function.descr_get_arguments),
     result = GetSetProperty(Function.descr_get_result),
-    __repr__ = interp2app(Function.descr_repr),
 )
 Function.typedef.acceptable_as_base_class = False
 
@@ -154,13 +157,12 @@ def descr_bitvector_new(space, w_cls, width):
     return SmallFixedBitVector(width)
 
 class __extend__(SmallFixedBitVector):
-    def descr_repr(self, space):
-        return space.newtext("_pydrofoil.sailtypes.SmallFixedBitVector(%s)" % (self.width, ))
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.SmallFixedBitVector(%s)" % (self.width, )
 
 SmallFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.SmallFixedBitVector", Type.typedef,
     width = interp_attrproperty("width", SmallFixedBitVector, "the width of the bitvector", "newint"),
     __new__ = interp2app(descr_bitvector_new),
-    __repr__ = interp2app(SmallFixedBitVector.descr_repr),
 )
 SmallFixedBitVector.typedef.acceptable_as_base_class = False
 
@@ -171,12 +173,11 @@ def descr_big_bitvector_new(space, w_cls, width):
     return BigFixedBitVector(width)
 
 class __extend__(BigFixedBitVector):
-    def descr_repr(self, space):
-        return space.newtext("_pydrofoil.sailtypes.BigFixedBitVector(%s)" % (self.width, ))
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.BigFixedBitVector(%s)" % (self.width, )
 BigFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.BigFixedBitVector", Type.typedef,
     width = interp_attrproperty("width", BigFixedBitVector, "the width of the bitvector", "newint"),
     __new__ = interp2app(descr_big_bitvector_new),
-    __repr__ = interp2app(BigFixedBitVector.descr_repr),
 )
 BigFixedBitVector.typedef.acceptable_as_base_class = False
 
@@ -201,8 +202,8 @@ MachineInt.typedef.acceptable_as_base_class = False
 
 
 class __extend__(Int):
-    def descr_repr(self, space):
-        return space.newtext("_pydrofoil.sailtypes.Int()")
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.Int()"
 
 INT = Int()
 
@@ -215,8 +216,8 @@ Int.typedef = TypeDef("_pydrofoil.sailtypes.Int", Type.typedef,
 Int.typedef.acceptable_as_base_class = False
 
 class __extend__(Bool):
-    def descr_repr(self, space):
-        return space.newtext("_pydrofoil.sailtypes.Bool()")
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.Bool()"
 
 BOOL = Bool()
 
@@ -225,13 +226,12 @@ def descr_bool_new(space, w_cls):
 
 Bool.typedef = TypeDef("_pydrofoil.sailtypes.Bool", Type.typedef,
     __new__ = interp2app(descr_bool_new),
-    __repr__ = interp2app(Bool.descr_repr),
 )
 Bool.typedef.acceptable_as_base_class = False
 
 class __extend__(Unit):
-    def descr_repr(self, space):
-        return space.newtext("_pydrofoil.sailtypes.Unit()")
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.Unit()"
 
 UNIT = Unit()
 
@@ -240,13 +240,12 @@ def descr_unit_new(space, w_cls):
 
 Unit.typedef = TypeDef("_pydrofoil.sailtypes.Unit", Type.typedef,
     __new__ = interp2app(descr_unit_new),
-    __repr__ = interp2app(Unit.descr_repr),
 )
 Unit.typedef.acceptable_as_base_class = False
 
 class __extend__(String):
-    def descr_repr(self, space):
-        return space.newtext("_pydrofoil.sailtypes.String()")
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.String()"
 
 STRING = String()
 
@@ -255,14 +254,13 @@ def descr_string_new(space, w_cls):
 
 String.typedef = TypeDef("_pydrofoil.sailtypes.String", Type.typedef,
     __new__ = interp2app(descr_string_new),
-    __repr__ = interp2app(String.descr_repr),
 )
 String.typedef.acceptable_as_base_class = False
 
 
 class __extend__(Real):
-    def descr_repr(self, space):
-        return space.newtext("_pydrofoil.sailtypes.Real()")
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.Real()"
 
 REAL = Real()
 
@@ -271,7 +269,6 @@ def descr_real_new(space, w_cls):
 
 Real.typedef = TypeDef("_pydrofoil.sailtypes.Real", Type.typedef,
     __new__ = interp2app(descr_real_new),
-    __repr__ = interp2app(Real.descr_repr),
 )
 
 Real.typedef.acceptable_as_base_class = False

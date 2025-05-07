@@ -2,6 +2,8 @@ from pypy.interpreter.mixedmodule import MixedModule
 
 class TypesModule(MixedModule):
     """ Pydrofoil Sail types """
+    applevel_name = '_pydrofoil.sailtypes'
+
     interpleveldefs = {
         'SailType': 'interp_types.Type',
         'Function': 'interp_types.Function',

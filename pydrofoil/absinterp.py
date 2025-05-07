@@ -3,8 +3,9 @@ from collections import defaultdict
 
 from pydrofoil import ir, types
 
-MININT = -sys.maxint-1
+MININT = -sys.maxint - 1
 MAXINT = sys.maxint
+
 
 def int_c_div(x, y):
     r = x // y
@@ -12,11 +13,12 @@ def int_c_div(x, y):
         r += 1
     return r
 
+
 class Range(object):
     def __init__(self, low=None, high=None):
         # both can be None
-        self.low = low
-        self.high = high
+        self.low = low  # type: int | None
+        self.high = high  # type: int | None
         if low is not None and high is not None:
             assert low <= high
 
@@ -36,9 +38,6 @@ class Range(object):
     def __ne__(self, other):
         return not self == other
 
-    def __hash__(self):
-        return hash((self.low, other.low))
-
     def contains(self, number):
         if self.low is not None and not self.low <= number:
             return False
@@ -46,12 +45,25 @@ class Range(object):
             return False
         return True
 
+    def contains_range(self, other):
+        # type: (Range) -> bool
+        if self.low is not None:
+            if other.low is None:
+                return False
+            if other.low < self.low:
+                return False
+        if self.high is not None:
+            if other.high is None:
+                return False
+            if other.high > self.high:
+                return False
+        return True
+
     def isconstant(self):
         return self.low is not None and self.low == self.high
 
     def fits_machineint(self):
-        return (self.is_bounded() and
-                self.low >= MININT and self.high <= MAXINT)
+        return self.is_bounded() and self.low >= MININT and self.high <= MAXINT
 
     def add(self, other):
         low = high = None
@@ -74,10 +86,12 @@ class Range(object):
 
     def mul(self, other):
         if self.is_bounded() and other.is_bounded():
-            values = [self.low * other.low,
-                      self.high * other.low,
-                      self.low * other.high,
-                      self.high * other.high]
+            values = [
+                self.low * other.low,
+                self.high * other.low,
+                self.low * other.high,
+                self.high * other.high,
+            ]
             return Range(min(values), max(values))
         if self.low is not None and other.low is not None:
             if self.low >= 0 and other.low >= 0:
@@ -91,10 +105,12 @@ class Range(object):
         # very minimal for now
         if other.low is not None and other.low >= 1:
             if other.high is not None and self.is_bounded():
-                values = [int_c_div(self.low, other.low),
-                          int_c_div(self.high, other.low),
-                          int_c_div(self.low, other.high),
-                          int_c_div(self.high, other.high)]
+                values = [
+                    int_c_div(self.low, other.low),
+                    int_c_div(self.high, other.low),
+                    int_c_div(self.low, other.high),
+                    int_c_div(self.high, other.high),
+                ]
                 return Range(min(values), max(values))
             # division by positive number cannot change the sign
             if self.low is not None and self.low >= 0:
@@ -112,12 +128,18 @@ class Range(object):
         return UNBOUNDED
 
     def lshift(self, other):
-        if (self.is_bounded() and other.is_bounded() and
-                0 <= other.low and other.high <= 64):
-            values = [self.low << other.low,
-                      self.high << other.low,
-                      self.low << other.high,
-                      self.high << other.high]
+        if (
+            self.is_bounded()
+            and other.is_bounded()
+            and 0 <= other.low
+            and other.high <= 64
+        ):
+            values = [
+                self.low << other.low,
+                self.high << other.low,
+                self.low << other.high,
+                self.high << other.high,
+            ]
             return Range(min(values), max(values))
         if self.low is not None and self.low >= 0 and other.low is not None:
             if 0 <= other.low <= 64:
@@ -126,12 +148,18 @@ class Range(object):
         return UNBOUNDED
 
     def rshift(self, other):
-        if (self.is_bounded() and other.is_bounded() and
-                0 <= other.low and other.high <= sys.maxint):
-            values = [self.low >> other.low,
-                      self.high >> other.low,
-                      self.low >> other.high,
-                      self.high >> other.high]
+        if (
+            self.is_bounded()
+            and other.is_bounded()
+            and 0 <= other.low
+            and other.high <= sys.maxint
+        ):
+            values = [
+                self.low >> other.low,
+                self.high >> other.low,
+                self.low >> other.high,
+                self.high >> other.high,
+            ]
             return Range(min(values), max(values))
         return UNBOUNDED
 
@@ -142,6 +170,18 @@ class Range(object):
         if self.high is not None and other.high is not None:
             high = max(self.high, other.high)
         return Range(low, high)
+
+    @staticmethod
+    def union_many(ranges):
+        # type: (Iterable[Range]) -> Range
+        ranges_iter = iter(ranges)
+        try:
+            res = next(ranges_iter)
+        except StopIteration:
+            raise ValueError("No ranges given")
+        for range in ranges_iter:
+            res = res.union(range)
+        return res
 
     def le(self, other):
         if self.high is not None and other.low is not None:
@@ -215,6 +255,7 @@ class Range(object):
     def make_gt_const(self, const):
         return self.make_ge_const(const + 1)
 
+
 UNBOUNDED = Range(None, None)
 MACHINEINT = Range(MININT, MAXINT)
 BOOL = Range(0, 1)
@@ -224,6 +265,7 @@ FALSE = Range(0, 0)
 RELEVANT_TYPES = (types.MachineInt(), types.Int(), types.Bool())
 INT_TYPES = (types.MachineInt(), types.Int())
 
+
 def analyze(graph, codegen, view=False):
     absinterp = AbstractInterpreter(graph, codegen)
     res = absinterp.analyze()
@@ -231,12 +273,14 @@ def analyze(graph, codegen, view=False):
         absinterp.view()
     return res
 
+
 class AbstractInterpreter(object):
     _view = False
+
     def __init__(self, graph, codegen):
         self.graph = graph
         self.codegen = codegen
-        self.values = {} # block -> value -> Range
+        self.values = {}  # block -> value -> Range
 
     def _builtinname(self, name):
         return self.codegen.builtin_names.get(name, name)
@@ -248,16 +292,14 @@ class AbstractInterpreter(object):
         from rpython.translator.tool.make_dot import DotGen
         from dotviewer import graphclient
         import pytest
-        dotgen = DotGen('G')
+
+        dotgen = DotGen("G")
         print_varnames = self.graph._dot(dotgen, self.codegen, None)
         for block in self.graph.iterblocks():
             extrainfoid = "info" + str(id(block))
             if block not in self.values:
                 dotgen.emit_node(
-                    extrainfoid,
-                    shape="box",
-                    fillcolor="orange",
-                    label="NOT REACHED"
+                    extrainfoid, shape="box", fillcolor="orange", label="NOT REACHED"
                 )
             else:
                 current_values = self.values[block]
@@ -265,7 +307,11 @@ class AbstractInterpreter(object):
                 for op, r in current_values.iteritems():
                     if op in block.operations:
                         continue
-                    if r == UNBOUNDED or (op.resolved_type is types.Bool() and r == BOOL) or (op.resolved_type is types.MachineInt() and r == MACHINEINT):
+                    if (
+                        r == UNBOUNDED
+                        or (op.resolved_type is types.Bool() and r == BOOL)
+                        or (op.resolved_type is types.MachineInt() and r == MACHINEINT)
+                    ):
                         continue
                     res.append("%s: %r" % (op._repr(print_varnames), r))
                 if res:
@@ -274,7 +320,11 @@ class AbstractInterpreter(object):
                     if op not in current_values:
                         continue
                     r = current_values[op]
-                    if r == UNBOUNDED or (op.resolved_type is types.Bool() and r == BOOL) or (op.resolved_type is types.MachineInt() and r == MACHINEINT):
+                    if (
+                        r == UNBOUNDED
+                        or (op.resolved_type is types.Bool() and r == BOOL)
+                        or (op.resolved_type is types.MachineInt() and r == MACHINEINT)
+                    ):
                         continue
                     res.append("%s: %r" % (op._repr(print_varnames), r))
                 if not res:
@@ -287,7 +337,9 @@ class AbstractInterpreter(object):
                     label=label,
                 )
             dotgen.emit_edge(extrainfoid, str(id(block)))
-        ir.GraphPage(dotgen.generate(target=None), print_varnames, self.graph.args).display()
+        ir.GraphPage(
+            dotgen.generate(target=None), print_varnames, self.graph.args
+        ).display()
 
     def analyze(self):
         startblock_values = {}
@@ -304,7 +356,9 @@ class AbstractInterpreter(object):
             self.analyze_block(block)
             self.analyze_link(block)
         if self._view:
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
         return self.values
 
@@ -344,7 +398,9 @@ class AbstractInterpreter(object):
     def analyze_block(self, block):
         for op in block.operations:
             if op.resolved_type in RELEVANT_TYPES:
-                meth = getattr(self, "analyze_" + op.__class__.__name__, self.analyze_default)
+                meth = getattr(
+                    self, "analyze_" + op.__class__.__name__, self.analyze_default
+                )
                 res = meth(op)
                 assert res is not None
                 self.current_values[op] = res
@@ -423,6 +479,7 @@ class AbstractInterpreter(object):
     def analyze_add(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.add(arg1)
+
     analyze_add_int = analyze_add
     analyze_add_i_i_must_fit = analyze_add
     analyze_add_i_i_wrapped_res = analyze_add
@@ -431,6 +488,7 @@ class AbstractInterpreter(object):
     def analyze_sub(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.sub(arg1)
+
     analyze_sub_int = analyze_sub
     analyze_sub_i_i_must_fit = analyze_sub
     analyze_sub_i_i_wrapped_res = analyze_sub
@@ -458,13 +516,13 @@ class AbstractInterpreter(object):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():
             return
-        return Range(0, 2**arg1.low - 1)
+        return Range(0, 2 ** arg1.low - 1)
 
     def analyze_unsigned_bv_wrapped_res(self, op):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():
             return
-        return Range(0, 2**arg1.low - 1)
+        return Range(0, 2 ** arg1.low - 1)
 
     def analyze_signed_bv(self, op):
         _, arg1 = self._argbounds(op)
@@ -476,38 +534,43 @@ class AbstractInterpreter(object):
     def analyze_mult_int(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.mul(arg1)
+
     analyze_mult_i_i_wrapped_res = analyze_mult_int
     analyze_mult_i_i_must_fit = analyze_mult_int
 
     def analyze_tdiv_int(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.tdiv(arg1)
+
     analyze_tdiv_int_i_i = analyze_tdiv_int
 
     def analyze_ediv_int(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.ediv(arg1)
+
     analyze_ediv_int_i_ipos = analyze_ediv_int
 
     def analyze_lshift(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.lshift(arg1)
+
     analyze_shl_mach_int = analyze_lshift
     analyze_shl_int_o_i = analyze_lshift
     analyze_shl_int_i_i_wrapped_res = analyze_lshift
     analyze_shl_int_i_i_must_fit = analyze_lshift
 
     def analyze_pow2_i(self, op):
-        arg0, = self._argbounds(op)
+        (arg0,) = self._argbounds(op)
         return Range(1, 1).lshift(arg0)
 
     def analyze_rshift(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.rshift(arg1)
+
     analyze_shr_mach_int = analyze_rshift
     analyze_shr_int_o_i = analyze_rshift
 
-    def analyze_assert_in_range(self, op): # tests only for now
+    def analyze_assert_in_range(self, op):  # tests only for now
         arg0, arg1, arg2 = self._argbounds(op)
         assert arg1.isconstant() and arg2.isconstant()
         res = self.current_values[op.args[0]] = Range(arg1.low, arg2.high)
@@ -515,7 +578,6 @@ class AbstractInterpreter(object):
 
     def analyze_length_unwrapped_res(self, op):
         return Range(0, None)
-
 
     # conditions
 
@@ -545,14 +607,19 @@ class AbstractInterpreter(object):
                 truevalues[args[1]] = arg1.make_gt(arg0)
                 falsevalues[args[0]] = arg0.make_ge(arg1)
                 falsevalues[args[1]] = arg1.make_le(arg0)
-            elif name in ("eq", "eq_int", "eq_int_o_i", "eq_int_i_i") and args[0].resolved_type in INT_TYPES:
+            elif (
+                name in ("eq", "eq_int", "eq_int_o_i", "eq_int_i_i")
+                and args[0].resolved_type in INT_TYPES
+            ):
                 arg0, arg1 = self._argbounds(args)
                 if arg0.isconstant():
                     truevalues[args[1]] = arg0
                 if arg1.isconstant():
                     truevalues[args[0]] = arg1
             else:
-                if name != op.name and any(arg.resolved_type in INT_TYPES for arg in op.args):
+                if name != op.name and any(
+                    arg.resolved_type in INT_TYPES for arg in op.args
+                ):
                     self.codegen.print_debug_msg("UNKNOWN CONDITION", name, op)
         return truevalues, falsevalues
 
@@ -573,7 +640,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
         return ir.LocalOptimizer._should_fit_machine_int(self, op)
 
     def optimize_block(self, block):
-        if block not in self.values: # dead
+        if block not in self.values:  # dead
             self.current_values = None
             return
         self.current_values = self.values[block]
@@ -630,7 +697,9 @@ class IntOpOptimizer(ir.LocalOptimizer):
         if arg.resolved_type is types.Int():
             value = self.current_values.get(arg, None)
             if value is not None and value.fits_machineint():
-                return self._insert_int_to_int64_into_right_block(arg, self.current_block)
+                return self._insert_int_to_int64_into_right_block(
+                    arg, self.current_block
+                )
         return ir.LocalOptimizer._extract_machineint(self, arg, *args, **kwargs)
 
     def _optimize_Phi(self, op, block, index):
@@ -646,10 +715,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
                     return None
                 machineints.append(arg)
             return self._make_int64_to_int(
-                self.newphi(
-                    op.prevblocks,
-                    machineints,
-                    types.MachineInt())
+                self.newphi(op.prevblocks, machineints, types.MachineInt())
             )
         return ir.LocalOptimizer._optimize_Phi(self, op, block, index)
 
@@ -669,6 +735,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
                     )
                 )
 
+
 def optimize_with_range_info(graph, codegen):
     if graph.has_loop:
         return False
@@ -678,3 +745,76 @@ def optimize_with_range_info(graph, codegen):
     absinterp.analyze()
     opt = IntOpOptimizer(graph, codegen, absinterp)
     return opt.optimize()
+
+
+def default_for_type(typ):
+    # type: (types.Type) -> Range
+    if typ is types.Bool():
+        return BOOL
+    elif typ is types.MachineInt():
+        return MACHINEINT
+    else:
+        return UNBOUNDED
+
+
+class LocationManager(object):
+    def __init__(self):
+        self._all_locations = []  # type: list[Location]
+        self._argument_locations = {}  # type: dict[ir.Argument, Location]
+        self._result_locations = {}  # type: dict[ir.Graph, Location]
+
+    def new_location(self, typ):
+        # type: (types.Type) -> Location
+        loc = Location(self, typ)
+        self._all_locations.append(loc)
+        return loc
+
+    def find_modified(self):
+        # type: () -> frozenset[Location]
+        modified = set()
+        for location in self._all_locations:
+            if location._recompute():
+                modified.add(location)
+        return frozenset(modified)
+
+    def get_location_for_argument(self, arg):
+        # type: (ir.Argument) -> Location
+        loc = self._argument_locations.get(arg)
+        if loc is None:
+            loc = self._argument_locations[arg] = self.new_location(arg.resolved_type)
+        return loc
+
+    def get_location_for_result(self, graph, typ):
+        # type: (ir.Graph, types.Type) -> Location | None
+        loc = self._result_locations.get(graph)
+        if loc is None:
+            loc = self._result_locations[graph] = self.new_location(typ)
+        return loc
+
+
+class Location(object):
+    def __init__(self, manager, typ):
+        # type: (LocationManager, types.Type) -> None
+        self._manager = manager
+        self._typ = typ
+        self._bound = default_for_type(typ)
+        self._writes = {}  # type: dict[ir.Graph, Range]
+        self._readers = set()
+
+    def write(self, new_bound, graph):
+        # type: (Range, ir.Graph) -> None
+        self._writes[graph] = new_bound
+        assert self._bound.contains_range(new_bound)
+
+    def read(self, graph):
+        self._readers.add(graph)
+        return self._bound
+
+    def _recompute(self):
+        # type: () -> bool
+        if not self._writes:
+            return False
+        old = self._bound
+        self._bound = Range.union_many(self._writes.values())
+        assert old.contains_range(self._bound)
+        return self._bound != old

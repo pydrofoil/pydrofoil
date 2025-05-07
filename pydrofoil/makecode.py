@@ -1,3 +1,7 @@
+from pydrofoil.effectinfo import EffectInfo, compute_all_effects
+from rpython.rlib.rsre import rsre_constants
+rsre_constants.V37 = False # horrible hack, circumvent weird skip
+
 import os
 import sys
 import time
@@ -6,6 +10,7 @@ from rpython.tool.pairtype import pair
 
 from pydrofoil import parse, types, binaryop, operations, supportcode, specialize
 from pydrofoil.emitfunction import emit_function_code
+from pydrofoil.mangle import demangle
 
 
 assert sys.maxint == 2 ** 63 - 1, "only 64 bit platforms are supported!"
@@ -127,6 +132,7 @@ class Codegen(specialize.FixpointSpecializer):
         self.let_values = {}
         # (graphs, funcs, args, kwargs) to emit at the end
         self._all_graphs = []
+        self._effect_infos = None
 
     def add_global(self, name, pyname, typ=None, ast=None, write_pyname=None):
         assert isinstance(typ, types.Type) or typ is None
@@ -231,6 +237,10 @@ class Codegen(specialize.FixpointSpecializer):
         def emit_extra(graph, codegen):
             with self.emit_indent(first):
                 emit_function_code(graph, None, codegen)
+            argument_converters = "[" + ", ".join([arg.resolved_type.convert_from_pypy for arg in graph.args]) + "]"
+            result_converter = functyp.restype.convert_to_pypy
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+                pyname, demangle(graph.name).replace('speciali\x8cd', 'specialized'), pyname, argument_converters, result_converter, repr(functyp)))
         self.add_graph(graph, emit_extra)
 
     def add_graph(self, graph, emit_function, *args, **kwargs):
@@ -270,6 +280,11 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_named_type(name, pyname, structtyp, ast)
         uninit_arg = []
         with self.emit_code_type("declarations"), self.emit_indent("class %s(supportcode.ObjectBase):" % pyname):
+            self.emit("_field_info = []")
+            for fieldname, fieldtyp in zip(structtyp.names, structtyp.typs):
+                self.emit("_field_info.append((%r, %s, %s, %r, %r))" % (
+                    fieldname, fieldtyp.convert_to_pypy, fieldtyp.convert_from_pypy,
+                    repr(fieldtyp), demangle(fieldname)))
             self.emit("@objectmodel.always_inline")
             with self.emit_indent("def __init__(self, %s):" % ", ".join(structtyp.names)):
                 for arg, fieldtyp in zip(structtyp.names, structtyp.internaltyps):
@@ -291,7 +306,64 @@ class Codegen(specialize.FixpointSpecializer):
                     self.emit("if %s: return False" % (
                         fieldtyp.make_op_code_special_neq(None, (leftfield, rightfield), (fieldtyp, fieldtyp), types.Bool())))
                 self.emit("return True")
+            emit_pypy_typ = False
+            if len(structtyp.names) == 1: # for now
+                fieldtyp = structtyp.fieldtyps[structtyp.names[0]]
+                self.emit("_convert_from = staticmethod(%s)" % fieldtyp.convert_from_pypy)
+                self.emit("_convert_to = staticmethod(%s)" % fieldtyp.convert_to_pypy)
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_to_pypy(space, self):"):
+                    self.emit("return %s._convert_to(space, self.%s)" % (pyname, structtyp.names[0]))
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_from_pypy(space, w_value):"):
+                    self.emit("return %s(%s._convert_from(space, w_value))" % (pyname, pyname))
+            elif structtyp.tuplestruct:
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_to_pypy(space, self):"):
+                    self.emit("return space.newtuple([")
+                    for name in structtyp.names:
+                        fieldtyp = structtyp.fieldtyps[name]
+                        internalfieldtyp = structtyp.internalfieldtyps[name]
+                        field = internalfieldtyp.packed_field_read('self.%s' % name)
+                        self.emit("    %s(space, %s)," % (
+                            fieldtyp.convert_to_pypy, field))
+                    self.emit("])")
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_from_pypy(space, w_value):"):
+                    self.emit("args = space.unpackiterable_unroll(w_value, %s)" % (len(structtyp.names), ))
+                    self.emit("return %s(" % pyname)
+                    for index, name in enumerate(structtyp.names):
+                        fieldtyp = structtyp.fieldtyps[name]
+                        internalfieldtyp = structtyp.internalfieldtyps[name]
+                        value = "%s(space, args[%s])" % (
+                            fieldtyp.convert_from_pypy, index)
+                        if isinstance(internalfieldtyp, types.Packed):
+                            value = fieldtyp.packed_field_pack(value)
+                        self.emit("    %s," % (value, ))
+                    self.emit(")")
+            else:
+                emit_pypy_typ = True
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_to_pypy(space, self):"):
+                    self.emit("return self")
+                self.emit("@staticmethod")
+                with self.emit_indent("def convert_from_pypy(space, w_value):"):
+                    self.emit("return space.interp_w(%s, w_value)" % (pyname, ))
+            structtyp.convert_to_pypy = "%s.convert_to_pypy" % pyname
+            structtyp.convert_from_pypy = "%s.convert_from_pypy" % pyname
+        if emit_pypy_typ:
+            self.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
+                pyname, demangle(structtyp.name), pyname, repr(structtyp)))
+
         structtyp.uninitialized_value = "%s(%s)" % (pyname, ", ".join(uninit_arg))
+
+    def get_effects(self, function_name):
+        # type: (str) -> EffectInfo | None
+        # TODO copy this to regular code gen
+        if self._effect_infos is None:
+            self._effect_infos = compute_all_effects(self.all_graph_by_name)
+        return self._effect_infos.get(function_name)
+
 
 def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline=None, entrypoints=None):
     from pydrofoil.infer import infer
@@ -315,6 +387,9 @@ def parse_and_make_code(s, support_code, promoted_registers=set(), should_inline
         c.emit("class Lets(supportcode.LetsBase): pass")
         c.emit("class Machine(supportcode.RegistersBase):")
         c.emit("    _immutable_fields_ = ['g']")
+        c.emit("    _all_register_names = []")
+        c.emit("    _all_type_names = []")
+        c.emit("    _all_functions = []")
         c.emit("    l = Lets()")
         c.emit("    def __init__(self):")
         c.emit("        self.l  = Machine.l; func_zinitializze_registers(self, ())")
@@ -396,6 +471,22 @@ class __extend__(parse.Enum):
 
                 codegen.last_enum += len(self.names) + 1 # gap of 1
                 codegen.add_named_type(self.name, self.pyname, typ, self)
+                typ.uninitialized_value = "-1"
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_name_to_value(name):"):
+                    for name in self.names:
+                        with codegen.emit_indent("if name == %r:" % name.lstrip('z')):
+                            codegen.emit("return %s.%s" % (self.pyname, name))
+                    codegen.emit("raise ValueError")
+                codegen.emit("@staticmethod")
+                with codegen.emit_indent("def convert_value_to_name(value):"):
+                    for name in self.names:
+                        with codegen.emit_indent("if value == %s.%s:" % (self.pyname, name)):
+                            codegen.emit("return %r" % name.lstrip('z'))
+                    codegen.emit("raise ValueError")
+                typ.convert_to_pypy = "supportcode.generate_convert_to_pypy_enum(%s, %r)" % (self.pyname, self.name.lstrip('z'))
+                typ.convert_from_pypy = "supportcode.generate_convert_from_pypy_enum(%s, %r)" % (self.pyname, self.name.lstrip('z'))
+
 
 class __extend__(parse.Union):
     def make_code(self, codegen):
@@ -409,29 +500,54 @@ class __extend__(parse.Union):
             uniontyp = types.Union(self.name, names, tuple(rtyps))
             codegen.add_named_type(self.name, self.pyname, uniontyp, self)
             uniontyp.compact_union = False
-            bits = bits_needed(uniontyp) 
+            bits = bits_needed(uniontyp)
             if bits <= 64:
                 uniontyp.compact_union = True
                 self._implement_compact_union(codegen, uniontyp)
                 return
             with codegen.emit_indent("class %s(supportcode.ObjectBase):" % name):
+                codegen.emit("_all_subclasses = []")
                 codegen.emit("@objectmodel.always_inline")
                 with codegen.emit_indent("def eq(self, other):"):
                     codegen.emit("return False")
             codegen.emit("%s.singleton = %s()" % (name, name))
             uniontyp.uninitialized_value = "%s.singleton" % (name, )
+            with codegen.emit_indent("def convert_from_pypy_%s(space, w_arg):" % self.name):
+                codegen.emit("return space.interp_w(%s, w_arg)" % (name, ))
+            with codegen.emit_indent("def convert_to_pypy_%s(space, arg):" % self.name):
+                codegen.emit("return arg")
+            codegen.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
+                name, demangle(self.name), name, repr(uniontyp)))
             for name, typ in zip(self.names, self.types):
                 rtyp = typ.resolve_type(codegen)
                 pyname = self.pyname + "_" + name
                 codegen.add_global(name, pyname, uniontyp, self)
                 self.pynames.append(pyname)
                 with codegen.emit_indent("class %s(%s):" % (pyname, self.pyname)):
+                    codegen.emit("_field_info = []")
                     # default field values
-                    if type(rtyp) is types.Struct:
-                        for fieldname, fieldtyp in sorted(rtyp.internalfieldtyps.iteritems()):
-                            codegen.emit(fieldtyp.packed_field_write(fieldname, fieldtyp.uninitialized_value, bare=True))
+                    if isinstance(rtyp, types.Struct):
+                        for fieldname, internalfieldtyp in sorted(rtyp.internalfieldtyps.iteritems()):
+                            codegen.emit(internalfieldtyp.packed_field_write(fieldname, internalfieldtyp.uninitialized_value, bare=True))
+                        for fieldname, internalfieldtyp in sorted(rtyp.internalfieldtyps.iteritems()):
+                            fieldtyp = rtyp.fieldtyps[fieldname]
+                            getter = None
+                            if isinstance(internalfieldtyp, types.Packed):
+                                getter = "get_" + fieldname
+                                with codegen.emit_indent("def %s(self):" % (getter, )):
+                                    codegen.emit("return %s" % fieldtyp.packed_field_read('self.%s' % fieldname))
+                            codegen.emit("_field_info.append((%r, %s, %s, %r, %r, %s))" % (
+                                fieldname, fieldtyp.convert_to_pypy, fieldtyp.convert_from_pypy,
+                                repr(fieldtyp),
+                                demangle(fieldname),
+                                getter))
                     elif rtyp is not types.Unit():
                         codegen.emit("a = %s" % (rtyp.uninitialized_value, ))
+                        codegen.emit("_field_info.append(('a', %s, %s, %r, '?', None))" % (
+                            rtyp.convert_to_pypy,
+                            rtyp.convert_from_pypy,
+                            repr(rtyp)))
+                    codegen.emit()
                     self.make_init(codegen, rtyp, typ, pyname)
                     self.make_eq(codegen, rtyp, typ, pyname)
                     self.make_convert(codegen, rtyp, typ, pyname)
@@ -445,6 +561,9 @@ class __extend__(parse.Union):
                         with codegen.emit_indent("class %s(%s):" % (subclassname, pyname)):
                             codegen.emit("a = %s" % (codegen.getname(enum_value), ))
                         codegen.emit("%s.singleton = %s()" % (subclassname, subclassname))
+                codegen.emit("%s._all_subclasses.append((%r, %r, %s))" % (
+                    self.pyname, pyname, demangle(name), pyname))
+
         if self.name == "zexception":
             codegen.add_global("current_exception", "machine.current_exception", uniontyp, self, "machine.current_exception")
 
@@ -460,7 +579,7 @@ class __extend__(parse.Union):
         with codegen.emit_indent("def __init__(self, a):"):
             if rtyp is types.Unit():
                 codegen.emit("pass")
-            elif type(rtyp) is types.Struct:
+            elif isinstance(rtyp, types.Struct):
                 codegen.emit("# %s" % typ)
                 for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                     codegen.emit(fieldtyp.packed_field_copy("self.%s" % fieldname, "a.%s" % (fieldname, )))
@@ -470,18 +589,19 @@ class __extend__(parse.Union):
     def make_eq(self, codegen, rtyp, typ, pyname):
         codegen.emit("@objectmodel.always_inline")
         with codegen.emit_indent("def eq(self, other):"):
+            codegen.emit("if not isinstance(other, %s): return False" % pyname)
             codegen.emit("if type(self) is not type(other): return False")
             codegen.emit("assert isinstance(other, %s)" % pyname)
             if rtyp is types.Unit():
                 codegen.emit("return True")
                 return
-            elif type(rtyp) is types.Struct:
+            elif isinstance(rtyp, types.Struct):
                 codegen.emit("# %s" % typ)
                 for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                     codegen.emit("if %s: return False" % (
                         fieldtyp.make_op_code_special_neq(
                             None,
-                            (rtyp.packed_field_read('self.%s' % fieldname), rtyp.packed_field_read('other.%s' % fieldname)),
+                            (fieldtyp.packed_field_read('self.%s' % fieldname), fieldtyp.packed_field_read('other.%s' % fieldname)),
                             (fieldtyp, fieldtyp), types.Bool())))
             else:
                 codegen.emit("if %s: return False # %s" % (
@@ -495,7 +615,7 @@ class __extend__(parse.Union):
             with codegen.emit_indent("if isinstance(inst, %s):" % pyname):
                 if rtyp is types.Unit():
                     codegen.emit("return ()")
-                elif type(rtyp) is types.Struct:
+                elif isinstance(rtyp, types.Struct):
                     codegen.emit("res = %s" % rtyp.uninitialized_value)
                     for fieldname, fieldtyp in sorted(rtyp.fieldtyps.iteritems()):
                         codegen.emit(fieldtyp.packed_field_copy("res.%s" % fieldname, "inst.%s" % (fieldname, )))
@@ -560,6 +680,46 @@ class __extend__(parse.Union):
                     codegen.emit("u >>= %s.SHIFT" % (self.pyname, ))
                     converted = from_uint_bits(codegen, rtyp, 'u')
                     codegen.emit("return %s" % (converted, ))
+        # python support, bit messy
+        wrapped_basename = self.pyname + "_W"
+        with codegen.emit_indent("class %s(supportcode.ObjectBase):" % (wrapped_basename, )):
+            codegen.emit("_all_subclasses = []")
+            codegen.emit("_field_info = []")
+            codegen.emit("@staticmethod")
+            codegen.emit("@objectmodel.specialize.arg_or_var(0)")
+            with codegen.emit_indent("def convert_to_pypy(a):"):
+                for name, typ, pyname in zip(self.names, self.types, self.pynames):
+                    with codegen.emit_indent("if %s.check_variant(a):" % (pyname, )):
+                        codegen.emit("return %s_W(%s.convert(a))" % (pyname, pyname))
+                codegen.emit("assert 0, 'unreachable'")
+            with codegen.emit_indent("def to_sail(self):"):
+                codegen.emit("raise NotImplementedError('abstract base class')")
+            with codegen.emit_indent("def eq(self, other):"):
+                codegen.emit("if not isinstance(other, %s): return False" % wrapped_basename)
+                codegen.emit("return self.to_sail() == other.to_sail()")
+        for name, typ, pyname in zip(self.names, self.types, self.pynames):
+            wrapped_pyname = pyname + "_W"
+            with codegen.emit_indent("class %s(%s):" % (wrapped_pyname, wrapped_basename)):
+                rtyp = typ.resolve_type(codegen)
+                codegen.emit("val = %s" % rtyp.uninitialized_value)
+                codegen.emit("_field_info = []")
+                with codegen.emit_indent("def __init__(self, a):"):
+                    codegen.emit('self.val = a')
+                with codegen.emit_indent("def to_sail(self):"):
+                    codegen.emit("return %s.construct(self.val)" % (pyname, ))
+                codegen.emit("_field_info.append(('val', %s, %s, %r, '?', None))" % (
+                    rtyp.convert_to_pypy,
+                    rtyp.convert_from_pypy,
+                    repr(rtyp)))
+            codegen.emit("%s._all_subclasses.append((%r, %r, %s))" % (
+                wrapped_basename, wrapped_pyname, demangle(name), wrapped_pyname))
+        with codegen.emit_indent("def convert_from_pypy_%s(space, w_arg):" % self.name):
+            codegen.emit("return w_arg.to_sail()")
+        with codegen.emit_indent("def convert_to_pypy_%s(space, arg):" % self.name):
+            codegen.emit("return %s.convert_to_pypy(arg)" % wrapped_basename)
+        codegen.emit("Machine._all_type_names.append((%r, %r, %s, %r))" % (
+            self.pyname, demangle(self.name), wrapped_basename, repr(uniontyp)))
+
 
 def to_uint_bits(codegen, typ, name):
     if isinstance(typ, types.Enum):
@@ -622,7 +782,6 @@ class __extend__(parse.Struct):
         structtyp = types.Struct(name, tuple(self.names), tuple(typs), tuplestruct)
         codegen.add_struct_type(name, pyname, structtyp, ast=self)
 
-
 class __extend__(parse.GlobalVal):
     def make_code(self, codegen):
         typ = self.typ.resolve_type(codegen) # XXX should use self.resolve_type?
@@ -683,6 +842,9 @@ class __extend__(parse.Register):
         codegen.add_global(self.name, read_pyname, typ, self, write_pyname)
         with codegen.emit_code_type("declarations"):
             codegen.emit("Machine.%s = %s" % (self.pyname, typ.uninitialized_value))
+            codegen.emit("Machine._all_register_names.append((%r, %r, %s, %s, %r))" % (
+                self.pyname, demangle(self.name), typ.convert_to_pypy, typ.convert_from_pypy,
+                repr(typ)))
 
         if self.body is None:
             return
@@ -732,6 +894,10 @@ class __extend__(parse.Function):
         if self.detect_union_switch(blocks[0]):
             codegen.print_debug_msg("making method!", self.name)
             self._emit_methods(blocks, codegen)
+            argument_converters = "[" + ", ".join([arg.convert_from_pypy for arg in self.resolved_type.argtype.elements]) + "]"
+            result_converter = self.resolved_type.restype.convert_to_pypy
+            codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+                pyname, demangle(self.name), pyname, argument_converters, result_converter, repr(self.resolved_type)))
             return
         codegen.print_debug_msg("making SSA IR")
         graph = construct_ir(self, codegen)
@@ -752,8 +918,16 @@ class __extend__(parse.Function):
         del self.body # save memory, don't need to keep the parse tree around
 
     def emit_regular_function(self, graph, codegen, pyname):
+        from pydrofoil.ir import Return
         with self._scope(codegen, pyname, actual_args=graph.args):
             emit_function_code(graph, self, codegen)
+        argument_converters = "[" + ", ".join([arg.resolved_type.convert_from_pypy for arg in graph.args]) + "]"
+        result_converter = None
+        for block in graph.iterblocks():
+            if isinstance(block.next, Return):
+                result_converter = block.next.value.resolved_type.convert_to_pypy
+        codegen.emit("Machine._all_functions.append((%r, %r, %s, %s, %s, %r))" % (
+            pyname, demangle(graph.name), pyname, argument_converters, result_converter, repr(self.resolved_type)))
         codegen.emit()
 
     @contextmanager
@@ -1061,6 +1235,7 @@ class __extend__(parse.FVecType):
 
 class __extend__(parse.TupleType):
     def resolve_type(self, codegen):
+        # tuples are only used for FunctionType arguments now
         typ = types.Tuple(tuple([e.resolve_type(codegen) for e in self.elements]))
         typ.uninitialized_value = "unreachable"
         return typ

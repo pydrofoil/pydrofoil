@@ -12,6 +12,8 @@ pydrofoil-riscv: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/soft
 pydrofoil-test: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Run the pydrofoil implementation-level unit tests
 	./pypy_binary/bin/python pypy2/pytest.py -v pydrofoil/ riscv/
 
+.PHONY: pypy-c-pydrofoil-riscv
+
 .PHONY: riscv-tests
 riscv-tests: pypy_binary/bin/python pydrofoil-riscv  ## Run risc-v test suite, needs env variable RISCVMODELCHECKOUT set
 ifndef RISCVMODELCHECKOUT
@@ -212,8 +214,36 @@ endif
 		-o ${PWD}/riscv/riscv_model_RV32 && \
 		git describe --long --dirty --abbrev=10 --always --tags --first-parent > ${PWD}/riscv/riscv_model_version
 
-pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o: ## Build the softfloat library
+pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o:
 	make -C pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/ softfloat.o
+
+## PyPy Pydrofoil RISC-V plugin targets:
+
+.PHONY: pypy-c-pydrofoil-riscv
+pypy-c-pydrofoil-riscv: pypy_binary/bin/python pypy2/rpython/bin/rpython pydrofoil/softfloat/SoftFloat-3e/build/Linux-RISCV-GCC/softfloat.o ## Build PyPy with Pydrofoil RISC-V plugin
+	pkg-config libffi # if this fails, libffi development headers arent installed
+	rm -f pypy-c-pydrofoil-riscv
+	cd pypy2/pypy/goal && \
+	PYTHONPATH=../../../ ../../../pypy_binary/bin/python ../../rpython/bin/rpython -Ojit targetpypystandalone.py --ext=riscv.pypymodule && \
+	mv pypy3.11-c pypy-c-pydrofoil-riscv && \
+	./pypy-c-pydrofoil-riscv ../../lib_pypy/pypy_tools/build_cffi_imports.py && \
+	cd -
+	ln -s pypy2/pypy/goal/pypy-c-pydrofoil-riscv pypy-c-pydrofoil-riscv
+
+
+pypy-c-pydrofoil-riscv-package: ## Package PyPy with Pydrofoil RISC-V plugin
+	cd pypy2/pypy/goal && \
+	../../../pypy_binary/bin/python ../tool/release/package.py --override_pypy_c=pypy-c-pydrofoil-riscv --make-portable --archive-name=pypy-pydrofoil-scripting-experimental --targetdir=../../../
+
+pypy2/lib/pypy3.11/site-packages/pytest/__init__.py:
+	./pypy-c-pydrofoil-riscv -m ensurepip
+	./pypy-c-pydrofoil-riscv -m pip install pytest pdbpp
+
+.PHONY: plugin-riscv-tests
+plugin-riscv-tests: pypy2/lib/pypy3.11/site-packages/pytest/__init__.py ## Run the tests for the PyPy Pydrofoil RISC-V plugin
+	./pypy-c-pydrofoil-riscv -m pytest riscv/pypymodule/test/apptest_plugin.py
+	#./pypy-c-pydrofoil-riscv -m pytest riscv/plugin/
+
 
 ## ARM model targets
 
@@ -322,7 +352,7 @@ pypy_binary/bin/python:  ## Download a PyPy binary
 	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
 	rm pypy.tar.bz2
 	./pypy_binary/bin/python -m ensurepip
-	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5 "z3-solver==4.12.0.0" pygame
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5 "z3-solver==4.12.0.0" pygame typing
 
 .PHONY: pypy_binary_nightly
 pypy_binary_nightly:  ## Download a nightly PyPy binary (instead of stable)
@@ -332,7 +362,7 @@ pypy_binary_nightly:  ## Download a nightly PyPy binary (instead of stable)
 	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
 	rm pypy.tar.bz2
 	./pypy_binary/bin/python -m ensurepip
-	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5
+	./pypy_binary/bin/python -mpip install rply "hypothesis<4.40" junit_xml coverage==5.5 "z3-solver==4.12.0.0" pygame typing
 
 pypy2/rpython/bin/rpython: ## Clone the PyPy submodule
 	git submodule update --init --depth 1

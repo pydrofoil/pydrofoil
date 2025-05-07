@@ -9,6 +9,7 @@ To build an emulator for ARM, you can run the following in your Pydrofoil
 checkout:
 
 ```
+make regen-arm-ir-files
 make pydrofoil-arm
 ```
 

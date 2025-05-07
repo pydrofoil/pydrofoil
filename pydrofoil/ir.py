@@ -2,6 +2,7 @@ import sys
 import random
 import time
 from collections import defaultdict
+from typing import Generator
 
 from pydrofoil import parse, types, binaryop, operations, supportcode, bitvector
 
@@ -558,9 +559,9 @@ class Block(object):
         if operations is None:
             operations = []
         assert isinstance(operations, list)
-        self.operations = operations
+        self.operations = operations # type: list[Value]
         self.next = next
-        
+
     def __repr__(self):
         return "<Block operations=%s next=%s>" % (self.operations, self.next.__class__.__name__)
 
@@ -749,6 +750,7 @@ class Graph(object):
         return print_varnames
 
     def iterblocks(self):
+        # type: (Graph) -> Generator[Block]
         todo = [self.startblock]
         seen = set()
         while todo:
@@ -4306,6 +4308,12 @@ class LocalOptimizer(BaseOptimizer):
                 return arg1.args[1]
             import pdb;pdb.set_trace()
 
+    def optimize_packed_field_int_to_int64(self, op):
+        arg0, = self._args(op)
+        if not isinstance(arg0, FieldAccess) and isinstance(arg0, Operation):
+            if arg0.name == "@pack_machineint":
+                return arg0.args[0]
+
 @repeat
 def inline(graph, codegen):
     # don't add blocks to functions that are already really big and need to be
@@ -4593,19 +4601,25 @@ def find_anticipated_casts(graph):
 
 @repeat
 def cse_global_reads(graph, codegen):
+    from pydrofoil.effectinfo import EffectInfo
     # very simple forward load-after-load pass
-    def leaves_globals_alone(op):
+    def get_effect(op):
+        # type: (Operation) -> EffectInfo | None
         if not op.can_have_side_effects:
-            return True
+            return EffectInfo.BOTTOM
         if isinstance(op, Comment):
-            return True
+            return EffectInfo.BOTTOM
         if op.name == "@not":
-            return True
+            return EffectInfo.BOTTOM
         if op.name == "@eq":
-            return True
+            return EffectInfo.BOTTOM
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
-        return type(op) is Operation and name in supportcode.purefunctions
+        if type(op) is Operation:
+            if name in supportcode.purefunctions:
+                return EffectInfo.BOTTOM
+            return codegen.get_effects(op.name)
+        return None
 
     replacements = {}
     available = {} # block -> block -> prev_op
@@ -4629,20 +4643,23 @@ def cse_global_reads(graph, codegen):
         for index, op in enumerate(block.operations):
             if isinstance(op, GlobalRead):
                 key = (op.name, op.resolved_type)
+                if key in available_in_block:
+                    block.operations[index] = None
+                    replacements[op] = available_in_block[key]
+                else:
+                    available_in_block[key] = op
             elif isinstance(op, GlobalWrite):
                 key = (op.name, op.resolved_type)
                 available_in_block[key] = op.args[0]
                 continue
-            elif not leaves_globals_alone(op):
+            effectinfo = get_effect(op)
+            if effectinfo is None:
                 available_in_block.clear()
-                continue
             else:
-                continue
-            if key in available_in_block:
-                block.operations[index] = None
-                replacements[op] = available_in_block[key]
-            else:
-                available_in_block[key] = op
+                for key in list(available_in_block):
+                    globalname, _ = key
+                    if globalname in effectinfo.register_writes:
+                        del available_in_block[key]
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]
@@ -4667,7 +4684,7 @@ def sink_allocate(graph, codegen):
         if count != 1:
             continue
         for index, op in enumerate(block.operations):
-            if (alloc is None and 
+            if (alloc is None and
                     isinstance(op, Allocate) and
                     index + 1 < len(block.operations) and
                     op not in block.operations[index + 1].getargs()):
@@ -4799,19 +4816,23 @@ def partial_allocation_removal(graph, codegen):
 
 @repeat
 def cse_field_reads(graph, codegen):
+    from pydrofoil.effectinfo import EffectInfo
     # very simple forward load-after-load and load-after-store pass for struct fields
-    def leaves_structs_alone(op):
+    def get_effects(op):
+        # type: (Operation) -> EffectInfo | None
         if not op.can_have_side_effects:
-            return True
+            return EffectInfo.BOTTOM
         if isinstance(op, Comment):
-            return True
+            return EffectInfo.BOTTOM
         if op.name == "@not":
-            return True
+            return EffectInfo.BOTTOM
         if op.name == "@eq":
-            return True
+            return EffectInfo.BOTTOM
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
-        return type(op) is Operation and name in supportcode.purefunctions
+        if type(op) is Operation and name in supportcode.purefunctions:
+            return EffectInfo.BOTTOM
+        return codegen.get_effects(op.name)
 
     replacements = {}
     available = {} # block -> block -> prev_op
@@ -4845,15 +4866,16 @@ def cse_field_reads(graph, codegen):
             elif isinstance(op, FieldWrite):
                 key = (op.args[0].resolved_type, op.name)
                 available_in_block[key] = (op.args[0], op.args[1])
-                continue
             elif isinstance(op, StructConstruction):
                 for arg, typ, name in zip(op.args, op.resolved_type.typs, op.resolved_type.names):
                     available_in_block[op.resolved_type, name] = (op, arg)
-            elif not leaves_structs_alone(op):
-                available_in_block.clear()
-                continue
             else:
-                continue
+                effects = get_effects(op)
+                if effects is None:
+                    available_in_block.clear()
+                else:
+                    for key in effects.struct_writes:
+                        available_in_block.pop(key, None)
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]

@@ -14,6 +14,9 @@ class FakeCodeGen:
     def print_debug_msg(*args):
         pass
 
+    def get_effects(self, function_name):
+        return None
+
 fakecodegen = FakeCodeGen()
 
 def check_optimize(graph, expected, fakecodegen=fakecodegen):
@@ -655,7 +658,7 @@ def test_complicated_inlining():
     i7.prevvalues[0] = i9
     block3.next = Goto(block2, None)
     graph1 = Graph('zsail_mask', [zlen, zv], block0)
-    
+
     zn = Argument('zn', Int())
     zi = Argument('zi', Int())
     zl = Argument('zl', Int())
@@ -966,7 +969,7 @@ block0 = Block()
 block0.next = Return(IntConstant(3000), None)
 graph = Graph('f', [], block0)""")
 
-def test_constfold_SmallFixedBitVector(): 
+def test_constfold_SmallFixedBitVector():
     block0 = Block()
     i1 = block0.emit(Operation, '@zero_extend_bv_i_i', [SmallBitVectorConstant(0b1, SmallFixedBitVector(1)), MachineIntConstant(1), MachineIntConstant(39)], SmallFixedBitVector(39), None, None)
     block0.next = Return(i1, None)
@@ -4714,3 +4717,14 @@ graph = Graph('f', [a, b], block0)
 ''' % after)
 
 
+def test_packed_int_to_int64_of_pack_machineint():
+    block0 = Block()
+    i6 = block0.emit(Operation, '@pack_machineint', [MachineIntConstant(2)], Packed(Int()), None, None)
+    i7 = block0.emit(Operation, '@packed_field_int_to_int64', [i6], MachineInt(), '`14', None)
+    block0.next = Return(i7)
+    graph = Graph('f', [], block0)
+    check_optimize(graph, '''
+block0 = Block()
+block0.next = Return(MachineIntConstant(2), None)
+graph = Graph('f', [], block0)
+''')

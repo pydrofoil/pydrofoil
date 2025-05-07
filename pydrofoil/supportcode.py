@@ -1,5 +1,7 @@
 import os
 
+from pypy.interpreter.baseobjspace import W_Root
+
 from rpython.rlib import objectmodel, unroll, jit
 from rpython.rlib.rbigint import rbigint, ONERBIGINT
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
@@ -694,7 +696,7 @@ def lteq_add4_unsigned_bv64(machine, a, b, c, d):
         x = a.add(b)
         y = c.add(d)
         return x.le(y)
-    
+
 
 @purefunction
 def add_i_i_wrapped_res(machine, a, b):
@@ -1579,7 +1581,7 @@ class RegistersBase(object):
     def __init__(self):
         pass
 
-class ObjectBase(object):
+class ObjectBase(W_Root):
     _attrs_ = []
 
 class LetsBase(object):
@@ -1596,3 +1598,193 @@ class Globals(object):
 
 class RegRef(object):
     pass
+
+class SailError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+
+# some helper functions for interfacing with PyPy, completely optional for
+# almost everything except the plugin
+
+@objectmodel.specialize.argtype(1)
+def convert_to_pypy_error(space, val):
+    raise ValueError
+
+def convert_from_pypy_error(space, w_val):
+    raise ValueError
+
+def cache1(func):
+    cache = {}
+    @objectmodel.specialize.memo()
+    def cached_func(arg):
+        if arg in cache:
+            return cache[arg]
+        res = func(arg)
+        cache[arg] = res
+        return res
+    return cached_func
+
+def cache2(func):
+    cache = {}
+    @objectmodel.specialize.memo()
+    def cached_func(arg, arg2):
+        if (arg, arg2) in cache:
+            return cache[arg, arg2]
+        res = func(arg, arg2)
+        cache[arg, arg2] = res
+        return res
+    return cached_func
+
+@cache1
+def generate_convert_to_pypy_error(typname):
+    def convert_to_pypy_error(space, val):
+        raise ValueError
+    return convert_to_pypy_error
+
+@cache1
+def generate_convert_from_pypy_error(typname):
+    def convert_from_pypy_error(space, val):
+        raise ValueError
+    return convert_from_pypy_error
+
+@cache1
+def generate_convert_to_pypy_bitvector_ruint(width):
+
+    def c(space, val):
+        return bitvector.from_ruint(width, val)
+    c.func_name = "convert_to_pypy_bitvector_ruint_%s" % width
+    return c
+
+@cache1
+def generate_convert_from_pypy_bitvector_ruint(width):
+    from pypy.interpreter.error import oefmt
+    def c(space, w_val):
+        if isinstance(w_val, bitvector.BitVector):
+            if w_val.size() != width:
+                raise oefmt(space.w_ValueError, "expected bitvector of size %d, got size %d", width, w_val.size())
+            return w_val.touint(width)
+        return _mask(width, space.uint_w(w_val))
+    c.func_name = "convert_from_pypy_bitvector_ruint_%s" % width
+    return c
+
+@cache1
+def generate_convert_to_pypy_big_fixed_bitvector(width):
+    def c(space, val):
+        assert val.size() == width
+        return val
+    c.func_name = "convert_to_pypy_big_fixed_bitvector_%s" % width
+    return c
+
+@cache1
+def generate_convert_from_pypy_big_fixed_bitvector(width):
+    from pypy.interpreter.error import oefmt
+    def c(space, w_val):
+        if isinstance(w_val, bitvector.BitVector):
+            if w_val.size() != width:
+                raise oefmt(space.w_ValueError, "expected bitvector of size %d, got size %d", width, w_val.size())
+            return w_val
+        return bitvector.from_ruint(width, space.uint_w(w_val))
+    c.func_name = "convert_from_pypy_big_fixed_bitvector_%s" % width
+    return c
+
+@cache2
+def generate_convert_to_pypy_enum(cls, name):
+    from pypy.interpreter.error import oefmt
+    def c(space, val):
+        try:
+            res = cls.convert_value_to_name(val)
+        except ValueError:
+            raise oefmt(space.w_ValueError, "unknown value %d for enum %s", val, name)
+        return space.newtext(res)
+    c.func_name = "convert_to_pypy_enum_" + name
+    return c
+
+@cache2
+def generate_convert_from_pypy_enum(cls, name):
+    from pypy.interpreter.error import oefmt
+    def c(space, w_val):
+        try:
+            return cls.convert_name_to_value(space.text_w(w_val))
+        except ValueError:
+            raise oefmt(space.w_ValueError, "unknown enum value %R for enum %s", w_val, name)
+    c.func_name = "convert_from_pypy_enum_" + name
+    return c
+
+def convert_to_pypy_bool(space, val):
+    return space.newbool(val)
+
+def convert_from_pypy_bool(space, w_val):
+    return space.is_true(w_val)
+
+def convert_to_pypy_string(space, val):
+    return space.newtext(val)
+
+def convert_from_pypy_string(space, w_val):
+    return space.text_w(w_val)
+
+def convert_to_pypy_unit(space, val):
+    return space.newtuple([])
+
+def convert_from_pypy_unit(space, w_val):
+    # just accept everything
+    return ()
+
+def convert_from_pypy_machineint(space, w_val):
+    return space.int_w(w_val)
+
+def convert_to_pypy_machineint(space, val):
+    return space.newint(val)
+
+def convert_from_pypy_int(space, w_val):
+    from pypy.interpreter.error import OperationError
+    try:
+        return Integer.fromint(space.int_w(w_val))
+    except OperationError as e:
+        if not e.match(space, space.w_TypeError):
+            raise
+    return Integer.from_bigint(space.bigint_w(w_val))
+
+def convert_to_pypy_int(space, val):
+    if isinstance(val, bitvector.SmallInteger):
+        return space.newint(val.val)
+    return space.newlong_from_rbigint(val.tobigint())
+
+def convert_from_pypy_bitvector(space, w_val):
+    return space.interp_w(bitvector.BitVector, w_val)
+
+def convert_to_pypy_bitvector(space, val):
+    return val
+
+@cache1
+def generate_convert_from_pypy_vec(func):
+    def convert_from_pypy_vec(space, w_val):
+        list_w = space.listview(w_val)
+        return [func(space, w_el) for w_el in list_w][:]
+    convert_from_pypy_vec.__name__ += "_" + func.__name__
+    return convert_from_pypy_vec
+
+@cache1
+def generate_convert_to_pypy_vec(func):
+    def convert_to_pypy_vec(space, val):
+        return space.newlist([func(space, el) for el in val])
+    convert_to_pypy_vec.__name__ += "_" + func.__name__
+    return convert_to_pypy_vec
+
+@cache2
+def generate_convert_from_pypy_fvec(size, func):
+    from pypy.interpreter.error import oefmt
+    def convert_from_pypy_fvec(space, w_val):
+        list_w = space.listview(w_val)
+        if len(list_w) != size:
+            raise oefmt(space.w_ValueError, 'expected list of length %d, got %d', size, len(list_w))
+        return [func(space, w_el) for w_el in list_w][:]
+    convert_from_pypy_fvec.__name__ += "_" + func.__name__
+    return convert_from_pypy_fvec
+
+@cache2
+def generate_convert_to_pypy_fvec(size, func):
+    def convert_to_pypy_fvec(space, val):
+        return space.newlist([func(space, el) for el in val])
+    convert_to_pypy_fvec.__name__ += "_" + func.__name__
+    return convert_to_pypy_fvec

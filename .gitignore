@@ -21,3 +21,7 @@ pydrofoil-arm
 perf.data
 perf.data.old
 callgrind.out*
+riscv/generated/
+arm/generated/
+cheriot/generated/
+pydrofoil/test/nand2tetris/generated/

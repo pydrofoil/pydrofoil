@@ -38,9 +38,14 @@ class __extend__(Enum):
                     for element in self.elements_list]
         return space.newlist(res_w)
 
+    def descr_repr(self, space):
+        return space.newtext("<_pydrofoil.sailtypes.Enum %s { %s }>" % (self.demangled_name, " ".join(self.elements_list)))
+
+
 Enum.typedef = TypeDef("_pydrofoil.sailtypes.Enum", Type.typedef,
     name = interp_attrproperty("demangled_name", Enum, "the name of the enum type", "newtext"),
     elements = GetSetProperty(Enum.descr_get_elements),
+    __repr__ = interp2app(Enum.descr_repr),
 )
 Enum.typedef.acceptable_as_base_class = False
 
@@ -142,10 +147,12 @@ def descr_big_bitvector_new(space, w_cls, width):
     return BigFixedBitVector(width)
 
 class __extend__(BigFixedBitVector):
-    pass
+    def descr_repr(self, space):
+        return space.newtext("_pydrofoil.sailtypes.BigFixedBitVector(%s)" % (self.width, ))
 BigFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.BigFixedBitVector", Type.typedef,
     width = interp_attrproperty("width", BigFixedBitVector, "the width of the bitvector", "newint"),
     __new__ = interp2app(descr_big_bitvector_new),
+    __repr__ = interp2app(BigFixedBitVector.descr_repr),
 )
 BigFixedBitVector.typedef.acceptable_as_base_class = False
 

@@ -417,4 +417,12 @@ def test_sailtype_new():
 
 def test_sailtype_repr():
     assert repr(_pydrofoil.sailtypes.SmallFixedBitVector(12)) == "_pydrofoil.sailtypes.SmallFixedBitVector(12)"
+    assert repr(_pydrofoil.sailtypes.BigFixedBitVector(121)) == "_pydrofoil.sailtypes.BigFixedBitVector(121)"
+    cpu = _pydrofoil.RISCV64()
+    rs = dict(cpu.register_info())
+    assert repr(rs['cur_privilege']) == '<_pydrofoil.sailtypes.Enum Privilege { User Supervisor Machine }>'
 
+def test_fvec():
+    cpu = _pydrofoil.RISCV64()
+    rs = dict(cpu.register_info())
+    assert rs['mhpmevent'].of.width == 64

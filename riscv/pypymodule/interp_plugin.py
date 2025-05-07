@@ -319,7 +319,7 @@ def _init_functions(machinecls, functions):
             name = space.text_w(w_name)
             func = get_sail_func(name)
             if func is None:
-                raise oefmt_attribute_error(space, self, w_name, "type object %N has no attribute %R")
+                raise oefmt_attribute_error(space, self, w_name, "'%T' object has no attribute %R")
             return W_BoundSailFunction(self.w_machine, func)
         descr_getattr.func_name += "_" + machinecls.__name__
 

@@ -348,6 +348,13 @@ def test_sailfunction_type_enum():
     assert argtyp.elements == ['User', 'Supervisor', 'Machine']
     assert argtyp.name == "Privilege"
 
+def test_lowlevel_attribute_error():
+    m = _pydrofoil.RISCV64()
+    with raises(AttributeError) as info:
+        assert m.lowlevel.privLevel_to_bats
+    assert str(info.value) == "'lowlevel' object has no attribute 'privLevel_to_bats'"
+
+
 # bitvectors
 
 def test_bv_basics():

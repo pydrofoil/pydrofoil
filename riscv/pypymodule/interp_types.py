@@ -120,11 +120,18 @@ FVec.typedef.acceptable_as_base_class = False
 class __extend__(Function):
     def descr_get_arguments(self, space):
         return space.newlist(self.argument_list[:])
+
     def descr_get_result(self, space):
         return self.restype
+
+    def descr_repr(self, space):
+        args = ", ".join([space.text_w(space.repr(typ)) for typ in self.argument_list])
+        return space.newtext("<_pydrofoil.sailtypes.Function (%s) -> %s>" % (args, space.text_w(space.repr(self.restype))))
+
 Function.typedef = TypeDef("_pydrofoil.sailtypes.Function", Type.typedef,
     arguments = GetSetProperty(Function.descr_get_arguments),
     result = GetSetProperty(Function.descr_get_result),
+    __repr__ = interp2app(Function.descr_repr),
 )
 Function.typedef.acceptable_as_base_class = False
 
@@ -194,7 +201,8 @@ MachineInt.typedef.acceptable_as_base_class = False
 
 
 class __extend__(Int):
-    pass
+    def descr_repr(self, space):
+        return space.newtext("_pydrofoil.sailtypes.Int()")
 
 INT = Int()
 
@@ -207,7 +215,8 @@ Int.typedef = TypeDef("_pydrofoil.sailtypes.Int", Type.typedef,
 Int.typedef.acceptable_as_base_class = False
 
 class __extend__(Bool):
-    pass
+    def descr_repr(self, space):
+        return space.newtext("_pydrofoil.sailtypes.Bool()")
 
 BOOL = Bool()
 
@@ -216,11 +225,13 @@ def descr_bool_new(space, w_cls):
 
 Bool.typedef = TypeDef("_pydrofoil.sailtypes.Bool", Type.typedef,
     __new__ = interp2app(descr_bool_new),
+    __repr__ = interp2app(Bool.descr_repr),
 )
 Bool.typedef.acceptable_as_base_class = False
 
 class __extend__(Unit):
-    pass
+    def descr_repr(self, space):
+        return space.newtext("_pydrofoil.sailtypes.Unit()")
 
 UNIT = Unit()
 
@@ -229,11 +240,13 @@ def descr_unit_new(space, w_cls):
 
 Unit.typedef = TypeDef("_pydrofoil.sailtypes.Unit", Type.typedef,
     __new__ = interp2app(descr_unit_new),
+    __repr__ = interp2app(Unit.descr_repr),
 )
 Unit.typedef.acceptable_as_base_class = False
 
 class __extend__(String):
-    pass
+    def descr_repr(self, space):
+        return space.newtext("_pydrofoil.sailtypes.String()")
 
 STRING = String()
 
@@ -242,12 +255,14 @@ def descr_string_new(space, w_cls):
 
 String.typedef = TypeDef("_pydrofoil.sailtypes.String", Type.typedef,
     __new__ = interp2app(descr_string_new),
+    __repr__ = interp2app(String.descr_repr),
 )
 String.typedef.acceptable_as_base_class = False
 
 
 class __extend__(Real):
-    pass
+    def descr_repr(self, space):
+        return space.newtext("_pydrofoil.sailtypes.Real()")
 
 REAL = Real()
 
@@ -256,6 +271,7 @@ def descr_real_new(space, w_cls):
 
 Real.typedef = TypeDef("_pydrofoil.sailtypes.Real", Type.typedef,
     __new__ = interp2app(descr_real_new),
+    __repr__ = interp2app(Real.descr_repr),
 )
 
 Real.typedef.acceptable_as_base_class = False

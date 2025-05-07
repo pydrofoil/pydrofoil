@@ -716,7 +716,13 @@ class Interpreter(object):
         else:
             padding = z3.BitVec("padding", arg2.value - arg1.value)
             return Z3Value(z3.Concat(padding, arg0.toz3()))
-        
+
+    def exec_unsigned_bv(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+            return Constant(supportcode.unsigned_bv(None, arg0.value, arg1.value)) # left zero extend doesnt change const int
+        else:
+            import pdb;pdb.set_trace()
     ### Arch specific Operations in subclass ###
 
 class NandInterpreter(Interpreter):

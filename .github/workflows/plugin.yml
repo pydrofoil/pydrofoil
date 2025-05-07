@@ -49,12 +49,14 @@ jobs:
       run: |
         make pypy-c-pydrofoil-riscv-package
 
+    - name: Run plugin tests
+      run: |
+        make plugin-riscv-tests
+
     - name: Upload binary
       uses: actions/upload-artifact@v4
       with:
         path: pypy-pydrofoil-scripting-experimental.tar.bz2
 
-    - name: Run plugin tests
-      run: |
-        make plugin-riscv-tests
+
 

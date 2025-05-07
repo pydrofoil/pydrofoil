@@ -348,6 +348,13 @@ def test_sailfunction_type_enum():
     assert argtyp.elements == ['User', 'Supervisor', 'Machine']
     assert argtyp.name == "Privilege"
 
+def test_lowlevel_attribute_error():
+    m = _pydrofoil.RISCV64()
+    with raises(AttributeError) as info:
+        assert m.lowlevel.privLevel_to_bats
+    assert str(info.value) == "'lowlevel' object has no attribute 'privLevel_to_bats'"
+
+
 # bitvectors
 
 def test_bv_basics():
@@ -399,3 +406,48 @@ def test_append():
     b1 = _pydrofoil.bitvector(4, 0b1100)
     assert b0 @ b1 == _pydrofoil.bitvector(10, 0b1101001100)
 
+
+# ________________________________________________
+# testing the sail types
+
+def test_sailtype_new():
+    assert _pydrofoil.sailtypes.Bool() is _pydrofoil.sailtypes.Bool() # singleton
+    with raises(TypeError):
+        _pydrofoil.sailtypes.Struct()
+    assert _pydrofoil.sailtypes.SmallFixedBitVector(23).width == 23
+    for invalid_width in [-1, 0, 65, 1090123]:
+        with raises(ValueError):
+            _pydrofoil.sailtypes.SmallFixedBitVector(invalid_width)
+    with raises(ValueError):
+        _pydrofoil.sailtypes.BigFixedBitVector(64)
+    assert _pydrofoil.sailtypes.BigFixedBitVector(2321).width == 2321
+
+def test_sailtype_repr():
+    assert repr(_pydrofoil.sailtypes.SmallFixedBitVector(12)) == "_pydrofoil.sailtypes.SmallFixedBitVector(12)"
+    assert repr(_pydrofoil.sailtypes.BigFixedBitVector(121)) == "_pydrofoil.sailtypes.BigFixedBitVector(121)"
+    cpu = _pydrofoil.RISCV64()
+    rs = dict(cpu.register_info())
+    assert repr(rs['cur_privilege']) == '<_pydrofoil.sailtypes.Enum Privilege { User Supervisor Machine }>'
+
+def test_fvec():
+    cpu = _pydrofoil.RISCV64()
+    rs = dict(cpu.register_info())
+    fvectype = rs['mhpmevent']
+    assert fvectype.of.width == 64
+    assert repr(fvectype) == "<_pydrofoil.sailtypes.FVec 32 _pydrofoil.sailtypes.SmallFixedBitVector(64)>"
+
+def test_union_repr():
+    cpu = _pydrofoil.RISCV64()
+    assert repr(cpu.lowlevel.accessToFault.sail_type.arguments[0]) == '<_pydrofoil.sailtypes.Union AccessType<u>>'
+
+def test_struct_repr():
+    cpu = _pydrofoil.RISCV64()
+    assert repr(cpu.lowlevel.check_PTE_permission.sail_type.arguments[4]) == '<_pydrofoil.sailtypes.Struct PTE_Flags>'
+
+def test_tuple_repr():
+    cpu = _pydrofoil.RISCV64()
+    assert repr(dict(cpu.types.ast.sail_type.constructors)['ITYPE']) == '<_pydrofoil.sailtypes.Tuple (_pydrofoil.sailtypes.SmallFixedBitVector(12), _pydrofoil.sailtypes.SmallFixedBitVector(5), _pydrofoil.sailtypes.SmallFixedBitVector(5), <_pydrofoil.sailtypes.Enum iop { RISCV_ADDI RISCV_SLTI RISCV_SLTIU RISCV_XORI RISCV_ORI RISCV_ANDI }>)>'
+
+def test_function_repr():
+    cpu = _pydrofoil.RISCV64()
+    assert repr(cpu.lowlevel.check_PTE_permission.sail_type) == '<_pydrofoil.sailtypes.Function (<_pydrofoil.sailtypes.Union AccessType<u>>, <_pydrofoil.sailtypes.Enum Privilege { User Supervisor Machine }>, _pydrofoil.sailtypes.Bool(), _pydrofoil.sailtypes.Bool(), <_pydrofoil.sailtypes.Struct PTE_Flags>, _pydrofoil.sailtypes.SmallFixedBitVector(64), _pydrofoil.sailtypes.Unit()) -> <_pydrofoil.sailtypes.Union PTE_Check>>'

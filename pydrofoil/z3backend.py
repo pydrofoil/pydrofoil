@@ -753,3 +753,12 @@ class RiscvInterpreter(Interpreter):
         super(RiscvInterpreter, self).__init__(graph, args, shared_state)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(bits), z3.BitVecSort(bits))
         self.cls = RiscvInterpreter
+
+    def exec_zsys_enable_zzfinx(self, op):
+        return BooleanConstant(True)
+
+    def exec_zsys_enable_svinval(self, op):
+        return BooleanConstant(True)
+
+    def exec_zsys_enable_zzicbozz(self, op):
+        return BooleanConstant(True)

@@ -380,7 +380,9 @@ class Interpreter(object):
             else:
                 # fork 
                 interp1 = self.fork()
+                interp1.environment[next.booleanvalue] = BooleanConstant(True)
                 interp2 = self.fork()
+                interp2.environment[next.booleanvalue] = BooleanConstant(False)
                 w_res_true = interp1.run(next.truetarget)
                 w_res_false = interp2.run(next.falsetarget)
                 z3cond = w_cond.toz3()

@@ -212,6 +212,8 @@ class SharedState(object):
     def convert_type_to_z3_type(self, typ):
         if isinstance(typ, types.SmallFixedBitVector):
             return z3.BitVecSort(typ.width)
+        elif isinstance(typ, types.BigFixedBitVector):
+            return z3.BitVecSort(typ.width)
         elif isinstance(typ, types.Union):
             return self.get_z3_union_type(typ)
         elif isinstance(typ, types.Struct):
@@ -220,6 +222,9 @@ class SharedState(object):
             return self.get_z3_enum_type(typ)
         elif isinstance(typ, types.Bool) or typ == types.Bool:
             return z3.BoolSort()
+        elif isinstance(typ, types.FVec):
+            subtyp = self.convert_type_to_z3_type(typ.typ)
+            return z3.ArraySort(z3.IntSort(), subtyp)
         else:
             import pdb; pdb.set_trace()
 
@@ -473,6 +478,9 @@ class Interpreter(object):
             result = func(op) # self passed implicitly
             if result == None:
                 return
+        elif isinstance(op, ir.NonSSAAssignment):
+            # TODO: is NonSSAAssignment 'normal' assignment in Branch after SSA PHI nodes were removed?
+            import pdb; pdb.set_trace()
         elif op.is_union_creation():
             result = self.exec_union_creation(op)
         elif isinstance(op, ir.FieldAccess):
@@ -725,4 +733,8 @@ class NandInterpreter(Interpreter):
 
 class RiscvInterpreter(Interpreter):
     """ Interpreter subclass for RiscV ISA """
-    pass
+    def __init__(self, graph, args, longmode=False, shared_state=None):
+        bits = 64 if longmode else 32 # TODO: is this also called longmode on RiscV? 
+        super(RiscvInterpreter, self).__init__(graph, args, shared_state)# py2 super 
+        self.memory = z3.Array('memory', z3.BitVecSort(bits), z3.BitVecSort(bits))
+        self.cls = RiscvInterpreter

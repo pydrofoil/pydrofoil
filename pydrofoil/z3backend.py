@@ -491,6 +491,8 @@ class Interpreter(object):
             return
         elif isinstance(op, ir.StructConstruction):
             result = self.exec_struct_construction(op)
+        elif isinstance(op, ir.UnionVariantCheck):
+            result = self.exec_union_variant_check(op)
         else:
             assert 0 , str(op.name) + ", " + str(op) + "," + "exec_%s" % op.name.replace("@","")
         self.environment[op] = result
@@ -531,6 +533,13 @@ class Interpreter(object):
             return struct.vals_w[index]
         res = getattr(struct_type_z3, field)(struct.toz3())# get accessor from slot with getattr
         return Z3Value(res)
+
+    def exec_union_variant_check(self, op):
+        instance, = self.getargs(op)
+        if isinstance(instance, UnionConstant):
+            return BooleanConstant(instance.variant_name != op.name) # confusingly enough, the result is negated from what one would expect
+        else:
+            import pdb;pdb.set_trace()
         
     def exec_union_cast(self, op):
         ###  this cas specializes an instance of a union to one if its subtypes like:
@@ -698,7 +707,7 @@ class Interpreter(object):
             return Constant(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value))
         else:
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
-        
+
     def exec_zero_extend_bv_i_i(self, op):
         """ extend bitvector from arg1 to arg2 with zeros """
         arg0, arg1, arg2 = self.getargs(op)

@@ -435,3 +435,12 @@ def test_fvec():
     fvectype = rs['mhpmevent']
     assert fvectype.of.width == 64
     assert repr(fvectype) == "<_pydrofoil.sailtypes.FVec 32 _pydrofoil.sailtypes.SmallFixedBitVector(64)>"
+
+def test_union_repr():
+    cpu = _pydrofoil.RISCV64()
+    assert repr(cpu.lowlevel.accessToFault.sail_type.arguments[0]) == '<_pydrofoil.sailtypes.Union AccessType<u>>'
+
+def test_struct_repr():
+    cpu = _pydrofoil.RISCV64()
+    assert repr(cpu.lowlevel.check_PTE_permission.sail_type.arguments[4]) == '<_pydrofoil.sailtypes.Struct PTE_Flags>'
+

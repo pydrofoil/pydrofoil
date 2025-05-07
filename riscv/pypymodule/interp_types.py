@@ -26,9 +26,13 @@ class __extend__(Union):
                      for index, name in enumerate(self.names_list)]
         return space.newlist(res_w)
 
+    def descr_repr(self, space):
+        return space.newtext("<_pydrofoil.sailtypes.Union %s>" % self.demangled_name)
+
 Union.typedef = TypeDef("_pydrofoil.sailtypes.Union", Type.typedef,
     name = interp_attrproperty("demangled_name", Union, "the name of the union type", "newtext"),
     constructors = GetSetProperty(Union.descr_get_constructors),
+    __repr__ = interp2app(Union.descr_repr),
 )
 Union.typedef.acceptable_as_base_class = False
 
@@ -54,9 +58,14 @@ class __extend__(RegularStruct):
         res_w = [space.newtuple2(space.newtext(name), self.typs_list[index])
                      for index, name in enumerate(self.names_list)]
         return space.newlist(res_w)
+
+    def descr_repr(self, space):
+        return space.newtext("<_pydrofoil.sailtypes.Struct %s>" % self.demangled_name)
+
 RegularStruct.typedef = TypeDef("_pydrofoil.sailtypes.Struct", Type.typedef,
     name = interp_attrproperty("demangled_name", RegularStruct, "the name of the struct type", "newtext"),
     fields = GetSetProperty(RegularStruct.descr_get_fields),
+    __repr__ = interp2app(RegularStruct.descr_repr),
 )
 RegularStruct.typedef.acceptable_as_base_class = False
 
@@ -89,7 +98,7 @@ class __extend__(Vec):
     def descr_repr(self, space):
         return space.newtext("<_pydrofoil.sailtypes.Vec %s>" % (space.text_w(space.repr(self.typ)), ))
 Vec.typedef = TypeDef("_pydrofoil.sailtypes.Vec", Type.typedef,
-    of = interp_attrproperty_w("typ", Vec)
+    of = interp_attrproperty_w("typ", Vec),
     __repr__ = interp2app(Vec.descr_repr),
 )
 Vec.typedef.acceptable_as_base_class = False

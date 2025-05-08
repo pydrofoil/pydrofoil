@@ -90,17 +90,6 @@ class UnionConstant(AbstractConstant):
     def __str__(self):
         return "%s(%s)" % (self.variant_name, self.w_val)
 
-class NonLazyUnionConstant(UnionConstant):
-    """ This istance cannot be None (UNIT)"""
-
-    def __init__(self, variant_name, z3val, resolved_type, z3type):
-        self.variant_name = variant_name
-        self.z3val = z3val
-        self.resolved_type = resolved_type
-        self.z3type = z3type
-    
-    def toz3(self):
-        return self.z3val
     
 class StructConstant(AbstractConstant):
 
@@ -116,17 +105,6 @@ class StructConstant(AbstractConstant):
     def __str__(self):
         return "<StructConstant %s %s>" % (self.vals_w, self.resolved_type.name)
     
-class NonLazyStructConstant(StructConstant):
-
-    def __init__(self, z3val, resolved_type, z3type):
-        self.vals_w = None
-        self.resolved_type = resolved_type
-        self.z3type = z3type
-        self.value = z3val
-    
-    def toz3(self):
-        return self.value
-
 class Z3Value(Value):
     
     def __init__(self, val):
@@ -559,27 +537,6 @@ class Interpreter(object):
         elif isinstance(instance, UnionConstant):
             assert op.name == instance.variant_name
             return instance.w_val
-        elif isinstance(instance, NonLazyUnionConstant):
-            if hasattr(instance.z3type, to_specialized_variant):
-                if isinstance(res_type, types.Struct):
-                    new_z3_type = self.sharedstate.get_z3_struct_type(res_type)
-                    typechecker = getattr(instance.z3type, "is_" + to_specialized_variant)
-                    ### dont call accessor here, wont work ### 
-                    accessor = getattr(instance.z3type, "acc_" + to_specialized_variant)
-                    ### dont call accessor here, wont work ### 
-                    default_value = z3.FreshConst(new_z3_type, "error_in_typecast")
-                    new_z3_value = z3.If(typechecker(instance.toz3()), accessor(instance.toz3()), default_value)
-                    # This returns the complete z3 struct instance not the arguments
-                    new_instance = NonLazyStructConstant(new_z3_value, res_type, new_z3_value.sort())
-                elif isinstance(res_type, types.Enum):
-                    #new_z3_type = self.sharedstate.get_z3_enum_type(res_type)
-                    assert 0
-                elif isinstance(res_type, types.Union):
-                    #new_z3_type = self.sharedstate.get_z3_union_type(res_type)
-                    assert 0
-                return new_instance
-            else:
-                assert 0, "this should absolutely not happen"
         else:
             assert 0
 

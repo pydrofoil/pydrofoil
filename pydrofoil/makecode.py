@@ -252,7 +252,6 @@ class Codegen(specialize.FixpointSpecializer):
         self._effect_infos = compute_all_effects(self.all_graph_by_name)
         for graph in self.all_graph_by_name.itervalues():
             if graph.name == "zencdec_backwards_next_2":
-                import pdb;pdb.set_trace()
             cse_field_reads(graph, self)
             cse_global_reads(graph, self)
 

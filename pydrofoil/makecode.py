@@ -247,10 +247,20 @@ class Codegen(specialize.FixpointSpecializer):
         self.schedule_graph_specialization(graph)
         self._all_graphs.append((graph, emit_function, args, kwargs))
 
+    def _optimize_with_effect_info(self):
+        from pydrofoil.ir import print_stats, cse_field_reads, cse_global_reads
+        self._effect_infos = compute_all_effects(self.all_graph_by_name)
+        for graph in self.all_graph_by_name.itervalues():
+            if graph.name == "zencdec_backwards_next_2":
+                import pdb;pdb.set_trace()
+            cse_field_reads(graph, self)
+            cse_global_reads(graph, self)
+
     def finish_graphs(self):
         self.print_persistent_msg("============== FINISHING ==============")
         from pydrofoil.ir import print_stats
         t1 = time.time()
+        self._optimize_with_effect_info()
         self.specialize_all()
         unspecialized_graphs = []
         if self.program_entrypoints is None:
@@ -359,9 +369,8 @@ class Codegen(specialize.FixpointSpecializer):
 
     def get_effects(self, function_name):
         # type: (str) -> EffectInfo | None
-        # TODO copy this to regular code gen
         if self._effect_infos is None:
-            self._effect_infos = compute_all_effects(self.all_graph_by_name)
+            return None # only available after all CFGs are generated
         return self._effect_infos.get(function_name)
 
 

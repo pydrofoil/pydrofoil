@@ -749,9 +749,11 @@ class Graph(object):
         dotgen.emit_edge(name, firstid)
         return print_varnames
 
-    def iterblocks(self):
-        # type: (Graph) -> Generator[Block]
-        todo = [self.startblock]
+    def iterblocks(self, startblock=None):
+        # type: (Graph, Block | None) -> Generator[Block]
+        if startblock is None:
+            startblock = self.startblock
+        todo = [startblock]
         seen = set()
         while todo:
             block = todo.pop()
@@ -1573,6 +1575,7 @@ def optimize(graph, codegen):
 
 def _bare_optimize(graph, codegen):
     from pydrofoil.absinterp import optimize_with_range_info
+    from pydrofoil.optimize import merge_phi_blocks, fix_union_check_switch
     res = False
     res = propagate_equality(graph, codegen) or res
     res = join_blocks(graph, codegen) or res
@@ -1581,6 +1584,8 @@ def _bare_optimize(graph, codegen):
     res = sink_allocate(graph, codegen) or res
     res = inline(graph, codegen) or res
     res = remove_superfluous_union_checks(graph, codegen) or res
+    res = merge_phi_blocks(graph, codegen) or res
+    res = fix_union_check_switch(graph, codegen) or res
     res = localopt(graph, codegen, do_double_casts=False) or res
     res = remove_empty_blocks(graph, codegen) or res
     res = swap_not(graph, codegen) or res

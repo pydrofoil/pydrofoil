@@ -1,3 +1,4 @@
+import sys
 from rpython.rlib import jit
 from rpython.rlib import objectmodel
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
@@ -21,10 +22,16 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None, space=None):
     if "machinecls64" in globals():
         return
     if machinecls64 is None:
-        mod64 = _make_code(True)
+        if "--dont-regen" in sys.argv:
+            from riscv.generated import outriscv as mod64
+        else:
+            mod64 = _make_code(True)
         machinecls64 = supportcoderiscv.get_main(mod64, True)._machinecls
     if machinecls32 is None:
-        mod32 = _make_code(False)
+        if "--dont-regen" in sys.argv:
+            from riscv.generated import outriscv32 as mod32
+        else:
+            mod32 = _make_code(False)
         machinecls32 = supportcoderiscv.get_main(mod32, False)._machinecls
     globals()["machinecls64"] = machinecls64
     globals()["machinecls32"] = machinecls32
@@ -319,7 +326,7 @@ def _init_functions(machinecls, functions):
             name = space.text_w(w_name)
             func = get_sail_func(name)
             if func is None:
-                raise oefmt_attribute_error(space, self, w_name, "type object %N has no attribute %R")
+                raise oefmt_attribute_error(space, self, w_name, "'%T' object has no attribute %R")
             return W_BoundSailFunction(self.w_machine, func)
         descr_getattr.func_name += "_" + machinecls.__name__
 

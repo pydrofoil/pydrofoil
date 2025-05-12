@@ -10,6 +10,9 @@ if sys.version_info.major == 2:
         group.addoption('--raise-operr', action="store_true",
                 default=False, dest="raise_operr",
                 help="Show the interp-level OperationError in app-level tests")
+        group.addoption('--dont-regen', action="store_true",
+                default=False, dest="dont_regen",
+                help="Don't regenerate the RPython code from the Sail sources")
 
     class MyAppTestModule(AppTestModule):
         def collect(self):

@@ -2,6 +2,8 @@ from pydrofoil import ir, types
 
 @ir.repeat
 def merge_phi_blocks(graph, codegen):
+    if graph.has_loop:
+        return False
     changed = False
     for block in graph.iterblocks():
         if len(block.operations) != 1:

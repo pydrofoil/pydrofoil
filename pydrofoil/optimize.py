@@ -23,8 +23,7 @@ def merge_phi_blocks(graph, codegen):
         phi2.prevvalues[pos: pos + 1] = phi1.prevvalues
         phi2.prevblocks[pos: pos + 1] = phi1.prevblocks
         for prevblock in phi1.prevblocks:
-            assert isinstance(prevblock.next, ir.Goto)
-            prevblock.next.target = nextblock
+            prevblock.next.replace_next(block, nextblock)
             changed = True
     return changed
 

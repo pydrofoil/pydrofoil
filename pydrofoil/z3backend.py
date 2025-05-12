@@ -37,26 +37,29 @@ class AbstractConstant(Value):
 
 class Constant(AbstractConstant): # TODO: rename to ConstantSmallBitVector
     
-    def __init__(self, val):
+    def __init__(self, val, signed=False):
         self.value = val
+        self._signed = signed
 
     def toz3(self):
         return int(self.value)
 
 
 class ConstantInt(AbstractConstant):
-    def __init__(self, val):
+    def __init__(self, val, signed=False):
         assert isinstance(val, int)
         self.value = val
+        self._signed = signed
 
     def toz3(self):
         return self.value
   
 
 class ConstantGenericInt(AbstractConstant):
-    def __init__(self, val):
+    def __init__(self, val, signed=False):
         assert isinstance(val, (int, long))
         self.value = val
+        self._signed = signed
 
     def toz3(self):
         return self.value
@@ -413,7 +416,7 @@ class Interpreter(object):
     def convert(self, arg):
         """ wrap an argument or load wrapped arg from env """
         if isinstance(arg, ir.SmallBitVectorConstant):
-            w_arg = Constant(arg.value)
+            w_arg = Constant(arg.value, signed=False)# TODO: unsigned?
         elif isinstance(arg, ir.EnumConstant):
             enumname =  "enum_%s" % arg.resolved_type.name
             if not enumname in self.sharedstate.enums:
@@ -422,7 +425,7 @@ class Interpreter(object):
             w_arg = Enum(arg.resolved_type.name, arg.variant, z3variant)
         elif isinstance(arg, ir.Constant):
             if isinstance(arg, ir.MachineIntConstant):
-                w_arg = Constant(arg.number)
+                w_arg = Constant(arg.number, signed=False)
             elif isinstance(arg, ir.BooleanConstant):
                 w_arg = BooleanConstant(arg.value)
             elif isinstance(arg, ir.UnitConstant):
@@ -572,11 +575,10 @@ class Interpreter(object):
     def exec_signed_bv(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Constant): # arg2 is width
-            res = Constant(arg0.value)
+            # we must know if a bv must be interpreted as signed or unsigned
+            res = Constant(arg0.value, signed=True)
         else:
             res = Z3Value(arg0.toz3())
-        # we must know if a bv must be interpreted as signed or unsigned
-        res._signed = True
         return res
 
     def exec_eq_bits_bv_bv(self, op):
@@ -618,7 +620,7 @@ class Interpreter(object):
             
     def exec_lt(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+        if isinstance(arg0, (Constant, ConstantInt)) and isinstance(arg1, (Constant, ConstantInt)):
             return BooleanConstant(arg0.value < arg1.value)
         else:
             if arg0._signed or arg1._signed:
@@ -644,16 +646,16 @@ class Interpreter(object):
             return Z3Value(not arg0.toz3())
         
     def exec_not_vec_bv(self, op):
-        arg0, _ = self.getargs(op) # TODO: start using the passed width everywhere and not always 64 bit
+        arg0, _ = self.getargs(op) 
         if isinstance(arg0, Constant):
-            return Constant(~arg0.value)
+            return Constant(~arg0.value, signed=arg0._signed)
         else:
             return Z3Value(~arg0.toz3())
         
     def exec_sub_bits_bv_bv(self, op):
         arg0, arg1, arg2 = self.getargs(op) 
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value - arg1.value)
+            return Constant(arg0.value - arg1.value) # TODO: signedness?
         else:
             return Z3Value(arg0.toz3() - arg1.toz3())
 
@@ -664,21 +666,21 @@ class Interpreter(object):
     def exec_add_bits_bv_bv(self, op):
         arg0, arg1, _ = self.getargs(op) 
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value + arg1.value)
+            return Constant(arg0.value + arg1.value) # TODO: signedness?
         else:
             return Z3Value(arg0.toz3() + arg1.toz3())
 
     def exec_and_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value & arg1.value)
+            return Constant(arg0.value & arg1.value) # TODO: signedness?
         else:
             return Z3Value(arg0.toz3() & arg1.toz3())
 
     def exec_or_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value | arg1.value)
+            return Constant(arg0.value | arg1.value) # TODO: signedness?
         else:
             return Z3Value(arg0.toz3() | arg1.toz3())
         
@@ -686,7 +688,7 @@ class Interpreter(object):
         """ slice bitvector as bv[arg1:arg0] both inclusive """
         arg0, arg1, arg2 = self.getargs(op)
         if isinstance(arg0, Constant):
-            return Constant(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value))
+            return Constant(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), signed=arg0._signed)
         else:
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
 
@@ -694,28 +696,28 @@ class Interpreter(object):
         """ extend bitvector from arg1 to arg2 with zeros """
         arg0, arg1, arg2 = self.getargs(op)
         if isinstance(arg0, Constant):
-            return Constant(arg0.value) # left zero extend doesnt change const int
+            return Constant(arg0.value, signed=arg0._signed) # left zero extend doesnt change const int
         else:
             return Z3Value(z3.ZeroExt(arg2.value - arg1.value, arg0.toz3()))
 
     def exec_sign_extend_bv_i_i(self, op):
         arg0, arg1, arg2 = self.getargs(op)
         if isinstance(arg0, Constant):
-            return Constant(supportcode.sign_extend_bv_i_i(None, arg0.value, arg1.value, arg2.value))
+            return Constant(supportcode.sign_extend_bv_i_i(None, arg0.value, arg1.value, arg2.value), signed=arg0._signed)
         else:
             return Z3Value(z3.SignExt(arg2.value - arg1.value, arg0.toz3()))
 
     def exec_unsigned_bv(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return ConstantInt(supportcode.unsigned_bv(None, arg0.value, arg1.value))
+            return ConstantInt(supportcode.unsigned_bv(None, arg0.value, arg1.value), signed=False)
         else:
             return Z3Value(z3.ZeroExt(64 - arg1.value, arg0.toz3()))
 
     def exec_zz5i64zDzKz5i(self, op): # %i64->%i
         arg0, = self.getargs(op)
         if isinstance(arg0, ConstantInt):
-            return ConstantGenericInt(arg0.value)
+            return ConstantGenericInt(arg0.value, signed=True)
         else:
             return Z3Value(z3.BV2Int(arg0.toz3(), is_signed=True))
 

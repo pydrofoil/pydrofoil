@@ -548,7 +548,7 @@ def test_nand_decode():
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
-    assert str(res).startswith("If(Extract(15, 15, zmergez3var) == 0,\n   zSomezIUinstrzIzKzK(zAINST(Concat(")
+    assert str(res).startswith("If(Extract(15, 15, zmergez3var) == 0,\n   zSomezIUinstrzIzKzK(zAINST(ZeroExt(")
     merge = z3backend.Constant(0b1110101010000000)
     interp = z3backend.NandInterpreter(graph, [merge],  sharedstate.copy())
     res = interp.run()
@@ -573,7 +573,7 @@ zSomezIUinstrzIzKzK(zCINST(a(0,
     interp = z3backend.NandInterpreter(graph, [merge],  sharedstate.copy())
     res = interp.run()
     z3res = z3.simplify(res.value)
-    assert str(z3res) == """zSomezIUinstrzIzKzK(zAINST(Concat(padding, 128)))"""
+    assert str(z3res) == 'zSomezIUinstrzIzKzK(zAINST(128))'
 
 
 def test_nand_zexecute_zainst():

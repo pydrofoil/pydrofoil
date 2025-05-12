@@ -35,14 +35,33 @@ class AbstractConstant(Value):
     pass
 
 
-class Constant(AbstractConstant):
+class Constant(AbstractConstant): # TODO: rename to ConstantSmallBitVector
     
     def __init__(self, val):
         self.value = val
 
     def toz3(self):
         return int(self.value)
-    
+
+
+class ConstantInt(AbstractConstant):
+    def __init__(self, val):
+        assert isinstance(val, int)
+        self.value = val
+
+    def toz3(self):
+        return self.value
+  
+
+class ConstantGenericInt(AbstractConstant):
+    def __init__(self, val):
+        assert isinstance(val, (int, long))
+        self.value = val
+
+    def toz3(self):
+        return self.value
+
+
 class BooleanConstant(AbstractConstant):
     
     def __init__(self, val):
@@ -677,15 +696,29 @@ class Interpreter(object):
         if isinstance(arg0, Constant):
             return Constant(arg0.value) # left zero extend doesnt change const int
         else:
-            padding = z3.BitVec("padding", arg2.value - arg1.value)
-            return Z3Value(z3.Concat(padding, arg0.toz3()))
+            return Z3Value(z3.ZeroExt(arg2.value - arg1.value, arg0.toz3()))
+
+    def exec_sign_extend_bv_i_i(self, op):
+        arg0, arg1, arg2 = self.getargs(op)
+        if isinstance(arg0, Constant):
+            return Constant(supportcode.sign_extend_bv_i_i(None, arg0.value, arg1.value, arg2.value))
+        else:
+            return Z3Value(z3.SignExt(arg2.value - arg1.value, arg0.toz3()))
 
     def exec_unsigned_bv(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(supportcode.unsigned_bv(None, arg0.value, arg1.value)) # left zero extend doesnt change const int
+            return ConstantInt(supportcode.unsigned_bv(None, arg0.value, arg1.value))
         else:
-            import pdb;pdb.set_trace()
+            return Z3Value(z3.ZeroExt(64 - arg1.value, arg0.toz3()))
+
+    def exec_zz5i64zDzKz5i(self, op): # %i64->%i
+        arg0, = self.getargs(op)
+        if isinstance(arg0, ConstantInt):
+            return ConstantGenericInt(arg0.value)
+        else:
+            return Z3Value(z3.BV2Int(arg0.toz3(), is_signed=True))
+
     ### Arch specific Operations in subclass ###
 
 class NandInterpreter(Interpreter):
@@ -707,7 +740,7 @@ class NandInterpreter(Interpreter):
         """ write value to memory """
         ### TODO: Are mem writes supposed to return the written value?? ###
         addr, value  = self.getargs(op)
-        self.wrte_memory(addr, value)
+        self.wrte_memory(addr, value) # TODO: fix typo
 
 class RiscvInterpreter(Interpreter):
     """ Interpreter subclass for RiscV ISA """
@@ -725,3 +758,6 @@ class RiscvInterpreter(Interpreter):
 
     def exec_zsys_enable_zzicbozz(self, op):
         return BooleanConstant(True)
+
+    def exec_zget_config_print_reg(self, op):
+        return BooleanConstant(False)

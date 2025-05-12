@@ -357,6 +357,7 @@ class Interpreter(object):
                 return next.falsetarget
             else:
                 # fork 
+                print "fork in", self.graph.name, next.booleanvalue, "==", w_cond
                 interp1 = self.fork()
                 interp1.environment[next.booleanvalue] = BooleanConstant(True)
                 interp2 = self.fork()
@@ -373,6 +374,7 @@ class Interpreter(object):
                 # merge memory and registers
                 self.registers = {reg:Z3Value(z3.If(z3cond, interp1.registers[reg].toz3(), interp2.registers[reg].toz3())) for reg in self.registers}
                 self.memory = z3.If(z3cond, interp1.memory, interp2.memory)
+                print "merge", self.graph.name, self.w_result
 
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
@@ -480,6 +482,7 @@ class Interpreter(object):
     ### Generic Operations ###
 
     def exec_func_call(self, op, graph):
+        print "func call", op.name
         args = self.getargs(op)
         interp_fork = self.call_fork(graph, args)
         w_res = interp_fork.run()
@@ -495,6 +498,7 @@ class Interpreter(object):
         else: # case: func did or didnt raise, but raise was behind a condition, so that any RaiseConstants are already gone
             self.w_raises = Z3Value(z3.Or(self.w_raises.toz3(), interp_fork.w_raises.toz3()))
             self.w_exception = Z3Value(z3.If(interp_fork.w_raises.toz3(), interp_fork.w_exception.toz3(), self.w_exception.toz3())) 
+        print "return from", op.name, "->", w_res
         return w_res
 
     def exec_struct_construction(self, op):

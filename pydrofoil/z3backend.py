@@ -14,6 +14,11 @@ class Value(object):
     
     def __repr__(self):
         return self.__str__()
+    
+    def same_value(self, other):
+        if not isinstance(other, Value):
+            return False
+        return self.value == other.value
 
 class Enum(Value):# AbstractConstant
     
@@ -29,11 +34,33 @@ class Enum(Value):# AbstractConstant
         # So we can eval enums on Interpreter level
         if not isinstance(other, Enum): return False
         return self.enum_name == other.enum_name and self.variant == other.variant
+    
+    def same_value(self, other):
+        if not isinstance(other, Enum):
+            return False
+        return self == other
 
 
 class AbstractConstant(Value):
-    pass
+    
+    def same_value(self, other):
+        import pdb; pdb.set_trace()
 
+class StringConstant(AbstractConstant): 
+    
+    def __init__(self, val):
+        self.value = val
+
+    def toz3(self):
+        return z3.StringVal(self.value)
+    
+    def __str__(self):
+        return str(self.value)
+    
+    def same_value(self, other):
+        if not isinstance(other, StringConstant):
+            return False
+        return self.value == other.value
 
 class Constant(AbstractConstant): # TODO: rename to ConstantSmallBitVector
     
@@ -43,6 +70,11 @@ class Constant(AbstractConstant): # TODO: rename to ConstantSmallBitVector
 
     def toz3(self):
         return int(self.value)
+    
+    def same_value(self, other):
+        if not isinstance(other, Constant):
+            return False
+        return (self.value == other.value) and (self._signed == other._signed)
 
 
 class ConstantInt(AbstractConstant):
@@ -53,6 +85,11 @@ class ConstantInt(AbstractConstant):
 
     def toz3(self):
         return self.value
+    
+    def same_value(self, other):
+        if not isinstance(other, ConstantInt):
+            return False
+        return self.value == other.value
   
 
 class ConstantGenericInt(AbstractConstant):
@@ -63,7 +100,11 @@ class ConstantGenericInt(AbstractConstant):
 
     def toz3(self):
         return self.value
-
+    
+    def same_value(self, other):
+        if not isinstance(other, ConstantGenericInt):
+            return False
+        return self.value == other.value
 
 class BooleanConstant(AbstractConstant):
     
@@ -71,7 +112,12 @@ class BooleanConstant(AbstractConstant):
         self.value = val
 
     def toz3(self):
-        return self.value
+        return z3.BoolVal(self.value)
+
+    def same_value(self, other):
+        if not isinstance(other, BooleanConstant): 
+            return False
+        return self.value == other.value
 
 class RaiseConstant(AbstractConstant):
 
@@ -80,6 +126,9 @@ class RaiseConstant(AbstractConstant):
 
     def __str__(self):
         return "Raise Exception: " + self.kind
+    
+    def same_value(self, other):
+        import pdb; pdb.set_trace()
 
 class UnitConstant(AbstractConstant):
     
@@ -93,6 +142,9 @@ class UnitConstant(AbstractConstant):
     
     def __str__(self):
         return "UNIT"
+    
+    def same_value(self, other):
+        import pdb; pdb.set_trace()
 
     
 class UnionConstant(AbstractConstant):
@@ -111,7 +163,18 @@ class UnionConstant(AbstractConstant):
     
     def __str__(self):
         return "%s(%s)" % (self.variant_name, self.w_val)
-
+    
+    def same_value(self, other):
+        if not isinstance(other, UnionConstant): 
+            return False
+        if self.resolved_type != other.resolved_type:
+            return False
+        if self.z3type != other.z3type:
+            return False
+        if self.variant_name != other.variant_name:
+            return False
+        return self.w_val == other.w_val
+    
     
 class StructConstant(AbstractConstant):
 
@@ -127,6 +190,21 @@ class StructConstant(AbstractConstant):
     def __str__(self):
         return "<StructConstant %s %s>" % (self.vals_w, self.resolved_type.name)
     
+
+    def same_value(self, other):
+        if not isinstance(other, StructConstant): 
+            return False
+        if self.resolved_type != other.resolved_type:
+            return False
+        if self.z3type != other.z3type:
+            return False
+        if len(self.vals_w) !=  len(other.vals_w):
+            return False
+        for self_w_val, other_w_val in zip(self.vals_w, other.vals_w):
+            if not self_w_val.same_value(other_w_val):
+                return False
+        return True
+        
 class Z3Value(Value):
     
     def __init__(self, val):
@@ -136,6 +214,8 @@ class Z3Value(Value):
     def toz3(self):
         return self.value
     
+    def same_value(self, other):
+        return False
     
 class SharedState(object):
 
@@ -291,10 +371,10 @@ class Interpreter(object):
         self.forknum = self.sharedstate.fork_counter
         self.sharedstate.fork_counter += 1
         self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
-        self.w_exception = Z3Value(z3.StringVal("No Exception"))
-        self.w_raises = Z3Value(False)
+        self.w_exception = StringConstant("No Exception")
+        self.w_raises = BooleanConstant(False)
         ### TODO: Technicaly RPython cant return different types from a func, so this None handling, could be removed ???
-        self.w_result_none = Z3Value(True)
+        self.w_result_none = BooleanConstant(True)
         self.unconditional_raise = False # set to true to stop execution after encountering an unconditional raise
 
     def run(self, block=None):
@@ -337,44 +417,49 @@ class Interpreter(object):
         return z3.If(cond, true, false)
     
     def _create_w_z3_if(self, w_cond, w_true, w_false):
-        return Z3Value(self._create_z3_if(w_cond.toz3(), w_true.toz3(), w_false.toz3()))
+        """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
+        if w_true.same_value(w_false): return w_true
+        return Z3Value(z3.If(w_cond.toz3(), w_true.toz3(), w_false.toz3()))
+    
+    def _create_w_z3_or(self, w_a, w_b):
+        """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
+        if w_a.same_value(w_b): return w_a
+        return Z3Value(z3.Or(w_a.toz3(), w_b.toz3()))
     
     def merge_raise(self, w_cond, w_res_true, w_res_false, interp1, interp2):
         """ Handle Exceptions, when a raise block raises the forks result is an instance of RaiseConstant """
-        z3cond = w_cond.toz3()
         if isinstance(w_res_true, RaiseConstant) and isinstance(w_res_false, RaiseConstant):
             self.w_result = RaiseConstant("/") # result of computation
             # Exception as String e.g. z3.If(cond, z3.StringVal("Excpetion A"), z3.StringVal("No Exception/ Exception B"))
-            self.w_exception = Z3Value(self._create_z3_if(z3cond, z3.StringVal(str(w_res_true)), z3.StringVal(str(w_res_false))))
-            self.w_raises = Z3Value(True) # bool cond for raise
-            self.w_result_none = Z3Value(True) # raise and raise dont return any value
+            self.w_exception = self._create_w_z3_if(w_cond, StringConstant(str(w_res_true)), StringConstant(str(w_res_false)))
+            self.w_raises = BooleanConstant(True) # bool cond for raise
+            self.w_result_none = BooleanConstant(True) # raise and raise dont return any value
         elif isinstance(w_res_true, RaiseConstant):
-            self.w_exception = Z3Value(self._create_z3_if(z3cond, z3.StringVal(str(w_res_true)), interp2.w_exception.toz3())) 
-            self.w_raises = Z3Value(self._create_z3_if(z3cond, True, interp2.w_raises.toz3()))
+            self.w_exception = self._create_w_z3_if(w_cond, StringConstant(str(w_res_true)), interp2.w_exception)
+            self.w_raises = self._create_w_z3_if(w_cond, BooleanConstant(True), interp2.w_raises)
         elif isinstance(w_res_false, RaiseConstant):
-            self.w_exception = Z3Value(self._create_z3_if(z3cond, interp1.w_exception.toz3(), z3.StringVal(str(w_res_false)))) 
-            self.w_raises = Z3Value(self._create_z3_if(z3cond, interp1.w_raises.toz3(), True))
+            self.w_exception = self._create_w_z3_if(w_cond, interp1.w_exception, StringConstant(str(w_res_false))) 
+            self.w_raises = self._create_w_z3_if(w_cond, interp1.w_raises, BooleanConstant(True))
         else:
-            self.w_exception = Z3Value(self._create_z3_if(z3cond, interp1.w_exception.toz3(), interp2.w_exception.toz3())) 
-            self.w_raises = Z3Value(self._create_z3_if(z3cond, interp1.w_raises.toz3(), interp2.w_raises.toz3()))
+            self.w_exception = self._create_w_z3_if(w_cond, interp1.w_exception, interp2.w_exception) 
+            self.w_raises = self._create_w_z3_if(w_cond, interp1.w_raises, interp2.w_raises)
 
     def merge_result(self, w_cond, w_res_true, w_res_false, interp1, interp2):
         """ Handle Unit ~ None, when we return a UNIT we must handle it without converting it to z3
             Neither raise nor UNIT return somthing """
-        z3cond = w_cond.toz3()
         if ((isinstance(w_res_true, (UnitConstant, RaiseConstant)) and isinstance(w_res_false, UnitConstant))
             or (isinstance(w_res_false, (UnitConstant, RaiseConstant)) and isinstance(w_res_true, UnitConstant))):
             self.w_result = UnitConstant() # parent interpreter must handle this or this is the generel return value
-            self.w_result_none = Z3Value(True)
+            self.w_result_none = BooleanConstant(True)
         elif isinstance(w_res_true, (UnitConstant, RaiseConstant)): 
             self.w_result = w_res_false
-            self.w_result_none = Z3Value(self._create_z3_if(z3cond, True, interp2.w_result_none.toz3()))
+            self.w_result_none = self._create_w_z3_if(w_cond, BooleanConstant(True), interp2.w_result_none)
         elif isinstance(w_res_false, (UnitConstant, RaiseConstant)):
             self.w_result = w_res_true
-            self.w_result_none = Z3Value(self._create_z3_if(z3cond, interp1.w_result_none.toz3(), True))
+            self.w_result_none = self._create_w_z3_if(w_cond, interp1.w_result_none, BooleanConstant(True))
         else:
-            self.w_result = Z3Value(self._create_z3_if(z3cond, w_res_true.toz3(), w_res_false.toz3()))
-            self.w_result_none = Z3Value(self._create_z3_if(z3cond, interp1.w_result_none.toz3(), interp2.w_result_none.toz3()))
+            self.w_result = self._create_w_z3_if(w_cond, w_res_true, w_res_false)
+            self.w_result_none = self._create_w_z3_if(w_cond, interp1.w_result_none, interp2.w_result_none)
 
     def execute_next(self, next):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
@@ -388,7 +473,8 @@ class Interpreter(object):
                 return next.falsetarget
             else:
                 # fork 
-                print "fork in", self.graph.name, next.booleanvalue, "==", w_cond
+                #print "fork in", self.graph.name, next.booleanvalue, "==", w_cond
+                #self._debug_print("fork in " + self.graph.name)
                 interp1 = self.fork()
                 interp1.environment[next.booleanvalue] = BooleanConstant(True)
                 interp2 = self.fork()
@@ -402,10 +488,10 @@ class Interpreter(object):
                 self.merge_result(w_cond, w_res_true, w_res_false, interp1, interp2)
 
                 # merge memory and registers
-                z3cond = w_cond.toz3()
-                self.registers = {reg:Z3Value(self._create_z3_if(z3cond, interp1.registers[reg].toz3(), interp2.registers[reg].toz3())) for reg in self.registers}
-                self.memory = self._create_z3_if(z3cond, interp1.memory, interp2.memory)
-                print "merge", self.graph.name, self.w_result
+                self.registers = {reg:self._create_w_z3_if(w_cond, interp1.registers[reg], interp2.registers[reg]) for reg in self.registers}
+                self.memory = self._create_z3_if(w_cond.toz3(), interp1.memory, interp2.memory)
+                #self._debug_print("merge " + self.graph.name + " " + str(self.w_result))
+
 
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
@@ -416,7 +502,7 @@ class Interpreter(object):
         return None
     
     def _debug_print(self, msg=""):
-        print "%s__interp_%s:" % (self.cls, self.forknum), msg
+        print "interp_%s:" % self.forknum, msg
 
     def create_z3_enum(self, name, variants):
         """ create a z3 datatype for an enum and store in shared state """
@@ -491,9 +577,8 @@ class Interpreter(object):
             result = func(op) # self passed implicitly
             if result == None:
                 return
-        #elif isinstance(op, ir.NonSSAAssignment):
-            # TODO: is NonSSAAssignment 'normal' assignment in Branch after SSA PHI nodes were removed?
-        #    import pdb; pdb.set_trace()
+        elif isinstance(op, ir.NonSSAAssignment):
+            import pdb; pdb.set_trace()
         elif op.is_union_creation():
             result = self.exec_union_creation(op)
         elif isinstance(op, ir.FieldAccess):
@@ -513,24 +598,23 @@ class Interpreter(object):
     ### Generic Operations ###
 
     def exec_func_call(self, op, graph):
-        print "func call", op.name
+        self._debug_print("graph " + self.graph.name + " func call " + op.name)
         args = self.getargs(op)
         interp_fork = self.call_fork(graph, args)
         w_res = interp_fork.run()
         self.registers = interp_fork.registers
         self.memory = interp_fork.memory
         if isinstance(w_res, RaiseConstant):# case: func raises without condition
-            self.w_raises = Z3Value(z3.Or(self.w_raises.toz3(), True))
-            #self.w_exception = Z3Value(z3.If(True, z3.StringVal(w_res.kind), self.w_exception.toz3())) 
-            self.w_exception = Z3Value(z3.StringVal(w_res.kind))
+            self.w_raises = BooleanConstant(True)
+            self.w_exception = StringConstant(w_res.kind)
             self.unconditional_raise = True
             self.w_result = RaiseConstant()
             # doesnt matter if we write RaiseConstant into env, interpreter returns after this
             # either it is the result of the general execution or the parent interpreter will handle the Raise 
         else: # case: func did or didnt raise, but raise was behind a condition, so that any RaiseConstants are already gone
-            self.w_raises = Z3Value(z3.Or(self.w_raises.toz3(), interp_fork.w_raises.toz3()))
+            self.w_raises = self._create_w_z3_or(self.w_raises, interp_fork.w_raises)
             self.w_exception = self._create_w_z3_if(interp_fork.w_raises, interp_fork.w_exception, self.w_exception) 
-        print "return from", op.name, "->", w_res
+        #self._debug_print("return from " + op.name + " -> " + str(w_res))
         return w_res
 
     def exec_struct_construction(self, op):
@@ -756,8 +840,8 @@ class NandInterpreter(Interpreter):
 
 class RiscvInterpreter(Interpreter):
     """ Interpreter subclass for RiscV ISA """
-    def __init__(self, graph, args, shared_state=None, longmode=False):
-        bits = 64 if longmode else 32 # TODO: is this also called longmode on RiscV? 
+    def __init__(self, graph, args, shared_state=None, _64bit=False):
+        bits = 64 if _64bit else 32 # TODO: is this also called longmode on RiscV? 
         super(RiscvInterpreter, self).__init__(graph, args, shared_state)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(bits), z3.BitVecSort(bits))
         self.cls = RiscvInterpreter

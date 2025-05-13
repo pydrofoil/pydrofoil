@@ -733,7 +733,7 @@ def test_nand_zexecute_zcint():
 
     assert isinstance(res, z3backend.UnitConstant)
     assert str(is_none) == "True"
-    assert str(is_exception).startswith("Or(Or(Or(False,\n         If(")
+    assert str(is_exception) == "False"
     assert str(interp.registers["zA"]).startswith("If(")
 
 def test_nand_decode_execute_opcode():

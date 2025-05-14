@@ -154,7 +154,7 @@ def test_nand_decode_compute_backwards():
     graph = get_decode_compute_backwards_graph()
     shared_state = z3backend.SharedState({}, NAND_REGISTERS)
     #graph.view()
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1100))], shared_state.copy())
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1100))], shared_state.copy())
     res = interp.run()
     assert isinstance(res, z3backend.Enum)
     assert res.variant == "zC_D"
@@ -238,7 +238,7 @@ def test_nand_decode_jump_backwards():
     graph = get_zdecode_jump_backwards_graph()
     shared_state = z3backend.SharedState({}, NAND_REGISTERS)
 
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b11))], shared_state.copy())
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b11))], shared_state.copy())
     res = interp.run()
     assert isinstance(res, z3backend.Enum)
     assert res.variant == "zJGE"
@@ -401,62 +401,62 @@ def test_nand_compute_value():
     sharedstate.register_enum("zarithmetic_op", ['zC_ZERO', 'zC_ONE', 'zC_MINUSONE', 'zC_D', 'zC_A', 'zC_NOT_D', 'zC_NOT_A', 'zC_NEG_D', 'zC_NEG_A', 'zC_D_ADD_1', 'zC_A_ADD_1', 'zC_D_SUB_1', 'zC_A_SUB_1', 'zC_D_ADD_A', 'zC_D_SUB_A', 'zC_A_SUB_D', 'zC_D_AND_A', 'zC_D_OR_A'])
     
     enum_zC_A = sharedstate.get_w_enum("zarithmetic_op", "zC_A")
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b0)), enum_zC_A], sharedstate.copy())# a == 0 && op = zC_A => load register A
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b0)), enum_zC_A], sharedstate.copy())# a == 0 && op = zC_A => load register A
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert "_zA" in str(res) # now reg is numerated e.g. init_zA!655465
 
     # TODO: change to nandInterpreter
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_A], sharedstate.copy())# a != 0 && op = zC_A => load mem[register_A]
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1)), enum_zC_A], sharedstate.copy())# a != 0 && op = zC_A => load mem[register_A]
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("memory[init_zA!") # memory[zA]
 
     # bitwise not registers 
     enum_zC_NOT_D = sharedstate.get_w_enum("zarithmetic_op", "zC_NOT_D")
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_NOT_D], sharedstate.copy())# op = zC_NOT_D => not register_D
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1)), enum_zC_NOT_D], sharedstate.copy())# op = zC_NOT_D => not register_D
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("~init_zD!")
 
     enum_zC_NOT_A = sharedstate.get_w_enum("zarithmetic_op", "zC_NOT_A")
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b0)), enum_zC_NOT_A], sharedstate.copy())# a == 0 && op = zC_NOT_A => not register_A
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b0)), enum_zC_NOT_A], sharedstate.copy())# a == 0 && op = zC_NOT_A => not register_A
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("~init_zA!")
 
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_NOT_A], sharedstate.copy())# a != 0 &&op = zC_NOT_A => not register_A
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1)), enum_zC_NOT_A], sharedstate.copy())# a != 0 &&op = zC_NOT_A => not register_A
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("~memory[init_zA!") # memory[zA]
 
     # negate registers 
     enum_zC_NEG_A = sharedstate.get_w_enum("zarithmetic_op", "zC_NEG_A")
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b0)), enum_zC_NEG_A], sharedstate.copy())# a == 0 && op = zC_A => -register A
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b0)), enum_zC_NEG_A], sharedstate.copy())# a == 0 && op = zC_A => -register A
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("0 - init_zA!")
 
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_NEG_A], sharedstate.copy())# a != 0 && op = zC_A => -memory[register_A]
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1)), enum_zC_NEG_A], sharedstate.copy())# a != 0 && op = zC_A => -memory[register_A]
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("0 - memory[init_zA!")
 
     enum_zC_NEG_D = sharedstate.get_w_enum("zarithmetic_op", "zC_NEG_D")
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b1)), enum_zC_NEG_D], sharedstate.copy())# op = zC_NEG_D => -register_D
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1)), enum_zC_NEG_D], sharedstate.copy())# op = zC_NEG_D => -register_D
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("0 - init_zD!")
 
     # add, and , or
     enum_zC_D_ADD_1 = sharedstate.get_w_enum("zarithmetic_op", "zC_D_ADD_1")
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b0)), enum_zC_D_ADD_1], sharedstate.copy())# op = zC_D_ADD_1 => register_D + 1
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b0)), enum_zC_D_ADD_1], sharedstate.copy())# op = zC_D_ADD_1 => register_D + 1
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("init_zD!") and str(res).endswith(" + 1")
 
     enum_zC_D_AND_A = sharedstate.get_w_enum("zarithmetic_op", "zC_D_AND_A")
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b0)), enum_zC_D_AND_A], sharedstate.copy())# op = zC_D_AND_A => D & A
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b0)), enum_zC_D_AND_A], sharedstate.copy())# op = zC_D_AND_A => D & A
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value) # zD & zA
     sres = str(res).split("&")
@@ -464,7 +464,7 @@ def test_nand_compute_value():
     assert str(sres[1]).startswith(" init_zA!")
 
     enum_zC_D_OR_A = sharedstate.get_w_enum("zarithmetic_op", "zC_D_OR_A")
-    interp = z3backend.NandInterpreter(graph, [z3backend.Constant(r_uint(0b0)), enum_zC_D_OR_A], sharedstate.copy())# op = zC_D_OR_A => D | A
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b0)), enum_zC_D_OR_A], sharedstate.copy())# op = zC_D_OR_A => D | A
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     sres = str(res).split("|")
@@ -549,7 +549,7 @@ def test_nand_decode():
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
     assert str(res).startswith("If(Extract(15, 15, zmergez3var) == 0,\n   zSomezIUinstrzIzKzK(zAINST(ZeroExt(")
-    merge = z3backend.Constant(0b1110101010000000)
+    merge = z3backend.ConstantSmallBitVector(0b1110101010000000)
     interp = z3backend.NandInterpreter(graph, [merge],  sharedstate.copy())
     res = interp.run()
     assert isinstance(res, z3backend.UnionConstant)
@@ -752,7 +752,7 @@ def test_nand_decode_execute_opcode():
     # build opcode fore D = D + 1
     opcode = 0b1110011111010000
     decode_graph = get_nand_decode_graph()
-    merge = z3backend.Constant(opcode)
+    merge = z3backend.ConstantSmallBitVector(opcode)
     interp_decode = z3backend.NandInterpreter(decode_graph, [merge], sharedstate.copy())
     # this gives us the enum constant for D = D + 1
     opt_w_decoded_instr_expr = interp_decode.run()

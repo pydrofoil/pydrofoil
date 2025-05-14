@@ -18,7 +18,7 @@ def riscvsharedstate(riscv_first_shared_state):
 
 def test_decode_and_execute_addi(riscvsharedstate):
     graph = riscvsharedstate.funcs['zencdec_backwards']
-    interp = z3backend.RiscvInterpreter(graph, [z3backend.Constant(r_uint(0xfe0f0f13))], riscvsharedstate.copy(), _64bit=True)
+    interp = z3backend.RiscvInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0xfe0f0f13))], riscvsharedstate.copy(), _64bit=True)
     ast = interp.run()
     assert isinstance(ast, z3backend.UnionConstant)
     assert ast.variant_name == "zITYPE"
@@ -39,9 +39,19 @@ def test_decode_and_execute_addi(riscvsharedstate):
     res = interp.run()
     #import pdb;pdb.set_trace()
 
-    print("start executing", ast)
-    graph = riscvsharedstate.funcs['zencdec_backwards']
-    interp = z3backend.RiscvInterpreter(graph, [z3backend.Constant(r_uint(0x65))], riscvsharedstate.copy(), _64bit=True)
+    #print("start executing", ast)
+    #graph = riscvsharedstate.funcs['zencdec_backwards']
+    #interp = z3backend.RiscvInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0x65))], riscvsharedstate.copy(), _64bit=True)
+    #ast = interp.run()
+    #assert isinstance(ast, z3backend.UnionConstant)
+    #assert ast.variant_name == "zITYPE"
+    #assert str(ast.w_val) == "<StructConstant [4064, 30, 30, zRISCV_ADDI] ztuplez3z5bv12_z5bv5_z5bv5_z5enumz0zziop>"
+
+
+def test_decode_and_execute_addi(riscvsharedstate):
+    import pdb; pdb.set_trace()
+    graph = riscvsharedstate.funcs['zexecute_zITYPE']
+    interp = z3backend.RiscvInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0xfe0f0f13))], riscvsharedstate.copy(), _64bit=True)
     ast = interp.run()
     assert isinstance(ast, z3backend.UnionConstant)
     assert ast.variant_name == "zITYPE"

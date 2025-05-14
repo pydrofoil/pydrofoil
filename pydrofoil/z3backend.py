@@ -7,7 +7,6 @@ class Value(object):
     def __init__(self):
         # TODO: Resolved_Type
         self.value = None
-        self._signed = False
     
     def __str__(self):
         return str(self.value)
@@ -62,26 +61,24 @@ class StringConstant(AbstractConstant):
             return False
         return self.value == other.value
 
-class Constant(AbstractConstant): # TODO: rename to ConstantSmallBitVector
+class ConstantSmallBitVector(AbstractConstant): # TODO: rename to ConstantSmallBitVector
     
-    def __init__(self, val, signed=False):
+    def __init__(self, val):
         self.value = val
-        self._signed = signed
 
     def toz3(self):
         return int(self.value)
     
     def same_value(self, other):
-        if not isinstance(other, Constant):
+        if not isinstance(other, ConstantSmallBitVector):
             return False
-        return (self.value == other.value) and (self._signed == other._signed)
+        return (self.value == other.value)
 
 
-class ConstantInt(AbstractConstant):
-    def __init__(self, val, signed=False):
+class ConstantInt(AbstractConstant): # TODO: renname to ConstantMachineInt
+    def __init__(self, val):
         assert isinstance(val, int)
         self.value = val
-        self._signed = signed
 
     def toz3(self):
         return self.value
@@ -93,10 +90,9 @@ class ConstantInt(AbstractConstant):
   
 
 class ConstantGenericInt(AbstractConstant):
-    def __init__(self, val, signed=False):
+    def __init__(self, val):
         assert isinstance(val, (int, long))
         self.value = val
-        self._signed = signed
 
     def toz3(self):
         return self.value
@@ -209,7 +205,6 @@ class Z3Value(Value):
     
     def __init__(self, val):
         self.value = val
-        self._signed = False
 
     def toz3(self):
         return self.value
@@ -516,7 +511,7 @@ class Interpreter(object):
     def convert(self, arg):
         """ wrap an argument or load wrapped arg from env """
         if isinstance(arg, ir.SmallBitVectorConstant):
-            w_arg = Constant(arg.value, signed=False)# TODO: unsigned?
+            w_arg = ConstantSmallBitVector(arg.value)
         elif isinstance(arg, ir.EnumConstant):
             enumname =  "enum_%s" % arg.resolved_type.name
             if not enumname in self.sharedstate.enums:
@@ -525,7 +520,7 @@ class Interpreter(object):
             w_arg = Enum(arg.resolved_type.name, arg.variant, z3variant)
         elif isinstance(arg, ir.Constant):
             if isinstance(arg, ir.MachineIntConstant):
-                w_arg = Constant(arg.number, signed=False)
+                w_arg = ConstantInt(arg.number)
             elif isinstance(arg, ir.BooleanConstant):
                 w_arg = BooleanConstant(arg.value)
             elif isinstance(arg, ir.UnitConstant):
@@ -674,152 +669,145 @@ class Interpreter(object):
 
     def exec_signed_bv(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, Constant): # arg2 is width
-            # we must know if a bv must be interpreted as signed or unsigned
-            res = Constant(arg0.value, signed=True)
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
+            res = ConstantInt(supportcode.signed_bv(None, arg0.value, arg1.value))
         else:
-            res = Z3Value(arg0.toz3())
+            # machine ints are represented as 64-bit bit vectors in z3
+            res = Z3Value(z3.SignExt(64 - arg1.value, arg0.toz3()))
         return res
 
     def exec_eq_bits_bv_bv(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
             return BooleanConstant(arg0.value == arg1.value)
         else:
             return Z3Value(arg0.toz3() == arg1.toz3())
     
     def exec_eq(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value == arg1.value)
-        elif isinstance(arg0, Enum) and isinstance(arg1, Enum):
+        if isinstance(arg0, Enum) and isinstance(arg1, Enum):
             return BooleanConstant(arg0 == arg1)
         else:
+            assert isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value)
             return Z3Value(arg0.toz3() == arg1.toz3())
     
     def exec_gt(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value > arg1.value)
         else:
-            # TODO: check if the 'default' interpretation of bv's is unsigned
-            if arg0._signed or arg1._signed:
-                return Z3Value(arg0.toz3() > arg1.toz3())
-            else:
-                return Z3Value(z3.UGT(arg0.toz3(), arg1.toz3()))
+            return Z3Value(arg0.toz3() > arg1.toz3())
     
     def exec_gteq(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value >= arg1.value)
         else:
-            if arg0._signed or arg1._signed:
-                return Z3Value(arg0.toz3() >= arg1.toz3())
-            else:
-                return Z3Value(z3.UGE(arg0.toz3(), arg1.toz3()))
+            return Z3Value(arg0.toz3() >= arg1.toz3())
+
             
     def exec_lt(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, (Constant, ConstantInt)) and isinstance(arg1, (Constant, ConstantInt)): # TODO: do this at other funcs or let ConstantInt inherit from Constant
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value < arg1.value)
         else:
-            if arg0._signed or arg1._signed:
-                return Z3Value(arg0.toz3() < arg1.toz3())
-            else:
-                return Z3Value(z3.ULT(arg0.toz3(), arg1.toz3()))
+            return Z3Value(arg0.toz3() < arg1.toz3())
+
             
     def exec_lteq(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value <= arg1.value)
         else:
-            if arg0._signed or arg1._signed:
-                return Z3Value(arg0.toz3() <= arg1.toz3())
-            else:
-                return Z3Value(z3.ULE(arg0.toz3(), arg1.toz3()))
+            return Z3Value(arg0.toz3() <= arg1.toz3())
             
     def exec_not(self, op):
         arg0, = self.getargs(op)
         if isinstance(arg0, BooleanConstant):
             return BooleanConstant(not arg0.value)
         else:
-            return Z3Value(not arg0.toz3())
+            return Z3Value(z3.Not(arg0.toz3()))
         
     def exec_not_vec_bv(self, op):
         arg0, _ = self.getargs(op) 
-        if isinstance(arg0, Constant):
-            return Constant(~arg0.value, signed=arg0._signed)
+        if isinstance(arg0, ConstantSmallBitVector):
+            return ConstantSmallBitVector(~arg0.value)
         else:
             return Z3Value(~arg0.toz3())
         
     def exec_sub_bits_bv_bv(self, op):
         arg0, arg1, arg2 = self.getargs(op) 
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value - arg1.value) # TODO: signedness?
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
+            return ConstantSmallBitVector(arg0.value - arg1.value)
         else:
             return Z3Value(arg0.toz3() - arg1.toz3())
 
     def exec_add_bits_int_bv_i(self, op):
-        # TODO: is this ok?
-        return self.exec_add_bits_bv_bv(op)
+        arg0, arg1, _ = self.getargs(op) 
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
+            return ConstantSmallBitVector(supportcode.add_bits_int_bv_i(None, arg0.value, arg1.value)) 
+        else:
+            return Z3Value(arg0.toz3() + arg1.toz3())
 
     def exec_add_bits_bv_bv(self, op):
         arg0, arg1, _ = self.getargs(op) 
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value + arg1.value) # TODO: signedness?
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
+            return ConstantSmallBitVector(arg0.value + arg1.value) 
         else:
             return Z3Value(arg0.toz3() + arg1.toz3())
 
     def exec_and_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value & arg1.value) # TODO: signedness?
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
+            return ConstantSmallBitVector(arg0.value & arg1.value) 
         else:
             return Z3Value(arg0.toz3() & arg1.toz3())
 
     def exec_or_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return Constant(arg0.value | arg1.value) # TODO: signedness?
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
+            return ConstantSmallBitVector(arg0.value | arg1.value) 
         else:
             return Z3Value(arg0.toz3() | arg1.toz3())
         
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as bv[arg1:arg0] both inclusive """
         arg0, arg1, arg2 = self.getargs(op)
-        if isinstance(arg0, Constant):
-            return Constant(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), signed=arg0._signed)
+        if isinstance(arg0, ConstantSmallBitVector):
+            return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value))
         else:
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
 
     def exec_zero_extend_bv_i_i(self, op):
         """ extend bitvector from arg1 to arg2 with zeros """
         arg0, arg1, arg2 = self.getargs(op)
-        if isinstance(arg0, Constant):
-            return Constant(arg0.value, signed=arg0._signed) # left zero extend doesnt change const int
+        if isinstance(arg0, ConstantSmallBitVector):
+            return ConstantSmallBitVector(arg0.valued)
         else:
             return Z3Value(z3.ZeroExt(arg2.value - arg1.value, arg0.toz3()))
 
     def exec_sign_extend_bv_i_i(self, op):
         arg0, arg1, arg2 = self.getargs(op)
-        if isinstance(arg0, Constant):
-            return Constant(supportcode.sign_extend_bv_i_i(None, arg0.value, arg1.value, arg2.value), signed=arg0._signed)
+        if isinstance(arg0, ConstantSmallBitVector):
+            return ConstantSmallBitVector(supportcode.sign_extend_bv_i_i(None, arg0.value, arg1.value, arg2.value))
         else:
             return Z3Value(z3.SignExt(arg2.value - arg1.value, arg0.toz3()))
 
     def exec_unsigned_bv(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            return ConstantInt(supportcode.unsigned_bv(None, arg0.value, arg1.value), signed=False)
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
+            return ConstantInt(supportcode.unsigned_bv(None, arg0.value, arg1.value))
         else:
             return Z3Value(z3.ZeroExt(64 - arg1.value, arg0.toz3()))
 
     def exec_zz5i64zDzKz5i(self, op): # %i64->%i
         arg0, = self.getargs(op)
         if isinstance(arg0, ConstantInt):
-            return ConstantGenericInt(arg0.value, signed=True)
+            return ConstantGenericInt(arg0.value)
         else:
-            return Z3Value(z3.BV2Int(arg0.toz3(), is_signed=True))
+            return Z3Value(z3.BV2Int(arg0.toz3()))
 
     ### Arch specific Operations in subclass ###
 

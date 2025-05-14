@@ -1,5 +1,6 @@
 import sys
 from collections import defaultdict
+import typing
 
 from pydrofoil import ir, makecode, types
 
@@ -407,20 +408,24 @@ class AbstractInterpreter(object):
 
     def analyze_block(self, block):
         for op in block.operations:
+            meth = getattr(
+                self, "analyze_" + op.__class__.__name__, self.analyze_default
+            )
+            res = meth(op)
             if op.resolved_type in RELEVANT_TYPES:
-                meth = getattr(
-                    self, "analyze_" + op.__class__.__name__, self.analyze_default
-                )
-                res = meth(op)
                 assert res is not None
                 self.current_values[op] = res
+            else:
+                assert res is None
 
     def analyze_default(self, op):
         if op.resolved_type is types.Bool():
             return BOOL
         if op.resolved_type is types.MachineInt():
             return MACHINEINT
-        return UNBOUNDED
+        if op.resolved_type is types.Int():
+            return UNBOUNDED
+        return None
 
     def analyze_Operation(self, op):
         name = op.name.lstrip("@$")
@@ -771,9 +776,14 @@ def compute_all_ranges(codegen):
     # type: (makecode.Codegen) -> LocationManager
     todo_set = set(codegen.all_graph_by_name.values())
     location_manager = LocationManager()
+    # Initialize ranges with all functions
+    for graph in todo_set:
+        absinterp = InterproceduralAbstractInterpreter(graph, codegen, location_manager)
+        absinterp.analyze()
+    # run to fixpoint
     while todo_set:
         graph = todo_set.pop()
-        absinterp = InterproceduralAbstractInterpreter(graph)
+        absinterp = InterproceduralAbstractInterpreter(graph, codegen, location_manager)
         absinterp.analyze()
         for mod_location in location_manager.find_modified():
             todo_set.update(mod_location.readers)
@@ -785,6 +795,7 @@ class LocationManager(object):
         self._all_locations = []  # type: list[Location]
         self._argument_locations = {}  # type: dict[ir.Argument, Location]
         self._result_locations = {}  # type: dict[ir.Graph, Location]
+        self._field_locations = {}  # type: dict[tuple[types.Struct, str], Location]
 
     def new_location(self, typ):
         # type: (types.Type) -> Location
@@ -814,6 +825,14 @@ class LocationManager(object):
             loc = self._result_locations[graph] = self.new_location(typ)
         return loc
 
+    def get_location_for_field(self, typ, field_name):
+        # type: (types.Struct, str) -> Location | None
+        key = (typ, field_name)
+        loc = self._field_locations.get(key)
+        if loc is None:
+            loc = self._field_locations[key] = self.new_location(typ.fieldtyps[field_name])
+        return loc
+
 
 class Location(object):
     """
@@ -834,13 +853,13 @@ class Location(object):
         self._manager = manager
         self._typ = typ
         self._bound = default_for_type(typ)
-        self._writes = {}  # type: dict[ir.Graph, Range]
+        self._writes = {}  # type: dict[tuple[ir.Graph, typing.Hashable], Range]
         self.readers = set() # type: set[ir.Graph]
 
-    def write(self, new_bound, graph):
-        # type: (Range, ir.Graph) -> None
+    def write(self, new_bound, graph, graph_position=None):
+        # type: (Range, ir.Graph, typing.Hashable) -> None
         """Give a new value for the bound from source graph."""
-        self._writes[graph] = new_bound
+        self._writes[graph, graph_position] = new_bound
         assert self._bound.contains_range(new_bound)
 
     def read(self, graph):
@@ -869,17 +888,48 @@ class InterproceduralAbstractInterpreter(AbstractInterpreter):
             return super(InterproceduralAbstractInterpreter, self).analyze_Operation(op)
         func_graph = self.codegen.all_graph_by_name[op.name]
         arg_bounds = self._argbounds(op)
+        # write argument bounds
         for func_arg, bound in zip(func_graph.args, arg_bounds):
+            if func_arg.resolved_type not in RELEVANT_TYPES:
+                continue
             arg_location = self._location_manager.get_location_for_argument(func_arg)
-            arg_location.write(bound, self.graph)
+            arg_location.write(bound, self.graph, op)
+        if op.resolved_type not in RELEVANT_TYPES:
+            return None
+        # read result bounds
         result_location = self._location_manager.get_location_for_result(
             func_graph, op.resolved_type
         )
         return result_location.read(self.graph)
 
+    def analyze_FieldAccess(self, op):
+        location = self._location_manager.get_location_for_field(op.args[0].resolved_type, op.name)
+        return location.read(self.graph)
+
+    def analyze_FieldWrite(self, op):
+        # type: (ir.FieldWrite) -> None
+        location = self._location_manager.get_location_for_field(op.args[0].resolved_type, op.name)
+        new_bound = self._bounds(op.args[1])
+        location.write(new_bound, self.graph, op)
+        return None
+
+    def analyze_StructConstruction(self, op):
+        # type: (ir.StructConstruction) -> None
+        struct_type = op.resolved_type  # type: types.Struct
+        for field_value, field_name in zip(op.args, struct_type.names):
+            field_type = struct_type.fieldtyps[field_name]
+            if field_type not in RELEVANT_TYPES:
+                continue
+            location = self._location_manager.get_location_for_field(struct_type, field_name)
+            new_bound = self._bounds(field_value)
+            location.write(new_bound, self.graph, op)
+        return None
+
     def _init_argument_bounds(self):
         startblock_values = {}
         for arg in self.graph.args:
+            if arg.resolved_type not in RELEVANT_TYPES:
+                continue
             arg_location = self._location_manager.get_location_for_argument(arg)
             startblock_values[arg] = arg_location.read(self.graph)
         return startblock_values
@@ -893,4 +943,4 @@ class InterproceduralAbstractInterpreter(AbstractInterpreter):
         )
         bound = self._bounds(next.value)
         assert bound is not None
-        result_location.write(bound, self.graph)
+        result_location.write(bound, self.graph, next)

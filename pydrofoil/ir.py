@@ -696,6 +696,7 @@ class Block(object):
 
 class Graph(object):
     def __init__(self, name, args, startblock, has_loop=False):
+        # type: (str, list[Argument], Block, bool) -> None
         self.name = name
         self.args = args
         self.startblock = startblock
@@ -913,7 +914,7 @@ class Value(object):
 
 class Argument(Value):
     def __init__(self, name, resolved_type):
-        self.resolved_type = resolved_type
+        super(Argument, self).__init__(resolved_type)
         self.name = name
 
     def __repr__(self):
@@ -929,7 +930,7 @@ class Operation(Value):
         for arg in args:
             assert isinstance(arg, Value)
         self.name = name
-        self.args = args
+        self.args = args  # type: list[Argument]
         self.resolved_type = resolved_type
         assert isinstance(sourcepos, (str, type(None)))
         self.sourcepos = sourcepos
@@ -1279,7 +1280,7 @@ class UnitConstant(Constant):
     def __repr__(self):
         return "UnitConstant.UNIT"
 
-UnitConstant.UNIT = UnitConstant()
+UnitConstant.UNIT = UnitConstant(types.Unit())
 
 # next
 

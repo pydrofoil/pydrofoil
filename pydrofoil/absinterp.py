@@ -1,7 +1,7 @@
 import sys
 from collections import defaultdict
 
-from pydrofoil import ir, types
+from pydrofoil import ir, makecode, types
 
 MININT = -sys.maxint - 1
 MAXINT = sys.maxint
@@ -278,6 +278,7 @@ class AbstractInterpreter(object):
     _view = False
 
     def __init__(self, graph, codegen):
+        # type: (ir.Graph, makecode.Codegen) -> None
         self.graph = graph
         self.codegen = codegen
         self.values = {}  # block -> value -> Range
@@ -342,9 +343,7 @@ class AbstractInterpreter(object):
         ).display()
 
     def analyze(self):
-        startblock_values = {}
-        for arg in self.graph.args:
-            startblock_values[arg] = UNBOUNDED
+        startblock_values = self._init_argument_bounds()
         self.values[self.graph.startblock] = startblock_values
 
         for block in ir.topo_order(self.graph):
@@ -361,6 +360,12 @@ class AbstractInterpreter(object):
             pdb.set_trace()
 
         return self.values
+
+    def _init_argument_bounds(self):
+        startblock_values = {}
+        for arg in self.graph.args:
+            startblock_values[arg] = UNBOUNDED
+        return startblock_values
 
     def analyze_link(self, block):
         if isinstance(block.next, ir.Goto):
@@ -379,10 +384,15 @@ class AbstractInterpreter(object):
             falsevalues[block.next.booleanvalue] = FALSE
             self._merge_values(truevalues, block.next.truetarget)
             self._merge_values(falsevalues, block.next.falsetarget)
-        elif isinstance(block.next, (ir.Return, ir.Raise, ir.JustStop)):
+        elif isinstance(block.next, ir.Return):
+            self._analyze_return(block.next)
+        elif isinstance(block.next, (ir.Raise, ir.JustStop)):
             pass
         else:
             assert 0, "unreachable"
+
+    def _analyze_return(self, next):
+        pass
 
     def _merge_values(self, values, nextblock):
         if nextblock not in self.values:
@@ -757,6 +767,19 @@ def default_for_type(typ):
         return UNBOUNDED
 
 
+def compute_all_ranges(codegen):
+    # type: (makecode.Codegen) -> LocationManager
+    todo_set = set(codegen.all_graph_by_name.values())
+    location_manager = LocationManager()
+    while todo_set:
+        graph = todo_set.pop()
+        absinterp = InterproceduralAbstractInterpreter(graph)
+        absinterp.analyze()
+        for mod_location in location_manager.find_modified():
+            todo_set.update(mod_location.readers)
+    return location_manager
+
+
 class LocationManager(object):
     def __init__(self):
         self._all_locations = []  # type: list[Location]
@@ -793,21 +816,35 @@ class LocationManager(object):
 
 
 class Location(object):
+    """
+    A location is a point in the code where multiple sources for bounds come
+    together (or are consumed by several consumers).
+
+    Examples:
+    - The arguments of a function are locations
+    - The return value of a function
+    - The values of a specific field of a struct type
+
+    The write and read locations are keyed by a graph.
+    TODO do we need more precision for the key?
+    """
+
     def __init__(self, manager, typ):
         # type: (LocationManager, types.Type) -> None
         self._manager = manager
         self._typ = typ
         self._bound = default_for_type(typ)
         self._writes = {}  # type: dict[ir.Graph, Range]
-        self._readers = set()
+        self.readers = set() # type: set[ir.Graph]
 
     def write(self, new_bound, graph):
         # type: (Range, ir.Graph) -> None
+        """Give a new value for the bound from source graph."""
         self._writes[graph] = new_bound
         assert self._bound.contains_range(new_bound)
 
     def read(self, graph):
-        self._readers.add(graph)
+        self.readers.add(graph)
         return self._bound
 
     def _recompute(self):
@@ -818,3 +855,42 @@ class Location(object):
         self._bound = Range.union_many(self._writes.values())
         assert old.contains_range(self._bound)
         return self._bound != old
+
+
+class InterproceduralAbstractInterpreter(AbstractInterpreter):
+    def __init__(self, graph, codegen, location_manager):
+        # type: (ir.Graph, makecode.Codegen, LocationManager) -> None
+        super(InterproceduralAbstractInterpreter, self).__init__(graph, codegen)
+        self._location_manager = location_manager
+
+    def analyze_Operation(self, op):
+        # type: (ir.Operation) -> Range
+        if op.name not in self.codegen.all_graph_by_name:
+            return super(InterproceduralAbstractInterpreter, self).analyze_Operation(op)
+        func_graph = self.codegen.all_graph_by_name[op.name]
+        arg_bounds = self._argbounds(op)
+        for func_arg, bound in zip(func_graph.args, arg_bounds):
+            arg_location = self._location_manager.get_location_for_argument(func_arg)
+            arg_location.write(bound, self.graph)
+        result_location = self._location_manager.get_location_for_result(
+            func_graph, op.resolved_type
+        )
+        return result_location.read(self.graph)
+
+    def _init_argument_bounds(self):
+        startblock_values = {}
+        for arg in self.graph.args:
+            arg_location = self._location_manager.get_location_for_argument(arg)
+            startblock_values[arg] = arg_location.read(self.graph)
+        return startblock_values
+
+    def _analyze_return(self, next):
+        # type: (ir.Return) -> None
+        if next.value.resolved_type not in RELEVANT_TYPES:
+            return
+        result_location = self._location_manager.get_location_for_result(
+            self.graph, next.value.resolved_type
+        )
+        bound = self._bounds(next.value)
+        assert bound is not None
+        result_location.write(bound, self.graph)

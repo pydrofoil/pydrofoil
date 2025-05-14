@@ -403,7 +403,7 @@ class FixpointSpecializer(object):
         self.specialization_todo_set = set()
         self.inlinable_functions = {}
         self.specialization_functions = {}
-        self.all_graph_by_name = {}
+        self.all_graph_by_name = {} # type: dict[str, ir.Graph]
         self.method_graphs_by_name = {} # name -> list of graphs
         self.inline_dependencies = defaultdict(set) # graph -> {graphs}
         self.program_entrypoints = entrypoints

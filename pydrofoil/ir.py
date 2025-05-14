@@ -883,6 +883,11 @@ class Graph(object):
 # values
 
 class Value(object):
+
+    def __init__(self, resolved_type):
+        # type: (types.Type) -> None
+        self.resolved_type = resolved_type
+
     def is_union_creation(self):
         return False
 
@@ -1300,7 +1305,7 @@ class Next(object):
 class Return(Next):
     def __init__(self, value, sourcepos=None):
         assert isinstance(value, Value) or value is None
-        self.value = value
+        self.value = value # type: Value
         self.sourcepos = sourcepos
 
     def getargs(self):

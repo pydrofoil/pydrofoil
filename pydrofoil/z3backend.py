@@ -418,6 +418,11 @@ class Interpreter(object):
     
     def _create_w_z3_if(self, w_cond, w_true, w_false):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
+        if isinstance(w_cond, BooleanConstant):
+            if w_cond.value:
+                return w_true
+            else:
+                return w_false
         if w_true.same_value(w_false): return w_true
         return Z3Value(z3.If(w_cond.toz3(), w_true.toz3(), w_false.toz3()))
     
@@ -599,6 +604,7 @@ class Interpreter(object):
 
     def exec_func_call(self, op, graph):
         self._debug_print("graph " + self.graph.name + " func call " + op.name)
+
         args = self.getargs(op)
         interp_fork = self.call_fork(graph, args)
         w_res = interp_fork.run()
@@ -614,7 +620,7 @@ class Interpreter(object):
         else: # case: func did or didnt raise, but raise was behind a condition, so that any RaiseConstants are already gone
             self.w_raises = self._create_w_z3_or(self.w_raises, interp_fork.w_raises)
             self.w_exception = self._create_w_z3_if(interp_fork.w_raises, interp_fork.w_exception, self.w_exception) 
-        #self._debug_print("return from " + op.name + " -> " + str(w_res))
+        self._debug_print("return from " + op.name + " -> " + str(w_res))
         return w_res
 
     def exec_struct_construction(self, op):

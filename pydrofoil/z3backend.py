@@ -722,6 +722,14 @@ class Interpreter(object):
             return BooleanConstant(arg0.value <= arg1.value)
         else:
             return Z3Value(arg0.toz3() <= arg1.toz3())
+        
+    def exec_lt_unsigned64(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return BooleanConstant(arg0.value < arg1.value)
+        else:
+            return Z3Value(z3.ULT(arg0.toz3(), arg1.toz3()))
+        import pdb;pdb.set_trace()
             
     def exec_not(self, op):
         arg0, = self.getargs(op)
@@ -764,6 +772,13 @@ class Interpreter(object):
             return ConstantSmallBitVector(arg0.value & arg1.value) 
         else:
             return Z3Value(arg0.toz3() & arg1.toz3())
+        
+    def exec_xor_vec_bv_bv(self, op):
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
+            return ConstantSmallBitVector(arg0.value ^ arg1.value) 
+        else:
+            return Z3Value(arg0.toz3() ^ arg1.toz3())
 
     def exec_or_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 

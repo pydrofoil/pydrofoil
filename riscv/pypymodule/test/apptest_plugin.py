@@ -355,6 +355,7 @@ def test_lowlevel_attribute_error():
     assert str(info.value) == "'lowlevel' object has no attribute 'privLevel_to_bats'"
 
 
+# ________________________________________________
 # bitvectors
 
 def test_bv_basics():
@@ -412,6 +413,7 @@ def test_append():
 
 def test_sailtype_new():
     assert _pydrofoil.sailtypes.Bool() is _pydrofoil.sailtypes.Bool() # singleton
+    assert _pydrofoil.sailtypes.Unit() is _pydrofoil.sailtypes.Unit() # singleton
     with raises(TypeError):
         _pydrofoil.sailtypes.Struct()
     assert _pydrofoil.sailtypes.SmallFixedBitVector(23).width == 23

@@ -800,6 +800,10 @@ class __extend__(BitVector):
             return space.w_NotImplemented
         return self.append(w_other)
 
+    def descr_neg(self, space):
+        # implement as 0 - self
+        return BitVector.from_ruint(self.size(), r_uint(0)).sub_bits(self)
+
     def descr_invert(self, space):
         return self.invert()
 
@@ -832,6 +836,9 @@ class __extend__(BitVector):
     def descr_hash(self, space):
         return space.newint(self.tobigint().hash() ^ self.size())
 
+    def descr_bool(self, space):
+        return space.newbool(not self.signed().int_eq(0))
+
 
 @unwrap_spec(width=int, value=r_uint)
 def bitvector_descr_new(w_type, space, width, value):
@@ -859,10 +866,13 @@ BitVector.typedef = TypeDef("bitvector",
 
     __matmul__ = interp2app(BitVector.descr_matmul),
 
+    __neg__ = interp2app(BitVector.descr_neg),
     __invert__ = interp2app(BitVector.descr_invert),
 
     __index__ = interp2app(BitVector.descr_index),
     __hash__ = interp2app(BitVector.descr_hash),
+
+    __bool__ = interp2app(BitVector.descr_bool),
 
     signed = interp2app(BitVector.descr_signed),
     unsigned = interp2app(BitVector.descr_unsigned),

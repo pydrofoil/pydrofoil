@@ -214,8 +214,11 @@ class NullType(Type):
     def __repr__(self):
         return "%s()" % (type(self).__name__, )
 
+class FixedBitVector(Type):
+    pass # abstract base class
+
 @unique
-class SmallFixedBitVector(Type):
+class SmallFixedBitVector(FixedBitVector):
     uninitialized_value = "r_uint(0)"
 
     def __init__(self, width):
@@ -233,7 +236,7 @@ class SmallFixedBitVector(Type):
 
 
 @unique
-class BigFixedBitVector(Type):
+class BigFixedBitVector(FixedBitVector):
 
     def __init__(self, width):
         # size known at compile time

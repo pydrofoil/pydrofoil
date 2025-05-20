@@ -508,3 +508,12 @@ def test_tuple_repr():
 def test_function_repr():
     cpu = _pydrofoil.RISCV64()
     assert repr(cpu.lowlevel.check_PTE_permission.sail_type) == '<_pydrofoil.sailtypes.Function (<_pydrofoil.sailtypes.Union AccessType<u>>, <_pydrofoil.sailtypes.Enum Privilege { User Supervisor Machine }>, _pydrofoil.sailtypes.Bool(), _pydrofoil.sailtypes.Bool(), <_pydrofoil.sailtypes.Struct PTE_Flags>, _pydrofoil.sailtypes.SmallFixedBitVector(64), _pydrofoil.sailtypes.Unit()) -> <_pydrofoil.sailtypes.Union PTE_Check>>'
+
+def test_fixedbitvector_base_class():
+    assert isinstance(_pydrofoil.sailtypes.SmallFixedBitVector(12), _pydrofoil.sailtypes.FixedBitVector)
+    assert isinstance(_pydrofoil.sailtypes.BigFixedBitVector(122), _pydrofoil.sailtypes.FixedBitVector)
+
+    # but constructing a FixedBitVector gives one of the subclasses
+    assert isinstance(_pydrofoil.sailtypes.FixedBitVector(12), _pydrofoil.sailtypes.SmallFixedBitVector)
+    assert isinstance(_pydrofoil.sailtypes.FixedBitVector(122), _pydrofoil.sailtypes.BigFixedBitVector)
+

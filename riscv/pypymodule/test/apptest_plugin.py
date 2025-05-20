@@ -451,6 +451,17 @@ def test_bitvector_bool():
         assert bool(bv) == (i != 0)
         assert bool(-bv) == (i != 0)
 
+def test_bitvector_shift():
+    m = _pydrofoil.RISCV64()
+    bv = _pydrofoil.bitvector(5, 0b10100)
+    assert bv << 1 == _pydrofoil.bitvector(5, 0b1000)
+    with raises(TypeError) as e:
+        bv >> 1
+    assert "rshift is not implemented. use .arithmetic_rshift() or .logical_rshift()." in str(e.value)
+    assert bv.arithmetic_rshift(1) == _pydrofoil.bitvector(5, 0b11010)
+    assert _pydrofoil.bitvector(5, 0b100).arithmetic_rshift(1) == _pydrofoil.bitvector(5, 0b10)
+    assert bv.logical_rshift(1) == _pydrofoil.bitvector(5, 0b01010)
+
 
 # ________________________________________________
 # testing the sail types

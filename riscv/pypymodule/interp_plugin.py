@@ -154,7 +154,7 @@ def _init_types(cls, all_type_info):
 def is_valid_identifier(s):
     from pypy.objspace.std.unicodeobject import _isidentifier
     return _isidentifier(s)
- 
+
 def invent_python_cls_union(space, w_mod, type_info, machinecls):
     pyname, sail_name, cls, sail_type_repr = type_info
     sail_type = eval(sail_type_repr, types.__dict__)
@@ -800,6 +800,30 @@ class __extend__(BitVector):
             return space.w_NotImplemented
         return self.append(w_other)
 
+    def _check_shift(self, space, shift):
+        if shift < 0:
+            raise oefmt(space.w_ValueError, "negative shift count")
+        return shift
+
+    @unwrap_spec(shift=int)
+    def descr_lshift(self, space, shift):
+        """ Shift bitvector to the left. """
+        return self.lshift(self._check_shift(space, shift))
+
+    def descr_rshift(self, space, w_other):
+        """rshift is not implemented. use .arithmetic_rshift() or .logical_rshift()."""
+        raise oefmt(space.w_TypeError, "rshift is not implemented. use .arithmetic_rshift() or .logical_rshift().")
+
+    @unwrap_spec(shift=int)
+    def descr_logical_rshift(self, space, shift):
+        """Perform a logical right shift, i.e. shift in zeros."""
+        return self.rshift(self._check_shift(space, shift))
+
+    @unwrap_spec(shift=int)
+    def descr_arithmetic_rshift(self, space, shift):
+        """Perform a logical right shift, i.e. shift in zeros."""
+        return self.arith_rshift(self._check_shift(space, shift))
+
     def descr_neg(self, space):
         # implement as 0 - self
         return BitVector.from_ruint(self.size(), r_uint(0)).sub_bits(self)
@@ -863,6 +887,11 @@ BitVector.typedef = TypeDef("bitvector",
     __radd__ = interp2app(BitVector.descr_radd),
     __sub__ = interp2app(BitVector.descr_sub),
     __rsub__ = interp2app(BitVector.descr_rsub),
+
+    __rshift__ = interp2app(BitVector.descr_rshift),
+    __lshift__ = interp2app(BitVector.descr_lshift),
+    arithmetic_rshift = interp2app(BitVector.descr_arithmetic_rshift),
+    logical_rshift = interp2app(BitVector.descr_logical_rshift),
 
     __matmul__ = interp2app(BitVector.descr_matmul),
 

@@ -861,7 +861,7 @@ class __extend__(BitVector):
         return space.newint(self.tobigint().hash() ^ self.size())
 
     def descr_bool(self, space):
-        return space.newbool(not self.signed().int_eq(0))
+        return space.newbool(self.tobool())
 
 
 @unwrap_spec(width=int, value=r_uint)

@@ -121,6 +121,10 @@ class BitVector(W_Root):
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
 
+    def tobool(self):
+        """ Return False if self is full of 0s. """
+        raise NotImplementedError()
+
     from_ruint = staticmethod(from_ruint)
     from_bigint = staticmethod(from_bigint)
 
@@ -350,6 +354,10 @@ class SmallBitVector(BitVector):
         if expected_width:
             assert self.size() == expected_width
         return self.val
+
+    def tobool(self):
+        """ Return False if self is full of 0s. """
+        return self.val != r_uint(0)
 
     def tobigint(self):
         jit.jit_debug("SmallInteger.tobigint")
@@ -631,6 +639,10 @@ class SparseBitVector(BitVector):
         if expected_width:
             assert self.size() == expected_width
         return self.val
+
+    def tobool(self):
+        """ Return False if self is full of 0s. """
+        return self.val != r_uint(0)
 
     def tobigint(self):
         jit.jit_debug("SparseBitVector.tobigint")
@@ -1119,6 +1131,13 @@ class GenericBitVector(BitVector):
             if self.data[i]:
                 raise ValueError
         return self.data[0]
+
+    def tobool(self):
+        """ Return False if self is full of 0s. """
+        for val in self.data:
+            if val:
+                return True
+        return False
 
     def tobigint(self):
         jit.jit_debug("GenericBitVector.tobigint")

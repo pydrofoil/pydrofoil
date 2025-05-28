@@ -735,6 +735,11 @@ def test_bitvector_touint():
     for size in [6, 6000]:
         assert bv(size, 0b11).touint() == r_uint(0b11)
 
+def test_bitvector_tobool():
+    for size in [6, 6000]:
+        for value in [0, 1, 100]:
+            assert bv(size, value).tobool() == (value != 0)
+
 def test_add_int():
     for c in bi, si:
         assert bv(6, 0b11).add_int(c(0b111111111)).touint() == (0b11 + 0b111111111) & 0b111111
@@ -1853,6 +1858,10 @@ def test_hypothesis_bitvector_touint(data):
         assert v.touint() == v.touint(width) == value
         with pytest.raises(AssertionError):
             v.touint(width + 1)
+
+@given(bitvectors)
+def test_hypothesis_bv_tobool(bv):
+    assert bv.tobool() == bool(bv.tolong())
 
 @given(strategies.data())
 @settings(deadline=None)

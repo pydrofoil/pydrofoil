@@ -1,3 +1,4 @@
+import sys
 from rpython.rlib import jit
 from rpython.rlib import objectmodel
 from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
@@ -21,10 +22,16 @@ def _patch_machineclasses(machinecls64=None, machinecls32=None, space=None):
     if "machinecls64" in globals():
         return
     if machinecls64 is None:
-        mod64 = _make_code(True)
+        if "--dont-regen" in sys.argv:
+            from riscv.generated import outriscv as mod64
+        else:
+            mod64 = _make_code(True)
         machinecls64 = supportcoderiscv.get_main(mod64, True)._machinecls
     if machinecls32 is None:
-        mod32 = _make_code(False)
+        if "--dont-regen" in sys.argv:
+            from riscv.generated import outriscv32 as mod32
+        else:
+            mod32 = _make_code(False)
         machinecls32 = supportcoderiscv.get_main(mod32, False)._machinecls
     globals()["machinecls64"] = machinecls64
     globals()["machinecls32"] = machinecls32
@@ -147,7 +154,7 @@ def _init_types(cls, all_type_info):
 def is_valid_identifier(s):
     from pypy.objspace.std.unicodeobject import _isidentifier
     return _isidentifier(s)
- 
+
 def invent_python_cls_union(space, w_mod, type_info, machinecls):
     pyname, sail_name, cls, sail_type_repr = type_info
     sail_type = eval(sail_type_repr, types.__dict__)
@@ -157,6 +164,7 @@ def invent_python_cls_union(space, w_mod, type_info, machinecls):
         __len__=_make_union_len(space, machinecls, cls),
         __repr__=_make_union_repr(space, machinecls, cls),
         __eq__=_make_union_eq(space, machinecls, cls),
+        __hash__=_make_union_hash(space, machinecls, cls),
         sail_type = sail_type
     )
     cls.typedef.acceptable_as_base_class = False
@@ -243,6 +251,11 @@ def _make_union_eq(space, machinecls, basecls):
         return space.newbool(self.eq(w_other))
     return _interp2app_unique_name_as_method(descr_eq, machinecls, basecls)
 
+def _make_union_hash(space, machinecls, basecls):
+    def descr_hash(self, space):
+        return app_hash_union(space, self)
+    return _interp2app_unique_name_as_method(descr_hash, machinecls, basecls)
+
 def _make_union_getitem(space, machinecls, subcls, sail_type):
     unroll_get_fields = unrolling_iterable(
         [(index, info[0], info[1], info[5]) for index, info in enumerate(subcls._field_info)])
@@ -319,7 +332,7 @@ def _init_functions(machinecls, functions):
             name = space.text_w(w_name)
             func = get_sail_func(name)
             if func is None:
-                raise oefmt_attribute_error(space, self, w_name, "type object %N has no attribute %R")
+                raise oefmt_attribute_error(space, self, w_name, "'%T' object has no attribute %R")
             return W_BoundSailFunction(self.w_machine, func)
         descr_getattr.func_name += "_" + machinecls.__name__
 
@@ -725,7 +738,8 @@ class __extend__(BitVector):
             return space.newint(0)
 
     def descr_eq(self, space, w_other):
-        w_other = self._pypy_coerce(space, w_other)
+        if not isinstance(w_other, BitVector):
+            w_other = self._pypy_coerce(space, w_other)
         if w_other is None:
             return space.w_NotImplemented
         if self.size() != w_other.size():
@@ -786,6 +800,34 @@ class __extend__(BitVector):
             return space.w_NotImplemented
         return self.append(w_other)
 
+    def _check_shift(self, space, shift):
+        if shift < 0:
+            raise oefmt(space.w_ValueError, "negative shift count")
+        return shift
+
+    @unwrap_spec(shift=int)
+    def descr_lshift(self, space, shift):
+        """ Shift bitvector to the left. """
+        return self.lshift(self._check_shift(space, shift))
+
+    def descr_rshift(self, space, w_other):
+        """rshift is not implemented. use .arithmetic_rshift() or .logical_rshift()."""
+        raise oefmt(space.w_TypeError, "rshift is not implemented. use .arithmetic_rshift() or .logical_rshift().")
+
+    @unwrap_spec(shift=int)
+    def descr_logical_rshift(self, space, shift):
+        """Perform a logical right shift, i.e. shift in zeros."""
+        return self.rshift(self._check_shift(space, shift))
+
+    @unwrap_spec(shift=int)
+    def descr_arithmetic_rshift(self, space, shift):
+        """Perform a logical right shift, i.e. shift in zeros."""
+        return self.arith_rshift(self._check_shift(space, shift))
+
+    def descr_neg(self, space):
+        # implement as 0 - self
+        return BitVector.from_ruint(self.size(), r_uint(0)).sub_bits(self)
+
     def descr_invert(self, space):
         return self.invert()
 
@@ -810,6 +852,16 @@ class __extend__(BitVector):
     def descr_sign_extend(self, space, target_size):
         """ Sign-extend the bitvector to width target_size. """
         return self.sign_extend(target_size)
+
+    def descr_index(self, space):
+        """ Interpret the bitvector as an integer """
+        return self.descr_unsigned(space)
+
+    def descr_hash(self, space):
+        return space.newint(self.tobigint().hash() ^ self.size())
+
+    def descr_bool(self, space):
+        return space.newbool(self.tobool())
 
 
 @unwrap_spec(width=int, value=r_uint)
@@ -836,9 +888,20 @@ BitVector.typedef = TypeDef("bitvector",
     __sub__ = interp2app(BitVector.descr_sub),
     __rsub__ = interp2app(BitVector.descr_rsub),
 
+    __rshift__ = interp2app(BitVector.descr_rshift),
+    __lshift__ = interp2app(BitVector.descr_lshift),
+    arithmetic_rshift = interp2app(BitVector.descr_arithmetic_rshift),
+    logical_rshift = interp2app(BitVector.descr_logical_rshift),
+
     __matmul__ = interp2app(BitVector.descr_matmul),
 
+    __neg__ = interp2app(BitVector.descr_neg),
     __invert__ = interp2app(BitVector.descr_invert),
+
+    __index__ = interp2app(BitVector.descr_index),
+    __hash__ = interp2app(BitVector.descr_hash),
+
+    __bool__ = interp2app(BitVector.descr_bool),
 
     signed = interp2app(BitVector.descr_signed),
     unsigned = interp2app(BitVector.descr_unsigned),
@@ -859,3 +922,4 @@ with open(appfile, "r") as f:
 app = applevel(content, filename=__file__)
 app_repr_union = app.interphook('repr_union')
 app_repr_struct = app.interphook('repr_struct')
+app_hash_union = app.interphook('hash_union')

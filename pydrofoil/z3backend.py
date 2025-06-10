@@ -355,10 +355,11 @@ class SharedState(object):
 
 class Interpreter(object):
     
-    def __init__(self, graph, args, shared_state=None):
+    def __init__(self, graph, args, shared_state=None, entrymap=None):
         self.cls = Interpreter
         self.sharedstate = shared_state if shared_state != None else SharedState()
         self.graph = graph
+        self.entrymap = entrymap if entrymap!=None else graph.make_entrymap()
         assert not graph.has_loop
         self.args = args
         assert len(args) == len(graph.args)
@@ -374,26 +375,37 @@ class Interpreter(object):
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
+        res = self._run(block)
+        assert res == None
+        return self.w_result
+
+    def _run(self, block=None):
+        """ interpret a graph, either begin with graph.startblock or the block passed as arg """
         if block:
             cur_block = block
         else:
             cur_block = self.graph.startblock
 
+        index = 0
+        _cont = True
         while True:
-            for op in cur_block.operations:
+            if len(self.entrymap[cur_block]) > 1 and not _cont and self.forknum != 0:
+                return cur_block
+
+            for op in cur_block.operations[index:]:
                 self.execute_op(op)
             
             next = cur_block.next
             self.prev_block = cur_block
-            cur_block = self.execute_next(next)
+            cur_block, index, _cont = self.execute_next(next)
             if (not cur_block) or self.unconditional_raise:
                 break
-        return self.w_result
+        return None
     
     def fork(self):
         """ create a copy of the interpreter, for evaluating non constant branches """
         cls = type(self)
-        f_interp = cls(self.graph, self.args, self.sharedstate)
+        f_interp = cls(self.graph, self.args, self.sharedstate, self.entrymap)
         f_interp.environment = self.environment.copy()
         # TODO: How to model x86_64's registers for 64,32 and 16 bit ?  
         f_interp.registers = self.registers.copy()
@@ -403,7 +415,7 @@ class Interpreter(object):
     def call_fork(self, graph, args):
         """ create a copy of the interpreter, for evaluating func calls"""
         cls = type(self)
-        f_interp = cls(graph, args, self.sharedstate)
+        f_interp = cls(graph, args, self.sharedstate, self.entrymap)
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
         return f_interp
@@ -464,13 +476,13 @@ class Interpreter(object):
     def execute_next(self, next):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
         if isinstance(next, ir.Goto):
-            return next.target
+            return next.target, 0, False
         elif isinstance(next, ir.ConditionalGoto):
             w_cond = self.convert(next.booleanvalue)
             if isinstance(w_cond, BooleanConstant):
                 if w_cond.value:
-                    return next.truetarget
-                return next.falsetarget
+                    return next.truetarget, 0, True
+                return next.falsetarget, 0, True
             else:
                 # fork 
                 #print "fork in", self.graph.name, next.booleanvalue, "==", w_cond
@@ -479,19 +491,34 @@ class Interpreter(object):
                 interp1.environment[next.booleanvalue] = BooleanConstant(True)
                 interp2 = self.fork()
                 interp2.environment[next.booleanvalue] = BooleanConstant(False)
-                w_res_true = interp1.run(next.truetarget)
-                w_res_false = interp2.run(next.falsetarget)
-
+                block1 = interp1._run(next.truetarget)
+                block2 = interp2._run(next.falsetarget)
+                assert block1 == block2
+                # TODO: run_to_phi that returns interp
                 # merge excepions, remove not needed branches of one interp raises
-                self.merge_raise(w_cond, w_res_true, w_res_false, interp1, interp2)
+                #self.merge_raise(w_cond, w_res_true, w_res_false, interp1, interp2)
                 # merge results, remove not needed branches of one interp returns UNIT
-                self.merge_result(w_cond, w_res_true, w_res_false, interp1, interp2)
+                #self.merge_result(w_cond, w_res_true, w_res_false, interp1, interp2)
+
+                import pdb; pdb.set_trace()
+                for index, op in enumerate(block1.operations):
+                    if isinstance(op, ir.Phi):
+                        assert len(op.prevvalues) == 2
+                        trueindex = op.prevblocks.index(interp1.prev_block)
+                        w_res_true = interp1.environment[op.prevvalues[trueindex]]
+                        falseindex = op.prevblocks.index(interp2.prev_block)
+                        w_res_false = interp2.environment[op.prevvalues[falseindex]]
+                        self.environment[op] = self._create_w_z3_if(w_cond, w_res_true, w_res_false)
+                    else:
+                        break
+                else:
+                    index += 1
 
                 # merge memory and registers
                 self.registers = {reg:self._create_w_z3_if(w_cond, interp1.registers[reg], interp2.registers[reg]) for reg in self.registers}
                 self.memory = self._create_z3_if(w_cond.toz3(), interp1.memory, interp2.memory)
                 #self._debug_print("merge " + self.graph.name + " " + str(self.w_result))
-
+                return block1, index, True
 
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
@@ -499,7 +526,7 @@ class Interpreter(object):
             self.w_result = RaiseConstant(str(next.kind))
         else:
             assert 0, "implement %s" %str(next)
-        return None
+        return None, 0, False
     
     def _debug_print(self, msg=""):
         print "interp_%s:" % self.forknum, msg
@@ -643,7 +670,7 @@ class Interpreter(object):
             import pdb;pdb.set_trace()
         
     def exec_union_cast(self, op):
-        ###  this cas specializes an instance of a union to one if its subtypes like:
+        ###  this cast specializes an instance of a union to one if its subtypes like:
         ###    union(bird, (duck, goose), ...)
         ###    instance_of_duck = UnionCast(instance_of_bird, duck)
         ### TODO: Did RPython already check that the types fit, or could that fail?
@@ -729,7 +756,6 @@ class Interpreter(object):
             return BooleanConstant(arg0.value < arg1.value)
         else:
             return Z3Value(z3.ULT(arg0.toz3(), arg1.toz3()))
-        import pdb;pdb.set_trace()
             
     def exec_not(self, op):
         arg0, = self.getargs(op)
@@ -829,8 +855,8 @@ class Interpreter(object):
 class NandInterpreter(Interpreter):
     """ Interpreter subclass for nand2tetris ISA """
 
-    def __init__(self, graph, args, shared_state=None):
-        super(NandInterpreter, self).__init__(graph, args, shared_state)# py2 super 
+    def __init__(self, graph, args, shared_state=None, entrymap=None):
+        super(NandInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(16), z3.BitVecSort(16))
         self.cls = NandInterpreter
     
@@ -849,8 +875,8 @@ class NandInterpreter(Interpreter):
 
 class RiscvInterpreter(Interpreter):
     """ Interpreter subclass for RiscV ISA """
-    def __init__(self, graph, args, shared_state=None, _64bit=False):
-        bits = 64 if _64bit else 32 # TODO: is this also called longmode on RiscV? 
+    def __init__(self, graph, args, shared_state=None, _64bit=False):# TODO , entrymap=None
+        bits = 64 if _64bit else 32 
         super(RiscvInterpreter, self).__init__(graph, args, shared_state)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(bits), z3.BitVecSort(bits))
         self.cls = RiscvInterpreter

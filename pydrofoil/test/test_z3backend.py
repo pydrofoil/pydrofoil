@@ -152,6 +152,7 @@ def get_decode_compute_backwards_graph():
 
 def test_nand_decode_compute_backwards():
     graph = get_decode_compute_backwards_graph()
+    graph.view()
     shared_state = z3backend.SharedState({}, NAND_REGISTERS)
     #graph.view()
     interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1100))], shared_state.copy())
@@ -787,3 +788,52 @@ def test_nand_decode_execute_opcode():
     res = solver.check(z3.Not(zD_res == d_old.toz3() + 1))
     assert res == z3.unsat
     
+def get_double_diamond_graph():
+    za = Argument('za', SmallFixedBitVector(1))
+    zb = Argument('zb', Bool())
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    i2 = block0.emit(Operation, '@eq_bits_bv_bv', [za, SmallBitVectorConstant(0b0, SmallFixedBitVector(1))], Bool())
+    block0.next = ConditionalGoto(i2, block1, block2, '`1 124:10-124:45')
+    i3 = block1.emit(GlobalRead, 'zA', [], SmallFixedBitVector(16), None, None)
+    block1.next = Goto(block3, None)
+    i3a = block2.emit(GlobalRead, 'zC', [], SmallFixedBitVector(16), None, None)
+    block2.next = Goto(block3, None)
+    i4 = block3.emit_phi([block2, block1], [i3a, i3], SmallFixedBitVector(16))
+    i5 = block3.emit(Operation, "@add_bits_bv_bv", [i4, SmallBitVectorConstant(0b1, SmallFixedBitVector(16)),  MachineIntConstant(16)], SmallFixedBitVector(16), None)
+    block3.next = ConditionalGoto(zb, block4, block5, None)
+    block4.next = Goto(block6, None)
+    i6 = block4.emit(Operation, "@add_bits_bv_bv", [i5, SmallBitVectorConstant(0b111, SmallFixedBitVector(16)),  MachineIntConstant(16)], SmallFixedBitVector(16), None)
+    block5.next = Goto(block6, None)
+    i7 = block5.emit(Operation, "@add_bits_bv_bv", [i5, SmallBitVectorConstant(0b1111, SmallFixedBitVector(16)),  MachineIntConstant(16)], SmallFixedBitVector(16), None)
+    i8  = block6.emit_phi([block4, block5], [i6, i7], SmallFixedBitVector(16))
+    block6.next = Return(i8)
+    graph = Graph('f', [za, zb], block0)
+    return graph
+
+def test_merge_abstract():
+    graph = get_double_diamond_graph()
+    
+    avar = z3backend.Z3Value(z3.BitVec('a', 1))
+    bvar = z3backend.Z3Value(z3.Bool('b'))
+
+    sharedstate = z3backend.SharedState(dict(f=graph), NAND_REGISTERS)
+    interp = z3backend.NandInterpreter(graph, [avar, bvar], sharedstate.copy())
+    res = interp.run()
+    assert str(res).startswith("""If(b,\n   If(a == 0, init_zA""")
+
+def test_merge_concrete():
+    graph = get_double_diamond_graph()
+    sharedstate = z3backend.SharedState(dict(f=graph), NAND_REGISTERS)
+    avar = z3backend.ConstantSmallBitVector(0b1)
+    bvar = z3backend.BooleanConstant(True)
+
+    interp = z3backend.NandInterpreter(graph, [avar, bvar], sharedstate.copy())
+    res = interp.run()
+    assert str(res).startswith("""init_zC""")
+    assert str(res).endswith("""+ 7""")

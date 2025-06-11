@@ -5,7 +5,9 @@ from pydrofoil.absinterp import (
     Location,
     LocationManager,
     compute_all_ranges,
+    rewrite_global_ranges_into_checks,
 )
+from pydrofoil.test.test_ir import compare
 import pytest
 
 
@@ -68,12 +70,12 @@ def _get_graphs_interprocedural_range():
     block_c1.emit(ir.Operation, "f", [ir.IntConstant(5)], types.Int())
     block_c1.emit(ir.Operation, "f", [ir.IntConstant(10)], types.Int())
     block_c1.next = ir.Return(ir.UnitConstant.UNIT)
-    graph_c1 = ir.Graph("c1", [x], block_c1)
+    graph_c1 = ir.Graph("c1", [], block_c1)
 
     block_c2 = ir.Block()
     block_c2.emit(ir.Operation, "f", [ir.IntConstant(15)], types.Int())
     block_c2.next = ir.Return(ir.UnitConstant.UNIT)
-    graph_c2 = ir.Graph("c2", [x], block_c2)
+    graph_c2 = ir.Graph("c2", [], block_c2)
 
     return {"f": graph_f, "c1": graph_c1, "c2": graph_c2}
 
@@ -177,3 +179,157 @@ def test_union_ranges():
     assert u_loc._bound.is_bounded()
     assert u_loc._bound.low == 5
     assert u_loc._bound.high == 10
+
+
+def test_rewrite():
+    graphs = _get_graphs_interprocedural_range()
+    codegen = MockCodegen(graphs)
+    locmanager = compute_all_ranges(codegen)
+    rewrite_global_ranges_into_checks(locmanager, graphs)
+    compare(
+        graphs["f"],
+        """
+x = Argument('x', Int())
+block0 = Block()
+i1 = block0.emit(RangeCheck, '$rangecheck', [x, IntConstant(5), IntConstant(15), StringConstant("Argument 'x' of function 'f'")], Unit(), None, None)
+i2 = block0.emit(Operation, '$add', [x, IntConstant(1)], Int(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('f', [x], block0)""",
+    )
+    compare(
+        graphs["c2"],
+        """
+block0 = Block()
+i0 = block0.emit(Operation, 'f', [IntConstant(15)], Int(), None, None)
+i1 = block0.emit(RangeCheck, '$rangecheck', [i0, IntConstant(6), IntConstant(16), StringConstant("Result of function 'f'")], Unit(), None, None)
+block0.next = Return(UnitConstant.UNIT, None)
+graph = Graph('c2', [], block0)""",
+    )
+    compare(
+        graphs["c1"],
+        """
+block0 = Block()
+i0 = block0.emit(Operation, 'f', [IntConstant(5)], Int(), None, None)
+i1 = block0.emit(RangeCheck, '$rangecheck', [i0, IntConstant(6), IntConstant(16), StringConstant("Result of function 'f'")], Unit(), None, None)
+i2 = block0.emit(Operation, 'f', [IntConstant(10)], Int(), None, None)
+i3 = block0.emit(RangeCheck, '$rangecheck', [i2, IntConstant(6), IntConstant(16), StringConstant("Result of function 'f'")], Unit(), None, None)
+block0.next = Return(UnitConstant.UNIT, None)
+graph = Graph('c1', [], block0)""",
+    )
+
+
+def _get_example_struct_ranges_2():
+    s = ir.Argument(
+        "s", types.Struct("S", ("x", "y"), (types.Int(), types.Int()))
+    )
+    t = ir.Argument(
+        "t", types.Struct("T", ("x", "y"), (types.Int(), types.Int()))
+    )
+    u = ir.Argument(
+        "u", types.Struct("U", ("x", "y"), (types.Int(), types.Int()))
+    )
+
+    block_f = ir.Block()
+
+    o1 = block_f.emit(
+        ir.StructConstruction,
+        "S",
+        [ir.IntConstant(10), ir.IntConstant(20)],
+        s.resolved_type,
+    )
+    o2 = block_f.emit(
+        ir.StructConstruction,
+        "T",
+        [ir.IntConstant(30), ir.IntConstant(40)],
+        t.resolved_type,
+    )
+    o3 = block_f.emit(
+        ir.StructConstruction,
+        "U",
+        [ir.IntConstant(50), ir.IntConstant(60)],
+        u.resolved_type,
+    )
+    o4 = block_f.emit(ir.Operation, "g", [o1, o2, o3], u.resolved_type)
+    o5 = block_f.emit(ir.FieldAccess, "x", [o4], types.Int())
+    block_f.next = ir.Return(o5)
+    graph_f = ir.Graph("f", [], block_f)
+
+    block_g = ir.Block()
+    o1 = block_g.emit(ir.FieldAccess, "x", [s], types.Int())
+    block_g.emit(ir.FieldWrite, "y", [t, o1], types.Unit())
+    o2 = block_g.emit(ir.FieldAccess, "y", [t], types.Int())
+    block_g.emit(ir.FieldWrite, "x", [u, o2], types.Unit())
+    block_g.next = ir.Return(u)
+    graph_g = ir.Graph("g", [s, t, u], block_g)
+
+    return {"f": graph_f, "g": graph_g}
+
+
+def test_rewrite_structs():
+    graphs = _get_example_struct_ranges_2()
+    codegen = MockCodegen(graphs)
+    locmanager = compute_all_ranges(codegen)
+    rewrite_global_ranges_into_checks(locmanager, graphs)
+    compare(
+        graphs["f"],
+        """
+S = Struct('S', ('x', 'y'), (Int(), Int()))
+T = Struct('T', ('x', 'y'), (Int(), Int()))
+U = Struct('U', ('x', 'y'), (Int(), Int()))
+block0 = Block()
+i0 = block0.emit(StructConstruction, 'S', [IntConstant(10), IntConstant(20)], S, None, None)
+i1 = block0.emit(StructConstruction, 'T', [IntConstant(30), IntConstant(40)], T, None, None)
+i2 = block0.emit(StructConstruction, 'U', [IntConstant(50), IntConstant(60)], U, None, None)
+i3 = block0.emit(Operation, 'g', [i0, i1, i2], U, None, None)
+i4 = block0.emit(FieldAccess, 'x', [i3], Int(), None, None)
+i5 = block0.emit(RangeCheck, '$rangecheck', [i4, IntConstant(10), IntConstant(50), StringConstant("Access to field 'x' of struct 'U'")], Unit(), None, None)
+block0.next = Return(i4, None)
+graph = Graph('f', [], block0)""",
+    )
+    compare(
+        graphs["g"],
+        """
+S = Struct('S', ('x', 'y'), (Int(), Int()))
+T = Struct('T', ('x', 'y'), (Int(), Int()))
+U = Struct('U', ('x', 'y'), (Int(), Int()))
+s = Argument('s', S)
+t = Argument('t', T)
+u = Argument('u', U)
+block0 = Block()
+i3 = block0.emit(FieldAccess, 'x', [s], Int(), None, None)
+i4 = block0.emit(RangeCheck, '$rangecheck', [i3, IntConstant(10), IntConstant(10), StringConstant("Access to field 'x' of struct 'S'")], Unit(), None, None)
+i5 = block0.emit(FieldWrite, 'y', [t, i3], Unit(), None, None)
+i6 = block0.emit(FieldAccess, 'y', [t], Int(), None, None)
+i7 = block0.emit(RangeCheck, '$rangecheck', [i6, IntConstant(10), IntConstant(40), StringConstant("Access to field 'y' of struct 'T'")], Unit(), None, None)
+i8 = block0.emit(FieldWrite, 'x', [u, i6], Unit(), None, None)
+block0.next = Return(u, None)
+graph = Graph('g', [s, t, u], block0)""",
+    )
+
+
+def test_rewrite_union():
+    graphs = _get_example_union_ranges()
+    codegen = MockCodegen(graphs)
+    locmanager = compute_all_ranges(codegen)
+    rewrite_global_ranges_into_checks(locmanager, graphs)
+    compare(
+        graphs["f"],
+        """
+myunion = Union('myunion', ('first', 'second'), (Int(), Int()))
+block0 = Block()
+i0 = block0.emit(Operation, 'g', [], myunion, None, None)
+i1 = block0.emit(UnionCast, 'first', [i0], Int(), None, None)
+i2 = block0.emit(RangeCheck, '$rangecheck', [i1, IntConstant(5), IntConstant(10), StringConstant("Variant 'first' of union 'myunion'")], Unit(), None, None)
+block0.next = Return(i1, None)
+graph = Graph('f', [], block0)""",
+    )
+    compare(
+        graphs["g"],
+        """
+myunion = Union('myunion', ('first', 'second'), (Int(), Int()))
+block0 = Block()
+i0 = block0.emit(Operation, 'first', [IntConstant(5)], myunion, None, None)
+i1 = block0.emit(Operation, 'first', [IntConstant(10)], myunion, None, None)
+block0.next = Return(i1, None)
+graph = Graph('g', [], block0)""",
+    )

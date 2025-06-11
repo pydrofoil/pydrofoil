@@ -542,20 +542,20 @@ class AbstractInterpreter(object):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():
             return
-        return Range(0, 2**arg1.low - 1)
+        return Range(0, 2 ** arg1.low - 1)
 
     def analyze_unsigned_bv_wrapped_res(self, op):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():
             return
-        return Range(0, 2**arg1.low - 1)
+        return Range(0, 2 ** arg1.low - 1)
 
     def analyze_signed_bv(self, op):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():
             return
         exponent = arg1.low - 1
-        return Range(-(2**exponent), 2**exponent - 1)
+        return Range(-(2 ** exponent), 2 ** exponent - 1)
 
     def analyze_mult_int(self, op):
         arg0, arg1 = self._argbounds(op)
@@ -811,6 +811,90 @@ def compute_all_ranges(codegen):
         for mod_location in location_manager.find_modified():
             todo_set.update(mod_location.readers)
     return location_manager
+
+
+def rewrite_global_ranges_into_checks(location_manager, graphs):
+    # type: (LocationManager, dict[str, ir.Graph]) -> None
+    for graph in graphs.values():
+        _rewrite_graph(location_manager, graph, graphs)
+
+
+def _rewrite_graph(location_manager, graph, graphs):
+    # type: (LocationManager, ir.Graph, dict[str, ir.Graph]) -> None
+
+    # Add checks for argument
+    for argument in graph.args:
+        if argument.resolved_type not in RELEVANT_TYPES:
+            continue
+        location = location_manager.get_location_for_argument(argument)
+
+        block = graph.startblock
+        assert not block.operations or not isinstance(
+            block.operations[0], ir.Phi
+        )
+        _make_check(
+            location,
+            argument,
+            "Argument %s of function %s"
+            % (repr(argument.name), repr(graph.name)),
+            block,
+            0,
+        )
+
+    # Add checks based on operation
+    for block in graph.iterblocks():
+        # Iterate in reversed order to preserve indices when inserting
+        for i, instruction in reversed(list(enumerate(block.operations))):
+            if (
+                type(instruction) is ir.Operation
+                and instruction.name in graphs
+            ):
+                callee = graphs[instruction.name]
+                location = location_manager.get_location_for_result(
+                    callee, instruction.resolved_type
+                )
+                msg = "Result of function %s" % repr(instruction.name)
+            elif type(instruction) is ir.FieldAccess:
+                arg = instruction.args[0]
+                struct_type = arg.resolved_type  # type: types.Struct
+                field_name = instruction.name
+                location = location_manager.get_location_for_field(
+                    struct_type, field_name
+                )
+                msg = "Access to field %s of struct %s" % (
+                    repr(field_name),
+                    repr(struct_type.name),
+                )
+            elif type(instruction) is ir.UnionCast:
+                arg = instruction.args[0]
+                union_type = arg.resolved_type  # type: types.Union
+                variant_name = instruction.name
+                location = location_manager.get_location_for_union(
+                    union_type, variant_name
+                )
+                msg = "Variant %s of union %s" % (
+                    repr(variant_name),
+                    repr(union_type.name),
+                )
+            else:
+                continue
+            _make_check(location, instruction, msg, block, i + 1)
+
+
+def _make_check(location, value, msg, block, index):
+    # type: (Location, ir.Value, str, ir.Block, int) -> None
+    # TODO this is not a good way to access the bound
+    bound = location._bound
+    if not bound.is_bounded():
+        return
+
+    new_instruction = ir.RangeCheck(
+        value,
+        ir.IntConstant(bound.low),
+        ir.IntConstant(bound.high),
+        ir.StringConstant(msg),
+    )
+    block.operations.insert(index, new_instruction)
 
 
 class LocationManager(object):

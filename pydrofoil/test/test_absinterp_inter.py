@@ -1,9 +1,12 @@
+import collections
 from pydrofoil import types
 from pydrofoil import ir
 from pydrofoil.absinterp import (
     Range,
     Location,
     LocationManager,
+    analyze,
+    apply_interprocedural_optimizations,
     compute_all_ranges,
     rewrite_global_ranges_into_checks,
 )
@@ -84,6 +87,15 @@ class MockCodegen(object):
     def __init__(self, graphs):
         self.all_graph_by_name = graphs
         self.builtin_names = {}
+        self.inlinable_functions = []
+        self.inline_dependencies = collections.defaultdict(set)
+        self.method_graphs_by_name = {}
+
+    def get_effects(self, _):
+        pass
+
+    def print_debug_msg(self, _):
+        pass
 
 
 def test_interprocedural_range():
@@ -311,7 +323,8 @@ def test_rewrite_union():
     graphs = _get_example_union_ranges()
     codegen = MockCodegen(graphs)
     locmanager = compute_all_ranges(codegen)
-    rewrite_global_ranges_into_checks(locmanager, graphs)
+    changed_graphs = rewrite_global_ranges_into_checks(locmanager, graphs)
+    assert set(changed_graphs) == {graphs["f"]}
     compare(
         graphs["f"],
         """
@@ -333,3 +346,39 @@ i1 = block0.emit(Operation, 'first', [IntConstant(10)], myunion, None, None)
 block0.next = Return(i1, None)
 graph = Graph('g', [], block0)""",
     )
+
+
+def test_local_with_range_check():
+    x = ir.Argument("x", types.Int())
+    block0 = ir.Block()
+    i1 = block0.emit(
+        ir.RangeCheck,
+        "$rangecheck",
+        [
+            x,
+            ir.IntConstant(5),
+            ir.IntConstant(15),
+            ir.StringConstant("Argument 'x' of function 'f'"),
+        ],
+        types.Unit(),
+        None,
+        None,
+    )
+    i2 = block0.emit(
+        ir.Operation, "$add", [x, ir.IntConstant(1)], types.Int(), None, None
+    )
+    block0.next = ir.Return(i2, None)
+    graph = ir.Graph("f", [x], block0)
+    graphs = {"f": graph}
+
+    codegen = MockCodegen(graphs)
+    values = analyze(graph, codegen)
+    assert values[block0][i2] == Range(6, 16)
+    assert values[block0][x] == Range(5, 15)
+
+
+def test_apply_interprocedural_optimizations():
+    graphs = _get_graphs_interprocedural_range()
+    codegen = MockCodegen(graphs)
+    apply_interprocedural_optimizations(codegen)
+    graphs["f"].view()

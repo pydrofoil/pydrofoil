@@ -254,11 +254,19 @@ class Codegen(specialize.FixpointSpecializer):
             cse_field_reads(graph, self)
             cse_global_reads(graph, self)
 
+    def _interprocedural_range_analysis(self):
+        from pydrofoil.absinterp import (
+            apply_interprocedural_optimizations
+        )
+        apply_interprocedural_optimizations(self)
+
+
     def finish_graphs(self):
         self.print_persistent_msg("============== FINISHING ==============")
         from pydrofoil.ir import print_stats
         t1 = time.time()
         self._optimize_with_effect_info()
+        self._interprocedural_range_analysis()
         self.specialize_all()
         unspecialized_graphs = []
         if self.program_entrypoints is None:

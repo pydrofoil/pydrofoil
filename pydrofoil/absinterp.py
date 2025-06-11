@@ -268,6 +268,7 @@ INT_TYPES = (types.MachineInt(), types.Int())
 
 
 def analyze(graph, codegen, view=False):
+    # type: (ir.Graph, makecode.Codegen, bool) -> dict[ir.Block, dict[ir.Value, Range]]
     absinterp = AbstractInterpreter(graph, codegen)
     res = absinterp.analyze()
     if view:
@@ -282,7 +283,7 @@ class AbstractInterpreter(object):
         # type: (ir.Graph, makecode.Codegen) -> None
         self.graph = graph
         self.codegen = codegen
-        self.values = {}  # block -> value -> Range
+        self.values = {}  # type: dict[ir.Block, dict[ir.Value, Range]]
 
     def _builtinname(self, name):
         return self.codegen.builtin_names.get(name, name)
@@ -455,6 +456,16 @@ class AbstractInterpreter(object):
             elif b is not None:
                 res = res.union(b)
         return res
+
+    def analyze_RangeCheck(self, op):
+        # type: (ir.RangeCheck) -> None
+        oldbound, low, high, _ = self._argbounds(op)
+        assert low is not None
+        assert high is not None
+        assert oldbound is not None
+        newbound = oldbound.make_ge(low).make_le(high)
+        self.current_values[op.args[0]] = newbound
+        return None
 
     def _bounds(self, op, must_exist=True, block=None):
         if isinstance(op, ir.BooleanConstant):
@@ -791,6 +802,16 @@ def default_for_type(typ):
         return UNBOUNDED
 
 
+def apply_interprocedural_optimizations(codegen):
+    # type: (makecode.Codegen) -> None
+    location_manager = compute_all_ranges(codegen)
+    changed_graphs = rewrite_global_ranges_into_checks(
+        location_manager, codegen.all_graph_by_name
+    )
+    for graph in changed_graphs:
+        ir.light_simplify(graph, codegen)
+
+
 def compute_all_ranges(codegen):
     # type: (makecode.Codegen) -> LocationManager
     todo_set = set(codegen.all_graph_by_name.values())
@@ -814,13 +835,18 @@ def compute_all_ranges(codegen):
 
 
 def rewrite_global_ranges_into_checks(location_manager, graphs):
-    # type: (LocationManager, dict[str, ir.Graph]) -> None
+    # type: (LocationManager, dict[str, ir.Graph]) -> list[ir.Graph]
+    changed_graphs = []
     for graph in graphs.values():
-        _rewrite_graph(location_manager, graph, graphs)
+        was_rewritten = _rewrite_graph(location_manager, graph, graphs)
+        if was_rewritten:
+            changed_graphs.append(graph)
+    return changed_graphs
 
 
 def _rewrite_graph(location_manager, graph, graphs):
-    # type: (LocationManager, ir.Graph, dict[str, ir.Graph]) -> None
+    # type: (LocationManager, ir.Graph, dict[str, ir.Graph]) -> bool
+    has_changed = False
 
     # Add checks for argument
     for argument in graph.args:
@@ -832,13 +858,14 @@ def _rewrite_graph(location_manager, graph, graphs):
         assert not block.operations or not isinstance(
             block.operations[0], ir.Phi
         )
-        _make_check(
+        has_changed = _make_check(
             location,
             argument,
             "Argument %s of function %s"
             % (repr(argument.name), repr(graph.name)),
             block,
             0,
+            has_changed,
         )
 
     # Add checks based on operation
@@ -878,15 +905,19 @@ def _rewrite_graph(location_manager, graph, graphs):
                 )
             else:
                 continue
-            _make_check(location, instruction, msg, block, i + 1)
+            has_changed = _make_check(
+                location, instruction, msg, block, i + 1, has_changed
+            )
+    return has_changed
 
 
-def _make_check(location, value, msg, block, index):
-    # type: (Location, ir.Value, str, ir.Block, int) -> None
+def _make_check(location, value, msg, block, index, has_changed_before):
+    # type: (Location, ir.Value, str, ir.Block, int, bool) -> bool
     # TODO this is not a good way to access the bound
     bound = location._bound
+    # TODO this is not precise enough for certain types like machine ints
     if not bound.is_bounded():
-        return
+        return has_changed_before
 
     new_instruction = ir.RangeCheck(
         value,
@@ -895,6 +926,7 @@ def _make_check(location, value, msg, block, index):
         ir.StringConstant(msg),
     )
     block.operations.insert(index, new_instruction)
+    return True
 
 
 class LocationManager(object):

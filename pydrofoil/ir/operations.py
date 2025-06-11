@@ -51,7 +51,7 @@ class Operation(Value):
         for arg in args:
             assert isinstance(arg, Value)
         self.name = name
-        self.args = args  # type: list[Argument]
+        self.args = args  # type: list[Value]
         self.resolved_type = resolved_type
         assert isinstance(sourcepos, (str, type(None)))
         self.sourcepos = sourcepos

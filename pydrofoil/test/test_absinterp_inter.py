@@ -64,7 +64,7 @@ def _get_graphs_interprocedural_range():
     x = ir.Argument("x", types.Int())
     block_f = ir.Block()
     res = block_f.emit(
-        ir.Operation, "$add", [x, ir.IntConstant(1)], types.Int()
+        ir.Operation, "add_int", [x, ir.IntConstant(1)], types.Int()
     )
     block_f.next = ir.Return(res)
     graph_f = ir.Graph("f", [x], block_f)
@@ -84,9 +84,13 @@ def _get_graphs_interprocedural_range():
 
 
 class MockCodegen(object):
+    builtin_names = {
+        "zz5izDzKz5i64": "int_to_int64",
+        "zz5i64zDzKz5i": "int64_to_int",
+    }
+
     def __init__(self, graphs):
         self.all_graph_by_name = graphs
-        self.builtin_names = {}
         self.inlinable_functions = []
         self.inline_dependencies = collections.defaultdict(set)
         self.method_graphs_by_name = {}
@@ -204,7 +208,7 @@ def test_rewrite():
 x = Argument('x', Int())
 block0 = Block()
 i1 = block0.emit(RangeCheck, '$rangecheck', [x, IntConstant(5), IntConstant(15), StringConstant("Argument 'x' of function 'f'")], Unit(), None, None)
-i2 = block0.emit(Operation, '$add', [x, IntConstant(1)], Int(), None, None)
+i2 = block0.emit(Operation, 'add_int', [x, IntConstant(1)], Int(), None, None)
 block0.next = Return(i2, None)
 graph = Graph('f', [x], block0)""",
     )
@@ -365,7 +369,12 @@ def test_local_with_range_check():
         None,
     )
     i2 = block0.emit(
-        ir.Operation, "$add", [x, ir.IntConstant(1)], types.Int(), None, None
+        ir.Operation,
+        "add_int",
+        [x, ir.IntConstant(1)],
+        types.Int(),
+        None,
+        None,
     )
     block0.next = ir.Return(i2, None)
     graph = ir.Graph("f", [x], block0)
@@ -381,4 +390,16 @@ def test_apply_interprocedural_optimizations():
     graphs = _get_graphs_interprocedural_range()
     codegen = MockCodegen(graphs)
     apply_interprocedural_optimizations(codegen)
-    graphs["f"].view()
+    compare(
+        graphs["f"],
+        """
+x = Argument('x', Int())
+block0 = Block()
+i1 = block0.emit(RangeCheck, '$rangecheck', [x, IntConstant(5), IntConstant(15), StringConstant("Argument 'x' of function 'f'")], Unit(), None, None)
+i2 = block0.emit(Operation, 'zz5izDzKz5i64', [x], MachineInt(), None, None)
+i3 = block0.emit(Operation, '@add_i_i_must_fit', [i2, MachineIntConstant(1)], MachineInt(), None, None)
+i4 = block0.emit(Operation, 'zz5i64zDzKz5i', [i3], Int(), None, None)
+block0.next = Return(i4, None)
+graph = Graph('f', [x], block0)
+""",
+    )

@@ -1019,6 +1019,8 @@ class Location(object):
     def write(self, new_bound, graph, graph_position=None):
         # type: (Range, ir.Graph, typing.Hashable) -> None
         """Give a new value for the bound from source graph."""
+        default = default_for_type(self._typ)
+        new_bound = new_bound.make_ge(default).make_le(default)
         self._writes[graph, graph_position] = new_bound
         assert self._bound.contains_range(new_bound)
 

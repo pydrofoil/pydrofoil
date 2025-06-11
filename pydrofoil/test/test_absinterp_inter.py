@@ -9,6 +9,8 @@ from pydrofoil.absinterp import (
     apply_interprocedural_optimizations,
     compute_all_ranges,
     rewrite_global_ranges_into_checks,
+    MININT,
+    MAXINT,
 )
 from pydrofoil.test.test_ir import compare
 import pytest
@@ -46,6 +48,16 @@ def test_location_write_error_checking():
     l._bound = Range(0, 10)
     with pytest.raises(AssertionError):
         l.write(new_bound=range, graph=graph)
+
+
+def test_location_write_range_too_large_for_type():
+    m = LocationManager()
+    typ = types.MachineInt()
+    l = m.new_location(typ)
+    graph = object()
+    l.write(Range(1, None), object())
+    m.find_modified()
+    assert l._bound == Range(1, MAXINT)
 
 
 def test_find_modified():

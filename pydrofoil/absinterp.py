@@ -356,8 +356,12 @@ class AbstractInterpreter(object):
     def analyze(self):
         startblock_values = self._init_argument_bounds()
         self.values[self.graph.startblock] = startblock_values
+        if self.graph.has_loop:
+            self.loop_headers = {to for from_, to in ir.find_backedges(self.graph)}
+        else:
+            self.loop_headers = set()
 
-        for block in ir.topo_order(self.graph):
+        for block in ir.topo_order_best_attempt(self.graph):
             self.current_block = block
             if block not in self.values:
                 # unreachable
@@ -419,7 +423,11 @@ class AbstractInterpreter(object):
                     nextblock_values[op] = rop
 
     def analyze_block(self, block):
-        for op in block.operations:
+        index = 0
+        if block in self.loop_headers:
+            index = self._init_loop_header(block)
+        for index in range(index, len(block.operations)):
+            op = block.operations[index]
             meth = getattr(
                 self, "analyze_" + op.__class__.__name__, self.analyze_default
             )
@@ -429,6 +437,16 @@ class AbstractInterpreter(object):
                 self.current_values[op] = res
             else:
                 assert res is None
+
+    def _init_loop_header(self, block):
+        for index, op in enumerate(block.operations):
+            if not isinstance(op, ir.Phi):
+                return index
+            if op.resolved_type not in RELEVANT_TYPES:
+                continue
+            self.current_values[op] = default_for_type(op.resolved_type)
+        return index + 1
+
 
     def analyze_default(self, op):
         if op.resolved_type is types.Bool():

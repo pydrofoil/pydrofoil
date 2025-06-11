@@ -1,5 +1,5 @@
 from pydrofoil.absinterp import analyze, BOOL, UNBOUNDED, TRUE, FALSE, MACHINEINT, Range
-from pydrofoil.absinterp import optimize_with_range_info
+from pydrofoil.absinterp import optimize_with_range_info, MININT, MAXINT
 from pydrofoil.test.test_ir import compare, FakeCodeGen
 
 from pydrofoil.types import *
@@ -735,3 +735,28 @@ def test_unsigned_bv_wrapped_res():
     values = analyze(graph, fakecodegen)
     assert values[block0][i31].high == 2 ** 64 - 1
     assert values[block0][i31].low == 0
+
+def test_with_loop():
+    zxs = Argument('zxs', SmallFixedBitVector(8))
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block0.next = Goto(block1, None)
+    i1 = block1.emit_phi([block0, block3], [SmallBitVectorConstant(0x0, SmallFixedBitVector(8)), None], SmallFixedBitVector(8))
+    i2 = block1.emit_phi([block0, block3], [MachineIntConstant(0), None], MachineInt())
+    i3 = block1.emit(Operation, '@gt', [i2, MachineIntConstant(7)], Bool(), '`5 194:2-195:19', None)
+    block1.next = ConditionalGoto(i3, block2, block3, '`5 194:2-195:19')
+    block2.next = Return(i1, None)
+    i4 = block3.emit(Operation, '@sub_i_i_must_fit', [MachineIntConstant(7), i2], MachineInt(), '`5 195:15-195:18', 'zz416')
+    i5 = block3.emit(Operation, '@vector_access_bv_i', [zxs, i4], SmallFixedBitVector(1), '`5 195:12-195:19', 'zz47')
+    i6 = block3.emit(Operation, '$zupdate_fbits', [i1, i2, i5], SmallFixedBitVector(8), '`5 195:4-195:9', 'zz410')
+    i1.prevvalues[1] = i6
+    i7 = block3.emit(Operation, '@iadd', [i2, MachineIntConstant(1)], MachineInt(), '`5 194:2-195:19', 'zz45')
+    i2.prevvalues[1] = i7
+    block3.next = Goto(block1, None)
+    graph = Graph('zreverse_bits_in_byte', [zxs], block0, True)
+    values = analyze(graph, fakecodegen, view=True)
+    assert values[block1][i2] == MACHINEINT
+    assert values[block3][i2] == Range(MININT, 7)
+    assert values[block2][i2] == Range(8, MAXINT)

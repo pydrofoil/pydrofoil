@@ -152,7 +152,6 @@ def get_decode_compute_backwards_graph():
 
 def test_nand_decode_compute_backwards():
     graph = get_decode_compute_backwards_graph()
-    graph.view()
     shared_state = z3backend.SharedState({}, NAND_REGISTERS)
     #graph.view()
     interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1100))], shared_state.copy())
@@ -811,7 +810,7 @@ def get_double_diamond_graph():
     i6 = block4.emit(Operation, "@add_bits_bv_bv", [i5, SmallBitVectorConstant(0b111, SmallFixedBitVector(16)),  MachineIntConstant(16)], SmallFixedBitVector(16), None)
     block5.next = Goto(block6, None)
     i7 = block5.emit(Operation, "@add_bits_bv_bv", [i5, SmallBitVectorConstant(0b1111, SmallFixedBitVector(16)),  MachineIntConstant(16)], SmallFixedBitVector(16), None)
-    i8  = block6.emit_phi([block4, block5], [i6, i7], SmallFixedBitVector(16))
+    i8 = block6.emit_phi([block4, block5], [i6, i7], SmallFixedBitVector(16))
     block6.next = Return(i8)
     graph = Graph('f', [za, zb], block0)
     return graph

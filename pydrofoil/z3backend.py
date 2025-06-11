@@ -1,4 +1,5 @@
 import z3
+import collections
 from pydrofoil import supportcode
 from pydrofoil import ir, types
 
@@ -114,6 +115,9 @@ class BooleanConstant(AbstractConstant):
         if not isinstance(other, BooleanConstant): 
             return False
         return self.value == other.value
+    
+    def not_(self):
+        return BooleanConstant(not self.value)
 
 class RaiseConstant(AbstractConstant):
 
@@ -211,6 +215,20 @@ class Z3Value(Value):
     
     def same_value(self, other):
         return False
+
+    def not_(self):
+        return Z3NotValue(self.value)
+    
+class Z3NotValue(Z3Value):
+
+    def toz3(self):
+        return z3.Not(self.value)
+    
+    def same_value(self, other):
+        return False
+
+    def not_(self):
+        return Z3Value(self.value)
     
 class SharedState(object):
 
@@ -372,12 +390,124 @@ class Interpreter(object):
         ### TODO: Technicaly RPython cant return different types from a func, so this None handling, could be removed ???
         self.w_result_none = BooleanConstant(True)
         self.unconditional_raise = False # set to true to stop execution after encountering an unconditional raise
+        self.w_result = None
+        self.path_condition = []
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
-        res = self._run(block)
-        assert res == None
+        todo = collections.deque() # what exactly is in the todo deque?
+        block_to_interp = {} # block: interp | None
+        def schedule(block, interp):
+            if block in block_to_interp:
+                assert block_to_interp[block] is None
+                return
+            block_to_interp[block] = None
+            todo.append((block, interp))
+        schedule(self.graph.startblock, self)
+        while todo:
+            index = 0
+            current, interp = todo.popleft()
+            assert block_to_interp[current] is None
+            block_to_interp[current] = interp
+            if len(self.entrymap[current]) > 1:
+                interp, index = self._compute_merge(current, interp, block_to_interp)
+            interp._run_block(current, index)
+            interp._schedule_next(current.next, schedule)
+            if interp.w_result is not None:
+                assert not todo
+                # TODO: run should return w_result, memory, registers
+                self.registers = interp.registers
+                self.memory = interp.memory
+                return interp.w_result
+            
         return self.w_result
+
+    def _run_block(self, block, index=0):
+        for op in block.operations[index:]:
+            self.execute_op(op)
+
+    
+    def _schedule_next(self, next, schedule):
+        """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
+        if isinstance(next, ir.Goto):
+            schedule(next.target, self)
+            return
+        elif isinstance(next, ir.ConditionalGoto):
+            w_cond = self.convert(next.booleanvalue)
+            if 0 and isinstance(w_cond, BooleanConstant):
+                # TODO: fix this
+                if w_cond.value:
+                    block = next.truetarget
+                else:
+                    block = next.falsetarget
+                interp = self.fork()
+                block = interp._run(block)
+                for index, op in enumerate(block.operations):
+                    if isinstance(op, ir.Phi):
+                        assert len(op.prevvalues) == 2
+                        trueindex = op.prevblocks.index(interp.prev_block)
+                        self.environment[op] = interp.environment[op.prevvalues[trueindex]]
+                    else:
+                        break
+                else:
+                    index += 1
+                self.registers = interp.registers
+                self.memory = interp.memory
+                self.w_result = interp.w_result
+                # TODO: raise ...
+                return block, index, True
+            else:
+                # fork 
+                #print "fork in", self.graph.name, next.booleanvalue, "==", w_cond
+                #self._debug_print("fork in " + self.graph.name)
+                
+                interp1 = self.fork(self.path_condition + [w_cond])
+                interp1.environment[next.booleanvalue] = BooleanConstant(True)
+                interp2 = self.fork(self.path_condition + [w_cond.not_()])
+                interp2.environment[next.booleanvalue] = BooleanConstant(False)
+                schedule(next.truetarget, interp1)
+                schedule(next.falsetarget, interp2)
+                return
+        elif isinstance(next, ir.Return):
+            self.w_result = self.convert(next.value)
+        elif isinstance(next, ir.Raise):
+            self.w_result = RaiseConstant(str(next.kind))
+        else:
+            assert 0, "implement %s" %str(next)
+        return 
+
+    def _compute_merge(self, block, scheduleinterp, block_to_interp):
+        prevblocks = self.entrymap[block]
+        interp = scheduleinterp.fork()
+        for prevblock in prevblocks:
+            assert block_to_interp.get(prevblock) is not None
+        assert len(prevblocks) > 1
+        for prevblock in prevblocks:
+            previnterp = block_to_interp[prevblock]
+            if previnterp is scheduleinterp: continue
+            w_cond = previnterp.w_path_condition()
+            interp.path_condition = [self._create_w_z3_or(interp.w_path_condition(), w_cond)]
+            interp.registers = {reg:self._create_w_z3_if(w_cond, previnterp.registers[reg], interp.registers[reg]) for reg in self.registers}
+            interp.memory = self._create_z3_if(w_cond.toz3(), previnterp.memory, interp.memory)
+            interp.w_raises = self._create_w_z3_if(w_cond, previnterp.w_raises, interp.w_raises)     
+        for index, op in enumerate(block.operations):
+            if isinstance(op, ir.Phi):
+                w_value = None
+                for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
+                    previnterp = block_to_interp[prevblock]
+                    w_prevvalue = previnterp.convert(prevvalue)
+                    w_cond = previnterp.w_path_condition()
+                    if w_value is None:
+                        w_value = w_prevvalue
+                    else:
+                        w_value = self._create_w_z3_if(w_cond, w_prevvalue, w_value)
+                interp.environment[op] = w_value
+            else:
+                return interp, index
+        return interp, len(block.operations) # only phis in this block
+        
+    def w_path_condition(self):
+        return self._create_w_z3_and(*self.path_condition)
 
     def _run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
@@ -389,7 +519,7 @@ class Interpreter(object):
         index = 0
         _cont = True
         while True:
-            if len(self.entrymap[cur_block]) > 1 and not _cont and self.forknum != 0:
+            if len(self.entrymap[cur_block]) > 1 and not _cont:
                 return cur_block
 
             for op in cur_block.operations[index:]:
@@ -402,7 +532,7 @@ class Interpreter(object):
                 break
         return None
     
-    def fork(self):
+    def fork(self, path_condition=None):
         """ create a copy of the interpreter, for evaluating non constant branches """
         cls = type(self)
         f_interp = cls(self.graph, self.args, self.sharedstate, self.entrymap)
@@ -410,6 +540,7 @@ class Interpreter(object):
         # TODO: How to model x86_64's registers for 64,32 and 16 bit ?  
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
+        f_interp.path_condition = self.path_condition if path_condition is None else path_condition
         return f_interp
     
     def call_fork(self, graph, args):
@@ -431,12 +562,35 @@ class Interpreter(object):
             else:
                 return w_false
         if w_true.same_value(w_false): return w_true
+        # TODO: check for z3Not Value swap a and b theen
+        if isinstance(w_cond, Z3NotValue):
+            return Z3Value(z3.If(w_cond.value, w_false.toz3(), w_true.toz3()))
         return Z3Value(z3.If(w_cond.toz3(), w_true.toz3(), w_false.toz3()))
     
     def _create_w_z3_or(self, w_a, w_b):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
+        if isinstance(w_a, BooleanConstant):
+            if w_a.value:
+                return w_a
+            return w_b
+        if isinstance(w_b, BooleanConstant):
+            if w_b.value:
+                return w_b
+            return w_a
         if w_a.same_value(w_b): return w_a
+        # TODO: check for equal z3value and not z3value
         return Z3Value(z3.Or(w_a.toz3(), w_b.toz3()))
+
+    def _create_w_z3_and(self, *args_w):
+        if args_w == []:
+            return BooleanConstant(True)
+        if len(args_w) == 1:
+            return args_w[0]
+        for w_arg in args_w:
+            if isinstance(w_arg, BooleanConstant):
+                if not w_arg.value: return BooleanConstant(False)
+        # TODO: filter out true args
+        return Z3Value(z3.And(*[w_arg.toz3() for w_arg in args_w]))  
     
     def merge_raise(self, w_cond, w_res_true, w_res_false, interp1, interp2):
         """ Handle Exceptions, when a raise block raises the forks result is an instance of RaiseConstant """
@@ -479,10 +633,28 @@ class Interpreter(object):
             return next.target, 0, False
         elif isinstance(next, ir.ConditionalGoto):
             w_cond = self.convert(next.booleanvalue)
+            import pdb;  pdb.set_trace()
             if isinstance(w_cond, BooleanConstant):
                 if w_cond.value:
-                    return next.truetarget, 0, True
-                return next.falsetarget, 0, True
+                    block = next.truetarget
+                else:
+                    block = next.falsetarget
+                interp = self.fork()
+                block = interp._run(block)
+                for index, op in enumerate(block.operations):
+                    if isinstance(op, ir.Phi):
+                        assert len(op.prevvalues) == 2
+                        trueindex = op.prevblocks.index(interp.prev_block)
+                        self.environment[op] = interp.environment[op.prevvalues[trueindex]]
+                    else:
+                        break
+                else:
+                    index += 1
+                self.registers = interp.registers
+                self.memory = interp.memory
+                self.w_result = interp.w_result
+                # TODO: raise ...
+                return block, index, True
             else:
                 # fork 
                 #print "fork in", self.graph.name, next.booleanvalue, "==", w_cond
@@ -496,7 +668,7 @@ class Interpreter(object):
                 assert block1 == block2
                 # TODO: run_to_phi that returns interp
                 # merge excepions, remove not needed branches of one interp raises
-                #self.merge_raise(w_cond, w_res_true, w_res_false, interp1, interp2)
+                self.merge_raise(w_cond, w_res_true, w_res_false, interp1, interp2)
                 # merge results, remove not needed branches of one interp returns UNIT
                 #self.merge_result(w_cond, w_res_true, w_res_false, interp1, interp2)
 
@@ -688,7 +860,6 @@ class Interpreter(object):
         else:
             assert 0
 
-    
     def exec_union_creation(self, op):
         """ Execute a Lazy Union creation"""
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
@@ -762,7 +933,7 @@ class Interpreter(object):
         if isinstance(arg0, BooleanConstant):
             return BooleanConstant(not arg0.value)
         else:
-            return Z3Value(z3.Not(arg0.toz3()))
+            return arg0.not_()
         
     def exec_not_vec_bv(self, op):
         arg0, _ = self.getargs(op) 

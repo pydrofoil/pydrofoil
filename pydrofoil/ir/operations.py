@@ -1,4 +1,5 @@
 from pydrofoil import types, bitvector
+from rpython.rlib.rarithmetic import r_uint
 
 
 class Value(object):
@@ -317,6 +318,7 @@ class Phi(Value):
     can_have_side_effects = False
 
     def __init__(self, prevblocks, prevvalues, resolved_type):
+        from pydrofoil.ir import Block
         for block in prevblocks:
             assert isinstance(block, Block)
         for value in prevvalues:
@@ -589,6 +591,7 @@ class JustStop(Next):
 
 class Goto(Next):
     def __init__(self, target, sourcepos=None):
+        from pydrofoil.ir import Block
         assert isinstance(target, Block)
         self.target = target
         self.sourcepos = sourcepos
@@ -608,6 +611,7 @@ class Goto(Next):
 
 class ConditionalGoto(Next):
     def __init__(self, booleanvalue, truetarget, falsetarget, sourcepos=None):
+        from pydrofoil.ir import Block
         assert isinstance(truetarget, Block)
         assert isinstance(falsetarget, Block)
         assert isinstance(booleanvalue, Value)

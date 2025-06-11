@@ -1071,6 +1071,8 @@ class InterproceduralAbstractInterpreter(AbstractInterpreter):
         return result_location.read(self.graph)
 
     def analyze_FieldAccess(self, op):
+        if op.resolved_type not in RELEVANT_TYPES:
+            return None
         location = self._location_manager.get_location_for_field(
             op.args[0].resolved_type, op.name
         )
@@ -1078,6 +1080,8 @@ class InterproceduralAbstractInterpreter(AbstractInterpreter):
 
     def analyze_FieldWrite(self, op):
         # type: (ir.FieldWrite) -> None
+        if op.args[1].resolved_type not in RELEVANT_TYPES:
+            return None
         location = self._location_manager.get_location_for_field(
             op.args[0].resolved_type, op.name
         )

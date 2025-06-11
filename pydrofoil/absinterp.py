@@ -1095,7 +1095,7 @@ class InterproceduralAbstractInterpreter(AbstractInterpreter):
         # type: (ir.StructConstruction) -> None
         struct_type = op.resolved_type  # type: types.Struct
         for field_value, field_name in zip(op.args, struct_type.names):
-            field_type = struct_type.fieldtyps[field_name]
+            field_type = field_value.resolved_type
             if field_type not in RELEVANT_TYPES:
                 continue
             location = self._location_manager.get_location_for_field(

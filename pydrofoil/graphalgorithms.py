@@ -209,3 +209,52 @@ def immediate_dominators(G, start, pred):
                 changed = True
 
     return idom
+
+def compute_single_return_and_degree_two_phi_graph(G):
+    """ Removes all but one return statement
+        and splits up phi nodes so that any phi node has a in degree of two """
+    G = compute_single_return_graph(G)
+    return compute_max_phi_indeg_two_graph(G)
+
+
+def compute_single_return_graph(G):
+    """ Removes all but one return statement 
+        by introducing new phi nodes """
+    
+    from pydrofoil import ir
+    first_return = None
+    phi_block, phi_op = None, None
+
+    for block in G.iterblocks():
+        if block == phi_block: 
+            continue
+        if isinstance(block.next, ir.Return):
+            if not first_return:
+                # save the first block that has a Return as next for later
+                first_return = block
+                continue
+            elif not phi_op:
+                # we encountered the second block with a Return
+                # create new block as 'merge point' for all blocks that return
+                phi_block = ir.Block()
+                # emit phi and put first_return block as first predecessor for phi block
+                first_return_val = first_return.next.value
+                phi_op = phi_block.emit_phi([first_return], [first_return_val], first_return_val.resolved_type)
+                phi_block.next = ir.Return(phi_op)
+                # set phi block as next for first_return block
+                first_return.next = ir.Goto(phi_block, None)
+            # append current block to phi predecessors
+            phi_op.prevblocks.append(block)
+            phi_op.prevvalues.append(block.next.value)
+            # now set phi as next for the current block
+            block.next = ir.Goto(phi_block, None)
+
+    return G
+
+
+def compute_max_phi_indeg_two_graph(G):
+    """ Splits up phi nodes so that every phi has a maximum input degree of two """
+    pass
+    #current_block = G.startblock
+    #import pdb; pdb.set_trace()
+    #print(dir(current_block))

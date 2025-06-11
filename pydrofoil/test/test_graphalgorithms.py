@@ -50,4 +50,45 @@ def test_idom():
     assert idoms[block2] == block1
     assert idoms[block3] == block1
 
+def get_double_return_graph():
+    za = Argument('za', SmallFixedBitVector(1))
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    i2 = block0.emit(Operation, '@eq_bits_bv_bv', [za, SmallBitVectorConstant(0b0, SmallFixedBitVector(1))], Bool())
+    block0.next = ConditionalGoto(i2, block1, block2, '`1 124:10-124:45')
+    i3 = block1.emit(GlobalRead, 'zA', [], SmallFixedBitVector(16), None, None)
+    block1.next = Return(i3)
+    i4 = block2.emit(GlobalRead, 'zC', [], SmallFixedBitVector(16), None, None)
+    block2.next = Return(i4)
+    graph = Graph('f', [za], block0)
+    return block0, block1, block2, graph
 
+
+def test_compute_single_return_graph():
+    _, _, _, graph = get_double_return_graph()
+    
+    new_graph = graphalgorithms.compute_single_return_graph(graph)
+
+    startblock = new_graph.startblock
+    true_block = startblock.next.truetarget
+    false_block = startblock.next.falsetarget
+    phi_block = true_block.next.target
+    phi_op = phi_block.operations[0]
+
+    assert true_block.next.target == false_block.next.target
+    assert isinstance(true_block.next, Goto)
+    assert false_block.next.target == phi_block
+
+    assert phi_op.prevblocks == [true_block, false_block]
+    assert isinstance(phi_block.next, Return)
+    assert phi_block.next.value == phi_op 
+
+
+def test_compute_max_phi_indeg_two_graph():
+    pass
+    #_, _, _, graph = get_double_return_graph()
+    
+    #new_graph = graphalgorithms.compute_max_phi_indeg_two_graph(graph)
+
+    #assert False

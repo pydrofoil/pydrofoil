@@ -410,7 +410,15 @@ class Interpreter(object):
             assert block_to_interp[current] is None
             block_to_interp[current] = interp
             if len(self.entrymap[current]) > 1:
-                interp, index = self._compute_merge(current, interp, block_to_interp)
+                ### BFS order does NOT guarantee that all block preceeding a phi are executed before encountering the phi, see Nand2Tetris decode_compute_backwards ###
+                if self._check_if_merge_possible(self.entrymap[current], block_to_interp):
+                    interp, index = self._compute_merge(current, interp, block_to_interp)
+                else:
+                    ### If we did not execute all preceeding blocks already, reschedule the phi and try again later ###
+                    block_to_interp[current] = None
+                    schedule(current, interp)
+                    continue
+                ### TODO: think of a better solution for this ###
             interp._run_block(current, index)
             interp._schedule_next(current.next, schedule)
             if interp.w_result is not None:
@@ -475,12 +483,17 @@ class Interpreter(object):
         else:
             assert 0, "implement %s" %str(next)
         return 
+    
+    def _check_if_merge_possible(self, prevblocks, block_to_interp):
+        for prevblock in prevblocks:
+            if block_to_interp.get(prevblock) is None: return False
+        return True
 
     def _compute_merge(self, block, scheduleinterp, block_to_interp):
         prevblocks = self.entrymap[block]
         interp = scheduleinterp.fork()
-        for prevblock in prevblocks:
-            assert block_to_interp.get(prevblock) is not None
+        #for prevblock in prevblocks: # this check is already done in run
+        #    assert block_to_interp.get(prevblock) is not None
         assert len(prevblocks) > 1
         for prevblock in prevblocks:
             previnterp = block_to_interp[prevblock]
@@ -756,6 +769,7 @@ class Interpreter(object):
 
     def exec_phi(self, op):
         """ get value of actual predecessor """
+        assert 0, "Every phi should be handled in _compute_merge"
         index = op.prevblocks.index(self.prev_block)
         return self.convert(op.prevvalues[index])
     
@@ -1045,7 +1059,8 @@ class NandInterpreter(Interpreter):
         self.wrte_memory(addr, value) # TODO: fix typo
 
 class RiscvInterpreter(Interpreter):
-    """ Interpreter subclass for RiscV ISA """
+    """ Interpreter subclass for RISCV ISA """
+
     def __init__(self, graph, args, shared_state=None, _64bit=False):# TODO , entrymap=None
         bits = 64 if _64bit else 32 
         super(RiscvInterpreter, self).__init__(graph, args, shared_state)# py2 super 

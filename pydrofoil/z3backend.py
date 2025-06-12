@@ -119,17 +119,6 @@ class BooleanConstant(AbstractConstant):
     def not_(self):
         return BooleanConstant(not self.value)
 
-class RaiseConstant(AbstractConstant):
-
-    def __init__(self, kind):
-        self.kind = kind
-
-    def __str__(self):
-        return "Raise Exception: " + self.kind
-    
-    def same_value(self, other):
-        import pdb; pdb.set_trace()
-
 class UnitConstant(AbstractConstant):
     
     def __init__(self):
@@ -385,7 +374,6 @@ class Interpreter(object):
         self.forknum = self.sharedstate.fork_counter
         self.sharedstate.fork_counter += 1
         self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
-        self.w_exception = StringConstant("No Exception")
         self.w_raises = BooleanConstant(False)
         ### TODO: Technicaly RPython cant return different types from a func, so this None handling, could be removed ???
         self.w_result_none = BooleanConstant(True)
@@ -415,7 +403,7 @@ class Interpreter(object):
                     interp, index = self._compute_merge(current, interp, block_to_interp)
                 else:
                     ### If we did not execute all preceeding blocks already, reschedule the phi and try again later ###
-                    block_to_interp[current] = None
+                    block_to_interp.pop(current)
                     schedule(current, interp)
                     continue
                 ### TODO: think of a better solution for this ###
@@ -479,7 +467,8 @@ class Interpreter(object):
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
         elif isinstance(next, ir.Raise):
-            self.w_result = RaiseConstant(str(next.kind))
+            self.w_raises = BooleanConstant(True)
+            #self.w_result = UnitConstant()
         else:
             assert 0, "implement %s" %str(next)
         return 
@@ -606,34 +595,29 @@ class Interpreter(object):
         return Z3Value(z3.And(*[w_arg.toz3() for w_arg in args_w]))  
     
     def merge_raise(self, w_cond, w_res_true, w_res_false, interp1, interp2):
-        """ Handle Exceptions, when a raise block raises the forks result is an instance of RaiseConstant """
-        if isinstance(w_res_true, RaiseConstant) and isinstance(w_res_false, RaiseConstant):
-            self.w_result = RaiseConstant("/") # result of computation
-            # Exception as String e.g. z3.If(cond, z3.StringVal("Excpetion A"), z3.StringVal("No Exception/ Exception B"))
-            self.w_exception = self._create_w_z3_if(w_cond, StringConstant(str(w_res_true)), StringConstant(str(w_res_false)))
-            self.w_raises = BooleanConstant(True) # bool cond for raise
+        """ Handle Exceptions, when a raise block raises the forks result is UNIT """
+        if (isinstance(interp1.w_raises, BooleanConstant) and interp1.w_raises.value == True 
+           and isinstance(interp2.w_raises, BooleanConstant) and interp2.w_raises.value == True):
+            self.w_result = UnitConstant() # if both forks raise, then there is no result
+            self.w_raises = BooleanConstant(True)
             self.w_result_none = BooleanConstant(True) # raise and raise dont return any value
-        elif isinstance(w_res_true, RaiseConstant):
-            self.w_exception = self._create_w_z3_if(w_cond, StringConstant(str(w_res_true)), interp2.w_exception)
+        elif isinstance(interp1.w_raises, BooleanConstant) and interp1.w_raises.value == True:
             self.w_raises = self._create_w_z3_if(w_cond, BooleanConstant(True), interp2.w_raises)
-        elif isinstance(w_res_false, RaiseConstant):
-            self.w_exception = self._create_w_z3_if(w_cond, interp1.w_exception, StringConstant(str(w_res_false))) 
+        elif isinstance(interp2.w_raises, BooleanConstant) and interp2.w_raises.value == True:
             self.w_raises = self._create_w_z3_if(w_cond, interp1.w_raises, BooleanConstant(True))
         else:
-            self.w_exception = self._create_w_z3_if(w_cond, interp1.w_exception, interp2.w_exception) 
             self.w_raises = self._create_w_z3_if(w_cond, interp1.w_raises, interp2.w_raises)
 
     def merge_result(self, w_cond, w_res_true, w_res_false, interp1, interp2):
         """ Handle Unit ~ None, when we return a UNIT we must handle it without converting it to z3
             Neither raise nor UNIT return somthing """
-        if ((isinstance(w_res_true, (UnitConstant, RaiseConstant)) and isinstance(w_res_false, UnitConstant))
-            or (isinstance(w_res_false, (UnitConstant, RaiseConstant)) and isinstance(w_res_true, UnitConstant))):
+        if isinstance(w_res_true, UnitConstant) and isinstance(w_res_false, UnitConstant):
             self.w_result = UnitConstant() # parent interpreter must handle this or this is the generel return value
             self.w_result_none = BooleanConstant(True)
-        elif isinstance(w_res_true, (UnitConstant, RaiseConstant)): 
+        elif isinstance(w_res_true, UnitConstant): 
             self.w_result = w_res_false
             self.w_result_none = self._create_w_z3_if(w_cond, BooleanConstant(True), interp2.w_result_none)
-        elif isinstance(w_res_false, (UnitConstant, RaiseConstant)):
+        elif isinstance(w_res_false, UnitConstant):
             self.w_result = w_res_true
             self.w_result_none = self._create_w_z3_if(w_cond, interp1.w_result_none, BooleanConstant(True))
         else:
@@ -683,7 +667,7 @@ class Interpreter(object):
                 # merge excepions, remove not needed branches of one interp raises
                 self.merge_raise(w_cond, w_res_true, w_res_false, interp1, interp2)
                 # merge results, remove not needed branches of one interp returns UNIT
-                #self.merge_result(w_cond, w_res_true, w_res_false, interp1, interp2)
+                self.merge_result(w_cond, w_res_true, w_res_false, interp1, interp2)
 
                 import pdb; pdb.set_trace()
                 for index, op in enumerate(block1.operations):
@@ -708,7 +692,8 @@ class Interpreter(object):
         elif isinstance(next, ir.Return):
             self.w_result = self.convert(next.value)
         elif isinstance(next, ir.Raise):
-            self.w_result = RaiseConstant(str(next.kind))
+            self.w_raises = BooleanConstant(True)
+            self.w_result = UnitConstant()
         else:
             assert 0, "implement %s" %str(next)
         return None, 0, False
@@ -788,8 +773,7 @@ class Interpreter(object):
         elif hasattr(self, "exec_%s" % op.name.replace("@","")):
             func = getattr(self, "exec_%s" % op.name.replace("@",""))
             result = func(op) # self passed implicitly
-            if result == None:
-                return
+            if result == None: return
         elif isinstance(op, ir.NonSSAAssignment):
             import pdb; pdb.set_trace()
         elif op.is_union_creation():
@@ -818,16 +802,16 @@ class Interpreter(object):
         w_res = interp_fork.run()
         self.registers = interp_fork.registers
         self.memory = interp_fork.memory
-        if isinstance(w_res, RaiseConstant):# case: func raises without condition
-            self.w_raises = BooleanConstant(True)
-            self.w_exception = StringConstant(w_res.kind)
-            self.unconditional_raise = True
-            self.w_result = RaiseConstant()
-            # doesnt matter if we write RaiseConstant into env, interpreter returns after this
-            # either it is the result of the general execution or the parent interpreter will handle the Raise 
-        else: # case: func did or didnt raise, but raise was behind a condition, so that any RaiseConstants are already gone
+        if isinstance(interp_fork.w_raises, BooleanConstant):
+            if interp_fork.w_raises.value == True:# case: func raises without condition
+                self.w_raises = BooleanConstant(True)
+                self.unconditional_raise = True
+                self.w_result = UnitConstant()
+            else:
+                # self.w_raises is self.w_raises or False
+                pass
+        else: # case: func did or didnt raise, but raise was behind a condition
             self.w_raises = self._create_w_z3_or(self.w_raises, interp_fork.w_raises)
-            self.w_exception = self._create_w_z3_if(interp_fork.w_raises, interp_fork.w_exception, self.w_exception) 
         self._debug_print("return from " + op.name + " -> " + str(w_res))
         return w_res
 

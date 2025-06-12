@@ -376,7 +376,6 @@ class Interpreter(object):
         self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
         self.w_raises = BooleanConstant(False)
         ### TODO: Technicaly RPython cant return different types from a func, so this None handling, could be removed ???
-        self.w_result_none = BooleanConstant(True)
         self.unconditional_raise = False # set to true to stop execution after encountering an unconditional raise
         self.w_result = None
         self.path_condition = []
@@ -600,7 +599,6 @@ class Interpreter(object):
            and isinstance(interp2.w_raises, BooleanConstant) and interp2.w_raises.value == True):
             self.w_result = UnitConstant() # if both forks raise, then there is no result
             self.w_raises = BooleanConstant(True)
-            self.w_result_none = BooleanConstant(True) # raise and raise dont return any value
         elif isinstance(interp1.w_raises, BooleanConstant) and interp1.w_raises.value == True:
             self.w_raises = self._create_w_z3_if(w_cond, BooleanConstant(True), interp2.w_raises)
         elif isinstance(interp2.w_raises, BooleanConstant) and interp2.w_raises.value == True:
@@ -613,16 +611,12 @@ class Interpreter(object):
             Neither raise nor UNIT return somthing """
         if isinstance(w_res_true, UnitConstant) and isinstance(w_res_false, UnitConstant):
             self.w_result = UnitConstant() # parent interpreter must handle this or this is the generel return value
-            self.w_result_none = BooleanConstant(True)
         elif isinstance(w_res_true, UnitConstant): 
             self.w_result = w_res_false
-            self.w_result_none = self._create_w_z3_if(w_cond, BooleanConstant(True), interp2.w_result_none)
         elif isinstance(w_res_false, UnitConstant):
             self.w_result = w_res_true
-            self.w_result_none = self._create_w_z3_if(w_cond, interp1.w_result_none, BooleanConstant(True))
         else:
             self.w_result = self._create_w_z3_if(w_cond, w_res_true, w_res_false)
-            self.w_result_none = self._create_w_z3_if(w_cond, interp1.w_result_none, interp2.w_result_none)
 
     def execute_next(self, next):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """

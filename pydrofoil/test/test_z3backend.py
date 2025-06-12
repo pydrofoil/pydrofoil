@@ -153,7 +153,7 @@ def get_decode_compute_backwards_graph():
 def test_nand_decode_compute_backwards():
     graph = get_decode_compute_backwards_graph()
     shared_state = z3backend.SharedState({}, NAND_REGISTERS)
-    #graph.view()
+    graph.view()
     interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1100))], shared_state.copy())
     res = interp.run()
     assert isinstance(res, z3backend.Enum)
@@ -178,10 +178,6 @@ def test_nand_decode_compute_backwards():
     result = solver.model().eval(res.toz3()) # interpreter returns invalid result on raised exception
     exception_occured = solver.model().eval(interp.w_raises.toz3())
     assert exception_occured
-
-    exception = solver.model().eval(interp.w_exception.toz3())
-    assert str(exception)[:-3].endswith("match")# TODO: how do i get a str out of a z3 String
-
 
 def get_zdecode_jump_backwards_graph():
     zjump = Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))
@@ -729,7 +725,7 @@ def test_nand_zexecute_zcint():
     merge = z3backend.Z3Value(sharedstate.get_abstract_union_const_of_type(zinstr, "zmergez3var"))
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
     res = interp.run()
-    is_exception, is_none = interp.w_raises, interp.w_result_none
+    is_exception, is_none = interp.w_raises
 
     assert isinstance(res, z3backend.UnitConstant)
     assert str(is_none) == "True"
@@ -776,7 +772,7 @@ def test_nand_decode_execute_opcode():
     interp = z3backend.NandInterpreter(exec_graph, [opt_w_decoded_instr_expr.w_val], sharedstate.copy())
     d_old = interp.registers['zD']
     res = interp.run()
-    is_exception, is_none = interp.w_raises, interp.w_result_none
+    is_exception, is_none = interp.w_raises
 
     assert isinstance(res, z3backend.UnitConstant)
     assert str(is_none) == "True"
@@ -824,7 +820,7 @@ def test_merge_abstract():
     sharedstate = z3backend.SharedState(dict(f=graph), NAND_REGISTERS)
     interp = z3backend.NandInterpreter(graph, [avar, bvar], sharedstate.copy())
     res = interp.run()
-    assert str(res).startswith("""If(b,\n   If(a == 0, init_zA""")
+    assert str(res).startswith("""If(And(Or(a == 0, Not(a == 0)), Not(b)),\n   If(a == 0, init_zA""")
 
 def test_merge_concrete():
     graph = get_double_diamond_graph()

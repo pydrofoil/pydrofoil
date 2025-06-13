@@ -62,13 +62,14 @@ class StringConstant(AbstractConstant):
             return False
         return self.value == other.value
 
-class ConstantSmallBitVector(AbstractConstant): # TODO: rename to ConstantSmallBitVector
+class ConstantSmallBitVector(AbstractConstant):
     
-    def __init__(self, val):
+    def __init__(self, val, width):
         self.value = val
+        self.width = width
 
     def toz3(self):
-        return int(self.value)
+        return z3.BitVecVal(self.value, self.width)
     
     def same_value(self, other):
         if not isinstance(other, ConstantSmallBitVector):
@@ -384,7 +385,6 @@ class Interpreter(object):
         self.sharedstate.fork_counter += 1
         self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
         self.w_raises = BooleanConstant(False)
-        ### TODO: Technicaly RPython cant return different types from a func, so this None handling, could be removed ???
         self.unconditional_raise = False # set to true to stop execution after encountering an unconditional raise
         self.w_result = None
         self.path_condition = []
@@ -424,8 +424,10 @@ class Interpreter(object):
                 # TODO: run should return w_result, memory, registers
                 self.registers = interp.registers
                 self.memory = interp.memory
+                self.w_raises = interp.w_raises
                 return interp.w_result
             
+        self.w_raises = interp.w_raises
         return self.w_result
 
     def _run_block(self, block, index=0):
@@ -537,6 +539,7 @@ class Interpreter(object):
         f_interp.memory = self.memory # z3 array is immutable
         f_interp.path_condition = self.path_condition if path_condition is None else path_condition
         f_interp.dummy_execution = dummy_execution
+        f_interp.w_raises = self.w_raises # if self raises, the frok must to
         return f_interp
     
     def call_fork(self, graph, args):
@@ -624,7 +627,6 @@ class Interpreter(object):
             return next.target, 0, False
         elif isinstance(next, ir.ConditionalGoto):
             w_cond = self.convert(next.booleanvalue)
-            import pdb;  pdb.set_trace()
             if isinstance(w_cond, BooleanConstant):
                 if w_cond.value:
                     block = next.truetarget
@@ -663,7 +665,6 @@ class Interpreter(object):
                 # merge results, remove not needed branches of one interp returns UNIT
                 self.merge_result(w_cond, w_res_true, w_res_false, interp1, interp2)
 
-                import pdb; pdb.set_trace()
                 for index, op in enumerate(block1.operations):
                     if isinstance(op, ir.Phi):
                         assert len(op.prevvalues) == 2
@@ -702,7 +703,7 @@ class Interpreter(object):
     def convert(self, arg):
         """ wrap an argument or load wrapped arg from env """
         if isinstance(arg, ir.SmallBitVectorConstant):
-            w_arg = ConstantSmallBitVector(arg.value)
+            w_arg = ConstantSmallBitVector(arg.value, arg.resolved_type.width)
         elif isinstance(arg, ir.EnumConstant):
             enumname =  "enum_%s" % arg.resolved_type.name
             if not enumname in self.sharedstate.enums:
@@ -941,49 +942,49 @@ class Interpreter(object):
     def exec_not_vec_bv(self, op):
         arg0, _ = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector):
-            return ConstantSmallBitVector(~arg0.value)
+            return ConstantSmallBitVector(~arg0.value, op.resolved_type.width)
         else:
             return Z3Value(~arg0.toz3())
         
     def exec_sub_bits_bv_bv(self, op):
         arg0, arg1, arg2 = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
-            return ConstantSmallBitVector(arg0.value - arg1.value)
+            return ConstantSmallBitVector(arg0.value - arg1.value, op.resolved_type.width)
         else:
             return Z3Value(arg0.toz3() - arg1.toz3())
 
     def exec_add_bits_int_bv_i(self, op):
         arg0, arg1, _ = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
-            return ConstantSmallBitVector(supportcode.add_bits_int_bv_i(None, arg0.value, arg1.value)) 
+            return ConstantSmallBitVector(supportcode.add_bits_int_bv_i(None, arg0.value, arg1.value), op.resolved_type.width) 
         else:
             return Z3Value(arg0.toz3() + arg1.toz3())
 
     def exec_add_bits_bv_bv(self, op):
         arg0, arg1, _ = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
-            return ConstantSmallBitVector(arg0.value + arg1.value) 
+            return ConstantSmallBitVector(arg0.value + arg1.value, op.resolved_type.width) 
         else:
             return Z3Value(arg0.toz3() + arg1.toz3())
 
     def exec_and_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
-            return ConstantSmallBitVector(arg0.value & arg1.value) 
+            return ConstantSmallBitVector(arg0.value & arg1.value, op.resolved_type.width) 
         else:
             return Z3Value(arg0.toz3() & arg1.toz3())
         
     def exec_xor_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
-            return ConstantSmallBitVector(arg0.value ^ arg1.value) 
+            return ConstantSmallBitVector(arg0.value ^ arg1.value, op.resolved_type.width) 
         else:
             return Z3Value(arg0.toz3() ^ arg1.toz3())
 
     def exec_or_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
-            return ConstantSmallBitVector(arg0.value | arg1.value) 
+            return ConstantSmallBitVector(arg0.value | arg1.value, op.resolved_type.width) 
         else:
             return Z3Value(arg0.toz3() | arg1.toz3())
         
@@ -991,7 +992,7 @@ class Interpreter(object):
         """ slice bitvector as bv[arg1:arg0] both inclusive """
         arg0, arg1, arg2 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector):
-            return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value))
+            return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
         else:
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
 
@@ -999,14 +1000,14 @@ class Interpreter(object):
         """ extend bitvector from arg1 to arg2 with zeros """
         arg0, arg1, arg2 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector):
-            return ConstantSmallBitVector(arg0.valued)
+            return ConstantSmallBitVector(arg0.value, op.resolved_type.width)
         else:
             return Z3Value(z3.ZeroExt(arg2.value - arg1.value, arg0.toz3()))
 
     def exec_sign_extend_bv_i_i(self, op):
         arg0, arg1, arg2 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector):
-            return ConstantSmallBitVector(supportcode.sign_extend_bv_i_i(None, arg0.value, arg1.value, arg2.value))
+            return ConstantSmallBitVector(supportcode.sign_extend_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
         else:
             return Z3Value(z3.SignExt(arg2.value - arg1.value, arg0.toz3()))
 

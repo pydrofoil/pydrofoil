@@ -493,6 +493,24 @@ def test_bitvector_big():
     assert bv == 2**100
 
 # ________________________________________________
+# memory interception
+
+def test_step_intercept_mem():
+    mem = {}
+    def read(addr):
+        return mem.get(addr, _pydrofoil.bitvector(64, 0))
+    def write(addr, value):
+        mem[addr] = value
+
+    callbacks = _pydrofoil.Callbacks(mem_read8_intercept=read, mem_write8_intercept=write)
+    cpu = _pydrofoil.RISCV64(addielf, callbacks=callbacks)
+    cpu.run(100)
+    assert cpu.read_register("pc") == 0x800001f0
+    assert mem[_pydrofoil.bitvector(64, 0x0000000010000000)] == _pydrofoil.bitvector(64, 0x34202F7304C0006F)
+    assert cpu.memory_info() == [(0x1000, 0x80001047)]
+
+
+# ________________________________________________
 # testing the sail types
 
 def test_sailtype_new():

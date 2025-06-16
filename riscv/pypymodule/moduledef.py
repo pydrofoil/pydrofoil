@@ -39,6 +39,7 @@ class Module(MixedModule):
     interpleveldefs = {
         'RISCV64': 'interp_plugin.W_RISCV64',
         'RISCV32': 'interp_plugin.W_RISCV32',
+        'Callbacks': 'interp_plugin.W_Callbacks',
         'bitvector': 'interp_plugin.BitVector',
     }
 

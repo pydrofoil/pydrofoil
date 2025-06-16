@@ -73,10 +73,6 @@ class Version(object):
 class FlatMemory(MemBase):
     SIZE = 64 * 1024 * 1024 // 8 # 64 MB
 
-    PAGE_BITS = 9
-    PAGE_SIZE = 1 << 9
-    PAGE_MASK = PAGE_SIZE - 1
-
     _immutable_fields_ = ['mem?', 'version?', 'status', 'base_addr']
 
     def __init__(self, mmap=False, size=SIZE, base_addr=0):

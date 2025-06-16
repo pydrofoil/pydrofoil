@@ -52,6 +52,8 @@ def wrap_fn(fn):
             w_module = space.getbuiltinmodule('_pydrofoil')
             w_error = space.getattr(w_module, space.newtext('SailAssertionError'))
             raise OperationError(w_error, space.newtext(e.msg))
+        except OperationError:
+            raise
         except Exception as e:
             if not objectmodel.we_are_translated():
                 import pdb; pdb.xpm()
@@ -429,13 +431,19 @@ def _make_argument_converter_func(argument_converters, cache={}):
     return convert
 
 class MachineAbstractBase(object):
-    def __init__(self, space, elf=None, dtb=False):
+    def __init__(self, space, elf=None, dtb=False, w_callbacks=None):
         self._init_machine()
         self.space = space
         self.elf = elf
         if dtb:
             self.machine.g._create_dtb()
         init_mem(space, self.machine, MemoryObserver)
+        if w_callbacks:
+            mem = ApplevelCallbackMemory(space, w_callbacks.w_mem_read8_intercept,
+                                         w_callbacks.w_mem_write8_intercept)
+            observer = self.machine.g.mem
+            assert isinstance(observer, MemoryObserver)
+            observer.wrapped = mem
         if elf is not None:
             entry = load_sail(space, self.machine, elf)
         else:
@@ -470,11 +478,13 @@ class MachineAbstractBase(object):
 
         kind_of_access is a string, either "read", "read_executable", or
         "write". """
-        result = self.machine.g.mem.memory_observer = []
+        mem = self.machine.g.mem
+        assert isinstance(mem, MemoryObserver)
+        result = mem.memory_observer = []
         try:
             self.step()
         finally:
-            self.machine.g.mem.memory_observer = None
+            mem.memory_observer = None
         space = self.space
         res_w = []
         for kind, start_addr, num_bytes, value in result:
@@ -605,6 +615,60 @@ class MemoryObserver(mem_mod.MemBase):
         return self.wrapped.memory_info()
 
 
+class ApplevelCallbackMemory(mem_mod.MemBase):
+    def __init__(self, space, w_read, w_write):
+        self.space = space
+        self.w_read = w_read
+        self.w_write = w_write
+        self.min_addr = r_uint(2 ** 64 - 1)
+        self.max_addr = r_uint(0)
+
+    def _split_addr(self, start_addr, num_bytes):
+        mem_offset = start_addr >> 3
+        inword_addr = start_addr & 0b111
+        # little endian
+        if num_bytes == 8:
+            mask = r_uint(-1)
+        else:
+            mask = (r_uint(1) << (num_bytes * 8)) - 1
+        return mem_offset, inword_addr, mask
+
+    def _aligned_read(self, start_addr, num_bytes, executable_flag):
+        mem_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+        data = self._read_word(mem_offset)
+        if num_bytes == 8:
+            assert inword_addr == 0
+            return data
+        return (data >> (inword_addr * 8)) & mask
+
+    def _aligned_write(self, start_addr, num_bytes, value):
+        self.min_addr = min(start_addr, self.min_addr)
+        self.max_addr = max(start_addr + num_bytes - 1, self.max_addr)
+        mem_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+        if num_bytes == 8:
+            assert inword_addr == 0
+            self._write_word(mem_offset, value)
+            return
+        assert value & ~mask == 0
+        olddata = self._read_word(mem_offset)
+        mask <<= inword_addr * 8
+        value <<= inword_addr * 8
+        self._write_word(mem_offset, (olddata & ~mask) | value)
+
+    def _read_word(self, addr):
+        w_res = self.space.call_function(self.w_read, BitVector.from_ruint(64, addr))
+        res = self.space.interp_w(BitVector, w_res)
+        return res.touint(64)
+
+    def _write_word(self, addr, value):
+        w_addr = BitVector.from_ruint(64, addr)
+        w_value = BitVector.from_ruint(64, value)
+        self.space.call_function(self.w_write, w_addr, w_value)
+
+    def memory_info(self):
+        return [(intmask(self.min_addr), intmask(self.max_addr))]
+
+
 class W_RISCV64(W_Root):
     """ Emulator for a RISC-V 64-bit CPU """
     objectmodel.import_from_mixin(MachineAbstractBase)
@@ -614,11 +678,11 @@ class W_RISCV64(W_Root):
 
 
 @unwrap_spec(elf="text_or_none", dtb=bool)
-def riscv64_descr_new(space, w_subtype, elf=None, dtb=False):
+def riscv64_descr_new(space, w_subtype, elf=None, dtb=False, w_callbacks=None):
     """ Create a RISC-V 64-bit CPU. Load elf if given, and create a device tree
     binary if the flag dtb is set. """
     w_res = space.allocate_instance(W_RISCV64, w_subtype)
-    W_RISCV64.__init__(w_res, space, elf, dtb)
+    W_RISCV64.__init__(w_res, space, elf, dtb, w_callbacks)
     return w_res
 
 
@@ -649,11 +713,11 @@ class W_RISCV32(W_Root):
 
 
 @unwrap_spec(elf="text_or_none", dtb=bool)
-def riscv32_descr_new(space, w_subtype, elf=None, dtb=False):
+def riscv32_descr_new(space, w_subtype, elf=None, dtb=False, w_callbacks=None):
     """ Create a RISC-V 32-bit CPU. Load elf if given, and create a device tree
     binary if the flag dtb is set. """
     w_res = space.allocate_instance(W_RISCV32, w_subtype)
-    W_RISCV32.__init__(w_res, space, elf, dtb)
+    W_RISCV32.__init__(w_res, space, elf, dtb, w_callbacks)
     return w_res
 
 
@@ -923,3 +987,32 @@ app = applevel(content, filename=__file__)
 app_repr_union = app.interphook('repr_union')
 app_repr_struct = app.interphook('repr_struct')
 app_hash_union = app.interphook('hash_union')
+
+# ________________________________________________
+
+class W_Callbacks(W_Root):
+    _immutable_fields_ = ['w_mem_read8_intercept', 'w_mem_write8_intercept']
+
+    def __init__(self, w_mem_read8_intercept, w_mem_write8_intercept):
+        self.w_mem_read8_intercept = w_mem_read8_intercept
+        self.w_mem_write8_intercept = w_mem_write8_intercept
+
+    def descr_repr(self, space):
+        res = ["_pydrofoil.Callbacks("]
+        if self.w_mem_read8_intercept:
+            res.append("mem_read8_intercept=")
+            res.append(space.text_w(self.w_mem_read8_intercept))
+        if self.w_mem_write8_intercept:
+            res.append("mem_write8_intercept=")
+            res.append(space.text_w(self.w_mem_write8_intercept))
+        res.append(")")
+        return space.newtext(''.join(res))
+
+def callbacks_descr_new(space, w_subtype, __kwonly__, w_mem_read8_intercept=None, w_mem_write8_intercept=None):
+    return W_Callbacks(w_mem_read8_intercept, w_mem_write8_intercept)
+
+W_Callbacks.typedef = TypeDef("_pydrofoil.Callbacks",
+    __new__ = interp2app(callbacks_descr_new),
+    __repr__ = interp2app(W_Callbacks.descr_repr),
+)
+W_Callbacks.acceptable_as_base_class = False

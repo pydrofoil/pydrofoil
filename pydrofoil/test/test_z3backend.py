@@ -152,7 +152,6 @@ def get_decode_compute_backwards_graph():
 
 def test_nand_decode_compute_backwards():
     graph = get_decode_compute_backwards_graph()
-    graph.view()
     shared_state = z3backend.SharedState({}, NAND_REGISTERS)
     interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b1100), 16)], shared_state.copy())
     res = interp.run()
@@ -184,7 +183,6 @@ def test_nand_decode_compute_backwards():
     solver.check()
     result = solver.model().eval(res.toz3()) # interpreter returns invalid result on raised exception
     exception_occured = solver.model().eval(interp.w_raises.toz3())
-
     assert exception_occured
 
 def get_zdecode_jump_backwards_graph():
@@ -242,20 +240,23 @@ def test_nand_decode_jump_backwards():
     graph = get_zdecode_jump_backwards_graph()
     shared_state = z3backend.SharedState({}, NAND_REGISTERS)
 
-    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b11), 16)], shared_state.copy())
+    interp = z3backend.NandInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0b11), 6)], shared_state.copy())
     res = interp.run()
     assert isinstance(res, z3backend.Enum)
     assert res.variant == "zJGE"
 
-    x = z3.BitVec("x", 6)
+    x = z3.BitVec("x", 3)
     interp = z3backend.NandInterpreter(graph, [z3backend.Z3Value(x)], shared_state.copy())
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
-    assert str(res.value).startswith("If(x == 0,\n   zJDONT,\n   If(x == 1,")
+    assert str(res.value).endswith("""               zJGE,
+               If(And(Not(x == 0), Not(x == 1), x == 2),
+                  zJEQ,
+                  If(And(Not(x == 0), x == 1), zJGT, zJDONT)))))))""")
 
     # Now try to eval created z3 fromula for a concrete value
     solver = z3.Solver()
-    solver.add(x == 7) #=> opcode zJMP
+    solver.add(x == 0b111) #=> opcode zJMP
     solver.check()
     result_enum = solver.model().eval(res.toz3()) # dont have access to 'real' z3 enum vars here
     assert str(result_enum) == "zJMP"
@@ -552,7 +553,12 @@ def test_nand_decode():
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
-    assert str(res).startswith("If(Extract(15, 15, zmergez3var) == 0,\n   zSomezIUinstrzIzKzK(zAINST(ZeroExt(")
+    assert str(res).startswith("""If(And(Not(Extract(15, 15, zmergez3var) == 0),
+       Not(Extract(15, 13, zmergez3var) == 7)),
+   zNonezIUinstrzIzKzK,
+   If(And(Not(Extract(15, 15, zmergez3var) == 0),
+          Extract(15, 13, zmergez3var) == 7),
+      zSomezIUinstrzIzKzK(zCINST(a(Extract(12""")
     merge = z3backend.ConstantSmallBitVector(0b1110101010000000, 16)
     interp = z3backend.NandInterpreter(graph, [merge],  sharedstate.copy())
     res = interp.run()
@@ -733,12 +739,19 @@ def test_nand_zexecute_zcint():
     merge = z3backend.Z3Value(sharedstate.get_abstract_union_const_of_type(zinstr, "zmergez3var"))
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
     res = interp.run()
-    is_exception, is_none = interp.w_raises
+    is_exception = interp.w_raises
 
     assert isinstance(res, z3backend.UnitConstant)
-    assert str(is_none) == "True"
     assert str(is_exception) == "False"
     assert str(interp.registers["zA"]).startswith("If(")
+
+def test_nand_zassign_dest_graph_entrymap():
+    """ For some reasen the entrymap says that some blocks have more entrys as they actually have """
+    ### Num hours it took to find out that is the issue for a failing register write: 7 ###
+    graph = get_zassign_dest_graph()
+    entrymap = graph.make_entrymap()
+    for block in entrymap.keys():
+        assert len(entrymap[block]) < 3 
 
 def test_nand_decode_execute_opcode():
     ### test decoding and execute an instruction ###
@@ -780,11 +793,9 @@ def test_nand_decode_execute_opcode():
     interp = z3backend.NandInterpreter(exec_graph, [opt_w_decoded_instr_expr.w_val], sharedstate.copy())
     d_old = interp.registers['zD']
     res = interp.run()
-    is_exception, is_none = interp.w_raises
 
     assert isinstance(res, z3backend.UnitConstant)
-    assert str(is_none) == "True"
-    assert str(z3.simplify(is_exception.toz3())) == "False"
+    assert str(z3.simplify(interp.w_raises.toz3())) == "False"
 
     zD_res = interp.registers["zD"].toz3()
     solver = z3.Solver()
@@ -828,7 +839,9 @@ def test_merge_abstract():
     sharedstate = z3backend.SharedState(dict(f=graph), NAND_REGISTERS)
     interp = z3backend.NandInterpreter(graph, [avar, bvar], sharedstate.copy())
     res = interp.run()
-    assert str(res).startswith("""If(And(Or(a == 0, Not(a == 0)), Not(b)),\n   If(a == 0, init_zA""")
+    assert str(res).startswith("""If(And(Or(Or(a == 0, a == 0), Not(a == 0)), Not(b)),
+   If(a == 0, init_zA!6150, init_zC!6151) + 1 + 15,
+   If(a == 0, init_zA!6150, init_zC!6151) + 1 + 7)""")
 
 def test_merge_concrete():
     graph = get_double_diamond_graph()

@@ -229,6 +229,8 @@ class SharedState(object):
         self.type_cache = {}
         self.union_field_cache = {} # (union_name,union_field):z3_type
         self.fork_counter = 0
+        self._cond_map = {} # (ir.Operation or Z3ComparisonValue, compare operation, ir.Operation or Z3ComparisonValue) -> Z3ComparisonValue
+        self._raise_path_map = {} # (Z3ComparisonValue, path or None) -> path
 
     def get_z3_struct_type(self, resolved_type):
         if resolved_type in self.type_cache:
@@ -410,25 +412,42 @@ class Interpreter(object):
                 ### BFS order does NOT guarantee that all block preceeding a phi are executed before encountering the phi, see Nand2Tetris decode_compute_backwards ###
                 if self._check_if_merge_possible(self.entrymap[current], block_to_interp):
                     interp, index = self._compute_merge(current, interp, block_to_interp)
+                    self.registers = interp.registers
+                    self.memory = interp.memory
                 else:
                     ### If we did not execute all preceeding blocks already, reschedule the phi and try again later ###
                     block_to_interp.pop(current)
                     schedule(current, interp)
                     continue
                 ### TODO: think of a better solution for this ###
-            #interp._debug_print("run block %s" % str(current))
+            #elif len(current.operations) > 0 and isinstance(current.operations[0], ir.Phi):
+                #import pdb; pdb.set_trace()
+            #interp._debug_print("run block %s" % str(current.next))
+            #if "zassign_dest" in str(interp.graph): import pdb; pdb.set_trace()
             interp._run_block(current, index)
             interp._schedule_next(current.next, schedule)
+            if not self is interp:
+                self.w_raises = self._top_level_raise_merge(interp.w_raises)
+
             if interp.w_result is not None:
                 assert not todo
-                # TODO: run should return w_result, memory, registers
-                self.registers = interp.registers
-                self.memory = interp.memory
-                self.w_raises = interp.w_raises
-                return interp.w_result
-            
-        self.w_raises = interp.w_raises
+                # Must set regs and mem from interp that executed the phi that is input for the return
+                #if len(interp.entrymap[current]) > 1:# there are graphs with only one block with return as next
+                #    prev_phi_interp = block_to_interp[interp.entrymap[current][0]]
+                #    self.registers = prev_phi_interp.registers
+                #    self.memory = prev_phi_interp.memory
+                return interp.w_result # TODO: run should return w_result, memory, registers
+        
+        assert not todo     
         return self.w_result
+    
+    def _top_level_raise_merge(self, w_raises):
+        if isinstance(w_raises, BooleanConstant):
+            if w_raises.value:
+                return w_raises
+            else:
+                return self.w_raises
+        return self._create_w_z3_or(self.w_raises, w_raises)
 
     def _run_block(self, block, index=0):
         if self.dummy_execution:
@@ -439,18 +458,18 @@ class Interpreter(object):
                 self.execute_op(op)
 
     
-    def _schedule_next(self, next, schedule):
+    def _schedule_next(self, block_next, schedule):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
-        if isinstance(next, ir.Goto):
-            schedule(next.target, self)
+        if isinstance(block_next, ir.Goto):
+            schedule(block_next.target, self.fork(self.path_condition))
             return
-        elif isinstance(next, ir.ConditionalGoto):
-            w_cond = self.convert(next.booleanvalue)
+        elif isinstance(block_next, ir.ConditionalGoto):
+            w_cond = self.convert(block_next.booleanvalue)
 
-            interp1 = self.fork(self.path_condition + [w_cond])
-            interp1.environment[next.booleanvalue] = BooleanConstant(True)
+            interp1 = self.fork(self.path_condition + [w_cond])# TODO: handle the conditions better
+            interp1.environment[block_next.booleanvalue] = BooleanConstant(True)
             interp2 = self.fork(self.path_condition + [w_cond.not_()])
-            interp2.environment[next.booleanvalue] = BooleanConstant(False)
+            interp2.environment[block_next.booleanvalue] = BooleanConstant(False)
 
             if 0 and isinstance(w_cond, BooleanConstant):
                 # default value for false branches deactivated until I know if it makes sense
@@ -459,15 +478,15 @@ class Interpreter(object):
                 else:
                     interp2.dummy_execution = True
 
-            schedule(next.truetarget, interp1)
-            schedule(next.falsetarget, interp2)
+            schedule(block_next.truetarget, interp1)
+            schedule(block_next.falsetarget, interp2)
             return
-        elif isinstance(next, ir.Return):
-            self.w_result = self.convert(next.value)
-        elif isinstance(next, ir.Raise):
-            self.w_raises = BooleanConstant(True)
+        elif isinstance(block_next, ir.Return):
+            self.w_result = self.convert(block_next.value)
+        elif isinstance(block_next, ir.Raise):
+            self.w_raises = self.w_path_condition()
         else:
-            assert 0, "implement %s" %str(next)
+            assert 0, "implement %s" %str(block_next)
         return 
     
     def _check_if_merge_possible(self, prevblocks, block_to_interp):
@@ -477,16 +496,16 @@ class Interpreter(object):
 
     def _compute_merge(self, block, scheduleinterp, block_to_interp):
         prevblocks = self.entrymap[block]
-        interp = scheduleinterp.fork()
+        #interp = scheduleinterp.fork()
         assert len(prevblocks) > 1
+        #if "zassign_dest" in str(scheduleinterp.graph): import pdb; pdb.set_trace()#  and "Return" in str(block)
         for prevblock in prevblocks:
             previnterp = block_to_interp[prevblock]
             if previnterp is scheduleinterp: continue
             w_cond = previnterp.w_path_condition()
-            interp.path_condition = [self._create_w_z3_or(interp.w_path_condition(), w_cond)]
-            interp.registers = {reg:self._create_w_z3_if(w_cond, previnterp.registers[reg], interp.registers[reg]) for reg in self.registers}
-            interp.memory = self._create_z3_if(w_cond.toz3(), previnterp.memory, interp.memory)
-            interp.w_raises = self._create_w_z3_if(w_cond, previnterp.w_raises, interp.w_raises)     
+            scheduleinterp.path_condition = [self._create_w_z3_or(scheduleinterp.w_path_condition(), w_cond)]
+            scheduleinterp.registers = {reg:self._create_w_z3_if(w_cond, previnterp.registers[reg], scheduleinterp.registers[reg]) for reg in self.registers}
+            scheduleinterp.memory = self._create_z3_if(w_cond.toz3(), previnterp.memory, scheduleinterp.memory)
         for index, op in enumerate(block.operations):
             if isinstance(op, ir.Phi):
                 w_value = None
@@ -498,10 +517,10 @@ class Interpreter(object):
                         w_value = w_prevvalue
                     else:
                         w_value = self._create_w_z3_if(w_cond, w_prevvalue, w_value)
-                interp.environment[op] = w_value
+                scheduleinterp.environment[op] = w_value
             else:
-                return interp, index
-        return interp, len(block.operations) # only phis in this block
+                return scheduleinterp, index
+        return scheduleinterp, len(block.operations) # only phis in this block
         
     def w_path_condition(self):
         return self._create_w_z3_and(*self.path_condition)
@@ -545,9 +564,10 @@ class Interpreter(object):
     def call_fork(self, graph, args):
         """ create a copy of the interpreter, for evaluating func calls"""
         cls = type(self)
-        f_interp = cls(graph, args, self.sharedstate, self.entrymap)
+        f_interp = cls(graph, args, self.sharedstate)# dont pass entrymap, must compute entrymap for new graph in init
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
+        f_interp.w_raises = self.w_raises
         return f_interp
     
     def _create_z3_if(self, cond, true, false):
@@ -577,6 +597,7 @@ class Interpreter(object):
                 return w_b
             return w_a
         if w_a.same_value(w_b): return w_a
+        #self._debug_print(str(w_a) + " -or- " + str(w_b) + "  " + str(w_a.same_value(w_b)) +  " " + str((w_a.__class__, w_b.__class__)))
         # TODO: check for equal z3value and not z3value
         return Z3Value(z3.Or(w_a.toz3(), w_b.toz3()))
 
@@ -802,9 +823,9 @@ class Interpreter(object):
 
     def exec_func_call(self, op, graph):
         self._debug_print("graph " + self.graph.name + " func call " + op.name)
-
-        args = self.getargs(op)
-        interp_fork = self.call_fork(graph, args)
+        #if "zassign_dest" in op.name: import pdb; pdb.set_trace()
+        func_args = self.getargs(op)
+        interp_fork = self.call_fork(graph, func_args)
         w_res = interp_fork.run()
         self.registers = interp_fork.registers
         self.memory = interp_fork.memory

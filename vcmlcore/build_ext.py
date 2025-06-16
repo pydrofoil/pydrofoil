@@ -21,16 +21,20 @@ ffibuilder.embedding_init_code("""
     from _pydrofoilcapi_cffi import ffi
     import _pydrofoil
 
-    all_cpus = {}
+    all_cpu_handles = []
 
     class C:
         def __init__(self, n=None):
-            self.cpu = _pydrofoil.RISCV64(n)
-            self.steps = 0
+            self.arg = n
+            self.reset()
 
         def step(self):
             self.steps += 1
             self.cpu.step()
+
+        def reset(self):
+            self.cpu = _pydrofoil.RISCV64(self.arg)
+            self.steps = 0
 
     @ffi.def_extern()
     def pydrofoil_allocate_cpu(s):
@@ -39,30 +43,46 @@ ffibuilder.embedding_init_code("""
         else:
             filename = None
         print(filename)
-        index = len(all_cpus)
-        all_cpus[index] = C(filename)
-        return ffi.new_handle(index)
+
+        all_cpu_handles.append(res := ffi.new_handle(C(filename)))
+        return res
 
     @ffi.def_extern()
-    def pydrofoil_simulate_cpu(i, steps):
-        cpu = all_cpus[ffi.from_handle(i)]
+    def pydrofoil_free_cpu(i):
+        try:
+            all_cpu_handles.remove(i)
+        except Exception:
+            return -1
+        return 0
+
+    @ffi.def_extern()
+    def pydrofoil_cpu_simulate(i, steps):
+        cpu = ffi.from_handle(i)
         for i in range(steps):
             cpu.step()
         return steps
 
     @ffi.def_extern()
-    def pydrofoil_cycles_cpu(i):
-        cpu = all_cpus[ffi.from_handle(i)]
+    def pydrofoil_cpu_cycles(i):
+        cpu = ffi.from_handle(i)
         return cpu.steps
 
     @ffi.def_extern()
-    def pydrofoil_free_cpu(i):
-        try:
-            del all_cpus[ffi.from_handle(i)]
-        except Exception:
-            return -1
+    def pydrofoil_cpu_pc(i):
+        cpu = ffi.from_handle(i)
+        return cpu.cpu.read_register('pc')
+
+    @ffi.def_extern()
+    def pydrofoil_cpu_reset(i):
+        cpu = ffi.from_handle(i)
+        cpu.reset()
         return 0
 
+    @ffi.def_extern()
+    def pydrofoil_cpu_set_verbosity(i, v):
+        cpu = ffi.from_handle(i)
+        cpu.cpu.set_verbosity(bool(v))
+        return 0
 """)
 
 ffibuilder.emit_c_code("_pydrofoilcapi_cffi.c")

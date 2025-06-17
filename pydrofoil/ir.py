@@ -1962,7 +1962,6 @@ def remove_superfluous_bitvector_cases(graph, codegen):
                     possible_values_arg1 = values_in_block[arg1]
                     assert len(possible_values_arg1) == 1
                     if possible_values_arg0 == possible_values_arg1:
-                        import pdb;pdb.set_trace()
                         changed = True
                         block.next.booleanvalue = BooleanConstant.TRUE
                     else:

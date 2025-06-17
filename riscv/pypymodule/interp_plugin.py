@@ -447,6 +447,7 @@ def _make_argument_converter_func(argument_converters, cache={}):
 
 class MachineAbstractBase(object):
     def __init__(self, space, elf=None, dtb=False, w_callbacks=None):
+        w_callbacks = space.interp_w(W_Callbacks, w_callbacks)
         self._init_machine()
         self.space = space
         self.elf = elf
@@ -686,7 +687,7 @@ class ApplevelCallbackMemory(mem_mod.MemBase):
         self.space.call_function(self.w_write, w_addr, w_value)
 
     def memory_info(self):
-        return [(intmask(self.min_addr), intmask(self.max_addr))]
+        return [(self.min_addr, self.max_addr)]
 
 
 class W_RISCV64(W_Root):

@@ -189,7 +189,7 @@ class FlatMemory(MemBase):
         self.status[mem_offset] = MEM_STATUS_IMMUTABLE
 
     def memory_info(self):
-        return [(0, self.size)]
+        return [(r_uint(0), r_uint(self.size))]
 
 
 class TaggedFlatMemory(FlatMemory):
@@ -416,4 +416,5 @@ class SplitMemory(MemBase):
         self.mem2.close()
 
     def memory_info(self):
-        return [(self.address_base1, self.address_end1), (self.address_base2, self.address_end2)]
+        return [(r_uint(self.address_base1), r_uint(self.address_end1)),
+                (r_uint(self.address_base2), r_uint(self.address_end2))]

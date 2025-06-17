@@ -492,6 +492,7 @@ def test_fvec():
     fvectype = rs['mhpmevent']
     assert fvectype.of.width == 64
     assert repr(fvectype) == "<_pydrofoil.sailtypes.FVec 32 _pydrofoil.sailtypes.SmallFixedBitVector(64)>"
+    assert isinstance(fvectype, _pydrofoil.sailtypes.FVec)
 
 def test_union_repr():
     cpu = _pydrofoil.RISCV64()

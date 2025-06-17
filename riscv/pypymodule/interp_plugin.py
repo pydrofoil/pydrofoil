@@ -353,12 +353,14 @@ def _init_functions(machinecls, functions):
 
 def _make_function(function_info, d, machinecls):
     pyname, sail_name, func, argument_converters, result_converter, sail_type_repr = function_info
+    sail_type = eval(sail_type_repr, types.__dict__)
+    if sail_type.argtype.elements == (types.Unit(), ):
+        argument_converters = [] # if it's exactly unit, turn it into a zero-argument function
     adaptor_class = _make_function_adaptor(argument_converters, machinecls)
     def py(space, *args):
         res = func(*args)
         return result_converter(space, res)
     py.func_name += pyname
-    sail_type = eval(sail_type_repr, types.__dict__)
     adaptor = d[sail_name] = adaptor_class(py, sail_name, sail_type)
 
 
@@ -424,6 +426,9 @@ def _make_argument_converter_func(argument_converters, cache={}):
         for conv in converters:
             args += (conv(space, args_w[i]), )
             i += 1
+        if argument_converters == []:
+            # unit argument case:
+            args += ((), )
         return args
     cache[key] = convert
     return convert

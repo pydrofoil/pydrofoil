@@ -364,6 +364,9 @@ def test_lowlevel_attribute_error():
         assert m.lowlevel.privLevel_to_bats
     assert str(info.value) == "'lowlevel' object has no attribute 'privLevel_to_bats'"
 
+def test_lowlevel_unit_argument():
+    m = _pydrofoil.RISCV64()
+    assert m.lowlevel.get_vlen_pow() == 9
 
 # ________________________________________________
 # bitvectors

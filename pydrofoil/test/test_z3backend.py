@@ -746,7 +746,7 @@ def test_nand_zexecute_zcint():
     assert str(interp.registers["zA"]).startswith("If(")
 
 def test_nand_zassign_dest_graph_entrymap():
-    """ For some reasen the entrymap says that some blocks have more entrys as they actually have """
+    """ For some reason the entrymap says that some blocks have more entry blocks as they actually have """
     ### Num hours it took to find out that is the issue for a failing register write: 7 ###
     graph = get_zassign_dest_graph()
     entrymap = graph.make_entrymap()
@@ -840,8 +840,8 @@ def test_merge_abstract():
     interp = z3backend.NandInterpreter(graph, [avar, bvar], sharedstate.copy())
     res = interp.run()
     assert str(res).startswith("""If(And(Or(Or(a == 0, a == 0), Not(a == 0)), Not(b)),
-   If(a == 0, init_zA!6150, init_zC!6151) + 1 + 15,
-   If(a == 0, init_zA!6150, init_zC!6151) + 1 + 7)""")
+   If(a == 0, init_zA!6499, init_zC!6500) + 1 + 15,
+   If(a == 0, init_zA!6499, init_zC!6500) + 1 + 7)""")
 
 def test_merge_concrete():
     graph = get_double_diamond_graph()

@@ -300,6 +300,8 @@ class SharedState(object):
             return z3.BitVecSort(typ.width)
         elif isinstance(typ, types.BigFixedBitVector):
             return z3.BitVecSort(typ.width)
+        elif isinstance(typ, types.MachineInt):
+            return z3.BitVecSort(64)# This must be the number bits of the machine that runs pydrofoil
         elif isinstance(typ, types.Union):
             return self.get_z3_union_type(typ)
         elif isinstance(typ, types.Struct):
@@ -448,9 +450,15 @@ class Interpreter(object):
             else:
                 return self.w_raises
         return self._create_w_z3_or(self.w_raises, w_raises)
+    
+    def _is_unreachable(self):
+        for w_cond in self.path_condition:
+            if isinstance(w_cond, BooleanConstant) and not w_cond.value:
+                return True
+        return False
 
     def _run_block(self, block, index=0):
-        if self.dummy_execution:
+        if self._is_unreachable():
             for op in block.operations[index:]:
                 self.execute_default_op(op)
         else:    
@@ -581,7 +589,7 @@ class Interpreter(object):
             else:
                 return w_false
         if w_true.same_value(w_false): return w_true
-        # TODO: check for z3Not Value swap a and b theen
+        # TODO: check for z3Not Value swap a and b then
         if isinstance(w_cond, Z3NotValue):
             return Z3Value(z3.If(w_cond.value, w_false.toz3(), w_true.toz3()))
         return Z3Value(z3.If(w_cond.toz3(), w_true.toz3(), w_false.toz3()))
@@ -778,6 +786,8 @@ class Interpreter(object):
         """ pseudo execute an operation, write default value into env """
         if isinstance(op, ir.Phi):
             assert 0, "Every phi should be handled in _compute_merge"
+        elif op.resolved_type == types.Unit():
+            pass
         else:
             rtype = op.resolved_type
             ztype = self.sharedstate.convert_type_to_z3_type(rtype)

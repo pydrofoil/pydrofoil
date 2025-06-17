@@ -381,6 +381,10 @@ def test_bv_basics():
     assert repr(b0) == "bitvector(2, 0b00)"
     assert len(b0) == 2
 
+def test_bv_negative_width():
+    with raises(ValueError):
+        _pydrofoil.bitvector(-1, 0)
+
 def test_bv_getitem():
     b0 = _pydrofoil.bitvector(6, 0b110100)
     assert b0[0] == 0
@@ -469,6 +473,10 @@ def test_bitvector_shift():
     assert _pydrofoil.bitvector(5, 0b100).arithmetic_rshift(1) == _pydrofoil.bitvector(5, 0b10)
     assert bv.logical_rshift(1) == _pydrofoil.bitvector(5, 0b01010)
 
+def test_bitvector_big():
+    m = _pydrofoil.RISCV64()
+    bv = _pydrofoil.bitvector(128, 2**100)
+    assert bv == 2**100
 
 # ________________________________________________
 # testing the sail types

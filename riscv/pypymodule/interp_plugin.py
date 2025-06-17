@@ -874,9 +874,23 @@ class __extend__(BitVector):
         return space.newbool(self.tobool())
 
 
-@unwrap_spec(width=int, value=r_uint)
-def bitvector_descr_new(w_type, space, width, value):
-    return BitVector.from_ruint(width, value)
+@unwrap_spec(width=int)
+def bitvector_descr_new(w_type, space, width, w_value):
+    if width < 0:
+        raise oefmt(space.w_ValueError, "width must not be negative")
+    try:
+        value = space.uint_w(w_value)
+    except OperationError as e:
+        if not e.match(space, space.w_TypeError) and not e.match(space, space.w_OverflowError):
+            raise
+    else:
+        return BitVector.from_ruint(width, value)
+    try:
+        return BitVector.from_bigint(width, space.bigint_w(w_value))
+    except OperationError as e:
+        if not e.match(space, space.w_TypeError):
+            raise
+        raise oefmt(space.w_TypeError, "bitvector value must be integer")
 
 
 BitVector.typedef = TypeDef("bitvector",

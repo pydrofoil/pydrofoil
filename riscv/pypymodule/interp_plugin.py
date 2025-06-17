@@ -285,6 +285,10 @@ class W_BoundSailFunction(W_Root):
     def descr_call(self, space, args_w):
         return self.func.call(space, self.w_machine, args_w)
 
+    def descr_repr(self, space):
+        return space.newtext("<bound sail function .lowlevel.%s of %s>" % (
+            self.func.sail_name, space.text_w(space.repr(self.w_machine))))
+
     def descr_doc(self, space):
         return space.newtext("""\
 Sail function
@@ -298,6 +302,7 @@ Sail function
 W_BoundSailFunction.typedef = TypeDef("sail-function",
     __call__ = interp2app(W_BoundSailFunction.descr_call),
     __doc__ = GetSetProperty(W_BoundSailFunction.descr_doc),
+    __repr__ = interp2app(W_BoundSailFunction.descr_repr),
     sail_type = GetSetProperty(W_BoundSailFunction.descr_sail_type),
 )
 

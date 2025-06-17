@@ -368,6 +368,10 @@ def test_lowlevel_unit_argument():
     m = _pydrofoil.RISCV64()
     assert m.lowlevel.get_vlen_pow() == 9
 
+def test_bound_lowlevel_repr():
+    m = _pydrofoil.RISCV64()
+    assert repr(m.lowlevel.get_vlen_pow) == f'<bound sail function .lowlevel.get_vlen_pow of {m}>'
+
 # ________________________________________________
 # bitvectors
 

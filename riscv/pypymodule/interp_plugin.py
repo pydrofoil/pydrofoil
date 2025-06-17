@@ -70,6 +70,10 @@ init_sail = wrap_fn(supportcoderiscv.init_sail)
 def run_sail(machine, insn_limit, do_show_times):
     machine.run_sail(insn_limit, do_show_times)
 
+@wrap_fn
+def initialize_registers(machine):
+    machine.initialize_registers()
+
 
 def _init_register_names(cls, _all_register_names):
     assert cls is not MachineAbstractBase
@@ -450,12 +454,17 @@ class MachineAbstractBase(object):
             entry = load_sail(space, self.machine, elf)
         else:
             entry = self.machine.g.rv_ram_base
-        self.machine.set_pc(init_sail(space, self.machine, entry))
+        self.reset_pc = init_sail(space, self.machine, entry)
+        self.machine.set_pc(self.reset_pc)
         self.machine.g._init_ranges()
 
         self._step_no = 0
         self._insn_cnt = 0 # used to check whether a tick has been reached
         self._tick = False # should the next step tick
+
+    def reset(self):
+        initialize_registers(self.space, self.machine)
+        self.machine.set_pc(self.reset_pc)
 
     def step(self):
         """ Execute a single instruction. """
@@ -634,6 +643,7 @@ def riscv64_descr_new(space, w_subtype, elf=None, dtb=False):
 
 W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     __new__ = interp2app(riscv64_descr_new),
+    reset = interp2app(W_RISCV64.reset),
     step = interp2app(W_RISCV64.step),
     step_monitor_mem = interp2app(W_RISCV64.step_monitor_mem),
     read_register = interp2app(W_RISCV64.read_register),
@@ -669,6 +679,7 @@ def riscv32_descr_new(space, w_subtype, elf=None, dtb=False):
 
 W_RISCV32.typedef = TypeDef("_pydrofoil.RISCV32",
     __new__ = interp2app(riscv32_descr_new),
+    reset = interp2app(W_RISCV32.reset),
     step = interp2app(W_RISCV32.step),
     step_monitor_mem = interp2app(W_RISCV32.step_monitor_mem),
     read_register = interp2app(W_RISCV32.read_register),

@@ -27,6 +27,14 @@ def test_run():
     cpu.run(100)
     assert cpu.read_register("pc") == 0x800001f0
 
+def test_reset():
+    cpu = _pydrofoil.RISCV64(addielf)
+    cpu.run(100)
+    assert cpu.read_register("pc") == 0x800001f0
+    cpu.reset()
+    assert cpu.read_register("pc") == 0x1000
+    assert cpu.read_register("x1") == 0x0
+
 def test_run32():
     cpu = _pydrofoil.RISCV32(addielf32)
     cpu.run(100)

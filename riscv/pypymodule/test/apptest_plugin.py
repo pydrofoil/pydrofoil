@@ -469,6 +469,7 @@ def test_bitvector_shift():
 def test_sailtype_new():
     assert _pydrofoil.sailtypes.Bool() is _pydrofoil.sailtypes.Bool() # singleton
     assert _pydrofoil.sailtypes.Unit() is _pydrofoil.sailtypes.Unit() # singleton
+    assert _pydrofoil.sailtypes.GenericBitVector() is _pydrofoil.sailtypes.GenericBitVector() # singleton
     with raises(TypeError):
         _pydrofoil.sailtypes.Struct()
     assert _pydrofoil.sailtypes.SmallFixedBitVector(23).width == 23
@@ -485,6 +486,8 @@ def test_sailtype_repr():
     cpu = _pydrofoil.RISCV64()
     rs = dict(cpu.register_info())
     assert repr(rs['cur_privilege']) == '<_pydrofoil.sailtypes.Enum Privilege { User Supervisor Machine }>'
+    assert repr(_pydrofoil.sailtypes.MachineInt()) == "_pydrofoil.sailtypes.MachineInt()"
+    assert repr(_pydrofoil.sailtypes.GenericBitVector()) == "_pydrofoil.sailtypes.GenericBitVector()"
 
 def test_fvec():
     cpu = _pydrofoil.RISCV64()

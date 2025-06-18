@@ -8,6 +8,9 @@ MININT = -sys.maxint - 1
 MAXINT = sys.maxint
 
 
+_RECOMPUTE_LIMIT = 100
+
+
 def int_c_div(x, y):
     r = x // y
     if x ^ y < 0 and x % y != 0:
@@ -371,7 +374,9 @@ class AbstractInterpreter(object):
         startblock_values = self._init_argument_bounds()
         self.values[self.graph.startblock] = startblock_values
         if self.graph.has_loop:
-            self.loop_headers = {to for from_, to in ir.find_backedges(self.graph)}
+            self.loop_headers = {
+                to for from_, to in ir.find_backedges(self.graph)
+            }
         else:
             self.loop_headers = set()
 
@@ -460,7 +465,6 @@ class AbstractInterpreter(object):
                 continue
             self.current_values[op] = default_for_type(op.resolved_type)
         return index + 1
-
 
     def analyze_default(self, op):
         if op.resolved_type is types.Bool():
@@ -1046,6 +1050,7 @@ class Location(object):
             {}
         )  # type: dict[tuple[ir.Graph, typing.Hashable], Range]
         self.readers = set()  # type: set[ir.Graph]
+        self._recompute_counter = 0
 
     def write(self, new_bound, graph, graph_position=None):
         # type: (Range, ir.Graph, typing.Hashable) -> None
@@ -1061,7 +1066,8 @@ class Location(object):
 
     def _recompute(self):
         # type: () -> bool
-        if not self._writes:
+        self._recompute_counter += 1
+        if not self._writes or self._recompute_counter > _RECOMPUTE_LIMIT:
             return False
         old = self._bound
         self._bound = Range.union_many(self._writes.values())

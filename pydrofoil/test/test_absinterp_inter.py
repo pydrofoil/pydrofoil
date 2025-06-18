@@ -69,6 +69,33 @@ def test_find_modified():
     assert m.find_modified() == {l1}
 
 
+def test_recompute_limit():
+    m = LocationManager()
+    typ = types.Int()
+    loc = m.new_location(typ)
+    graph_location = object()
+    for i in range(200):
+        loc.write(Range(0, 10000 - i), graph_location)
+        if i < 100:
+            mod = m.find_modified()
+            assert mod == {loc}
+        else:
+            mod = m.find_modified()
+            assert not mod
+    assert loc._bound == Range(0, 10000 - 99)
+
+
+def test_recompute_limit_many_graph_locations():
+    m = LocationManager()
+    typ = types.Int()
+    loc = m.new_location(typ)
+    for i in range(200):
+        loc.write(Range(0, i + 1), object())  # writes from 200 locations
+    mod = m.find_modified()
+    assert mod == {loc}
+    assert loc._bound == Range(0, 200)
+
+
 def _get_graphs_interprocedural_range():
     # Graph that makes x+1
     # Graph that calls with 5 and 10 and one that call with 15

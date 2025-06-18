@@ -1040,11 +1040,12 @@ class Graph(object):
         entry = defaultdict(list)
         while todo:
             block = todo.pop()
-            seen.add(block)
             for next in block.next.next_blocks():
-                entry[next].append(block)
+                if block not in seen:
+                    entry[next].append(block)
                 if next not in seen:
                     todo.append(next)
+            seen.add(block)
         entry[self.startblock] = []
         return entry
 
@@ -1424,6 +1425,7 @@ def _bare_optimize(graph, codegen):
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph, codegen) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
+    res = remove_superfluous_bitvector_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
     partial_allocation_removal(graph, codegen)
     return res
@@ -1803,6 +1805,48 @@ def remove_superfluous_enum_cases(graph, codegen):
         return True
     return False
 
+def remove_superfluous_bitvector_cases(graph, codegen):
+    if graph.has_loop:
+        return
+
+    def init_bv_set(value):
+        typ = value.resolved_type
+        if isinstance(value, SmallBitVectorConstant):
+            return {int(value.value)}
+        else:
+            return set(range(0, 2**value.resolved_type.width))
+
+    changed = False
+    # maps blocks -> values -> sets of bv values
+    possible_bitvector_values = defaultdict(lambda : defaultdict_with_key_arg(init_bv_set))
+    entrymap = graph.make_entrymap()
+    for block in topo_order(graph):
+        values_in_block = possible_bitvector_values[block]
+        if isinstance(block.next, ConditionalGoto):
+            value = block.next.booleanvalue
+            if (isinstance(value, Operation) and value.name == "@eq_bits_bv_bv" and
+                    isinstance(value.args[0].resolved_type, types.SmallFixedBitVector) and
+                    value.args[0].resolved_type.width <= 16):
+                arg0, arg1 = value.args
+                if not isinstance(arg1, SmallBitVectorConstant):
+                    arg0, arg1 = arg1, arg0
+                if isinstance(arg1, SmallBitVectorConstant):
+                    possible_values_arg0 = values_in_block[arg0]
+                    possible_values_arg1 = values_in_block[arg1]
+                    assert len(possible_values_arg1) == 1
+                    if possible_values_arg0 == possible_values_arg1:
+                        changed = True
+                        block.next.booleanvalue = BooleanConstant.TRUE
+                    else:
+                        if len(entrymap[block.next.truetarget]) == 1:
+                            possible_bitvector_values[block.next.truetarget][arg0] = possible_values_arg1
+                        if len(entrymap[block.next.falsetarget]) == 1:
+                            possible_bitvector_values[block.next.falsetarget][arg0] = possible_values_arg0 - possible_values_arg1
+    if changed:
+        remove_if_true_false(graph, codegen)
+        remove_dead(graph, codegen)
+        return True
+    return False
 
 def remove_superfluous_union_checks(graph, codegen):
     if graph.has_loop:

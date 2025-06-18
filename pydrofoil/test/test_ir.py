@@ -4887,3 +4887,39 @@ block0.next = Return(BooleanConstant.TRUE, None)
 graph = Graph('zbool_bits_backwards_matches', [zargz3], block0)
 ''')
 
+def test_make_entrymap():
+    """ There was a bug in make_entrymap resulting in some nodes in a graph having to many parents in their entrymap """
+    def get_zassign_dest_graph():
+        """Nand2Tetris CPU assign value to destination graph"""
+        ztuplez3z5bool_z5bool_z5bool = Struct('ztuplez3z5bool_z5bool_z5bool', ('ztuplez3z5bool_z5bool_z5bool0', 'ztuplez3z5bool_z5bool_z5bool1', 'ztuplez3z5bool_z5bool_z5bool2'), (Bool(), Bool(), Bool()), True)
+        zgsz381 = Argument('zgsz381', ztuplez3z5bool_z5bool_z5bool)
+        zvalue = Argument('zvalue', SmallFixedBitVector(16))
+        block0 = Block()
+        block1 = Block()
+        block2 = Block()
+        block3 = Block()
+        block4 = Block()
+        block5 = Block()
+        block6 = Block()
+        i2 = block0.emit(FieldAccess, 'ztuplez3z5bool_z5bool_z5bool0', [zgsz381], Bool(), None, None)
+        i3 = block0.emit(FieldAccess, 'ztuplez3z5bool_z5bool_z5bool1', [zgsz381], Bool(), None, None)
+        i4 = block0.emit(FieldAccess, 'ztuplez3z5bool_z5bool_z5bool2', [zgsz381], Bool(), None, None)
+        block0.next = ConditionalGoto(i4, block1, block2, '`1 150:4-150:38')
+        i5 = block1.emit(GlobalRead, 'zA', [], SmallFixedBitVector(16), None, None)
+        i6 = block1.emit(Operation, 'my_write_mem', [i5, zvalue], Unit(), '`1 150:16-150:35', 'zz44')
+        block1.next = Goto(block2, None)
+        block2.next = ConditionalGoto(i2, block3, block4, '`1 151:4-151:28')
+        i7 = block3.emit(GlobalWrite, 'zA', [zvalue], SmallFixedBitVector(16), None, None)
+        block3.next = Goto(block4, None)
+        block4.next = ConditionalGoto(i3, block5, block6, '`1 152:4-152:28')
+        i8 = block5.emit(GlobalWrite, 'zD', [zvalue], SmallFixedBitVector(16), None, None)
+        block5.next = Goto(block6, None)
+        block6.next = Return(UnitConstant.UNIT, None)
+        graph = Graph('zassign_dest', [zgsz381, zvalue], block0)
+        return graph
+    graph = get_zassign_dest_graph()
+    entrymap = graph.make_entrymap()
+    
+    # In this graph every Block has at max. 2 parents
+    for block in entrymap.keys():
+        assert len(entrymap[block]) < 3  

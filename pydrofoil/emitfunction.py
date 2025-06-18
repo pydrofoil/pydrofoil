@@ -307,6 +307,38 @@ class CodeEmitter(object):
         read = op.args[0].resolved_type.packed_field_pack(self._get_arg(op.args[0]))
         return self._op_helper(op, read)
 
+    def emit_op_RangeCheck(self, op):
+        arg0 = self._get_arg(op.args[0])
+        arg3 = self._get_arg(op.args[3])
+
+        if op.args[0].resolved_type == types.Bool():
+            self.codegen.emit(
+                "assert %s <= int(%s) <= %s, %s"
+                % (
+                    op.args[1].number,
+                    arg0,
+                    op.args[2].number,
+                    arg3,
+                )
+            )
+            return
+        if op.args[0].resolved_type == types.MachineInt():
+            self.codegen.emit(
+                "assert %s <= %s <= %s, %s"
+                % (
+                    op.args[1].number,
+                    arg0,
+                    op.args[2].number,
+                    arg3,
+                )
+            )
+            return
+        lower = self._get_arg(op.args[1])
+        upper = self._get_arg(op.args[2])
+        self.codegen.emit(
+            "assert %s.le(%s) and %s.le(%s), %s"
+            % (lower, arg0, arg0, upper, arg3)
+        )
 
     # ________________________________________________
     # jumps etc

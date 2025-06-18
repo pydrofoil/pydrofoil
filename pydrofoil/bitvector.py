@@ -7,7 +7,8 @@ from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, 
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong, uint_mul_high
 from rpython.rlib.objectmodel import always_inline, specialize, \
-        we_are_translated, is_annotation_constant, not_rpython
+        we_are_translated, is_annotation_constant, not_rpython, \
+        try_inline
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 from rpython.rlib import jit
@@ -35,7 +36,7 @@ def from_ruint(size, val):
         return SmallBitVector(size, val, True)
     return SparseBitVector(size, val)
 
-@always_inline
+@try_inline
 def from_bigint(size, rval):
     if size <= 64:
         value = rbigint_extract_ruint(rval, 0)

@@ -429,13 +429,14 @@ def _make_argument_converter_func(argument_converters, cache={}):
     if key in cache:
         return cache[key]
     converters = unrolling_iterable(argument_converters)
+    noargs = argument_converters == []
     def convert(space, args_w):
         args = ()
         i = 0
         for conv in converters:
             args += (conv(space, args_w[i]), )
             i += 1
-        if argument_converters == []:
+        if noargs:
             # unit argument case:
             args += ((), )
         return args

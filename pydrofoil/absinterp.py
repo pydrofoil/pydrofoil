@@ -30,6 +30,20 @@ class Range(object):
     def is_bounded(self):
         return self.low is not None and self.high is not None
 
+    def is_bounded_typed(self, typ):
+        # type: (types.Type) -> bool
+        """Considers type range constraints for the definition of 'bounded'."""
+        type_bound = None  # type: Range | None
+        if isinstance(typ, types.MachineInt):
+            type_bound = MACHINEINT
+        elif isinstance(typ, types.Bool):
+            type_bound = BOOL
+
+        if type_bound is not None:
+            return type_bound.contains_range(self) and self != type_bound
+
+        return self.is_bounded()
+
     def __repr__(self):
         return "Range(%r, %r)" % (self.low, self.high)
 
@@ -933,8 +947,7 @@ def _make_check(location, value, msg, block, index, has_changed_before):
     # type: (Location, ir.Value, str, ir.Block, int, bool) -> bool
     # TODO this is not a good way to access the bound
     bound = location._bound
-    # TODO this is not precise enough for certain types like machine ints
-    if not bound.is_bounded():
+    if not bound.is_bounded_typed(value.resolved_type):
         return has_changed_before
 
     new_instruction = ir.RangeCheck(

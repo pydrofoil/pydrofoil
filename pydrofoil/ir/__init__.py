@@ -49,6 +49,7 @@ from pydrofoil.ir.operations import (
     ConditionalGoto,
     RangeCheck,
 )
+from pydrofoil.mangle import _fix_name
 
 from rpython.tool.udir import udir
 from rpython.rlib.rarithmetic import r_uint
@@ -500,6 +501,10 @@ class SSABuilder(object):
             if parseval.name in self.variable_map:
                 assert self.variable_map[parseval.name] is not None
                 return self.variable_map[parseval.name]
+            fixed_name = _fix_name(parseval.name)
+            if fixed_name in self.variable_map:
+                assert self.variable_map[fixed_name] is not None
+                return self.variable_map[fixed_name]
             if parseval.name == "true":
                 return BooleanConstant.TRUE
             elif parseval.name == "false":

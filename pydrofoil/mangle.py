@@ -48,3 +48,9 @@ def demangle(str_in):
         else:
             out.append(str_in[i])
     return "".join(out)
+
+
+def _fix_name(name):
+    # work around a weird isla-sail problem where sometimes local variables
+    # start with a %, and sometimes they don't
+    return mangle(demangle(name).lstrip('%'))

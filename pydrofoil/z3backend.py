@@ -280,7 +280,14 @@ class SharedState(object):
             ### call accessor only in z3 if ###
             return z3.If(typechecker(instance.toz3()), accessor(instance.toz3()), default_value)
         else:
-            assert 0
+            import pdb; pdb.set_trace()
+    
+    def get_ir_union_typechecker(self, union_type, variant):
+        """ get the is_x method for a union, e.g, for union variant check """
+        assert isinstance(union_type, types.Union), "only unions allowed"
+        union_type_z3 = self.get_z3_union_type(union_type)
+        return getattr(union_type_z3, "is_" + variant)
+      
 
     def get_z3_enum_type(self, resolved_type):
         """ get declared z3 enum type via ir type """
@@ -313,6 +320,8 @@ class SharedState(object):
         elif isinstance(typ, types.FVec):
             subtyp = self.convert_type_to_z3_type(typ.typ)
             return z3.ArraySort(z3.IntSort(), subtyp)
+        elif isinstance(typ, types.String):
+            return z3.StringSort()
         else:
             import pdb; pdb.set_trace()
 
@@ -490,7 +499,8 @@ class Interpreter(object):
             schedule(block_next.falsetarget, interp2)
             return
         elif isinstance(block_next, ir.Return):
-            self.w_result = self.convert(block_next.value)
+            if not self._is_unreachable(): # only set result if it is reachable
+                self.w_result = self.convert(block_next.value)
         elif isinstance(block_next, ir.Raise):
             self.w_raises = self.w_path_condition()
         else:
@@ -873,6 +883,10 @@ class Interpreter(object):
         instance, = self.getargs(op)
         if isinstance(instance, UnionConstant):
             return BooleanConstant(instance.variant_name != op.name) # confusingly enough, the result is negated from what one would expect
+        elif isinstance(instance, Z3Value):
+            union_type = op.args[0].resolved_type
+            checker = self.sharedstate.get_ir_union_typechecker(union_type, op.name)
+            return Z3Value(checker(instance.toz3()) )
         else:
             import pdb;pdb.set_trace()
         
@@ -1082,10 +1096,9 @@ class NandInterpreter(Interpreter):
 class RiscvInterpreter(Interpreter):
     """ Interpreter subclass for RISCV ISA """
 
-    def __init__(self, graph, args, shared_state=None, _64bit=False):# TODO , entrymap=None
-        bits = 64 if _64bit else 32 
-        super(RiscvInterpreter, self).__init__(graph, args, shared_state)# py2 super 
-        self.memory = z3.Array('memory', z3.BitVecSort(bits), z3.BitVecSort(bits))
+    def __init__(self, graph, args, shared_state=None, entrymap=None):# TODO , entrymap=None
+        super(RiscvInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
+        self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
         self.cls = RiscvInterpreter
 
     def exec_zsys_enable_zzfinx(self, op):

@@ -534,6 +534,11 @@ def truncate_bv_i(machine, bv, i):
 def count_leading_zeros(machine, bv):
     return bitvector.Integer.fromint(bv.count_leading_zeros())
 
+@unwrap("o")
+@purefunction
+def count_trailing_zeros(machine, bv):
+    return bitvector.Integer.fromint(bv.count_trailing_zeros())
+
 @objectmodel.always_inline
 @purefunction
 def pack_smallfixedbitvector(machine, width, val):

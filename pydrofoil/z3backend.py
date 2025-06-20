@@ -835,11 +835,23 @@ class Interpreter(object):
             result = self.exec_struct_construction(op)
         elif isinstance(op, ir.UnionVariantCheck):
             result = self.exec_union_variant_check(op)
+        elif op.name.startswith("zeq_anything"):
+            result = self.exec_eq_anything(op)
         else:
             assert 0 , str(op.name) + ", " + str(op) + "," + "exec_%s" % op.name.replace("@","")
         self.environment[op] = result
     
     ### Generic Operations ###
+
+    def exec_eq_anything(self, op):
+        """ check for equality """
+        ### TODO: is this really generic or only for RISC-V ??? ###
+        arg0, arg1 = self.getargs(op)
+
+        if isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value):
+            return Z3Value(arg0.toz3() == arg1.toz3())
+        else:
+            import pdb; pdb.set_trace()
 
     def exec_func_call(self, op, graph):
         self._debug_print("graph " + self.graph.name + " func call " + op.name)

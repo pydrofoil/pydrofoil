@@ -307,6 +307,9 @@ class SharedState(object):
             return z3.BitVecSort(typ.width)
         elif isinstance(typ, types.BigFixedBitVector):
             return z3.BitVecSort(typ.width)
+        elif isinstance(typ, types.GenericBitVector):# TODO: generic width bv in z3
+            assert 0, "TODO: Think about this"
+            #return z3.BitVecSort()
         elif isinstance(typ, types.MachineInt):
             return z3.BitVecSort(64)# This must be the number bits of the machine that runs pydrofoil
         elif isinstance(typ, types.Union):
@@ -431,8 +434,6 @@ class Interpreter(object):
                     schedule(current, interp)
                     continue
                 ### TODO: think of a better solution for this ###
-            #elif len(current.operations) > 0 and isinstance(current.operations[0], ir.Phi):
-                #import pdb; pdb.set_trace()
             #interp._debug_print("run block %s" % str(current.next))
             #if "zassign_dest" in str(interp.graph): import pdb; pdb.set_trace()
             interp._run_block(current, index)
@@ -484,16 +485,14 @@ class Interpreter(object):
             w_cond = self.convert(block_next.booleanvalue)
 
             interp1 = self.fork(self.path_condition + [w_cond])# TODO: handle the conditions better
+            #interp1._debug_print("parent " + str(self.forknum) + " "  + str(self.w_path_condition()) + " append " + str(w_cond) + " is now " + str(interp1.w_path_condition()))
             interp1.environment[block_next.booleanvalue] = BooleanConstant(True)
             interp2 = self.fork(self.path_condition + [w_cond.not_()])
+            #interp2._debug_print("parent " + str(self.forknum) + " " + str(self.w_path_condition()) + " append " + str(w_cond.not_()) + " is now " + str(interp2.w_path_condition()))
             interp2.environment[block_next.booleanvalue] = BooleanConstant(False)
 
-            if 0 and isinstance(w_cond, BooleanConstant):
-                # default value for false branches deactivated until I know if it makes sense
-                if w_cond.value:
-                    interp1.dummy_execution = True
-                else:
-                    interp2.dummy_execution = True
+            ### we need to now in merge if the current block is actually reachable ###
+            self.child_cond_map = {block_next.truetarget: w_cond, block_next.falsetarget: w_cond.not_()}
 
             schedule(block_next.truetarget, interp1)
             schedule(block_next.falsetarget, interp2)
@@ -521,6 +520,9 @@ class Interpreter(object):
             previnterp = block_to_interp[prevblock]
             if previnterp is scheduleinterp: continue
             w_cond = previnterp.w_path_condition()
+            if isinstance(prevblock.next, ir.ConditionalGoto):
+                # if prev was a ConditionalGoto we need to add cond to the parents path
+                w_cond = self._create_w_z3_and(w_cond, previnterp.child_cond_map[block])
             scheduleinterp.path_condition = [self._create_w_z3_or(scheduleinterp.w_path_condition(), w_cond)]
             scheduleinterp.registers = {reg:self._create_w_z3_if(w_cond, previnterp.registers[reg], scheduleinterp.registers[reg]) for reg in self.registers}
             scheduleinterp.memory = self._create_z3_if(w_cond.toz3(), previnterp.memory, scheduleinterp.memory)
@@ -575,6 +577,8 @@ class Interpreter(object):
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
         f_interp.path_condition = self.path_condition if path_condition is None else path_condition
+        if self.w_path_condition().value == False:
+            f_interp.path_condition = [BooleanConstant(False)]
         f_interp.dummy_execution = dummy_execution
         f_interp.w_raises = self.w_raises # if self raises, the frok must to
         return f_interp
@@ -586,6 +590,7 @@ class Interpreter(object):
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
         f_interp.w_raises = self.w_raises
+        f_interp.path_condition = self.path_condition
         return f_interp
     
     def _create_z3_if(self, cond, true, false):
@@ -855,7 +860,6 @@ class Interpreter(object):
 
     def exec_func_call(self, op, graph):
         self._debug_print("graph " + self.graph.name + " func call " + op.name)
-        #if "zassign_dest" in op.name: import pdb; pdb.set_trace()
         func_args = self.getargs(op)
         interp_fork = self.call_fork(graph, func_args)
         w_res = interp_fork.run()

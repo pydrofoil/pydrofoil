@@ -219,7 +219,7 @@ def compute_single_return_and_degree_two_phi_graph(G):
 
 def compute_single_return_graph(G):
     """ Removes all but one return statement 
-        by introducing new phi nodes """
+        by introducing a new phi node """
     
     from pydrofoil import ir
     first_return = None

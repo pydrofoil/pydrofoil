@@ -105,6 +105,7 @@ class ConstantGenericInt(AbstractConstant):
             return False
         return self.value == other.value
 
+
 class BooleanConstant(AbstractConstant):
     
     def __init__(self, val):
@@ -121,7 +122,28 @@ class BooleanConstant(AbstractConstant):
     def not_(self):
         return BooleanConstant(not self.value)
 
+    def _create_w_z3_if(self, w_true, w_false):
+        """ return w_true or w_false depending on self.value """
+        if self.value:
+            return w_true
+        return w_false
+    
+    def _create_w_z3_or(self, w_other):
+        """ return self or w_other depending on self.value """
+        if self.value:
+            return self
+        return w_other
+
+    def _create_w_z3_and(self, *args_w):
+        """ create z3 and or return BooleanConstant depending on self.value and args_w """
+        if (self.value and args_w in ((), [])) or not self.value:
+            return self
+        else:
+            return args_w[0]._create_w_z3_and(*(args_w[1:]))
+
+
 class UnitConstant(AbstractConstant):
+    """ None """
     
     def __init__(self):
         pass
@@ -206,9 +228,55 @@ class Z3Value(Value):
         return False
 
     def not_(self):
-        return Z3NotValue(self.value)
+        return Z3BoolNotValue(self.value)
     
-class Z3NotValue(Z3Value):
+class Z3BoolValue(Z3Value):
+
+    def __init__(self, val):
+        assert val.sort() == z3.BoolSort(), "cannot put non Bools into Z3BoolValue/Z3BoolNotValue"
+        self.value = val
+
+    def toz3(self):
+        return self.value
+    
+    def same_value(self, other):
+        return False
+
+    def not_(self):
+        return Z3BoolNotValue(self.value)
+    
+    def _create_w_z3_if(self, w_true, w_false):
+        """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
+        if w_true.same_value(w_false): return w_true
+        cls = Z3BoolValue if w_true.toz3().sort() == z3.BoolSort() else Z3Value
+        if isinstance(self, Z3BoolNotValue):
+            return cls(z3.If(self.value, w_false.toz3(), w_true.toz3()))
+        return cls(z3.If(self.value, w_true.toz3(), w_false.toz3()))
+    
+    def _create_w_z3_or(self,w_other):
+        """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
+        if isinstance(w_other, BooleanConstant):
+            if w_other.value:
+                return w_other
+            return self
+        if self.same_value(w_other): return self
+        return Z3BoolValue(z3.Or(self.value, w_other.toz3()))
+
+    def _create_w_z3_and(self, *args_w):
+        if args_w in ((), []):
+            return self
+        n_args_w = [self]
+        for w_arg in args_w:
+            if isinstance(w_arg, BooleanConstant):
+                # Return  false if encountering a single False
+                if not w_arg.value: return BooleanConstant(False)
+            else:
+                # Skip True, because True in and is unnecessary
+                n_args_w.append(w_arg)
+        if len(n_args_w) == 1: return self
+        return Z3BoolValue(z3.And(*[w_arg.toz3() for w_arg in n_args_w]))  
+
+class Z3BoolNotValue(Z3BoolValue):
 
     def toz3(self):
         return z3.Not(self.value)
@@ -217,7 +285,7 @@ class Z3NotValue(Z3Value):
         return False
 
     def not_(self):
-        return Z3Value(self.value)
+        return Z3BoolValue(self.value)
     
 class SharedState(object):
 
@@ -228,8 +296,8 @@ class SharedState(object):
         self.type_cache = {}
         self.union_field_cache = {} # (union_name,union_field):z3_type
         self.fork_counter = 0
-        self._cond_map = {} # (ir.Operation or Z3ComparisonValue, compare operation, ir.Operation or Z3ComparisonValue) -> Z3ComparisonValue
-        self._raise_path_map = {} # (Z3ComparisonValue, path or None) -> path
+        #self._cond_map = {} # (ir.Operation or Z3ComparisonValue, compare operation, ir.Operation or Z3ComparisonValue) -> Z3ComparisonValue
+        #self._raise_path_map = {} # (Z3ComparisonValue, path or None) -> path
 
     def get_z3_struct_type(self, resolved_type):
         if resolved_type in self.type_cache:
@@ -455,7 +523,7 @@ class Interpreter(object):
                 return w_raises
             else:
                 return self.w_raises
-        return self._create_w_z3_or(self.w_raises, w_raises)
+        return self.w_raises._create_w_z3_or(w_raises)
     
     def _is_unreachable(self):
         for w_cond in self.path_condition:
@@ -518,9 +586,9 @@ class Interpreter(object):
             w_cond = previnterp.w_path_condition()
             if isinstance(prevblock.next, ir.ConditionalGoto):
                 # if prev was a ConditionalGoto we need to add cond to the parents path
-                w_cond = self._create_w_z3_and(w_cond, previnterp.child_cond_map[block])
-            scheduleinterp.path_condition = [self._create_w_z3_or(scheduleinterp.w_path_condition(), w_cond)]
-            scheduleinterp.registers = {reg:self._create_w_z3_if(w_cond, previnterp.registers[reg], scheduleinterp.registers[reg]) for reg in self.registers}
+                w_cond = w_cond._create_w_z3_and(previnterp.child_cond_map[block])
+            scheduleinterp.path_condition = [scheduleinterp.w_path_condition()._create_w_z3_or(w_cond)]
+            scheduleinterp.registers = {reg:w_cond._create_w_z3_if(previnterp.registers[reg], scheduleinterp.registers[reg]) for reg in self.registers}
             scheduleinterp.memory = self._create_z3_if(w_cond.toz3(), previnterp.memory, scheduleinterp.memory)
         for index, op in enumerate(block.operations):
             if isinstance(op, ir.Phi):
@@ -532,14 +600,15 @@ class Interpreter(object):
                     if w_value is None:
                         w_value = w_prevvalue
                     else:
-                        w_value = self._create_w_z3_if(w_cond, w_prevvalue, w_value)
+                        w_value = w_cond._create_w_z3_if(w_prevvalue, w_value)
                 scheduleinterp.environment[op] = w_value
             else:
                 return scheduleinterp, index
         return scheduleinterp, len(block.operations) # only phis in this block
         
     def w_path_condition(self):
-        return self._create_w_z3_and(*self.path_condition)
+        # TODO: think of a better way to handle this
+        return BooleanConstant(True)._create_w_z3_and(*self.path_condition)
     
     def fork(self, path_condition=None):
         """ create a copy of the interpreter, for evaluating non constant branches """
@@ -566,50 +635,6 @@ class Interpreter(object):
     def _create_z3_if(self, cond, true, false):
         return z3.If(cond, true, false)
     
-    def _create_w_z3_if(self, w_cond, w_true, w_false):
-        """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
-        if isinstance(w_cond, BooleanConstant):
-            if w_cond.value:
-                return w_true
-            else:
-                return w_false
-        if w_true.same_value(w_false): return w_true
-        # TODO: check for z3Not Value swap a and b then
-        if isinstance(w_cond, Z3NotValue):
-            return Z3Value(z3.If(w_cond.value, w_false.toz3(), w_true.toz3()))
-        return Z3Value(z3.If(w_cond.toz3(), w_true.toz3(), w_false.toz3()))
-    
-    def _create_w_z3_or(self, w_a, w_b):
-        """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
-        if isinstance(w_a, BooleanConstant):
-            if w_a.value:
-                return w_a
-            return w_b
-        if isinstance(w_b, BooleanConstant):
-            if w_b.value:
-                return w_b
-            return w_a
-        if w_a.same_value(w_b): return w_a
-        #self._debug_print(str(w_a) + " -or- " + str(w_b) + "  " + str(w_a.same_value(w_b)) +  " " + str((w_a.__class__, w_b.__class__)))
-        # TODO: check for equal z3value and not z3value
-        return Z3Value(z3.Or(w_a.toz3(), w_b.toz3()))
-
-    def _create_w_z3_and(self, *args_w):
-        if args_w == []:
-            return BooleanConstant(True)
-        if len(args_w) == 1:
-            return args_w[0]
-        n_args_w = []
-        for w_arg in args_w:
-            if isinstance(w_arg, BooleanConstant):
-                # Return  false if encountering a single False
-                if not w_arg.value: return BooleanConstant(False)
-            else:
-                # Skip True, because True in and is unnecessary
-                n_args_w.append(w_arg)
-        if n_args_w == []: return BooleanConstant(True)
-        return Z3Value(z3.And(*[w_arg.toz3() for w_arg in n_args_w]))  
-    
     def merge_raise(self, w_cond, w_res_true, w_res_false, interp1, interp2):
         """ Handle Exceptions, when a raise block raises the forks result is UNIT """
         if (isinstance(interp1.w_raises, BooleanConstant) and interp1.w_raises.value == True 
@@ -617,11 +642,11 @@ class Interpreter(object):
             self.w_result = UnitConstant() # if both forks raise, then there is no result
             self.w_raises = BooleanConstant(True)
         elif isinstance(interp1.w_raises, BooleanConstant) and interp1.w_raises.value == True:
-            self.w_raises = self._create_w_z3_if(w_cond, BooleanConstant(True), interp2.w_raises)
+            self.w_raises = w_cond._create_w_z3_if(BooleanConstant(True), interp2.w_raises)
         elif isinstance(interp2.w_raises, BooleanConstant) and interp2.w_raises.value == True:
-            self.w_raises = self._create_w_z3_if(w_cond, interp1.w_raises, BooleanConstant(True))
+            self.w_raises = w_cond._create_w_z3_if(interp1.w_raises, BooleanConstant(True))
         else:
-            self.w_raises = self._create_w_z3_if(w_cond, interp1.w_raises, interp2.w_raises)
+            self.w_raises = w_cond._create_w_z3_if(interp1.w_raises, interp2.w_raises)
 
     def merge_result(self, w_cond, w_res_true, w_res_false, interp1, interp2):
         """ Handle Unit ~ None, when we return a UNIT we must handle it without converting it to z3
@@ -633,7 +658,7 @@ class Interpreter(object):
         elif isinstance(w_res_false, UnitConstant):
             self.w_result = w_res_true
         else:
-            self.w_result = self._create_w_z3_if(w_cond, w_res_true, w_res_false)
+            self.w_result = w_cond._create_w_z3_if(w_res_true, w_res_false)
 
     def _debug_print(self, msg=""):
         print "interp_%s: " % self.forknum, msg
@@ -749,7 +774,7 @@ class Interpreter(object):
         ### TODO: is this really generic or only for RISC-V ??? ###
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value):
-            return Z3Value(arg0.toz3() == arg1.toz3())
+            return Z3BoolValue(arg0.toz3() == arg1.toz3())
         else:
             import pdb; pdb.set_trace()
 
@@ -769,7 +794,7 @@ class Interpreter(object):
                 pass
         else: 
             # case: func did or didnt raise, but raise was behind a condition
-            self.w_raises = self._create_w_z3_or(self.w_raises, interp_fork.w_raises)
+            self.w_raises = self.w_raises._create_w_z3_or(interp_fork.w_raises)
         self._debug_print("return from " + op.name + " -> " + str(w_res))
         return w_res
 
@@ -788,6 +813,8 @@ class Interpreter(object):
             index = struct.resolved_type.names.index(op.name)
             return struct.vals_w[index]
         res = getattr(struct_type_z3, field)(struct.toz3())# get accessor from slot with getattr
+        if res.sort() == z3.BoolSort():
+            return Z3BoolValue(res)
         return Z3Value(res)
 
     def exec_union_variant_check(self, op):
@@ -797,7 +824,7 @@ class Interpreter(object):
         elif isinstance(instance, Z3Value):
             union_type = op.args[0].resolved_type
             checker = self.sharedstate.get_ir_union_typechecker(union_type, op.name)
-            return Z3Value(checker(instance.toz3()) )
+            return Z3BoolValue(checker(instance.toz3()))
         else:
             import pdb;pdb.set_trace()
         
@@ -813,6 +840,7 @@ class Interpreter(object):
         instance, = self.getargs(op)
         if isinstance(instance, Z3Value):
             z3_cast_instance = self.sharedstate.ir_union_variant_to_z3_type(instance, union_type, to_specialized_variant, res_type)
+            # TODO: do we need to check for BoolSortt here too?
             return Z3Value(z3_cast_instance)
         elif isinstance(instance, UnionConstant):
             assert op.name == instance.variant_name
@@ -839,7 +867,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
             return BooleanConstant(arg0.value == arg1.value)
         else:
-            return Z3Value(arg0.toz3() == arg1.toz3())
+            return Z3BoolValue(arg0.toz3() == arg1.toz3())
     
     def exec_eq(self, op):
         arg0, arg1 = self.getargs(op)
@@ -849,21 +877,21 @@ class Interpreter(object):
             return BooleanConstant(arg0 == arg1)
         else:
             assert isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value)
-            return Z3Value(arg0.toz3() == arg1.toz3())
+            return Z3BoolValue(arg0.toz3() == arg1.toz3())
     
     def exec_gt(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value > arg1.value)
         else:
-            return Z3Value(arg0.toz3() > arg1.toz3())
+            return Z3BoolValue(arg0.toz3() > arg1.toz3())
     
     def exec_gteq(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value >= arg1.value)
         else:
-            return Z3Value(arg0.toz3() >= arg1.toz3())
+            return Z3BoolValue(arg0.toz3() >= arg1.toz3())
 
             
     def exec_lt(self, op):
@@ -871,7 +899,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value < arg1.value)
         else:
-            return Z3Value(arg0.toz3() < arg1.toz3())
+            return Z3BoolValue(arg0.toz3() < arg1.toz3())
 
             
     def exec_lteq(self, op):
@@ -879,21 +907,21 @@ class Interpreter(object):
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value <= arg1.value)
         else:
-            return Z3Value(arg0.toz3() <= arg1.toz3())
+            return Z3BoolValue(arg0.toz3() <= arg1.toz3())
         
     def exec_lt_unsigned64(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value < arg1.value)
         else:
-            return Z3Value(z3.ULT(arg0.toz3(), arg1.toz3()))
+            return Z3BoolValue(z3.ULT(arg0.toz3(), arg1.toz3()))
             
     def exec_not(self, op):
         arg0, = self.getargs(op)
-        if isinstance(arg0, BooleanConstant):
-            return BooleanConstant(not arg0.value)
-        else:
-            return arg0.not_()
+        #if isinstance(arg0, BooleanConstant):
+        #    return arg0.not_()
+        #else:
+        return arg0.not_()
         
     def exec_not_vec_bv(self, op):
         arg0, _ = self.getargs(op) 

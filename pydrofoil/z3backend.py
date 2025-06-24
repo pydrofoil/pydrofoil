@@ -67,6 +67,7 @@ class ConstantSmallBitVector(AbstractConstant):
     def __init__(self, val, width):
         self.value = val
         self.width = width
+        if val == 101 and width == 64: import pdb; pdb.set_trace()
 
     def toz3(self):
         return z3.BitVecVal(self.value, self.width)
@@ -802,6 +803,8 @@ class Interpreter(object):
         if isinstance(op, ir.Phi):
             assert 0, "Every phi should be handled in _compute_merge"
         elif op.resolved_type == types.Unit():
+            pass
+        elif op.resolved_type == types.GenericBitVector():
             pass
         else:
             rtype = op.resolved_type

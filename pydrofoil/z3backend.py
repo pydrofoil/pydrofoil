@@ -129,7 +129,6 @@ class UnitConstant(AbstractConstant):
     def toz3(self):
         """ should never be called """
         assert 0
-        return self.value
     
     def __str__(self):
         return "UNIT"
@@ -181,7 +180,6 @@ class StructConstant(AbstractConstant):
     def __str__(self):
         return "<StructConstant %s %s>" % (self.vals_w, self.resolved_type.name)
     
-
     def same_value(self, other):
         if not isinstance(other, StructConstant): 
             return False
@@ -390,7 +388,6 @@ class SharedState(object):
 class Interpreter(object):
     
     def __init__(self, graph, args, shared_state=None, entrymap=None):
-        self.cls = Interpreter
         self.sharedstate = shared_state if shared_state != None else SharedState()
         self.graph = graph
         self.entrymap = entrymap if entrymap != None else graph.make_entrymap()
@@ -402,10 +399,8 @@ class Interpreter(object):
         self.sharedstate.fork_counter += 1
         self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
         self.w_raises = BooleanConstant(False)
-        self.unconditional_raise = False # set to true to stop execution after encountering an unconditional raise
         self.w_result = None
         self.path_condition = []
-        self.dummy_execution = False # dont execute ops, just write default val into env for each op
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
@@ -545,31 +540,8 @@ class Interpreter(object):
         
     def w_path_condition(self):
         return self._create_w_z3_and(*self.path_condition)
-
-    def _run(self, block=None):
-        """ interpret a graph, either begin with graph.startblock or the block passed as arg """
-        if block:
-            cur_block = block
-        else:
-            cur_block = self.graph.startblock
-
-        index = 0
-        _cont = True
-        while True:
-            if len(self.entrymap[cur_block]) > 1 and not _cont:
-                return cur_block
-
-            for op in cur_block.operations[index:]:
-                self.execute_op(op)
-            
-            next = cur_block.next
-            self.prev_block = cur_block
-            cur_block, index, _cont = self.execute_next(next)
-            if (not cur_block) or self.unconditional_raise:
-                break
-        return None
     
-    def fork(self, path_condition=None, dummy_execution=False):
+    def fork(self, path_condition=None):
         """ create a copy of the interpreter, for evaluating non constant branches """
         cls = type(self)
         f_interp = cls(self.graph, self.args, self.sharedstate, self.entrymap)
@@ -578,9 +550,6 @@ class Interpreter(object):
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
         f_interp.path_condition = self.path_condition if path_condition is None else path_condition
-        if self.w_path_condition().value == False:
-            f_interp.path_condition = [BooleanConstant(False)]
-        f_interp.dummy_execution = dummy_execution
         f_interp.w_raises = self.w_raises # if self raises, the frok must to
         return f_interp
     
@@ -666,84 +635,8 @@ class Interpreter(object):
         else:
             self.w_result = self._create_w_z3_if(w_cond, w_res_true, w_res_false)
 
-    def execute_next(self, next):
-        """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
-        if isinstance(next, ir.Goto):
-            return next.target, 0, False
-        elif isinstance(next, ir.ConditionalGoto):
-            w_cond = self.convert(next.booleanvalue)
-            if isinstance(w_cond, BooleanConstant):
-                if w_cond.value:
-                    block = next.truetarget
-                else:
-                    block = next.falsetarget
-                interp = self.fork()
-                block = interp._run(block)
-                for index, op in enumerate(block.operations):
-                    if isinstance(op, ir.Phi):
-                        assert len(op.prevvalues) == 2
-                        trueindex = op.prevblocks.index(interp.prev_block)
-                        self.environment[op] = interp.environment[op.prevvalues[trueindex]]
-                    else:
-                        break
-                else:
-                    index += 1
-                self.registers = interp.registers
-                self.memory = interp.memory
-                self.w_result = interp.w_result
-                # TODO: raise ...
-                return block, index, True
-            else:
-                # fork 
-                #print "fork in", self.graph.name, next.booleanvalue, "==", w_cond
-                #self._debug_print("fork in " + self.graph.name)
-                interp1 = self.fork()
-                interp1.environment[next.booleanvalue] = BooleanConstant(True)
-                interp2 = self.fork()
-                interp2.environment[next.booleanvalue] = BooleanConstant(False)
-                block1 = interp1._run(next.truetarget)
-                block2 = interp2._run(next.falsetarget)
-                assert block1 == block2
-                # TODO: run_to_phi that returns interp
-                # merge excepions, remove not needed branches of one interp raises
-                self.merge_raise(w_cond, w_res_true, w_res_false, interp1, interp2)
-                # merge results, remove not needed branches of one interp returns UNIT
-                self.merge_result(w_cond, w_res_true, w_res_false, interp1, interp2)
-
-                for index, op in enumerate(block1.operations):
-                    if isinstance(op, ir.Phi):
-                        assert len(op.prevvalues) == 2
-                        trueindex = op.prevblocks.index(interp1.prev_block)
-                        w_res_true = interp1.environment[op.prevvalues[trueindex]]
-                        falseindex = op.prevblocks.index(interp2.prev_block)
-                        w_res_false = interp2.environment[op.prevvalues[falseindex]]
-                        self.environment[op] = self._create_w_z3_if(w_cond, w_res_true, w_res_false)
-                    else:
-                        break
-                else:
-                    index += 1
-
-                # merge memory and registers
-                self.registers = {reg:self._create_w_z3_if(w_cond, interp1.registers[reg], interp2.registers[reg]) for reg in self.registers}
-                self.memory = self._create_z3_if(w_cond.toz3(), interp1.memory, interp2.memory)
-                #self._debug_print("merge " + self.graph.name + " " + str(self.w_result))
-                return block1, index, True
-
-        elif isinstance(next, ir.Return):
-            self.w_result = self.convert(next.value)
-        elif isinstance(next, ir.Raise):
-            self.w_raises = BooleanConstant(True)
-            self.w_result = UnitConstant()
-        else:
-            assert 0, "implement %s" %str(next)
-        return None, 0, False
-    
     def _debug_print(self, msg=""):
-        print "interp_%s:" % self.forknum, msg
-
-    def create_z3_enum(self, name, variants):
-        """ create a z3 datatype for an enum and store in shared state """
-        self.sharedstate.register_enum(name, variants)
+        print "interp_%s: " % self.forknum, msg
 
     def convert(self, arg):
         """ wrap an argument or load wrapped arg from env """
@@ -752,7 +645,7 @@ class Interpreter(object):
         elif isinstance(arg, ir.EnumConstant):
             enumname =  "enum_%s" % arg.resolved_type.name
             if not enumname in self.sharedstate.enums:
-                self.create_z3_enum(arg.resolved_type.name, arg.resolved_type.elements)
+                self.sharedstate.register_enum(arg.resolved_type.name, arg.resolved_type.elements)
             z3variant = self.sharedstate.enums[enumname][1][arg.variant] # self.sharedstate.enums[enumname][0] is z3 Datatype obj [1] is mapping variant_name:z3variant
             w_arg = Enum(arg.resolved_type.name, arg.variant, z3variant)
         elif isinstance(arg, ir.Constant):
@@ -788,7 +681,7 @@ class Interpreter(object):
         """ read from memory, creates new 'empty' z3 Val for mem addresses on first access """
         return self.memory[addr.toz3()]
     
-    def wrte_memory(self, addr, value):
+    def write_memory(self, addr, value):
         """ write to memory """
         self.memory = z3.Store(self.memory, addr.toz3(), value.toz3())
 
@@ -855,7 +748,6 @@ class Interpreter(object):
         """ check for equality """
         ### TODO: is this really generic or only for RISC-V ??? ###
         arg0, arg1 = self.getargs(op)
-
         if isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value):
             return Z3Value(arg0.toz3() == arg1.toz3())
         else:
@@ -871,12 +763,12 @@ class Interpreter(object):
         if isinstance(interp_fork.w_raises, BooleanConstant):
             if interp_fork.w_raises.value == True:# case: func raises without condition
                 self.w_raises = BooleanConstant(True)
-                self.unconditional_raise = True
                 self.w_result = UnitConstant()
             else:
                 # self.w_raises is self.w_raises or False
                 pass
-        else: # case: func did or didnt raise, but raise was behind a condition
+        else: 
+            # case: func did or didnt raise, but raise was behind a condition
             self.w_raises = self._create_w_z3_or(self.w_raises, interp_fork.w_raises)
         self._debug_print("return from " + op.name + " -> " + str(w_res))
         return w_res
@@ -1097,7 +989,6 @@ class NandInterpreter(Interpreter):
     def __init__(self, graph, args, shared_state=None, entrymap=None):
         super(NandInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(16), z3.BitVecSort(16))
-        self.cls = NandInterpreter
     
     ### Nand specific Operations ###
 
@@ -1110,15 +1001,14 @@ class NandInterpreter(Interpreter):
         """ write value to memory """
         ### TODO: Are mem writes supposed to return the written value?? ###
         addr, value  = self.getargs(op)
-        self.wrte_memory(addr, value) # TODO: fix typo
+        self.write_memory(addr, value)
 
 class RiscvInterpreter(Interpreter):
     """ Interpreter subclass for RISCV ISA """
 
-    def __init__(self, graph, args, shared_state=None, entrymap=None):# TODO , entrymap=None
+    def __init__(self, graph, args, shared_state=None, entrymap=None):
         super(RiscvInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
-        self.cls = RiscvInterpreter
 
     def exec_zsys_enable_zzfinx(self, op):
         return BooleanConstant(True)

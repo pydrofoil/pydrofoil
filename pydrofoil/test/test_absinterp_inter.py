@@ -128,11 +128,12 @@ class MockCodegen(object):
         "zz5i64zDzKz5i": "int64_to_int",
     }
 
-    def __init__(self, graphs):
+    def __init__(self, graphs, entry_points=None):
         self.all_graph_by_name = graphs
         self.inlinable_functions = []
         self.inline_dependencies = collections.defaultdict(set)
         self.method_graphs_by_name = {}
+        self.program_entrypoints = entry_points
 
     def get_effects(self, _):
         pass
@@ -442,3 +443,11 @@ block0.next = Return(i4, None)
 graph = Graph('f', [x], block0)
 """,
     )
+
+
+def test_entry_point_args():
+    graphs = _get_graphs_interprocedural_range()
+    codegen = MockCodegen(graphs, ["f"])
+    locmanager = compute_all_ranges(codegen)
+    loc = locmanager.get_location_for_result(graphs["f"], types.Int())
+    assert not loc._bound.is_bounded()

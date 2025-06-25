@@ -858,6 +858,21 @@ def compute_all_ranges(codegen):
             graph, codegen, location_manager
         )
         absinterp.analyze()
+    if codegen.program_entrypoints is not None:
+        for entry_point_name in codegen.program_entrypoints:
+            entry_point = codegen.all_graph_by_name[entry_point_name]
+            for arg in entry_point.args:
+                if not arg.resolved_type in RELEVANT_TYPES:
+                    continue
+                location = location_manager.get_location_for_argument(
+                    entry_point, arg
+                )
+                location.write(
+                    default_for_type(arg.resolved_type),
+                    entry_point,
+                    "entrypoint",
+                )
+
     # run to fixpoint
     while todo_set:
         graph = todo_set.pop()

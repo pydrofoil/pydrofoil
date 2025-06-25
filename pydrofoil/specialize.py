@@ -406,7 +406,7 @@ class FixpointSpecializer(object):
         self.all_graph_by_name = {} # type: dict[str, ir.Graph]
         self.method_graphs_by_name = {} # name -> list of graphs
         self.inline_dependencies = defaultdict(set) # graph -> {graphs}
-        self.program_entrypoints = entrypoints
+        self.program_entrypoints = entrypoints  # type: None | list[str]
         # attributes for printing
         self._highlevel_task_msg = ''
         self._terminal_columns = py.io.get_terminal_width()

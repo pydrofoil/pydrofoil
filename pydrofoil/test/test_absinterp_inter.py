@@ -202,6 +202,92 @@ def test_struct_ranges():
     assert s_loc._bound.high == 100
 
 
+def _get_example_struct_ranges_packed():
+    s = ir.Argument(
+        "s", types.Struct("S", ("x", "y"), (types.Int(), types.Int()))
+    )
+    t = ir.Argument(
+        "t", types.Struct("T", ("x", "y"), (types.Int(), types.Int()))
+    )
+    u = ir.Argument(
+        "u", types.Struct("U", ("x", "y"), (types.Int(), types.Int()))
+    )
+
+    block_f = ir.Block()
+
+    block_f.emit(ir.Operation, "g", [s, t], types.Unit())
+    a2 = block_f.emit(ir.FieldAccess, "x", [s], types.Packed(types.Int()))
+    a3 = block_f.emit(
+        ir.UnpackPackedField, "$unpack", [a2], types.Int(), None, None
+    )
+
+    block_f.next = ir.Return(a3)
+    graph_f = ir.Graph("f", [s, t], block_f)
+
+    block_g = ir.Block()
+    c5 = block_g.emit(
+        ir.PackPackedField,
+        "$pack",
+        [ir.IntConstant(5)],
+        types.Packed(types.Int()),
+        None,
+        None,
+    )
+    block_g.emit(ir.FieldWrite, "x", [s, c5], types.Unit())
+    c7 = block_g.emit(
+        ir.PackPackedField,
+        "$pack",
+        [ir.IntConstant(7)],
+        types.Packed(types.Int()),
+        None,
+        None,
+    )
+    block_g.emit(ir.FieldWrite, "x", [s, c7], types.Unit())
+    c9 = block_g.emit(
+        ir.PackPackedField,
+        "$pack",
+        [ir.IntConstant(9)],
+        types.Packed(types.Int()),
+        None,
+        None,
+    )
+    c100 = block_g.emit(
+        ir.PackPackedField,
+        "$pack",
+        [ir.IntConstant(100)],
+        types.Packed(types.Int()),
+        None,
+        None,
+    )
+    block_g.emit(
+        ir.StructConstruction,
+        "S",
+        [c9, c100],
+        s.resolved_type,
+    )
+    block_g.next = ir.Return(ir.UnitConstant.UNIT)
+    graph_g = ir.Graph("g", [s, t, u], block_g)
+
+    return {"f": graph_f, "g": graph_g}
+
+
+def test_struct_ranges_packed():
+    graphs = _get_example_struct_ranges_packed()
+
+    codegen = MockCodegen(graphs)
+    locmanager = compute_all_ranges(codegen)
+    loc = locmanager.get_location_for_result(graphs["f"], types.Int())
+    assert loc._bound.is_bounded()
+    assert loc._bound.low == 5
+    assert loc._bound.high == 9
+    s_loc = locmanager.get_location_for_field(
+        types.Struct("S", ("x", "y"), (types.Int(), types.Int())), "y"
+    )
+    assert s_loc._bound.is_bounded()
+    assert s_loc._bound.low == 100
+    assert s_loc._bound.high == 100
+
+
 def _get_example_union_ranges():
     u = types.Union("myunion", ("first", "second"), (types.Int(), types.Int()))
 

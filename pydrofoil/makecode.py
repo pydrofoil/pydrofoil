@@ -849,9 +849,13 @@ class __extend__(parse.Register):
 
         if self.body is None:
             return
-        with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
-            graph = construct_ir(self, codegen, singleblock=True)
-            emit_function_code(graph, self, codegen)
+        graph = construct_ir(self, codegen, singleblock=True)
+        def emit_register(graph, codegen):
+            with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
+                emit_function_code(graph, self, codegen)
+        codegen.add_graph(graph, emit_register)
+        if codegen.program_entrypoints:
+            codegen.program_entrypoints.append(graph.name)
 
     def make_register_ref(self, codegen, read_pyname=None):
         if hasattr(self, 'register_ref_name'):

@@ -178,6 +178,14 @@ class BitVector(W_Root):
             count += 1
         return count
 
+    def count_trailing_zeros(self):
+        count = 0
+        for i in range(self.size()):
+            if self.read_bit(i):
+                break
+            count += 1
+        return count
+
 
 class SmallBitVector(BitVector):
     _immutable_fields_ = ['val']
@@ -420,11 +428,26 @@ class SmallBitVector(BitVector):
     def _count_leading_zeros(size, val):
         count = 0
         mask = r_uint(1) << (size - 1)
-        for i in range(size - 1, -1, -1):
+        for _ in range(size):
             if val & mask:
                 break
             count += 1
             mask >>= 1
+        return count
+
+    def count_trailing_zeros(self):
+        return self._count_trailing_zeros(self.size(), self.val)
+
+    @staticmethod
+    @jit.elidable
+    def _count_trailing_zeros(size, val):
+        count = 0
+        mask = r_uint(1)
+        for _ in range(size):
+            if val & mask:
+                break
+            count += 1
+            mask <<= 1
         return count
 
 

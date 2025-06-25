@@ -1872,3 +1872,41 @@ def test_with_loop():
     assert values[block1][i2] == MACHINEINT
     assert values[block3][i2] == Range(MININT, 7)
     assert values[block2][i2] == Range(8, MAXINT)
+
+
+def test_pack_unpack():
+    block_f = Block()
+    c5 = block_f.emit(
+        PackPackedField,
+        "$pack",
+        [IntConstant(5)],
+        types.Packed(types.Int()),
+        None,
+        None,
+    )
+    a3 = block_f.emit(
+        UnpackPackedField, "$unpack", [c5], types.Int(), None, None
+    )
+    block_f.next = Return(a3)
+    graph_f = Graph("f", [], block_f)
+    values = analyze(graph_f, fakecodegen)
+    assert values[block_f][a3] == Range(5, 5)
+
+
+def test_pack_machineint_unpack():
+    block_f = Block()
+    c2 = block_f.emit(
+        Operation,
+        "@pack_machineint",
+        [MachineIntConstant(2)],
+        Packed(Int()),
+        None,
+        None,
+    )
+    a3 = block_f.emit(
+        UnpackPackedField, "$unpack", [c2], types.Int(), None, None
+    )
+    block_f.next = Return(a3)
+    graph_f = Graph("f", [], block_f)
+    values = analyze(graph_f, fakecodegen)
+    assert values[block_f][a3] == Range(2, 2)

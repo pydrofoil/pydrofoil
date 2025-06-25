@@ -818,7 +818,9 @@ class IntOpOptimizer(ir.LocalOptimizer):
 
     def _optimize_RangeCheck(self, op, block, index):
         arg0, arg1, arg2, arg3 = self._args(op)
-        if isinstance(arg0, (ir.IntConstant, ir.MachineIntConstant)):
+        if isinstance(
+            arg0, (ir.IntConstant, ir.MachineIntConstant, ir.BooleanConstant)
+        ):
             return ir.REMOVE
         if (
             arg0.resolved_type is types.Int()

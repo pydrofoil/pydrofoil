@@ -319,6 +319,7 @@ class Phi(Value):
 
     def __init__(self, prevblocks, prevvalues, resolved_type):
         from pydrofoil.ir import Block
+
         for block in prevblocks:
             assert isinstance(block, Block)
         for value in prevvalues:
@@ -392,6 +393,7 @@ class IntConstant(Constant):
     resolved_type = types.Int()
 
     def __init__(self, number):
+        # type: (int) -> None
         self.number = number
 
     def _repr(self, print_varnames):
@@ -592,6 +594,7 @@ class JustStop(Next):
 class Goto(Next):
     def __init__(self, target, sourcepos=None):
         from pydrofoil.ir import Block
+
         assert isinstance(target, Block)
         self.target = target
         self.sourcepos = sourcepos
@@ -612,6 +615,7 @@ class Goto(Next):
 class ConditionalGoto(Next):
     def __init__(self, booleanvalue, truetarget, falsetarget, sourcepos=None):
         from pydrofoil.ir import Block
+
         assert isinstance(truetarget, Block)
         assert isinstance(falsetarget, Block)
         assert isinstance(booleanvalue, Value)

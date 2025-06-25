@@ -816,6 +816,19 @@ class IntOpOptimizer(ir.LocalOptimizer):
                     )
                 )
 
+    def _optimize_RangeCheck(self, op, block, index):
+        arg0, arg1, arg2, arg3 = self._args(op)
+        if isinstance(arg0, (ir.IntConstant, ir.MachineIntConstant)):
+            return ir.REMOVE
+        if (
+            arg0.resolved_type is types.Int()
+            and arg1.number >= MININT
+            and arg2.number <= MAXINT
+        ):
+            arg0 = self._extract_machineint(arg0)
+            op.args[0] = arg0
+        return None  # leave it alone
+
 
 def optimize_with_range_info(graph, codegen):
     if graph.has_loop:

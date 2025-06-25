@@ -435,9 +435,9 @@ def test_apply_interprocedural_optimizations():
         """
 x = Argument('x', Int())
 block0 = Block()
-i1 = block0.emit(RangeCheck, '$rangecheck', [x, IntConstant(5), IntConstant(15), StringConstant("Argument 'x' of function 'f'")], Unit(), None, None)
-i2 = block0.emit(Operation, 'zz5izDzKz5i64', [x], MachineInt(), None, None)
-i3 = block0.emit(Operation, '@add_i_i_must_fit', [i2, MachineIntConstant(1)], MachineInt(), None, None)
+i1 = block0.emit(Operation, 'zz5izDzKz5i64', [x], MachineInt(), None, None)
+i2 = block0.emit(RangeCheck, '$rangecheck', [i1, IntConstant(5), IntConstant(15), StringConstant("Argument 'x' of function 'f'")], Unit(), None, None)
+i3 = block0.emit(Operation, '@add_i_i_must_fit', [i1, MachineIntConstant(1)], MachineInt(), None, None)
 i4 = block0.emit(Operation, 'zz5i64zDzKz5i', [i3], Int(), None, None)
 block0.next = Return(i4, None)
 graph = Graph('f', [x], block0)

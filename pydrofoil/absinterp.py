@@ -888,7 +888,7 @@ def _rewrite_graph(location_manager, graph, graphs):
     for argument in graph.args:
         if argument.resolved_type not in RELEVANT_TYPES:
             continue
-        location = location_manager.get_location_for_argument(argument)
+        location = location_manager.get_location_for_argument(graph, argument)
 
         block = graph.startblock
         assert not block.operations or not isinstance(
@@ -897,8 +897,6 @@ def _rewrite_graph(location_manager, graph, graphs):
         has_changed = _make_check(
             location,
             argument,
-            "Argument %s of function %s"
-            % (repr(argument.name), repr(graph.name)),
             block,
             0,
             has_changed,
@@ -916,17 +914,12 @@ def _rewrite_graph(location_manager, graph, graphs):
                 location = location_manager.get_location_for_result(
                     callee, instruction.resolved_type
                 )
-                msg = "Result of function %s" % repr(instruction.name)
             elif type(instruction) is ir.FieldAccess:
                 arg = instruction.args[0]
                 struct_type = arg.resolved_type  # type: types.Struct
                 field_name = instruction.name
                 location = location_manager.get_location_for_field(
                     struct_type, field_name
-                )
-                msg = "Access to field %s of struct %s" % (
-                    repr(field_name),
-                    repr(struct_type.name),
                 )
             elif type(instruction) is ir.UnionCast:
                 arg = instruction.args[0]
@@ -935,20 +928,16 @@ def _rewrite_graph(location_manager, graph, graphs):
                 location = location_manager.get_location_for_union(
                     union_type, variant_name
                 )
-                msg = "Variant %s of union %s" % (
-                    repr(variant_name),
-                    repr(union_type.name),
-                )
             else:
                 continue
             has_changed = _make_check(
-                location, instruction, msg, block, i + 1, has_changed
+                location, instruction, block, i + 1, has_changed
             )
     return has_changed
 
 
-def _make_check(location, value, msg, block, index, has_changed_before):
-    # type: (Location, ir.Value, str, ir.Block, int, bool) -> bool
+def _make_check(location, value, block, index, has_changed_before):
+    # type: (Location, ir.Value, ir.Block, int, bool) -> bool
     # TODO this is not a good way to access the bound
     bound = location._bound
     if not bound.is_bounded_typed(value.resolved_type):
@@ -958,7 +947,7 @@ def _make_check(location, value, msg, block, index, has_changed_before):
         value,
         ir.IntConstant(bound.low),
         ir.IntConstant(bound.high),
-        ir.StringConstant(msg),
+        ir.StringConstant(location.message),
     )
     block.operations.insert(index, new_instruction)
     return True
@@ -967,7 +956,9 @@ def _make_check(location, value, msg, block, index, has_changed_before):
 class LocationManager(object):
     def __init__(self):
         self._all_locations = []  # type: list[Location]
-        self._argument_locations = {}  # type: dict[ir.Argument, Location]
+        self._argument_locations = (
+            {}
+        )  # type: dict[tuple[ir.Graph, ir.Argument], Location]
         self._result_locations = {}  # type: dict[ir.Graph, Location]
         self._field_locations = (
             {}
@@ -976,9 +967,9 @@ class LocationManager(object):
             {}
         )  # type: dict[tuple[types.Union, str], Location]
 
-    def new_location(self, typ):
-        # type: (types.Type) -> Location
-        loc = Location(self, typ)
+    def new_location(self, typ, message):
+        # type: (types.Type, str) -> Location
+        loc = Location(self, typ, message)
         self._all_locations.append(loc)
         return loc
 
@@ -990,12 +981,15 @@ class LocationManager(object):
                 modified.add(location)
         return frozenset(modified)
 
-    def get_location_for_argument(self, arg):
-        # type: (ir.Argument) -> Location
-        loc = self._argument_locations.get(arg)
+    def get_location_for_argument(self, graph, arg):
+        # type: (ir.Graph, ir.Argument) -> Location
+        key = (graph, arg)
+        loc = self._argument_locations.get(key)
         if loc is None:
-            loc = self._argument_locations[arg] = self.new_location(
-                arg.resolved_type
+            loc = self._argument_locations[key] = self.new_location(
+                arg.resolved_type,
+                "Argument %s of function %s"
+                % (repr(arg.name), repr(graph.name)),
             )
         return loc
 
@@ -1003,7 +997,9 @@ class LocationManager(object):
         # type: (ir.Graph, types.Type) -> Location
         loc = self._result_locations.get(graph)
         if loc is None:
-            loc = self._result_locations[graph] = self.new_location(typ)
+            loc = self._result_locations[graph] = self.new_location(
+                typ, "Result of function %r" % graph.name
+            )
         return loc
 
     def get_location_for_field(self, typ, field_name):
@@ -1012,7 +1008,8 @@ class LocationManager(object):
         loc = self._field_locations.get(key)
         if loc is None:
             loc = self._field_locations[key] = self.new_location(
-                typ.fieldtyps[field_name]
+                typ.fieldtyps[field_name],
+                "Access to field %r of struct %r" % (field_name, typ.name),
             )
         return loc
 
@@ -1022,7 +1019,8 @@ class LocationManager(object):
         loc = self._union_locations.get(key)
         if loc is None:
             loc = self._union_locations[key] = self.new_location(
-                typ.variants[variant_name]
+                typ.variants[variant_name],
+                "Variant %r of union %r" % (variant_name, typ.name),
             )
         return loc
 
@@ -1041,8 +1039,8 @@ class Location(object):
     TODO do we need more precision for the key?
     """
 
-    def __init__(self, manager, typ):
-        # type: (LocationManager, types.Type) -> None
+    def __init__(self, manager, typ, message):
+        # type: (LocationManager, types.Type, str) -> None
         self._manager = manager
         self._typ = typ
         self._bound = default_for_type(typ)
@@ -1051,6 +1049,7 @@ class Location(object):
         )  # type: dict[tuple[ir.Graph, typing.Hashable], Range]
         self.readers = set()  # type: set[ir.Graph]
         self._recompute_counter = 0
+        self.message = message
 
     def write(self, new_bound, graph, graph_position=None):
         # type: (Range, ir.Graph, typing.Hashable) -> None
@@ -1098,7 +1097,7 @@ class InterproceduralAbstractInterpreter(AbstractInterpreter):
             if func_arg.resolved_type not in RELEVANT_TYPES:
                 continue
             arg_location = self._location_manager.get_location_for_argument(
-                func_arg
+                func_graph, func_arg
             )
             arg_location.write(bound, self.graph, op)
         if op.resolved_type not in RELEVANT_TYPES:
@@ -1167,7 +1166,7 @@ class InterproceduralAbstractInterpreter(AbstractInterpreter):
             if arg.resolved_type not in RELEVANT_TYPES:
                 continue
             arg_location = self._location_manager.get_location_for_argument(
-                arg
+                self.graph, arg
             )
             startblock_values[arg] = arg_location.read(self.graph)
         return startblock_values

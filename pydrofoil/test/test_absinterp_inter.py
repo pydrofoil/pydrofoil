@@ -19,20 +19,20 @@ import pytest
 def test_creation():
     m = LocationManager()
     typ = types.Int()
-    l = m.new_location(typ)
+    l = m.new_location(typ, "")
     graph = object()
     assert not l.read(graph).is_bounded()
     assert graph in l.readers
 
     typ = types.MachineInt()
-    l = m.new_location(typ)
+    l = m.new_location(typ, "")
     assert l.read(object()).is_bounded()
 
 
 def test_location_write():
     m = LocationManager()
     typ = types.Int()
-    l = m.new_location(typ)
+    l = m.new_location(typ, "")
     graph = object()
     range = Range(0, 100)
     l.write(new_bound=range, graph=graph)
@@ -42,7 +42,7 @@ def test_location_write():
 def test_location_write_error_checking():
     m = LocationManager()
     typ = types.Int()
-    l = m.new_location(typ)
+    l = m.new_location(typ, "")
     graph = object()
     range = Range(0, 100)
     l._bound = Range(0, 10)
@@ -53,7 +53,7 @@ def test_location_write_error_checking():
 def test_location_write_range_too_large_for_type():
     m = LocationManager()
     typ = types.MachineInt()
-    l = m.new_location(typ)
+    l = m.new_location(typ, "")
     graph = object()
     l.write(Range(1, None), object())
     m.find_modified()
@@ -63,8 +63,8 @@ def test_location_write_range_too_large_for_type():
 def test_find_modified():
     m = LocationManager()
     typ = types.Int()
-    l1 = m.new_location(typ)
-    l2 = m.new_location(typ)
+    l1 = m.new_location(typ, "")
+    l2 = m.new_location(typ, "")
     l1.write(Range(0, 100), object())
     assert m.find_modified() == {l1}
 
@@ -72,7 +72,7 @@ def test_find_modified():
 def test_recompute_limit():
     m = LocationManager()
     typ = types.Int()
-    loc = m.new_location(typ)
+    loc = m.new_location(typ, "")
     graph_location = object()
     for i in range(200):
         loc.write(Range(0, 10000 - i), graph_location)
@@ -88,7 +88,7 @@ def test_recompute_limit():
 def test_recompute_limit_many_graph_locations():
     m = LocationManager()
     typ = types.Int()
-    loc = m.new_location(typ)
+    loc = m.new_location(typ, "")
     for i in range(200):
         loc.write(Range(0, i + 1), object())  # writes from 200 locations
     mod = m.find_modified()

@@ -221,7 +221,12 @@ BOOL = Range(0, 1)
 TRUE = Range(1, 1)
 FALSE = Range(0, 0)
 
-RELEVANT_TYPES = (types.MachineInt(), types.Int(), types.Bool())
+RELEVANT_TYPES = (
+    types.MachineInt(),
+    types.Int(),
+    types.Bool(),
+    types.Packed(types.Int()),
+)
 INT_TYPES = (types.MachineInt(), types.Int())
 
 def analyze(graph, codegen, view=False):
@@ -354,7 +359,11 @@ class AbstractInterpreter(object):
             return BOOL
         if op.resolved_type is types.MachineInt():
             return MACHINEINT
-        return UNBOUNDED
+        if op.resolved_type is types.Packed(types.Int()):
+            return UNBOUNDED
+        if op.resolved_type is types.Int():
+            return UNBOUNDED
+        return None
 
     def analyze_Operation(self, op):
         name = op.name.lstrip("@$")
@@ -373,6 +382,26 @@ class AbstractInterpreter(object):
             elif b is not None:
                 res = res.union(b)
         return res
+
+    def analyze_RangeCheck(self, op):
+        # type: (ir.RangeCheck) -> None
+        oldbound, low, high, _ = self._argbounds(op)
+        assert low is not None
+        assert high is not None
+        assert oldbound is not None
+        newbound = oldbound.make_ge(low).make_le(high)
+        self.current_values[op.args[0]] = newbound
+        return None
+
+    def analyze_PackPackedField(self, op):
+        # type: (ir.PackPackedField) -> None
+        (arg,) = self._argbounds(op)
+        return arg
+
+    def analyze_UnpackPackedField(self, op):
+        # type: (ir.UnpackPackedField) -> None
+        (arg,) = self._argbounds(op)
+        return arg
 
     def _bounds(self, op, must_exist=True, block=None):
         if isinstance(op, ir.BooleanConstant):
@@ -516,6 +545,9 @@ class AbstractInterpreter(object):
     def analyze_length_unwrapped_res(self, op):
         return Range(0, None)
 
+    def analyze_pack_machineint(self, op):
+        (arg,) = self._argbounds(op)
+        return arg
 
     # conditions
 

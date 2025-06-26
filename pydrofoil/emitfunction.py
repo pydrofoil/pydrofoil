@@ -322,7 +322,7 @@ class CodeEmitter(object):
                 )
             )
             return
-        if op.args[0].resolved_type == types.MachineInt():
+        elif op.args[0].resolved_type == types.MachineInt():
             self.codegen.emit(
                 "assert %s <= %s <= %s, %s"
                 % (
@@ -333,12 +333,23 @@ class CodeEmitter(object):
                 )
             )
             return
-        lower = self._get_arg(op.args[1])
-        upper = self._get_arg(op.args[2])
-        self.codegen.emit(
-            "assert %s.le(%s) and %s.le(%s), %s"
-            % (lower, arg0, arg0, upper, arg3)
-        )
+        elif op.args[0].resolved_type == types.Int():
+            lower = self._get_arg(op.args[1])
+            upper = self._get_arg(op.args[2])
+            self.codegen.emit(
+                "assert %s.le(%s) and %s.le(%s), %s"
+                % (lower, arg0, arg0, upper, arg3)
+            )
+        elif op.args[0].resolved_type == types.Packed(types.Int()):
+            lower = self._get_arg(op.args[1])
+            upper = self._get_arg(op.args[2])
+            self.codegen.emit(
+                "assert %s.le_packed(%s) and %s.ge_packed(%s), %s"
+                % (lower, arg0, upper, arg0, arg3)
+            )
+        else:
+            assert 0, "unknown type in RangeCheck"
+
 
     # ________________________________________________
     # jumps etc

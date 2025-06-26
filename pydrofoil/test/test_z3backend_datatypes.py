@@ -85,6 +85,21 @@ def test_z3boolvalue_not_():
     res = solver.check(z3.Not(w_cond_not.toz3() == z3.Not(x)))
     assert res == z3.unsat
 
+def test_z3boolvalue_if():
+    """ Test if with BooleanConstant as condition """
+    a = z3.BitVec("a", 32)
+    b = z3.BitVec("b", 32)
+    w_val_a = Z3Value(a)
+    w_val_b = Z3Value(b)
+    
+    x = z3.Bool("x")
+    w_cond = Z3BoolValue(x)
+    w_if = w_cond._create_w_z3_if(w_val_a, w_val_b)
+
+    solver = z3.Solver()
+    res = solver.check(z3.Not(w_if.toz3() == z3.If(x, a, b)))
+    assert res == z3.unsat
+
 
 ### Z3BoolNotValue ###
 
@@ -98,6 +113,21 @@ def test_z3boolnotvalue_not_():
 
     solver = z3.Solver()
     res = solver.check(z3.Not(w_cond_not.toz3() == x))
+    assert res == z3.unsat
+
+def test_z3boolnotvalue_if():
+    """ Test if with BooleanConstant as condition """
+    a = z3.BitVec("a", 32)
+    b = z3.BitVec("b", 32)
+    w_val_a = Z3Value(a)
+    w_val_b = Z3Value(b)
+    
+    x = z3.Bool("x")
+    w_cond = Z3BoolNotValue(x)
+    w_if = w_cond._create_w_z3_if(w_val_a, w_val_b)
+
+    solver = z3.Solver()
+    res = solver.check(z3.Not(w_if.toz3() == z3.If(x, b, a)))
     assert res == z3.unsat
 
 

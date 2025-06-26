@@ -67,7 +67,6 @@ class ConstantSmallBitVector(AbstractConstant):
     def __init__(self, val, width):
         self.value = val
         self.width = width
-        if val == 101 and width == 64: import pdb; pdb.set_trace()
 
     def toz3(self):
         return z3.BitVecVal(self.value, self.width)
@@ -499,7 +498,6 @@ class Interpreter(object):
                     continue
                 ### TODO: think of a better solution for this ###
             #interp._debug_print("run block %s" % str(current.next))
-            #if "zassign_dest" in str(interp.graph): import pdb; pdb.set_trace()
             interp._run_block(current, index)
             interp._schedule_next(current.next, schedule)
             if not self is interp:
@@ -507,11 +505,6 @@ class Interpreter(object):
 
             if interp.w_result is not None:
                 assert not todo
-                # Must set regs and mem from interp that executed the phi that is input for the return
-                #if len(interp.entrymap[current]) > 1:# there are graphs with only one block with return as next
-                #    prev_phi_interp = block_to_interp[interp.entrymap[current][0]]
-                #    self.registers = prev_phi_interp.registers
-                #    self.memory = prev_phi_interp.memory
                 return interp.w_result # TODO: run should return w_result, memory, registers
         
         assert not todo     
@@ -549,10 +542,9 @@ class Interpreter(object):
             w_cond = self.convert(block_next.booleanvalue)
 
             interp1 = self.fork(self.path_condition + [w_cond])# TODO: handle the conditions better
-            #interp1._debug_print("parent " + str(self.forknum) + " "  + str(self.w_path_condition()) + " append " + str(w_cond) + " is now " + str(interp1.w_path_condition()))
             interp1.environment[block_next.booleanvalue] = BooleanConstant(True)
+
             interp2 = self.fork(self.path_condition + [w_cond.not_()])
-            #interp2._debug_print("parent " + str(self.forknum) + " " + str(self.w_path_condition()) + " append " + str(w_cond.not_()) + " is now " + str(interp2.w_path_condition()))
             interp2.environment[block_next.booleanvalue] = BooleanConstant(False)
 
             ### we need to now in merge if the current block is actually reachable ###
@@ -560,7 +552,6 @@ class Interpreter(object):
 
             schedule(block_next.truetarget, interp1)
             schedule(block_next.falsetarget, interp2)
-            return
         elif isinstance(block_next, ir.Return):
             if not self._is_unreachable(): # only set result if it is reachable
                 self.w_result = self.convert(block_next.value)
@@ -577,9 +568,7 @@ class Interpreter(object):
 
     def _compute_merge(self, block, scheduleinterp, block_to_interp):
         prevblocks = self.entrymap[block]
-        #interp = scheduleinterp.fork()
         assert len(prevblocks) > 1
-        #if "zassign_dest" in str(scheduleinterp.graph): import pdb; pdb.set_trace()#  and "Return" in str(block)
         for prevblock in prevblocks:
             previnterp = block_to_interp[prevblock]
             if previnterp is scheduleinterp: continue
@@ -635,31 +624,6 @@ class Interpreter(object):
     def _create_z3_if(self, cond, true, false):
         return z3.If(cond, true, false)
     
-    def merge_raise(self, w_cond, w_res_true, w_res_false, interp1, interp2):
-        """ Handle Exceptions, when a raise block raises the forks result is UNIT """
-        if (isinstance(interp1.w_raises, BooleanConstant) and interp1.w_raises.value == True 
-           and isinstance(interp2.w_raises, BooleanConstant) and interp2.w_raises.value == True):
-            self.w_result = UnitConstant() # if both forks raise, then there is no result
-            self.w_raises = BooleanConstant(True)
-        elif isinstance(interp1.w_raises, BooleanConstant) and interp1.w_raises.value == True:
-            self.w_raises = w_cond._create_w_z3_if(BooleanConstant(True), interp2.w_raises)
-        elif isinstance(interp2.w_raises, BooleanConstant) and interp2.w_raises.value == True:
-            self.w_raises = w_cond._create_w_z3_if(interp1.w_raises, BooleanConstant(True))
-        else:
-            self.w_raises = w_cond._create_w_z3_if(interp1.w_raises, interp2.w_raises)
-
-    def merge_result(self, w_cond, w_res_true, w_res_false, interp1, interp2):
-        """ Handle Unit ~ None, when we return a UNIT we must handle it without converting it to z3
-            Neither raise nor UNIT return somthing """
-        if isinstance(w_res_true, UnitConstant) and isinstance(w_res_false, UnitConstant):
-            self.w_result = UnitConstant() # parent interpreter must handle this or this is the generel return value
-        elif isinstance(w_res_true, UnitConstant): 
-            self.w_result = w_res_false
-        elif isinstance(w_res_false, UnitConstant):
-            self.w_result = w_res_true
-        else:
-            self.w_result = w_cond._create_w_z3_if(w_res_true, w_res_false)
-
     def _debug_print(self, msg=""):
         print "interp_%s: " % self.forknum, msg
 
@@ -918,9 +882,6 @@ class Interpreter(object):
             
     def exec_not(self, op):
         arg0, = self.getargs(op)
-        #if isinstance(arg0, BooleanConstant):
-        #    return arg0.not_()
-        #else:
         return arg0.not_()
         
     def exec_not_vec_bv(self, op):

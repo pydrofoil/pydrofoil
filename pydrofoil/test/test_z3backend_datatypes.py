@@ -74,6 +74,30 @@ def test_booleanconstant_and():
 
 ### Z3BoolValue ###
 
-# TODO: 
+def test_z3boolvalue_not_():
+    """ Test negation of Z3BoolValue """
+    x = z3.Bool("x")
+    w_cond = Z3BoolValue(x)
+
+    w_cond_not = w_cond.not_()
+
+    solver = z3.Solver()
+    res = solver.check(z3.Not(w_cond_not.toz3() == z3.Not(x)))
+    assert res == z3.unsat
+
+
+### Z3BoolNotValue ###
+
+def test_z3boolnotvalue_not_():
+    """ Test negation of Z3BoolNotValue """
+    
+    x = z3.Bool("x")
+    w_cond = Z3BoolNotValue(x) # this means not(x)
+
+    w_cond_not = w_cond.not_()
+
+    solver = z3.Solver()
+    res = solver.check(z3.Not(w_cond_not.toz3() == x))
+    assert res == z3.unsat
 
 

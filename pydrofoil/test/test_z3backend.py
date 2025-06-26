@@ -1,6 +1,5 @@
 from pydrofoil.types import *
 from pydrofoil.ir import *
-from pydrofoil import bitvector, supportcode
 from pydrofoil import z3backend
 import z3
 

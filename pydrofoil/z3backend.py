@@ -252,14 +252,14 @@ class Z3BoolValue(Z3Value):
             return cls(z3.If(self.value, w_false.toz3(), w_true.toz3()))
         return cls(z3.If(self.value, w_true.toz3(), w_false.toz3()))
     
-    def _create_w_z3_or(self,w_other):
+    def _create_w_z3_or(self, w_other):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
         if isinstance(w_other, BooleanConstant):
             if w_other.value:
                 return w_other
             return self
         if self.same_value(w_other): return self
-        return Z3BoolValue(z3.Or(self.value, w_other.toz3()))
+        return Z3BoolValue(z3.Or(self.toz3(), w_other.toz3())) # use self.toz3() here as this method is inherited to Z3BoolNotValue
 
     def _create_w_z3_and(self, *args_w):
         if args_w in ((), []):
@@ -763,7 +763,7 @@ class Interpreter(object):
         return w_res
 
     def exec_struct_construction(self, op):
-        """ Execute a Lazy Struct creation"""
+        """ Execute a Lazy Struct creation """
         z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
         return StructConstant(self.getargs(op), op.resolved_type, z3type)
     

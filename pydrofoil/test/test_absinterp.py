@@ -7,7 +7,7 @@ from pydrofoil.absinterp import (
     MACHINEINT,
     Range,
 )
-from pydrofoil.absinterp import optimize_with_range_info, MININT, MAXINT
+from pydrofoil.absinterp import optimize_with_range_info, MININT, MAXINT, IntOpOptimizer
 from pydrofoil.test.test_ir import compare, FakeCodeGen
 
 from pydrofoil.types import *
@@ -1910,3 +1910,22 @@ def test_pack_machineint_unpack():
     graph_f = Graph("f", [], block_f)
     values = analyze(graph_f, fakecodegen)
     assert values[block_f][a3] == Range(2, 2)
+
+def test_dont_remove_const_bool_res_op_with_side_effects():
+    block = Block()
+    b = block.emit(
+        Operation,
+        "some_random_func",
+        [MachineIntConstant(2)],
+        Bool(),
+        None,
+        None,
+    )
+    block.next = Return(b)
+    graph = Graph("f", [], block)
+    class absinterp:
+        values = {block: {b: Range(1, 1)}}
+    IntOpOptimizer(graph, fakecodegen, absinterp).optimize()
+    assert block.operations == [b] # must not be removed even if the result is always a const
+
+

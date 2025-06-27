@@ -755,17 +755,24 @@ class IntOpOptimizer(ir.LocalOptimizer):
             return ir.BooleanConstant.FALSE
 
     def _optimize_op(self, block, index, op):
+        def can_remove(op):
+            from pydrofoil import supportcode
+            if not op.can_have_side_effects:
+                return True
+            name = op.name.lstrip("@$")
+            name = self.codegen.builtin_names.get(name, name)
+            return name in supportcode.purefunctions
         if op.resolved_type is types.Bool():
             res = self._known_boolean_value(op)
-            if res is not None:
+            if res is not None and can_remove(op):
                 return res
         elif op.resolved_type is types.Int():
             b = self.current_values.get(op, None)
-            if b and b.isconstant():
+            if b and b.isconstant() and can_remove(op):
                 return ir.IntConstant(b.low)
         elif op.resolved_type is types.MachineInt():
             b = self.current_values.get(op, None)
-            if b and b.isconstant():
+            if b and b.isconstant() and can_remove(op):
                 return ir.MachineIntConstant(b.low)
         return ir.LocalOptimizer._optimize_op(self, block, index, op)
 
@@ -854,7 +861,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
 
 
 def optimize_with_range_info(graph, codegen):
-    if graph.has_loop:
+    if graph.has_loop: # TODO: this limitation can now be removed
         return False
     if graph.has_more_than_n_blocks(1000):
         return False

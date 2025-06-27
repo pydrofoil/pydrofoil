@@ -3,7 +3,7 @@ message: "If you use this work, please cite it using the metadata below."
 title: "Pydrofoil: Accelerating Sail-Based Instruction Set Simulators"
 authors:
   - family-names: Bolz-Tereick
-    given-names: Carl Friedrich
+    given-names: CF
   - family-names: Panayi
     given-names: Luke
   - family-names: McKeogh

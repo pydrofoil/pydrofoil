@@ -38,7 +38,7 @@ If you want to cite this work, please use the following bibtex snippet:
 
 ```
 @InProceedings{bolztereick_et_al:LIPIcs.ECOOP.2025.3,
-  author =	{Bolz-Tereick, Carl Friedrich and Panayi, Luke and McKeogh, Ferdia and Spink, Tom and Berger, Martin},
+  author =	{Bolz-Tereick, CF and Panayi, Luke and McKeogh, Ferdia and Spink, Tom and Berger, Martin},
   title =	{{Pydrofoil: Accelerating Sail-Based Instruction Set Simulators}},
   booktitle =	{39th European Conference on Object-Oriented Programming (ECOOP 2025)},
   pages =	{3:1--3:31},

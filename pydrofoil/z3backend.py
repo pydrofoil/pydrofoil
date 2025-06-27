@@ -38,13 +38,15 @@ class Enum(Value):# AbstractConstant
     def same_value(self, other):
         if not isinstance(other, Enum):
             return False
+        if self.value.eq(other.value):# syntactical equality
+            return True
         return self == other
-
 
 class AbstractConstant(Value):
     
     def same_value(self, other):
         import pdb; pdb.set_trace()
+    
 
 class StringConstant(AbstractConstant): 
     
@@ -61,6 +63,7 @@ class StringConstant(AbstractConstant):
         if not isinstance(other, StringConstant):
             return False
         return self.value == other.value
+    
 
 class ConstantSmallBitVector(AbstractConstant):
     
@@ -75,7 +78,7 @@ class ConstantSmallBitVector(AbstractConstant):
         if not isinstance(other, ConstantSmallBitVector):
             return False
         return (self.value == other.value)
-
+    
 
 class ConstantInt(AbstractConstant): # TODO: renname to ConstantMachineInt
     def __init__(self, val):
@@ -184,6 +187,8 @@ class UnionConstant(AbstractConstant):
             return False
         if self.variant_name != other.variant_name:
             return False
+        if self.toz3().eq(other.toz3()):
+            return True
         return self.w_val == other.w_val
     
     
@@ -224,6 +229,8 @@ class Z3Value(Value):
         return self.value
     
     def same_value(self, other):
+        if self.value.eq(other.toz3()): # syntactical equality
+            return True
         return False
 
     def not_(self):
@@ -239,6 +246,8 @@ class Z3BoolValue(Z3Value):
         return self.value
     
     def same_value(self, other):
+        if self.toz3().eq(other.toz3()): # syntactical equality
+            return True
         return False
 
     def not_(self):
@@ -259,6 +268,10 @@ class Z3BoolValue(Z3Value):
                 return w_other
             return self
         if self.same_value(w_other): return self
+        if isinstance(w_other, Z3BoolNotValue):
+            ### This elimates cases like 'a or not(a)' which eval to True
+            if self.not_().toz3().eq(w_other.toz3()): 
+                return BooleanConstant(True)
         return Z3BoolValue(z3.Or(self.toz3(), w_other.toz3())) # use self.toz3() here as this method is inherited to Z3BoolNotValue
 
     def _create_w_z3_and(self, *args_w):
@@ -280,8 +293,19 @@ class Z3BoolNotValue(Z3BoolValue):
     def toz3(self):
         return z3.Not(self.value)
     
-    def same_value(self, other):
-        return False
+    def _create_w_z3_or(self, w_other):
+        """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
+        if isinstance(w_other, BooleanConstant):
+            if w_other.value:
+                return w_other
+            return self
+        if self.same_value(w_other): return self
+        if isinstance(w_other, Z3BoolValue):
+            ### This elimates cases like 'a or not(a)' which eval to True
+            if self.toz3().eq(w_other.not_().toz3()): 
+                return BooleanConstant(True)
+        return Z3BoolValue(z3.Or(self.toz3(), w_other.toz3())) # use self.toz3() here as this method is inherited to Z3BoolNotValue
+
 
     def not_(self):
         return Z3BoolValue(self.value)

@@ -833,14 +833,14 @@ def test_merge_abstract():
     graph = get_double_diamond_graph()
     
     avar = z3backend.Z3Value(z3.BitVec('a', 1))
-    bvar = z3backend.Z3Value(z3.Bool('b'))
+    bvar = z3backend.Z3BoolValue(z3.Bool('b'))
 
     sharedstate = z3backend.SharedState(dict(f=graph), NAND_REGISTERS)
     interp = z3backend.NandInterpreter(graph, [avar, bvar], sharedstate.copy())
     res = interp.run()
-    assert str(res).startswith("""If(And(Or(Or(a == 0, a == 0), Not(a == 0)), Not(b)),
-   If(a == 0, init_zA!6499, init_zC!6500) + 1 + 15,
-   If(a == 0, init_zA!6499, init_zC!6500) + 1 + 7)""")
+    assert str(res).startswith("""If(b,
+   If(a == 0, init_zA!6499, init_zC!6500) + 1 + 7,
+   If(a == 0, init_zA!6499, init_zC!6500) + 1 + 15)""")
 
 def test_merge_concrete():
     graph = get_double_diamond_graph()

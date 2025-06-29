@@ -1150,13 +1150,17 @@ class Location(object):
 
     def _recompute(self):
         # type: () -> bool
-        self._recompute_counter += 1
-        if not self.writes or self._recompute_counter > _RECOMPUTE_LIMIT:
+        if not self._writes or self._recompute_counter > _RECOMPUTE_LIMIT:
             return False
         old = self.bound
-        self.bound = Range.union_many(self.writes.values())
-        assert old.contains_range(self.bound)
-        return self.bound != old
+        new = Range.union_many(self._writes.values())
+        assert old.contains_range(new)
+        if new != old:
+            print self.message, old, new, self._recompute_counter
+            self._recompute_counter += 1
+            self.bound = new
+            return True
+        return False
 
 
 class InterproceduralAbstractInterpreter(AbstractInterpreter):

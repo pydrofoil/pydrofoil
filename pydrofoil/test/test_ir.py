@@ -4922,4 +4922,6 @@ def test_make_entrymap():
     
     # In this graph every Block has at max. 2 parents
     for block in entrymap.keys():
-        assert len(entrymap[block]) < 3  
+        assert len(entrymap[block]) < 3
+
+

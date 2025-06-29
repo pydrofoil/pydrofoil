@@ -834,6 +834,21 @@ class IntOpOptimizer(ir.LocalOptimizer):
             self, arg, *args, **kwargs
         )
 
+    def _extract_unsigned_bv64(self, arg):
+        if not isinstance(arg, ir.Constant) and arg.resolved_type is types.MachineInt():
+            value = self.current_values.get(arg, None)
+            if value is not None and value.low is not None and value.low >= 0:
+                res = self.newop(
+                    "@get_slice_int_i_i_i",
+                    [ir.MachineIntConstant(64), arg, ir.MachineIntConstant(0)],
+                    types.SmallFixedBitVector(64),
+                )
+                return res
+        return ir.LocalOptimizer._extract_unsigned_bv64(
+            self, arg
+        )
+
+
     def _optimize_Phi(self, op, block, index):
         if op.resolved_type is types.Int():
             if all(isinstance(arg, ir.Constant) for arg in op.prevvalues):

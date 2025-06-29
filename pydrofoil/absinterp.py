@@ -692,6 +692,10 @@ class AbstractInterpreter(object):
         (arg,) = self._argbounds(op)
         return arg
 
+    def analyze_packed_field_int_to_int64(self, op):
+        (arg,) = self._argbounds(op)
+        return arg
+
     # conditions
 
     def analyze_condition(self, op):

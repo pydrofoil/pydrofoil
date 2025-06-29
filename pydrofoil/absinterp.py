@@ -933,7 +933,7 @@ def apply_interprocedural_optimizations(codegen):
 
 def compute_all_ranges(codegen):
     # type: (makecode.Codegen) -> LocationManager
-    todo_set = set(codegen.all_graph_by_name.values())
+    todo_set = set(codegen.all_graph_by_name.values()) - set(codegen.inlinable_functions.values())
     location_manager = LocationManager()
     # Initialize ranges with all functions
     for graph in todo_set:

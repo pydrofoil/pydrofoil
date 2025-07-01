@@ -1,5 +1,5 @@
 import z3
-from pydrofoil.z3backend import BooleanConstant, Z3BoolValue, Z3BoolNotValue, Z3Value
+from pydrofoil.z3backend.z3backend import BooleanConstant, Z3BoolValue, Z3BoolNotValue, Z3Value
 
 ### BooleanConstant ###
 

@@ -1,7 +1,8 @@
 import pytest
 import os
 import z3
-from pydrofoil import z3backend, graphalgorithms
+from pydrofoil import graphalgorithms
+from pydrofoil.z3backend import z3backend
 from rpython.rlib.rarithmetic import r_uint 
 
 @pytest.fixture(scope='session')

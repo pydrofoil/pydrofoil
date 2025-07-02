@@ -256,7 +256,13 @@ class Z3BoolValue(Z3Value):
     def _create_w_z3_if(self, w_true, w_false):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
         if w_true.same_value(w_false): return w_true
-        cls = Z3BoolValue if w_true.toz3().sort() == z3.BoolSort() else Z3Value
+        if isinstance(w_true, ConstantInt) or isinstance(w_true, ConstantGenericInt):
+            ## Handle this explicitely  ## 
+            cls = Z3Value
+        elif w_true.toz3().sort() == z3.BoolSort():
+            cls = Z3BoolValue
+        else:
+            cls = Z3Value
         if isinstance(self, Z3BoolNotValue):
             return cls(z3.If(self.value, w_false.toz3(), w_true.toz3()))
         return cls(z3.If(self.value, w_true.toz3(), w_false.toz3()))
@@ -849,6 +855,16 @@ class Interpreter(object):
             # machine ints are represented as 64-bit bit vectors in z3
             res = Z3Value(z3.SignExt(64 - arg1.value, arg0.toz3()))
         return res
+    
+    def exec_bitvector_concat_bv_bv(self, op):
+        arg0, arg1, arg2 = self.getargs(op)
+        if (isinstance(arg0, ConstantSmallBitVector) and
+             isinstance(arg1, ConstantInt) and 
+             isinstance(arg2, ConstantSmallBitVector)):
+            return ConstantSmallBitVector(supportcode.bitvector_concat_bv_bv(None, arg0.value, arg1.value, arg2.value))
+        else:
+            return Z3Value(z3.Concat(arg0.toz3(), arg2.toz3()))
+
 
     def exec_eq_bits_bv_bv(self, op):
         arg0, arg1 = self.getargs(op)

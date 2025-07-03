@@ -219,6 +219,9 @@ class StructConstant(AbstractConstant):
             if not self_w_val.same_value(other_w_val):
                 return False
         return True
+    
+    def copy(self):
+        return StructConstant(self.vals_w, self.resolved_type, self.z3type)
         
 class Z3Value(Value):
     
@@ -232,6 +235,9 @@ class Z3Value(Value):
         if self.value.eq(other.toz3()): # syntactical equality
             return True
         return False
+    
+    def copy(self):
+        return Z3Value(self.value)
 
     def not_(self):
         return Z3BoolNotValue(self.value)
@@ -257,7 +263,7 @@ class Z3BoolValue(Z3Value):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
         if w_true.same_value(w_false): return w_true
         if isinstance(w_true, ConstantInt) or isinstance(w_true, ConstantGenericInt):
-            ## Handle this explicitely  ## 
+            ## Handle this explicitly ## 
             cls = Z3Value
         elif w_true.toz3().sort() == z3.BoolSort():
             cls = Z3BoolValue
@@ -753,6 +759,8 @@ class Interpreter(object):
             return
         elif isinstance(op, ir.StructConstruction):
             result = self.exec_struct_construction(op)
+        elif isinstance(op, ir.StructCopy):
+            result = self.exec_struct_copy(op)
         elif isinstance(op, ir.UnionVariantCheck):
             result = self.exec_union_variant_check(op)
         elif op.name.startswith("zeq_anything"):
@@ -797,6 +805,11 @@ class Interpreter(object):
         z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
         return StructConstant(self.getargs(op), op.resolved_type, z3type)
     
+    def exec_struct_copy(self, op):
+        """ TODO: is this a shallow or deep copy? """
+        arg, = self.getargs(op)
+        return arg.copy()
+
     def exec_field_access(self, op):
         """ access field of struct """
         field = op.name
@@ -843,8 +856,11 @@ class Interpreter(object):
             assert 0
 
     def exec_union_creation(self, op):
-        """ Execute a Lazy Union creation"""
+        """ Execute union creation"""
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
+        if "zast" in op.name:
+            print op
+            import pdb; pdb.set_trace()
         return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
 
     def exec_signed_bv(self, op):
@@ -1046,6 +1062,9 @@ class RiscvInterpreter(Interpreter):
         return BooleanConstant(True)
 
     def exec_zsys_enable_zzicbozz(self, op):
+        return BooleanConstant(True)
+    
+    def exec_zsys_enable_zzicbom(self, op):
         return BooleanConstant(True)
 
     def exec_zget_config_print_reg(self, op):

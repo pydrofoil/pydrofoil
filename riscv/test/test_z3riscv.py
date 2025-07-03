@@ -75,13 +75,13 @@ def test_decode_all(riscvsharedstate):
     interp = z3backend.RiscvInterpreter(graph, [z3backend.Z3Value(inst)], riscvsharedstate.copy())
     res = interp.run()
 
-    ## Now set isnt to a real opcode and check if we get correct struct const
-    solver = z3.Solver()
-    solver.add(inst == z3.BitVecVal(0xfe0f0f13))
-    res = solver.simplify(res.toz3())
-    assert isinstance(res, z3backend.StructConstant)
-    assert res.variant_name == "zITYPE"
-    assert str(res.w_val) == "<StructConstant [4064, 30, 30, zRISCV_ADDI] ztuplez3z5bv12_z5bv5_z5bv5_z5enumz0zziop>"
+    with open("/home/christophj/Dokumente/Uni/Projektarbeit/pydrofoil/sail-riscv/pydrofoil/riscv/test/rvz3.txt", "w") as outfile:
+        outfile.write(res.toz3().sexpr())
 
+    assert isinstance(res, z3backend.Z3Value)
+
+    res_sub = z3.substitute(res.toz3(), (inst, z3.BitVecVal(0xfe0f0f13, 32)))
+    res_simple = z3.simplify(res_sub)
+    assert str(res_simple) == "zITYPE(a(4064, 30, 30, zRISCV_ADDI))"
 
 

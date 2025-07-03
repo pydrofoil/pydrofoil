@@ -541,6 +541,10 @@ class Interpreter(object):
 
             if interp.w_result is not None:
                 assert not todo
+                ## important for a block like : func_call("func_write_register", "RAX",  "54646545"), return 17 ##
+                self.memory = interp.memory
+                self.registers = interp.registers
+                ##
                 return interp.w_result # TODO: run should return w_result, memory, registers
         
         assert not todo     
@@ -858,9 +862,6 @@ class Interpreter(object):
     def exec_union_creation(self, op):
         """ Execute union creation"""
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
-        if "zast" in op.name:
-            print op
-            import pdb; pdb.set_trace()
         return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
 
     def exec_signed_bv(self, op):

@@ -928,7 +928,6 @@ class Interpreter(object):
         else:
             return Z3BoolValue(arg0.toz3() < arg1.toz3())
 
-            
     def exec_lteq(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
@@ -1003,6 +1002,13 @@ class Interpreter(object):
             return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
         else:
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
+        
+    def exec_vector_access_bv_i(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector):
+            return ConstantSmallBitVector(supportcode.vector_access_bv_i(None, arg0.value, arg1.value), op.resolved_type.width)
+        else:
+            return Z3Value(z3.Extract(arg1.value, arg1.value, arg0.toz3()))
 
     def exec_zero_extend_bv_i_i(self, op):
         """ extend bitvector from arg1 to arg2 with zeros """

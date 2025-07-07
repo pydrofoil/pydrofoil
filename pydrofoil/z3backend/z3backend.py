@@ -409,8 +409,8 @@ class SharedState(object):
             return z3.BitVecSort(typ.width)
         elif isinstance(typ, types.BigFixedBitVector):
             return z3.BitVecSort(typ.width)
-        elif isinstance(typ, types.GenericBitVector):# TODO: generic width bv in z3
-            assert 0, "TODO: Think about this"
+        elif isinstance(typ, types.GenericBitVector):
+            return z3.BitVecSort(64)# TODO: generic bs as 64 bit bv?
             #return z3.BitVecSort()
         elif isinstance(typ, types.MachineInt):
             return z3.BitVecSort(64)# This must be the number bits of the machine that runs pydrofoil
@@ -644,11 +644,10 @@ class Interpreter(object):
         cls = type(self)
         f_interp = cls(self.graph, self.args, self.sharedstate, self.entrymap)
         f_interp.environment = self.environment.copy()
-        # TODO: How to model x86_64's registers for 64,32 and 16 bit ?  
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
         f_interp.path_condition = self.path_condition if path_condition is None else path_condition
-        f_interp.w_raises = self.w_raises # if self raises, the frok must to
+        f_interp.w_raises = self.w_raises # if self raises, the fork must to
         return f_interp
     
     def call_fork(self, graph, args):
@@ -905,6 +904,13 @@ class Interpreter(object):
         else:
             assert isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value)
             return Z3BoolValue(arg0.toz3() == arg1.toz3())
+        
+    def exec_zeq_bit(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
+            return BooleanConstant(arg0.value == arg1.value)
+        else:
+            return Z3BoolValue(arg0.value == arg1.value)
     
     def exec_gt(self, op):
         arg0, arg1 = self.getargs(op)

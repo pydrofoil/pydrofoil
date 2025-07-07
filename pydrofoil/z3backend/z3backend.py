@@ -507,7 +507,7 @@ class Interpreter(object):
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
-        todo = collections.deque() # what exactly is in the todo deque?
+        todo = collections.deque()
         block_to_interp = {} # block: interp | None
         def schedule(block, interp):
             if block in block_to_interp:
@@ -747,8 +747,8 @@ class Interpreter(object):
             ### TODO: Are register writes supposed to return the written value?? ###
             self.write_register(op.name, self.getargs(op)[0])
             return
-        elif hasattr(self, "exec_%s" % op.name.replace("@","")):
-            func = getattr(self, "exec_%s" % op.name.replace("@",""))
+        elif hasattr(self, "exec_%s" % op.name.replace("@","").replace("$","")):
+            func = getattr(self, "exec_%s" % op.name.replace("@","").replace("$",""))
             result = func(op) # self passed implicitly
             if result == None: return
         elif isinstance(op, ir.NonSSAAssignment):
@@ -770,7 +770,7 @@ class Interpreter(object):
         elif op.name.startswith("zeq_anything"):
             result = self.exec_eq_anything(op)
         else:
-            assert 0 , str(op.name) + ", " + str(op) + "," + "exec_%s" % op.name.replace("@","")
+            assert 0 , str(op.name) + ", " + str(op) + "," + "exec_%s" % op.name.replace("@","").replace("$","")
         self.environment[op] = result
     
     ### Generic Operations ###
@@ -863,6 +863,12 @@ class Interpreter(object):
         """ Execute union creation"""
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
         return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
+    
+    def exec_cast(self, op):
+        if isinstance(op.args[0].resolved_type, types.SmallFixedBitVector): # from
+            if isinstance(op.resolved_type, types.GenericBitVector): # to
+                return ConstantSmallBitVector(self.getargs(op)[0].value, 64)# TODO: generic bs as 64 bit bv?
+        assert 0, "implement cast %s to %s" % (op.args[0].resolved_type, op.resolved_type)
 
     def exec_signed_bv(self, op):
         arg0, arg1 = self.getargs(op)
@@ -1055,6 +1061,7 @@ class RiscvInterpreter(Interpreter):
     def __init__(self, graph, args, shared_state=None, entrymap=None):
         super(RiscvInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
+        self.bits = 64 # keep this for 
 
     def exec_zsys_enable_zzfinx(self, op):
         return BooleanConstant(True)

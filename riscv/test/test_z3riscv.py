@@ -44,6 +44,7 @@ def test_decode_and_execute_addi(riscvsharedstate):
     ast.w_val.vals_w[2] = z3backend.Z3Value(z3.FreshConst(z3.BitVecSort(5)))
     interp = z3backend.RiscvInterpreter(graph, [ast], riscvsharedstate.copy())
     res = interp.run()
+
     #import pdb;pdb.set_trace()
 
 def test_prove_itype_cant_switch_mode(riscvsharedstate):
@@ -97,3 +98,18 @@ def test_decode_execute_itype(riscvsharedstate):# func_zstep
     assert str(interp.registers["zx30"]).endswith("+ 18446744073709551584") #  18446744073709551584L = -32 
 
 
+def test_decode_execute_all_abstract(riscvsharedstate):# TODO: func_zstep
+    """ run all execute_xxx funcs with abstractz param """
+
+    graph = riscvsharedstate.funcs['zencdec_backwards']
+    print("start executing", graph)
+    interp = z3backend.RiscvInterpreter(graph, [z3backend.Z3Value(z3.BitVec("z3mergez3var", 32))], riscvsharedstate.copy())
+    instr_ast = interp.run()
+
+    assert isinstance(instr_ast, z3backend.Z3Value)
+
+    for name, func in riscvsharedstate.funcs.iteritems():
+        if not "zexecute_" in name: continue
+        interp = z3backend.RiscvInterpreter(func, [instr_ast], riscvsharedstate.copy())
+        res = interp.run()
+        assert isinstance(res, z3backend.Enum) or isinstance(res, z3backend.Z3Value)

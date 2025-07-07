@@ -1089,3 +1089,32 @@ class RiscvInterpreter(Interpreter):
 
     def exec_zget_config_print_reg(self, op):
         return BooleanConstant(False)
+    
+    def exec_zget_config_print_platform(self, op):
+        ### TODO: False?
+        return BooleanConstant(False)
+    
+    def exec_znum_of_ExceptionType(self, op):
+        """ Those  are hardwired numbers for exceptions
+            They are NOT in Enum definition Order """ # machine int
+        arg0, = self.getargs(op)
+        # TODO: can this only be a constant?
+        wrapper_cls = ConstantInt# Or Bitvec?
+        if arg0.variant_name == "zE_Fetch_Addr_Align": return wrapper_cls(0)
+        if arg0.variant_name == "zE_Fetch_Access_Fault": return wrapper_cls(1)
+        if arg0.variant_name == "zE_Illegal_Instr": return wrapper_cls(2)
+        if arg0.variant_name == "zE_Breakpoint": return wrapper_cls(3)
+        if arg0.variant_name == "zE_Load_Addr_Align": return wrapper_cls(4)
+        if arg0.variant_name == "zE_Load_Access_Fault": return wrapper_cls(5)
+        if arg0.variant_name == "zE_SAMO_Addr_Align": return wrapper_cls(6)
+        if arg0.variant_name == "zE_SAMO_Access_Fault": return wrapper_cls(7)
+        if arg0.variant_name == "zE_U_EnvCall": return wrapper_cls(8)
+        if arg0.variant_name == "zE_S_EnvCall": return wrapper_cls(9)
+        if arg0.variant_name == "zE_Reserved_10": return wrapper_cls(10)
+        if arg0.variant_name == "zE_M_EnvCall": return wrapper_cls(11)
+        if arg0.variant_name == "zE_Fetch_Page_Fault": return wrapper_cls(12)
+        if arg0.variant_name == "zE_Load_Page_Fault": return wrapper_cls(13)
+        if arg0.variant_name == "zE_Reserved_14": return wrapper_cls(14)
+        if arg0.variant_name == "zE_SAMO_Page_Fault": return wrapper_cls(15)
+        if arg0.variant_name == "zE_Extension": return wrapper_cls(24)
+        assert 0, "this should not happen"

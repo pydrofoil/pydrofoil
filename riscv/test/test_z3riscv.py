@@ -98,8 +98,8 @@ def test_decode_execute_itype(riscvsharedstate):# func_zstep
     assert str(interp.registers["zx30"]).endswith("+ 18446744073709551584") #  18446744073709551584L = -32 
 
 
-def test_decode_execute_all_abstract(riscvsharedstate):# TODO: func_zstep
-    """ run all execute_xxx funcs with abstractz param """
+def test_decode_execute_all_abstract(riscvsharedstate):
+    """ run all execute_xxx funcs with abstract argument """
 
     graph = riscvsharedstate.funcs['zencdec_backwards']
     print("start executing", graph)
@@ -113,3 +113,5 @@ def test_decode_execute_all_abstract(riscvsharedstate):# TODO: func_zstep
         interp = z3backend.RiscvInterpreter(func, [instr_ast], riscvsharedstate.copy())
         res = interp.run()
         assert isinstance(res, z3backend.Enum) or isinstance(res, z3backend.Z3Value)
+
+# TODO: func_zstep

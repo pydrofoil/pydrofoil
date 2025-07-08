@@ -30,6 +30,7 @@ endif
 	@# target that generates the JIB files
 	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` && cd $(RISCVMODELCHECKOUT) && \
 		isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
+		--isla-preserve encdec_forwards \
 		model/prelude.sail \
 		model/riscv_xlen64.sail \
 		model/riscv_xlen.sail \
@@ -122,6 +123,7 @@ endif
 		-o ${PWD}/riscv/riscv_model_RV64 \
 		&& \
 		${PWD}/isla/isla-sail/isla-sail -dno_cast -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
+		--isla-preserve encdec_forwards \
 		model/prelude.sail \
 		model/riscv_xlen32.sail \
 		model/riscv_xlen.sail \

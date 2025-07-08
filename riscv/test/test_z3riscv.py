@@ -2,19 +2,50 @@ import pytest
 import os
 import z3
 from pydrofoil import graphalgorithms
+from pydrofoil import ir
 from pydrofoil.z3backend import z3backend
 from rpython.rlib.rarithmetic import r_uint 
 
 @pytest.fixture(scope='session')
 def riscv_first_shared_state():
-    from riscv.targetriscv import make_codegen
-    c = make_codegen()  
-    registers = {name: c.globalnames[name].typ for name in c.all_registers}
-    riscvsharedstate = z3backend.SharedState(c.all_graph_by_name.copy(), registers)
+    from riscv import targetriscv
+    p = os.path.join(os.path.dirname(os.path.abspath(targetriscv.__file__)), "generated", "riscvgraphs.py")
+    if not os.path.exists(p):
+        print "generating graphs"
+        c = targetriscv.make_codegen()
+        s = dump_graphs_and_registers(c)
+        with open(p, "w") as f:
+            f.write(s)
+    import time
+    t1 = time.time()
+    from riscv.generated import riscvgraphs
+    riscvsharedstate = z3backend.SharedState(
+        {name: func() for name, func in riscvgraphs.funcs.iteritems()},
+        riscvgraphs.registers
+    )
     ### We assume that every graph only has one return; thus we must compute every singe return graph here ### 
     for name, graph in riscvsharedstate.funcs.iteritems():
         riscvsharedstate.funcs[name] = graphalgorithms.compute_single_return_graph(graph)
+    t2 = time.time()
+    print "loaded in %ss" % round(t2 - t1, 2)
     return riscvsharedstate
+
+def dump_graphs_and_registers(c):
+    code = ["from pydrofoil.ir import *",
+            "from pydrofoil.types import *",
+            "funcs = {}"]
+    for name, graph in c.all_graph_by_name.iteritems():
+        code.append("def %s():" % name)
+        for line in ir.print_graph_construction(graph):
+            code.append("    " + line)
+        code.append("    return graph")
+        code.append("funcs[%r] = %s" % (name, name))
+        code.append("")
+    registers = {name: c.globalnames[name].typ for name in c.all_registers}
+    code.append("registers = {}")
+    for name, typ in registers.iteritems():
+        code.append("registers[%r] = %s" % (name, typ))
+    return "\n".join(code)
 
 @pytest.fixture(scope='function')
 def riscvsharedstate(riscv_first_shared_state):

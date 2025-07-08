@@ -1180,7 +1180,7 @@ class IntConstant(Constant):
 
 class SmallBitVectorConstant(Constant):
     def __init__(self, value, resolved_type):
-        if isinstance(value, int):
+        if isinstance(value, (int, long)):
             value = r_uint(value)
         assert isinstance(value, r_uint)
         assert isinstance(resolved_type, types.SmallFixedBitVector)

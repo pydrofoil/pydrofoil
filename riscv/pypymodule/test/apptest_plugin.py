@@ -27,6 +27,14 @@ def test_run():
     cpu.run(100)
     assert cpu.read_register("pc") == 0x800001f0
 
+def test_reset():
+    cpu = _pydrofoil.RISCV64(addielf)
+    cpu.run(100)
+    assert cpu.read_register("pc") == 0x800001f0
+    cpu.reset()
+    assert cpu.read_register("pc") == 0x1000
+    assert cpu.read_register("x1") == 0x0
+
 def test_run32():
     cpu = _pydrofoil.RISCV32(addielf32)
     cpu.run(100)
@@ -364,6 +372,13 @@ def test_lowlevel_attribute_error():
         assert m.lowlevel.privLevel_to_bats
     assert str(info.value) == "'lowlevel' object has no attribute 'privLevel_to_bats'"
 
+def test_lowlevel_unit_argument():
+    m = _pydrofoil.RISCV64()
+    assert m.lowlevel.get_vlen_pow() == 9
+
+def test_bound_lowlevel_repr():
+    m = _pydrofoil.RISCV64()
+    assert repr(m.lowlevel.get_vlen_pow) == f'<bound sail function .lowlevel.get_vlen_pow of {m}>'
 
 # ________________________________________________
 # bitvectors
@@ -373,6 +388,10 @@ def test_bv_basics():
     assert b0 == _pydrofoil.bitvector(2, 0)
     assert repr(b0) == "bitvector(2, 0b00)"
     assert len(b0) == 2
+
+def test_bv_negative_width():
+    with raises(ValueError):
+        _pydrofoil.bitvector(-1, 0)
 
 def test_bv_getitem():
     b0 = _pydrofoil.bitvector(6, 0b110100)
@@ -462,6 +481,10 @@ def test_bitvector_shift():
     assert _pydrofoil.bitvector(5, 0b100).arithmetic_rshift(1) == _pydrofoil.bitvector(5, 0b10)
     assert bv.logical_rshift(1) == _pydrofoil.bitvector(5, 0b01010)
 
+def test_bitvector_big():
+    m = _pydrofoil.RISCV64()
+    bv = _pydrofoil.bitvector(128, 2**100)
+    assert bv == 2**100
 
 # ________________________________________________
 # testing the sail types
@@ -469,6 +492,7 @@ def test_bitvector_shift():
 def test_sailtype_new():
     assert _pydrofoil.sailtypes.Bool() is _pydrofoil.sailtypes.Bool() # singleton
     assert _pydrofoil.sailtypes.Unit() is _pydrofoil.sailtypes.Unit() # singleton
+    assert _pydrofoil.sailtypes.GenericBitVector() is _pydrofoil.sailtypes.GenericBitVector() # singleton
     with raises(TypeError):
         _pydrofoil.sailtypes.Struct()
     assert _pydrofoil.sailtypes.SmallFixedBitVector(23).width == 23
@@ -485,6 +509,8 @@ def test_sailtype_repr():
     cpu = _pydrofoil.RISCV64()
     rs = dict(cpu.register_info())
     assert repr(rs['cur_privilege']) == '<_pydrofoil.sailtypes.Enum Privilege { User Supervisor Machine }>'
+    assert repr(_pydrofoil.sailtypes.MachineInt()) == "_pydrofoil.sailtypes.MachineInt()"
+    assert repr(_pydrofoil.sailtypes.GenericBitVector()) == "_pydrofoil.sailtypes.GenericBitVector()"
 
 def test_fvec():
     cpu = _pydrofoil.RISCV64()
@@ -492,6 +518,7 @@ def test_fvec():
     fvectype = rs['mhpmevent']
     assert fvectype.of.width == 64
     assert repr(fvectype) == "<_pydrofoil.sailtypes.FVec 32 _pydrofoil.sailtypes.SmallFixedBitVector(64)>"
+    assert isinstance(fvectype, _pydrofoil.sailtypes.FVec)
 
 def test_union_repr():
     cpu = _pydrofoil.RISCV64()

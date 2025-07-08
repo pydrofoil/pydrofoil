@@ -199,13 +199,23 @@ BigFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.BigFixedBitVector", Fi
 BigFixedBitVector.typedef.acceptable_as_base_class = False
 
 class __extend__(GenericBitVector):
-    pass
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.GenericBitVector()"
+
+GENERICBITVECTOR = GenericBitVector()
+
+def descr_genericbitvector_new(space, w_cls):
+    return GENERICBITVECTOR
+
 GenericBitVector.typedef = TypeDef("_pydrofoil.sailtypes.GenericBitVector", Type.typedef,
+    __new__ = interp2app(descr_genericbitvector_new),
 )
+
 GenericBitVector.typedef.acceptable_as_base_class = False
 
 class __extend__(MachineInt):
-    pass
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.MachineInt()"
 
 MACHINEINT = MachineInt()
 

@@ -757,11 +757,13 @@ class IntOpOptimizer(ir.LocalOptimizer):
     def _optimize_op(self, block, index, op):
         def can_remove(op):
             from pydrofoil import supportcode
+
             if not op.can_have_side_effects:
                 return True
             name = op.name.lstrip("@$")
             name = self.codegen.builtin_names.get(name, name)
             return name in supportcode.purefunctions
+
         if op.resolved_type is types.Bool():
             res = self._known_boolean_value(op)
             if res is not None and can_remove(op):
@@ -861,7 +863,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
 
 
 def optimize_with_range_info(graph, codegen):
-    if graph.has_loop: # TODO: this limitation can now be removed
+    if graph.has_loop:  # TODO: this limitation can now be removed
         return False
     if graph.has_more_than_n_blocks(1000):
         return False
@@ -997,7 +999,7 @@ def _rewrite_graph(location_manager, graph, graphs):
 def _make_check(location, value, block, index, has_changed_before):
     # type: (Location, ir.Value, ir.Block, int, bool) -> bool
     # TODO this is not a good way to access the bound
-    bound = location._bound
+    bound = location.bound
     if not bound.is_bounded_typed(value.resolved_type):
         return has_changed_before
 
@@ -1101,10 +1103,8 @@ class Location(object):
         # type: (LocationManager, types.Type, str) -> None
         self._manager = manager
         self._typ = typ
-        self._bound = default_for_type(typ)
-        self._writes = (
-            {}
-        )  # type: dict[tuple[ir.Graph, typing.Hashable], Range]
+        self.bound = default_for_type(typ)
+        self.writes = {}  # type: dict[tuple[ir.Graph, typing.Hashable], Range]
         self.readers = set()  # type: set[ir.Graph]
         self._recompute_counter = 0
         self.message = message
@@ -1114,22 +1114,22 @@ class Location(object):
         """Give a new value for the bound from source graph."""
         default = default_for_type(self._typ)
         new_bound = new_bound.make_ge(default).make_le(default)
-        self._writes[graph, graph_position] = new_bound
-        assert self._bound.contains_range(new_bound)
+        self.writes[graph, graph_position] = new_bound
+        assert self.bound.contains_range(new_bound)
 
     def read(self, graph):
         self.readers.add(graph)
-        return self._bound
+        return self.bound
 
     def _recompute(self):
         # type: () -> bool
         self._recompute_counter += 1
-        if not self._writes or self._recompute_counter > _RECOMPUTE_LIMIT:
+        if not self.writes or self._recompute_counter > _RECOMPUTE_LIMIT:
             return False
-        old = self._bound
-        self._bound = Range.union_many(self._writes.values())
-        assert old.contains_range(self._bound)
-        return self._bound != old
+        old = self.bound
+        self.bound = Range.union_many(self.writes.values())
+        assert old.contains_range(self.bound)
+        return self.bound != old
 
 
 class InterproceduralAbstractInterpreter(AbstractInterpreter):

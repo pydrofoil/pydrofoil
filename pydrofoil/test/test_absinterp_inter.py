@@ -36,7 +36,7 @@ def test_location_write():
     graph = object()
     range = Range(0, 100)
     l.write(new_bound=range, graph=graph)
-    assert l._writes[graph, None] == range
+    assert l.writes[graph, None] == range
 
 
 def test_location_write_error_checking():
@@ -45,7 +45,7 @@ def test_location_write_error_checking():
     l = m.new_location(typ, "")
     graph = object()
     range = Range(0, 100)
-    l._bound = Range(0, 10)
+    l.bound = Range(0, 10)
     with pytest.raises(AssertionError):
         l.write(new_bound=range, graph=graph)
 
@@ -57,7 +57,7 @@ def test_location_write_range_too_large_for_type():
     graph = object()
     l.write(Range(1, None), object())
     m.find_modified()
-    assert l._bound == Range(1, MAXINT)
+    assert l.bound == Range(1, MAXINT)
 
 
 def test_find_modified():
@@ -82,7 +82,7 @@ def test_recompute_limit():
         else:
             mod = m.find_modified()
             assert not mod
-    assert loc._bound == Range(0, 10000 - 99)
+    assert loc.bound == Range(0, 10000 - 99)
 
 
 def test_recompute_limit_many_graph_locations():
@@ -93,7 +93,7 @@ def test_recompute_limit_many_graph_locations():
         loc.write(Range(0, i + 1), object())  # writes from 200 locations
     mod = m.find_modified()
     assert mod == {loc}
-    assert loc._bound == Range(0, 200)
+    assert loc.bound == Range(0, 200)
 
 
 def _get_graphs_interprocedural_range():
@@ -147,9 +147,9 @@ def test_interprocedural_range():
     codegen = MockCodegen(graphs)
     locmanager = compute_all_ranges(codegen)
     loc = locmanager.get_location_for_result(graphs["f"], types.Int())
-    assert loc._bound.is_bounded()
-    assert loc._bound.low == 6
-    assert loc._bound.high == 16
+    assert loc.bound.is_bounded()
+    assert loc.bound.low == 6
+    assert loc.bound.high == 16
 
 
 def _get_example_struct_ranges():
@@ -191,15 +191,15 @@ def test_struct_ranges():
     codegen = MockCodegen(graphs)
     locmanager = compute_all_ranges(codegen)
     loc = locmanager.get_location_for_result(graphs["f"], types.Int())
-    assert loc._bound.is_bounded()
-    assert loc._bound.low == 5
-    assert loc._bound.high == 9
+    assert loc.bound.is_bounded()
+    assert loc.bound.low == 5
+    assert loc.bound.high == 9
     s_loc = locmanager.get_location_for_field(
         types.Struct("S", ("x", "y"), (types.Int(), types.Int())), "y"
     )
-    assert s_loc._bound.is_bounded()
-    assert s_loc._bound.low == 100
-    assert s_loc._bound.high == 100
+    assert s_loc.bound.is_bounded()
+    assert s_loc.bound.low == 100
+    assert s_loc.bound.high == 100
 
 
 def _get_example_struct_ranges_packed():
@@ -277,15 +277,15 @@ def test_struct_ranges_packed():
     codegen = MockCodegen(graphs)
     locmanager = compute_all_ranges(codegen)
     loc = locmanager.get_location_for_result(graphs["f"], types.Int())
-    assert loc._bound.is_bounded()
-    assert loc._bound.low == 5
-    assert loc._bound.high == 9
+    assert loc.bound.is_bounded()
+    assert loc.bound.low == 5
+    assert loc.bound.high == 9
     s_loc = locmanager.get_location_for_field(
         types.Struct("S", ("x", "y"), (types.Int(), types.Int())), "y"
     )
-    assert s_loc._bound.is_bounded()
-    assert s_loc._bound.low == 100
-    assert s_loc._bound.high == 100
+    assert s_loc.bound.is_bounded()
+    assert s_loc.bound.low == 100
+    assert s_loc.bound.high == 100
 
 
 def _get_example_union_ranges():
@@ -314,13 +314,13 @@ def test_union_ranges():
     codegen = MockCodegen(graphs)
     locmanager = compute_all_ranges(codegen)
     loc = locmanager.get_location_for_result(graphs["f"], types.Int())
-    assert loc._bound.is_bounded()
-    assert loc._bound.low == 5
-    assert loc._bound.high == 10
+    assert loc.bound.is_bounded()
+    assert loc.bound.low == 5
+    assert loc.bound.high == 10
     u_loc = locmanager.get_location_for_union(u, "first")
-    assert u_loc._bound.is_bounded()
-    assert u_loc._bound.low == 5
-    assert u_loc._bound.high == 10
+    assert u_loc.bound.is_bounded()
+    assert u_loc.bound.low == 5
+    assert u_loc.bound.high == 10
 
 
 def test_rewrite():
@@ -536,4 +536,4 @@ def test_entry_point_args():
     codegen = MockCodegen(graphs, ["f"])
     locmanager = compute_all_ranges(codegen)
     loc = locmanager.get_location_for_result(graphs["f"], types.Int())
-    assert not loc._bound.is_bounded()
+    assert not loc.bound.is_bounded()

@@ -800,7 +800,7 @@ class Interpreter(object):
         else: 
             # case: func did or didnt raise, but raise was behind a condition
             self.w_raises = self.w_raises._create_w_z3_or(interp_fork.w_raises)
-        self._debug_print("return from " + op.name + " -> " + str(w_res))
+        self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
         return w_res
 
     def exec_struct_construction(self, op):
@@ -1008,7 +1008,20 @@ class Interpreter(object):
             return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
         else:
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
-        
+                
+    def exec_vector_update_subrange_fixed_bv_i_i_bv(self, op):
+        arg0, arg1, arg2, arg3 = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector):
+            return ConstantSmallBitVector(supportcode.vector_update_subrange_fixed_bv_i_i_bv(None, arg0.value, arg1.value, arg2.value, arg3.value), op.resolved_type.width)
+        else:
+            # TODO: This must be tested explicitly
+            res = arg3.toz3()
+            if arg1.value != 0:
+                res = z3.Concat(z3.Extract(arg1.value, 0, arg0.toz3()), res)
+            if arg2.value != op.resolved_type.width -1:
+                res = z3.Concat(res,  z3.Extract(op.resolved_type.width - 1, arg2.value, arg0.toz3())) # bits are e.g. 0-63 for a 64 bit bv
+            return Z3Value(res)
+     
     def exec_vector_access_bv_i(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector):

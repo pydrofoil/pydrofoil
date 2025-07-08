@@ -814,11 +814,12 @@ class Graph(object):
         entry = defaultdict(list)
         while todo:
             block = todo.pop()
-            seen.add(block)
             for next in block.next.next_blocks():
-                entry[next].append(block)
+                if block not in seen:
+                    entry[next].append(block)
                 if next not in seen:
                     todo.append(next)
+            seen.add(block)
         entry[self.startblock] = []
         return entry
 

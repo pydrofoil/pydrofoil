@@ -1061,6 +1061,14 @@ class Interpreter(object):
         else:
             return Z3Value(arg0.toz3() << arg2.toz3())
         
+    def exec_shiftr_bv_i(self, op):
+        # Assume that this is meant to be an arithmetic shift ##
+        arg0, arg1, arg2 = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
+            return ConstantSmallBitVector(arg0.value >> arg2.value, arg1.value) 
+        else:
+            return Z3Value(arg0.toz3() >> arg2.toz3())
+        
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
@@ -1107,6 +1115,14 @@ class Interpreter(object):
             return ConstantSmallBitVector(supportcode.sign_extend_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
         else:
             return Z3Value(z3.SignExt(arg2.value - arg1.value, arg0.toz3()))
+        
+    def exec_sign_extend_o_i(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector):
+            return ConstantSmallBitVector(arg0.value, op.resolved_type.width)
+        else:
+            # this assumes arg1 is larger than arg0's size
+            return Z3Value(z3.SignExt(arg1.value - arg0.toz3().sort().size(), arg0.toz3()))
 
     def exec_unsigned_bv(self, op):
         arg0, arg1 = self.getargs(op)

@@ -899,7 +899,10 @@ class Interpreter(object):
     def exec_cast(self, op):
         if isinstance(op.args[0].resolved_type, types.SmallFixedBitVector): # from
             if isinstance(op.resolved_type, types.GenericBitVector): # to
-                return ConstantSmallBitVector(self.getargs(op)[0].value, op.args[0].resolved_type.width)# TODO: generic bs as 64 bit bv?
+                return ConstantSmallBitVector(self.getargs(op)[0].value, op.args[0].resolved_type.width)
+        elif isinstance(op.args[0].resolved_type, types.GenericBitVector): # from
+            if isinstance(op.resolved_type, types.SmallFixedBitVector): # to
+                return ConstantSmallBitVector(self.getargs(op)[0].value, op.resolved_type.width)
         assert 0, "implement cast %s to %s" % (op.args[0].resolved_type, op.resolved_type)
 
     def exec_signed_bv(self, op):
@@ -1173,3 +1176,15 @@ class RiscvInterpreter(Interpreter):
         if arg0.variant_name == "zE_SAMO_Page_Fault": return 15
         if arg0.variant_name == "zE_Extension": return 24
         assert 0, "this should not happen"
+
+    def exec_ztval(self, op):
+        """ This is basicly a method on union_zoptionzIbzK, 
+            but it doesnt get a graph """
+        ### TODO: remove when method has a graph by default ###
+        import pdb; pdb.set_trace()
+        arg0, = self.getargs(op)
+        if not isinstance(arg0, UnionConstant) or not arg0.z3type.name() == "union_zoptionzIbzK":
+            import pdb; pdb.set_trace()
+        funcname = "ztval_zSomezIbzK" if arg0.variant_name == "zSomezIbzK" else "ztval_zNonezIbzK"
+        new_op  = ir.Operation(funcname, op.args, op.resolved_type, None, None)
+        return self.exec_func_call(new_op, self.sharedstate.funcs[funcname])

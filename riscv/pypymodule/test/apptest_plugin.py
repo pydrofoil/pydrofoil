@@ -509,6 +509,29 @@ def test_step_intercept_mem():
     assert mem[_pydrofoil.bitvector(64, 0x0000000010000000)] == _pydrofoil.bitvector(64, 0x34202F7304C0006F)
     assert cpu.memory_info() == [(0x1000, 0x80001047)]
 
+def test_step_monitor_mem_with_callbacks():
+    mem = {}
+    def read(addr):
+        return mem.get(addr, _pydrofoil.bitvector(64, 0))
+    def write(addr, value):
+        mem[addr] = value
+
+    callbacks = _pydrofoil.Callbacks(mem_read8_intercept=read, mem_write8_intercept=write)
+    cpu = _pydrofoil.RISCV64(addielf, callbacks=callbacks)
+    mem_accesses = cpu.step_monitor_mem()
+    assert mem_accesses == [
+        ("read", 0x0000000000001000, 2, 0x0297),
+        ("read", 0x0000000000001002, 2, 0x0),
+    ]
+    cpu.step()
+    cpu.step()
+    mem_accesses = cpu.step_monitor_mem()
+    assert mem_accesses == [
+        ("read", 0x000000000000100C, 2, 0xB283),
+        ("read", 0x000000000000100E, 2, 0x0182),
+        ("read", 0x0000000000001018, 8, 0x0000000080000000),
+    ]
+
 
 # ________________________________________________
 # testing the sail types

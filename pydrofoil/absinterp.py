@@ -1165,10 +1165,10 @@ class Location(object):
 
     def _recompute(self):
         # type: () -> bool
-        if not self._writes or self._recompute_counter > _RECOMPUTE_LIMIT:
+        if not self.writes or self._recompute_counter > _RECOMPUTE_LIMIT:
             return False
         old = self.bound
-        new = Range.union_many(self._writes.values())
+        new = Range.union_many(self.writes.values())
         assert old.contains_range(new)
         if new != old:
             print self.message, old, new, self._recompute_counter

@@ -147,7 +147,7 @@ class MockCodegen(object):
 
     def __init__(self, graphs, entry_points=None):
         self.all_graph_by_name = graphs
-        self.inlinable_functions = []
+        self.inlinable_functions = {}
         self.inline_dependencies = collections.defaultdict(set)
         self.method_graphs_by_name = {}
         self.program_entrypoints = entry_points

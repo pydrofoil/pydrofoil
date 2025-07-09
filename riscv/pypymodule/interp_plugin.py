@@ -447,7 +447,10 @@ def _make_argument_converter_func(argument_converters, cache={}):
 
 class MachineAbstractBase(object):
     def __init__(self, space, elf=None, dtb=False, w_callbacks=None):
-        w_callbacks = space.interp_w(W_Callbacks, w_callbacks)
+        if w_callbacks is not None:
+            w_callbacks = space.interp_w(W_Callbacks, w_callbacks)
+        else:
+            w_callbacks = None
         self._init_machine()
         self.space = space
         self.elf = elf

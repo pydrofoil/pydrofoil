@@ -145,4 +145,3 @@ def test_decode_execute_all_abstract(riscvsharedstate):
         res = interp.run()
         assert isinstance(res, z3backend.Enum) or isinstance(res, z3backend.Z3Value)
 
-# TODO: func_zstep

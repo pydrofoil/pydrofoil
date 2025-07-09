@@ -201,7 +201,7 @@ class StructConstant(AbstractConstant):
     
     def toz3(self):
         z3vals = [w_val.toz3() for w_val in self.vals_w]
-        return self.z3type.a(*z3vals)
+        return self.z3type.constructor(0)(*z3vals)
     
     def __str__(self):
         return "<StructConstant %s %s>" % (self.vals_w, self.resolved_type.name)
@@ -330,9 +330,10 @@ class SharedState(object):
         self.enums = {}
         self.type_cache = {}
         self.union_field_cache = {} # (union_name,union_field):z3_type
+        self.struct_z3_field_map = {}
+        self.struct_update_map = {}
         self.fork_counter = 0
-        #self._cond_map = {} # (ir.Operation or Z3ComparisonValue, compare operation, ir.Operation or Z3ComparisonValue) -> Z3ComparisonValue
-        #self._raise_path_map = {} # (Z3ComparisonValue, path or None) -> path
+
 
     def get_z3_struct_type(self, resolved_type):
         if resolved_type in self.type_cache:
@@ -347,6 +348,7 @@ class SharedState(object):
         struct.declare("a", *fields)
         struct = struct.create()
         self.type_cache[resolved_type] = struct
+        self.struct_z3_field_map[struct] = (fields, resolved_type)
         return struct
 
     def get_z3_union_type(self, resolved_type):
@@ -694,7 +696,13 @@ class Interpreter(object):
         """ get all wrapped args of an operation """
         res = []
         for arg in op.args:
-            res.append(self.convert(arg))
+            w_arg = self.convert(arg)
+            # structs can change in rpython, but not in z3, so after a field write a struct is replaced
+            # the replacement value is stored in sharedstate.struct_update_map with the old struct as key
+            # TODO: this can be optimized by replacing ALL old instances of one struct with the most recent in field write   
+            while w_arg in self.sharedstate.struct_update_map:
+                w_arg = self.sharedstate.struct_update_map[w_arg]
+            res.append(w_arg)
         return res
     
     def read_register(self, register):
@@ -756,6 +764,9 @@ class Interpreter(object):
             result = self.exec_union_creation(op)
         elif isinstance(op, ir.FieldAccess):
             result = self.exec_field_access(op)
+        elif isinstance(op,  ir.FieldWrite):
+            self.exec_field_write(op)
+            return
         elif op.name in self.sharedstate.funcs:
             result = self.exec_func_call(op, self.sharedstate.funcs[op.name])
         elif isinstance(op, ir.Comment):
@@ -827,6 +838,28 @@ class Interpreter(object):
             return Z3BoolValue(res)
         return Z3Value(res)
 
+    def exec_field_write(self, op):
+        """ write into struct field.
+            By creating a new struct instance """
+        field_to_replace = op.name
+        struct, new_value = self.getargs(op)
+        z3_struct_type = struct.toz3().sort()
+        fields, resolved_type = self.sharedstate.struct_z3_field_map[z3_struct_type]
+        new_args  = []
+        for fieldname, _ in fields:
+            if fieldname == field_to_replace:
+                new_args.append(new_value)
+            else:
+                res = getattr(z3_struct_type, fieldname)(struct.toz3())
+                if res.sort() == z3.BoolSort():
+                    new_args.append(Z3BoolValue(res))
+                else:
+                    new_args.append(Z3Value(res))  
+        new_struct = StructConstant(new_args, resolved_type, z3_struct_type)
+
+        # whenever struct is used it must be replaced with new_struct now
+        self.sharedstate.struct_update_map[struct] = new_struct
+
     def exec_union_variant_check(self, op):
         instance, = self.getargs(op)
         if isinstance(instance, UnionConstant):
@@ -866,7 +899,7 @@ class Interpreter(object):
     def exec_cast(self, op):
         if isinstance(op.args[0].resolved_type, types.SmallFixedBitVector): # from
             if isinstance(op.resolved_type, types.GenericBitVector): # to
-                return ConstantSmallBitVector(self.getargs(op)[0].value, 64)# TODO: generic bs as 64 bit bv?
+                return ConstantSmallBitVector(self.getargs(op)[0].value, op.args[0].resolved_type.width)# TODO: generic bs as 64 bit bv?
         assert 0, "implement cast %s to %s" % (op.args[0].resolved_type, op.resolved_type)
 
     def exec_signed_bv(self, op):
@@ -1002,7 +1035,7 @@ class Interpreter(object):
             return Z3Value(arg0.toz3() | arg1.toz3())
         
     def exec_vector_subrange_fixed_bv_i_i(self, op):
-        """ slice bitvector as bv[arg1:arg0] both inclusive """
+        """ slice bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector):
             return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
@@ -1010,16 +1043,20 @@ class Interpreter(object):
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
                 
     def exec_vector_update_subrange_fixed_bv_i_i_bv(self, op):
-        arg0, arg1, arg2, arg3 = self.getargs(op)
+        arg0, arg1, arg2, arg3 = self.getargs(op)#  bv high low new_val 
         if isinstance(arg0, ConstantSmallBitVector):
             return ConstantSmallBitVector(supportcode.vector_update_subrange_fixed_bv_i_i_bv(None, arg0.value, arg1.value, arg2.value, arg3.value), op.resolved_type.width)
         else:
-            # TODO: This must be tested explicitly
+            # TODO: This should be tested explicitly
             res = arg3.toz3()
-            if arg1.value != 0:
-                res = z3.Concat(z3.Extract(arg1.value, 0, arg0.toz3()), res)
-            if arg2.value != op.resolved_type.width -1:
-                res = z3.Concat(res,  z3.Extract(op.resolved_type.width - 1, arg2.value, arg0.toz3())) # bits are e.g. 0-63 for a 64 bit bv
+            bv_size = arg0.toz3().sort().size()
+            if arg1.value != (bv_size - 1):
+                res = z3.Concat(z3.Extract(bv_size - 1, arg1.value + 1, arg0.toz3()), res)
+            if arg2.value != 0:
+                res = z3.Concat(res, z3.Extract(arg2.value - 1, 0, arg0.toz3()))
+            if res.sort().size() != op.resolved_type.width: 
+                import pdb;  pdb.set_trace()
+                
             return Z3Value(res)
      
     def exec_vector_access_bv_i(self, op):

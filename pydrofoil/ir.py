@@ -872,6 +872,11 @@ class Graph(object):
                 assert value in defined_vars or isinstance(value, Constant)
 
     def replace_ops(self, replacements):
+        # shorten a->b->c chains to a->c (b->c stays in the dict too)
+        for op, newop in replacements.iteritems():
+            while newop in replacements:
+                newop = replacements[newop]
+            replacements[op] = newop
         res = False
         for block in self.iterblocks():
             for op in block.operations:
@@ -1700,19 +1705,27 @@ def swap_not(graph, codegen):
 @repeat
 def simplify_phis(graph, codegen):
     replace_phis = {}
+    changed = False
     for block in graph.iterblocks():
-        for index, op in enumerate(block.operations):
+        index = 0
+        while index < len(block.operations):
+            op = block.operations[index]
             if not isinstance(op, Phi):
+                index += 1
                 continue
             values = set(op.prevvalues)
             if len(values) == 1 or (len(values) == 2 and op in values):
                 values.discard(op)
-                value, = values
+                (value,) = values
                 replace_phis[op] = value
-                # this is really inefficient, but I don't want to think
                 del block.operations[index]
-                graph.replace_ops(replace_phis)
-                break # continue with the next block
+                changed = True
+            else:
+                index += 1
+    if changed:
+        changed = graph.replace_ops(replace_phis)
+        graph.check()
+        return True
     return False
 
 @repeat
@@ -2086,11 +2099,7 @@ class BaseOptimizer(object):
             self.current_block = block
             self.optimize_block(block)
         if self.replacements:
-            # XXX do them all in one go
-            while 1:
-                changed = self.graph.replace_ops(self.replacements)
-                if not changed:
-                    break
+            self.graph.replace_ops(self.replacements)
             self.replacements.clear()
             self.changed = True
         if self._dead_blocks:
@@ -4714,11 +4723,7 @@ def cse_global_reads(graph, codegen):
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]
-        while 1:
-            # XXX do them in one go somehow
-            changed = graph.replace_ops(replacements)
-            if not changed:
-                break
+        graph.replace_ops(replacements)
         return True
     return False
 
@@ -4858,10 +4863,7 @@ def partial_allocation_removal(graph, codegen):
         changes = changes or len(newoperations) != len(block.operations)
         block.operations = newoperations
     if replacements:
-        while 1:
-            res = graph.replace_ops(replacements)
-            if not res:
-                break
+        graph.replace_ops(replacements)
     return changes
 
 
@@ -4930,11 +4932,7 @@ def cse_field_reads(graph, codegen):
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]
-        while 1:
-            # XXX do them in one go somehow
-            changed = graph.replace_ops(replacements)
-            if not changed:
-                break
+        graph.replace_ops(replacements)
         return True
     return False
 

@@ -1190,27 +1190,31 @@ class InterproceduralAbstractInterpreter(AbstractInterpreter):
         # type: (ir.Operation) -> Range | None
         if op.is_union_creation():
             return self.analyze_UnionCreation(op)
-        if op.name not in self.codegen.all_graph_by_name:
+        if op.name in self.codegen.all_graph_by_name:
+            func_graphs = [self.codegen.all_graph_by_name[op.name]]
+        elif op.name in self.codegen.method_graphs_by_name:
+            func_graphs = self.codegen.method_graphs_by_name[op.name].values()
+        else:
             return super(
                 InterproceduralAbstractInterpreter, self
             ).analyze_Operation(op)
-        func_graph = self.codegen.all_graph_by_name[op.name]
-        arg_bounds = self._argbounds(op)
-        # write argument bounds
-        for func_arg, bound in zip(func_graph.args, arg_bounds):
-            if func_arg.resolved_type not in RELEVANT_TYPES:
-                continue
-            arg_location = self._location_manager.get_location_for_argument(
-                func_graph, func_arg
+        for func_graph in func_graphs:
+            arg_bounds = self._argbounds(op)
+            # write argument bounds
+            for func_arg, bound in zip(func_graph.args, arg_bounds):
+                if func_arg.resolved_type not in RELEVANT_TYPES:
+                    continue
+                arg_location = self._location_manager.get_location_for_argument(
+                    func_graph, func_arg
+                )
+                arg_location.write(bound, self.graph, op)
+            if op.resolved_type not in RELEVANT_TYPES:
+                return None
+            # read result bounds
+            result_location = self._location_manager.get_location_for_result(
+                func_graph, op.resolved_type
             )
-            arg_location.write(bound, self.graph, op)
-        if op.resolved_type not in RELEVANT_TYPES:
-            return None
-        # read result bounds
-        result_location = self._location_manager.get_location_for_result(
-            func_graph, op.resolved_type
-        )
-        return result_location.read(self.graph)
+            return result_location.read(self.graph)
 
     def analyze_FieldAccess(self, op):
         if op.resolved_type not in RELEVANT_TYPES:

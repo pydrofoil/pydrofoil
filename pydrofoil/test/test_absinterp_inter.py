@@ -554,3 +554,54 @@ def test_entry_point_args():
     locmanager = compute_all_ranges(codegen)
     loc = locmanager.get_location_for_result(graphs["f"], types.Int())
     assert not loc.bound.is_bounded()
+
+
+def _get_graphs_interprocedural_range_method():
+    # Graph that returns x+b
+    # Graph that returns x+b
+    # called as method on myunion
+    u = types.Union("myunion", ("first", "second"), (types.Int(), types.Int()))
+    # Graph that calls with 5 and 10 and one that call with 15
+    # Result -> Range(6, 16)
+    uarg = ir.Argument("u", u)
+    b = ir.Argument("b", types.Int())
+    block_f = ir.Block()
+    x = block_f.emit(ir.UnionCast, "first", [uarg], types.Int())
+
+    res = block_f.emit(ir.Operation, "add_int", [x, b], types.Int())
+    block_f.next = ir.Return(res)
+    graph_execute_first = ir.Graph("execute_first", [uarg, b], block_f)
+
+    uarg = ir.Argument("u", u)
+    b = ir.Argument("b", types.Int())
+    block_f = ir.Block()
+    x = block_f.emit(ir.UnionCast, "second", [uarg], types.Int())
+    res = block_f.emit(ir.Operation, "add_int", [x, b], types.Int())
+    block_f.next = ir.Return(res)
+    graph_execute_second = ir.Graph("execute_second", [uarg, b], block_f)
+
+    block_c1 = ir.Block()
+    u1 = block_c1.emit(ir.Operation, "first", [ir.IntConstant(5)], u)
+    block_c1.emit(ir.Operation, "execute", [u1, ir.IntConstant(23)], types.Int())
+    u2 = block_c1.emit(ir.Operation, "second", [ir.IntConstant(10)], u)
+    block_c1.emit(ir.Operation, "execute", [u2, ir.IntConstant(42)], types.Int())
+    block_c1.next = ir.Return(ir.UnitConstant.UNIT)
+    graph_c1 = ir.Graph("c1", [], block_c1)
+
+    return {
+        "execute_first": graph_execute_first,
+        "execute_second": graph_execute_second,
+        "c1": graph_c1,
+    }
+
+
+def test_method():
+    graphs = _get_graphs_interprocedural_range_method()
+    c = MockCodegen(graphs, ["c1"])
+    c.method_graphs_by_name["execute"] = {
+        "execute_first": graphs["execute_first"],
+        "execute_second": graphs["execute_second"],
+    }
+    locmanager = compute_all_ranges(c)
+    loc = locmanager.get_location_for_result(graphs["execute_first"], types.Int())
+    assert loc.bound == Range(28, 47)

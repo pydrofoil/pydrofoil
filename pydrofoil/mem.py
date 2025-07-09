@@ -73,10 +73,6 @@ class Version(object):
 class FlatMemory(MemBase):
     SIZE = 64 * 1024 * 1024 // 8 # 64 MB
 
-    PAGE_BITS = 9
-    PAGE_SIZE = 1 << 9
-    PAGE_MASK = PAGE_SIZE - 1
-
     _immutable_fields_ = ['mem?', 'version?', 'status', 'base_addr']
 
     def __init__(self, mmap=False, size=SIZE, base_addr=0):
@@ -193,7 +189,7 @@ class FlatMemory(MemBase):
         self.status[mem_offset] = MEM_STATUS_IMMUTABLE
 
     def memory_info(self):
-        return [(0, self.size)]
+        return [(r_uint(0), r_uint(self.size))]
 
 
 class TaggedFlatMemory(FlatMemory):
@@ -420,4 +416,5 @@ class SplitMemory(MemBase):
         self.mem2.close()
 
     def memory_info(self):
-        return [(self.address_base1, self.address_end1), (self.address_base2, self.address_end2)]
+        return [(r_uint(self.address_base1), r_uint(self.address_end1)),
+                (r_uint(self.address_base2), r_uint(self.address_end2))]

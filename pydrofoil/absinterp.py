@@ -1,6 +1,5 @@
 import sys
-from collections import defaultdict
-import typing
+from typing import Iterable
 
 from pydrofoil import ir, makecode, types
 
@@ -1104,13 +1103,15 @@ class Location(object):
         self._manager = manager
         self._typ = typ
         self.bound = default_for_type(typ)
-        self.writes = {}  # type: dict[tuple[ir.Graph, typing.Hashable], Range]
+        self.writes = (
+            {}
+        )  # type: dict[tuple[ir.Graph, ir.Return | ir.Operation | str | None], Range]
         self.readers = set()  # type: set[ir.Graph]
         self._recompute_counter = 0
         self.message = message
 
     def write(self, new_bound, graph, graph_position=None):
-        # type: (Range, ir.Graph, typing.Hashable) -> None
+        # type: (Range, ir.Graph, ir.Return | ir.Operation | str | None) -> None
         """Give a new value for the bound from source graph."""
         default = default_for_type(self._typ)
         new_bound = new_bound.make_ge(default).make_le(default)

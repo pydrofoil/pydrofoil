@@ -661,7 +661,7 @@ class RangeCheck(Operation):
 
     Parameters
     ----------
-    value: Value
+    value: Value | Return
         The value that this range refers to.
     low: IntConstant
         The lower bound of the value.
@@ -672,7 +672,7 @@ class RangeCheck(Operation):
     """
 
     def __init__(self, value, low, high, message=StringConstant("")):
-        # type: (Value, IntConstant, IntConstant, StringConstant) -> None
+        # type: (Value | Return, IntConstant, IntConstant, StringConstant) -> None
         super(RangeCheck, self).__init__(
             "$rangecheck", [value, low, high, message], types.Unit()
         )

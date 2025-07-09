@@ -493,9 +493,9 @@ class AbstractInterpreter(object):
             return BOOL
         if op.resolved_type is types.MachineInt():
             return MACHINEINT
-        if op.resolved_type is types.Int():
-            return UNBOUNDED
         if op.resolved_type is types.Packed(types.Int()):
+            return UNBOUNDED
+        if op.resolved_type is types.Int():
             return UNBOUNDED
         return None
 

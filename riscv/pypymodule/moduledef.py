@@ -21,6 +21,8 @@ class TypesModule(MixedModule):
         'Int': 'interp_types.Int',
         'MachineInt': 'interp_types.MachineInt',
         'Unit': 'interp_types.Unit',
+        'Vec': 'interp_types.Vec',
+        'FVec': 'interp_types.FVec',
     }
 
     appleveldefs = {}

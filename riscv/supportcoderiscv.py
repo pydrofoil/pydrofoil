@@ -850,6 +850,9 @@ def get_main(outriscv, rv64):
         def init_model(self):
             return outriscv.func_zinit_model(self, ())
 
+        def initialize_registers(self):
+            return outriscv.func_zinitializze_registers(self, ())
+
         def step(self, *args):
             return outriscv.func_zstep(self, *args)
 

@@ -1911,6 +1911,7 @@ def test_pack_machineint_unpack():
     values = analyze(graph_f, fakecodegen)
     assert values[block_f][a3] == Range(2, 2)
 
+
 def test_packed_field_int_to_int64_machineint_unpack():
     block_f = Block()
     c2 = block_f.emit(
@@ -1928,7 +1929,6 @@ def test_packed_field_int_to_int64_machineint_unpack():
     graph_f = Graph("f", [], block_f)
     values = analyze(graph_f, fakecodegen)
     assert values[block_f][a3] == Range(2, 2)
-
 
 
 def test_dont_remove_const_bool_res_op_with_side_effects():

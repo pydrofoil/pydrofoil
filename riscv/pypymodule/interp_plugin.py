@@ -70,6 +70,10 @@ init_sail = wrap_fn(supportcoderiscv.init_sail)
 def run_sail(machine, insn_limit, do_show_times):
     machine.run_sail(insn_limit, do_show_times)
 
+@wrap_fn
+def initialize_registers(machine):
+    machine.initialize_registers()
+
 
 def _init_register_names(cls, _all_register_names):
     assert cls is not MachineAbstractBase
@@ -285,6 +289,10 @@ class W_BoundSailFunction(W_Root):
     def descr_call(self, space, args_w):
         return self.func.call(space, self.w_machine, args_w)
 
+    def descr_repr(self, space):
+        return space.newtext("<bound sail function .lowlevel.%s of %s>" % (
+            self.func.sail_name, space.text_w(space.repr(self.w_machine))))
+
     def descr_doc(self, space):
         return space.newtext("""\
 Sail function
@@ -298,6 +306,7 @@ Sail function
 W_BoundSailFunction.typedef = TypeDef("sail-function",
     __call__ = interp2app(W_BoundSailFunction.descr_call),
     __doc__ = GetSetProperty(W_BoundSailFunction.descr_doc),
+    __repr__ = interp2app(W_BoundSailFunction.descr_repr),
     sail_type = GetSetProperty(W_BoundSailFunction.descr_sail_type),
 )
 
@@ -353,12 +362,14 @@ def _init_functions(machinecls, functions):
 
 def _make_function(function_info, d, machinecls):
     pyname, sail_name, func, argument_converters, result_converter, sail_type_repr = function_info
+    sail_type = eval(sail_type_repr, types.__dict__)
+    if sail_type.argtype.elements == (types.Unit(), ):
+        argument_converters = [] # if it's exactly unit, turn it into a zero-argument function
     adaptor_class = _make_function_adaptor(argument_converters, machinecls)
     def py(space, *args):
         res = func(*args)
         return result_converter(space, res)
     py.func_name += pyname
-    sail_type = eval(sail_type_repr, types.__dict__)
     adaptor = d[sail_name] = adaptor_class(py, sail_name, sail_type)
 
 
@@ -418,12 +429,16 @@ def _make_argument_converter_func(argument_converters, cache={}):
     if key in cache:
         return cache[key]
     converters = unrolling_iterable(argument_converters)
+    noargs = argument_converters == []
     def convert(space, args_w):
         args = ()
         i = 0
         for conv in converters:
             args += (conv(space, args_w[i]), )
             i += 1
+        if noargs:
+            # unit argument case:
+            args += ((), )
         return args
     cache[key] = convert
     return convert
@@ -440,12 +455,17 @@ class MachineAbstractBase(object):
             entry = load_sail(space, self.machine, elf)
         else:
             entry = self.machine.g.rv_ram_base
-        self.machine.set_pc(init_sail(space, self.machine, entry))
+        self.reset_pc = init_sail(space, self.machine, entry)
+        self.machine.set_pc(self.reset_pc)
         self.machine.g._init_ranges()
 
         self._step_no = 0
         self._insn_cnt = 0 # used to check whether a tick has been reached
         self._tick = False # should the next step tick
+
+    def reset(self):
+        initialize_registers(self.space, self.machine)
+        self.machine.set_pc(self.reset_pc)
 
     def step(self):
         """ Execute a single instruction. """
@@ -624,6 +644,7 @@ def riscv64_descr_new(space, w_subtype, elf=None, dtb=False):
 
 W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     __new__ = interp2app(riscv64_descr_new),
+    reset = interp2app(W_RISCV64.reset),
     step = interp2app(W_RISCV64.step),
     step_monitor_mem = interp2app(W_RISCV64.step_monitor_mem),
     read_register = interp2app(W_RISCV64.read_register),
@@ -659,6 +680,7 @@ def riscv32_descr_new(space, w_subtype, elf=None, dtb=False):
 
 W_RISCV32.typedef = TypeDef("_pydrofoil.RISCV32",
     __new__ = interp2app(riscv32_descr_new),
+    reset = interp2app(W_RISCV32.reset),
     step = interp2app(W_RISCV32.step),
     step_monitor_mem = interp2app(W_RISCV32.step_monitor_mem),
     read_register = interp2app(W_RISCV32.read_register),
@@ -864,9 +886,23 @@ class __extend__(BitVector):
         return space.newbool(self.tobool())
 
 
-@unwrap_spec(width=int, value=r_uint)
-def bitvector_descr_new(w_type, space, width, value):
-    return BitVector.from_ruint(width, value)
+@unwrap_spec(width=int)
+def bitvector_descr_new(w_type, space, width, w_value):
+    if width < 0:
+        raise oefmt(space.w_ValueError, "width must not be negative")
+    try:
+        value = space.uint_w(w_value)
+    except OperationError as e:
+        if not e.match(space, space.w_TypeError) and not e.match(space, space.w_OverflowError):
+            raise
+    else:
+        return BitVector.from_ruint(width, value)
+    try:
+        return BitVector.from_bigint(width, space.bigint_w(w_value))
+    except OperationError as e:
+        if not e.match(space, space.w_TypeError):
+            raise
+        raise oefmt(space.w_TypeError, "bitvector value must be integer")
 
 
 BitVector.typedef = TypeDef("bitvector",

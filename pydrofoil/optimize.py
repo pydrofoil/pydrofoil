@@ -19,6 +19,8 @@ def merge_phi_blocks(graph, codegen):
         if len(phis) != 1:
             continue
         phi2, = phis
+        if phi1 not in phi2.prevvalues:
+            continue # dead phi, ignore
         pos = phi2.prevvalues.index(phi1)
         phi2.prevvalues[pos: pos + 1] = phi1.prevvalues
         phi2.prevblocks[pos: pos + 1] = phi1.prevblocks

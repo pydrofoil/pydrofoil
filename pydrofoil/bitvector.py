@@ -36,7 +36,7 @@ def from_ruint(size, val):
         return SmallBitVector(size, val, True)
     return SparseBitVector(size, val)
 
-@always_inline
+@try_inline
 def from_bigint(size, rval):
     if size <= 64:
         value = rbigint_extract_ruint(rval, 0)

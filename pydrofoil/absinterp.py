@@ -35,16 +35,11 @@ class Range(object):
     def is_bounded_typed(self, typ):
         # type: (types.Type) -> bool
         """Considers type range constraints for the definition of 'bounded'."""
-        type_bound = None  # type: Range | None
-        if isinstance(typ, types.MachineInt):
-            type_bound = MACHINEINT
-        elif isinstance(typ, types.Bool):
-            type_bound = BOOL
+        type_bound = default_for_type(typ)
 
-        if type_bound is not None:
-            return type_bound.contains_range(self) and self != type_bound
-
-        return self.is_bounded()
+        intersection = self.intersect(type_bound)
+        assert intersection is not None
+        return intersection != type_bound
 
     def __repr__(self):
         return "Range(%r, %r)" % (self.low, self.high)
@@ -181,6 +176,7 @@ class Range(object):
         return UNBOUNDED
 
     def union(self, other):
+        # type: (Range) -> Range
         low = high = None
         if self.low is not None and other.low is not None:
             low = min(self.low, other.low)
@@ -199,6 +195,28 @@ class Range(object):
         for range in ranges_iter:
             res = res.union(range)
         return res
+
+    def intersect(self, other):
+        # type: (Range) -> Range | None
+        low = high = None
+        if self.low is not None and other.low is not None:
+            low = max(self.low, other.low)
+        elif self.low is None:
+            low = other.low
+        elif other.low is None:
+            low = self.low
+
+        if self.high is not None and other.high is not None:
+            high = min(self.high, other.high)
+        elif self.high is None:
+            high = other.high
+        elif other.high is None:
+            high = self.high
+
+        if low is not None and high is not None and low > high:
+            return None
+
+        return Range(low, high)
 
     def le(self, other):
         if self.high is not None and other.low is not None:
@@ -502,10 +520,12 @@ class AbstractInterpreter(object):
     def analyze_RangeCheck(self, op):
         # type: (ir.RangeCheck) -> None
         oldbound, low, high, _ = self._argbounds(op)
-        assert low is not None
-        assert high is not None
         assert oldbound is not None
-        newbound = oldbound.make_ge(low).make_le(high)
+        newbound = oldbound
+        if low is not None:
+            newbound = newbound.make_ge(low)
+        if high is not None:
+            newbound = newbound.make_le(high)
         self.current_values[op.args[0]] = newbound
         return None
 
@@ -997,16 +1017,15 @@ def _rewrite_graph(location_manager, graph, graphs):
 
 def _make_check(location, value, block, index, has_changed_before):
     # type: (Location, ir.Value, ir.Block, int, bool) -> bool
-    # TODO this is not a good way to access the bound
     bound = location.bound
     if not bound.is_bounded_typed(value.resolved_type):
         return has_changed_before
 
     new_instruction = ir.RangeCheck(
         value,
-        ir.IntConstant(bound.low),
-        ir.IntConstant(bound.high),
-        ir.StringConstant(location.message),
+        bound.low,
+        bound.high,
+        location.message,
     )
     block.operations.insert(index, new_instruction)
     return True
@@ -1109,6 +1128,9 @@ class Location(object):
         self.readers = set()  # type: set[ir.Graph]
         self._recompute_counter = 0
         self.message = message
+
+    def __repr__(self):
+        return "<Location %r %s %s>" % (self.message, self.bound, self._typ)
 
     def write(self, new_bound, graph, graph_position=None):
         # type: (Range, ir.Graph, ir.Return | ir.Operation | str | None) -> None

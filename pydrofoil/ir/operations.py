@@ -1,3 +1,4 @@
+from typing import cast
 from pydrofoil import types, bitvector
 from rpython.rlib.rarithmetic import r_uint
 
@@ -349,6 +350,9 @@ class Constant(Value):
 
 
 class BooleanConstant(Constant):
+    TRUE = cast("BooleanConstant", None)
+    FALSE = cast("BooleanConstant", None)
+
     def __init__(self, value):
         assert isinstance(value, bool)
         self.value = value
@@ -514,6 +518,8 @@ class StringConstant(Constant):
 class UnitConstant(Constant):
     resolved_type = types.Unit()
 
+    UNIT = cast("UnitConstant", None)
+
     def __repr__(self):
         return "UnitConstant.UNIT"
 
@@ -663,16 +669,23 @@ class RangeCheck(Operation):
     ----------
     value: Value | Return
         The value that this range refers to.
-    low: IntConstant
+    low: int | None
         The lower bound of the value.
-    high: IntConstant
+    high: int | None
         The upper bound of the value.
     message: str, optional
         A message to display in the generated assert-statement.
     """
 
-    def __init__(self, value, low, high, message=StringConstant("")):
-        # type: (Value | Return, IntConstant, IntConstant, StringConstant) -> None
+    def __init__(self, value, low, high, message=""):
+        # type: (Value | Return, int | None, int | None, str) -> None
         super(RangeCheck, self).__init__(
-            "$rangecheck", [value, low, high, message], types.Unit()
+            "$rangecheck",
+            [
+                value,
+                UnitConstant.UNIT if low is None else IntConstant(low),
+                UnitConstant.UNIT if high is None else IntConstant(high),
+                StringConstant(message),
+            ],
+            types.Unit(),
         )

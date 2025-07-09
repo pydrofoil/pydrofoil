@@ -897,12 +897,21 @@ class Interpreter(object):
         return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
     
     def exec_cast(self, op):
+        arg0, = self.getargs(op)
         if isinstance(op.args[0].resolved_type, types.SmallFixedBitVector): # from
             if isinstance(op.resolved_type, types.GenericBitVector): # to
-                return ConstantSmallBitVector(self.getargs(op)[0].value, op.args[0].resolved_type.width)
+                if isinstance(arg0, ConstantSmallBitVector):
+                    return ConstantSmallBitVector(arg0.value, op.args[0].resolved_type.width)
+                else:
+                    return Z3Value(arg0.value)
+                
         elif isinstance(op.args[0].resolved_type, types.GenericBitVector): # from
             if isinstance(op.resolved_type, types.SmallFixedBitVector): # to
-                return ConstantSmallBitVector(self.getargs(op)[0].value, op.resolved_type.width)
+                if isinstance(arg0, ConstantSmallBitVector):
+                    return ConstantSmallBitVector(arg0.value, op.resolved_type.width)
+                else: 
+                    return Z3Value(arg0.value)
+                
         assert 0, "implement cast %s to %s" % (op.args[0].resolved_type, op.resolved_type)
 
     def exec_signed_bv(self, op):
@@ -954,6 +963,13 @@ class Interpreter(object):
             return BooleanConstant(arg0.value > arg1.value)
         else:
             return Z3BoolValue(arg0.toz3() > arg1.toz3())
+        
+    def exec_gteq_unsigned64(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, (ConstantInt, ConstantSmallBitVector)) and isinstance(arg1, (ConstantInt, ConstantSmallBitVector)):
+            return BooleanConstant(arg0.value > arg1.value)
+        else:
+            return Z3BoolValue(z3.UGE(arg0.toz3(), arg1.toz3()))
     
     def exec_gteq(self, op):
         arg0, arg1 = self.getargs(op)
@@ -1036,6 +1052,14 @@ class Interpreter(object):
             return ConstantSmallBitVector(arg0.value | arg1.value, op.resolved_type.width) 
         else:
             return Z3Value(arg0.toz3() | arg1.toz3())
+        
+    def exec_shiftl_bv_i(self, op):
+        ## Assume that this is meant to be an arithmetic shift ##
+        arg0, arg1, arg2 = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
+            return ConstantSmallBitVector(arg0.value << arg2.value, arg1.value) 
+        else:
+            return Z3Value(arg0.toz3() << arg2.toz3())
         
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
@@ -1126,7 +1150,8 @@ class RiscvInterpreter(Interpreter):
     def __init__(self, graph, args, shared_state=None, entrymap=None):
         super(RiscvInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
-        self.bits = 64 # keep this for 
+
+    ### RISCV specific Operations ###
 
     def exec_zsys_enable_zzfinx(self, op):
         return BooleanConstant(True)
@@ -1181,7 +1206,6 @@ class RiscvInterpreter(Interpreter):
         """ This is basicly a method on union_zoptionzIbzK, 
             but it doesnt get a graph """
         ### TODO: remove when method has a graph by default ###
-        import pdb; pdb.set_trace()
         arg0, = self.getargs(op)
         if not isinstance(arg0, UnionConstant) or not arg0.z3type.name() == "union_zoptionzIbzK":
             import pdb; pdb.set_trace()

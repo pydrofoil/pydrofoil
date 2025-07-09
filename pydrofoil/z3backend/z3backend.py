@@ -79,6 +79,21 @@ class ConstantSmallBitVector(AbstractConstant):
             return False
         return (self.value == other.value)
     
+class GenericBitVector(Value):
+    """ Dont use it yet """
+    def __init__(self, val, width):
+        self.value = val
+        self.width = width
+
+    def toz3(self):
+        return z3.BitVecVal(self.value, self.width)
+    
+    def same_value(self, other):
+        if not isinstance(other, GenericBitVector):
+            return False
+        return (self.value == other.value)
+    
+    
 
 class ConstantInt(AbstractConstant): # TODO: renname to ConstantMachineInt
     def __init__(self, val):
@@ -415,7 +430,7 @@ class SharedState(object):
             return z3.BitVecSort(64)# TODO: generic bs as 64 bit bv?
             #return z3.BitVecSort()
         elif isinstance(typ, types.MachineInt):
-            return z3.BitVecSort(64)# This must be the number bits of the machine that runs pydrofoil
+            return z3.IntSort()# This must be the number bits of the machine that runs pydrofoil
         elif isinstance(typ, types.Union):
             return self.get_z3_union_type(typ)
         elif isinstance(typ, types.Struct):
@@ -1059,7 +1074,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             return ConstantSmallBitVector(arg0.value << arg2.value, arg1.value) 
         else:
-            return Z3Value(arg0.toz3() << arg2.toz3())
+            return Z3Value(arg0.toz3() << z3.Int2BV(arg2.toz3(), arg0.toz3().sort().size()))
         
     def exec_shiftr_bv_i(self, op):
         # Assume that this is meant to be an arithmetic shift ##
@@ -1067,8 +1082,18 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             return ConstantSmallBitVector(arg0.value >> arg2.value, arg1.value) 
         else:
-            return Z3Value(arg0.toz3() >> arg2.toz3())
-        
+            return Z3Value(arg0.toz3() >> z3.Int2BV(arg2.toz3(), arg0.toz3().sort().size()))
+    
+    def exec_shiftr_o_i(self, op):
+        """ shift generic bv to the right """
+        ## Assume that this is meant to be an arithmetic shift ##
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
+            return ConstantSmallBitVector(arg0.value >> arg1.value, arg0.width) # TODO. we currently cannot represent generic bvs very good 
+        else:
+            # This assumes that the shift is by less than 2**arg0's-width
+            return Z3Value(arg0.toz3() >> z3.Int2BV(arg1.toz3(), arg0.toz3().sort().size()))
+
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
@@ -1125,11 +1150,12 @@ class Interpreter(object):
             return Z3Value(z3.SignExt(arg1.value - arg0.toz3().sort().size(), arg0.toz3()))
 
     def exec_unsigned_bv(self, op):
+        """ arg is a bv , result is that bv cast to (Machine) int """
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
             return ConstantInt(supportcode.unsigned_bv(None, arg0.value, arg1.value))
         else:
-            return Z3Value(z3.ZeroExt(64 - arg1.value, arg0.toz3()))
+            return Z3Value(z3.BV2Int(z3.ZeroExt(64 - arg1.value, arg0.toz3())))
 
     def exec_zz5i64zDzKz5i(self, op): # %i64->%i
         arg0, = self.getargs(op)

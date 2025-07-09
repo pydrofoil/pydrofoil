@@ -1700,19 +1700,31 @@ def swap_not(graph, codegen):
 @repeat
 def simplify_phis(graph, codegen):
     replace_phis = {}
+    changed = False
     for block in graph.iterblocks():
-        for index, op in enumerate(block.operations):
+        index = 0
+        while index < len(block.operations):
+            op = block.operations[index]
             if not isinstance(op, Phi):
+                index += 1
                 continue
             values = set(op.prevvalues)
             if len(values) == 1 or (len(values) == 2 and op in values):
                 values.discard(op)
-                value, = values
+                (value,) = values
                 replace_phis[op] = value
-                # this is really inefficient, but I don't want to think
                 del block.operations[index]
-                graph.replace_ops(replace_phis)
-                break # continue with the next block
+                changed = True
+            else:
+                index += 1
+    if changed:
+        while 1:
+            # XXX do it in one go
+            changed = graph.replace_ops(replace_phis)
+            if not changed:
+                break
+        graph.check()
+        return True
     return False
 
 @repeat

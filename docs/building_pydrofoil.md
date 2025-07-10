@@ -83,15 +83,30 @@ Perf: 844.397835 Kips
 
 ## Build Pydrofoil with Nix
 
+You may choose from one of the following options.
+
+NOTE: Nix with experiment features `nix-command flakes` is required.
+
+### RPython Nix package source `rpypkgs`
+
 See [rpypkgs](https://github.com/rpypkgs/rpypkgs) for details.
 
 Example usage:
 
-Nix with experiment features `nix-command flakes` is required.
-
 ```bash
 # Build Pydrofoil-riscv (with artifacts under ./result/)
 nix build github:rpypkgs/rpypkgs#pydrofoil-riscv
+```
+
+### Pydrofoil's fork with Nix support
+
+See [Pydrofoil fork](https://github.com/definfo/pydrofoil/tree/nix-support) for details.
+
+Example usage:
+
+```bash
+# Build Pydrofoil-riscv (with artifacts under ./result/)
+nix build "git+https://github.com/definfo/pydrofoil?ref=nix-support&submodules=1"
 ```
 
 [See here](using_pydrofoil.md) for more instructions on how to **use Pydrofoil**,

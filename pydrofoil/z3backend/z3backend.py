@@ -1069,36 +1069,51 @@ class Interpreter(object):
             return Z3Value(arg0.toz3() | arg1.toz3())
         
     def exec_shiftl_bv_i(self, op):
-        ## Assume that this is meant to be an arithmetic shift ##
+        ## Assume that this is meant to be an logical shift ##
         arg0, arg1, arg2 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             return ConstantSmallBitVector(arg0.value << arg2.value, arg1.value) 
         else:
-            return Z3Value(arg0.toz3() << z3.Int2BV(arg2.toz3(), arg0.toz3().sort().size()))
+            arg2_z3 = arg2.toz3() if not isinstance(arg2.toz3(), int) else z3.Int(arg2.toz3())
+            return Z3Value(arg0.toz3() << z3.Int2BV(arg2_z3, arg0.toz3().sort().size()))
         
     def exec_shiftr_bv_i(self, op):
-        # Assume that this is meant to be an arithmetic shift ##
+        # Assume that this is meant to be an logical shift ##
         arg0, arg1, arg2 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             return ConstantSmallBitVector(arg0.value >> arg2.value, arg1.value) 
         else:
-            return Z3Value(arg0.toz3() >> z3.Int2BV(arg2.toz3(), arg0.toz3().sort().size()))
+            arg2_z3 = arg2.toz3() if not isinstance(arg2.toz3(), int) else z3.Int(arg2.toz3())
+            return Z3Value(arg0.toz3() >> z3.Int2BV(arg2_z3, arg0.toz3().sort().size()))
     
     def exec_shiftr_o_i(self, op):
         """ shift generic bv to the right """
-        ## Assume that this is meant to be an arithmetic shift ##
+        ## Assume that this is meant to be an logical shift ##
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
             return ConstantSmallBitVector(arg0.value >> arg1.value, arg0.width) # TODO. we currently cannot represent generic bvs very good 
         else:
             # This assumes that the shift is by less than 2**arg0's-width
-            return Z3Value(arg0.toz3() >> z3.Int2BV(arg1.toz3(), arg0.toz3().sort().size()))
+            arg1_z3 = arg1.toz3() if not isinstance(arg1.toz3(), int) else z3.Int(arg1.toz3())
+            return Z3Value(arg0.toz3() >> z3.Int2BV(arg1_z3, arg0.toz3().sort().size()))
 
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
-        if isinstance(arg0, ConstantSmallBitVector):
+        if isinstance(arg0, ConstantSmallBitVector):# ConstantGenericBitVector
             return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
+        else:
+            return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
+        
+    def exec_vector_subrange_o_i_i_unwrapped_res(self, op):
+        """ slice generic bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
+        arg0, arg1, arg2 = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector):
+            mask_low = 2 ** (arg2 + 1) - 1
+            mask_high = 2 ** (arg1 + 1) - 1
+            mask = mask_high - mask_low
+            # supportcode cant handle morethan 64 bits #
+            return ConstantSmallBitVector(arg0.value & mask, op.resolved_type.width)
         else:
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
                 
@@ -1162,7 +1177,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantInt):
             return ConstantGenericInt(arg0.value)
         else:
-            return Z3Value(z3.BV2Int(arg0.toz3()))
+            return Z3Value(arg0.toz3())
 
     ### Arch specific Operations in subclass ###
 

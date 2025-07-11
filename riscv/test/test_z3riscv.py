@@ -140,6 +140,7 @@ def test_decode_execute_all_abstract(riscvsharedstate):
     assert isinstance(instr_ast, z3backend.Z3Value)
 
     for name, func in riscvsharedstate.funcs.iteritems():
+        #if not "zexecute_zSHIFTIOP" == name: continue
         if not "zexecute_" in name: continue
         interp = z3backend.RiscvInterpreter(func, [instr_ast], riscvsharedstate.copy())
         res = interp.run()

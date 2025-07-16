@@ -1266,9 +1266,9 @@ class Interpreter(object):
         else:
             if not arg0.toz3().sort().size(): return StringConstant("") 
             zero, one = z3.StringVal("0"), z3.StringVal("1") 
-            res = z3.If(z3.Extract(0,0,arg0.toz3()) == 0, zero, one)
+            res = z3.If(z3.Extract(0,0,arg0.toz3()) == 0, zero, one)# index read from right
             for i in range(1, arg0.toz3().sort().size()):
-                res = z3.Concat(res, z3.If(z3.Extract(i, i, arg0.toz3()) == 0, zero, one))
+                res = z3.Concat(z3.If(z3.Extract(i, i, arg0.toz3()) == 0, zero, one), res) # concat(x,y) = xy, but bv extract index 0is on the right side
             return Z3StringValue(res)
 
     ### Arch specific Operations in subclass ###

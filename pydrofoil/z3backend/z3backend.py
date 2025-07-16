@@ -243,6 +243,23 @@ class Z3Value(Value):
         assert 0,  "ilegal"
         return Z3BoolNotValue(self.value)
     
+class Z3StringValue(Z3Value): 
+    
+    def __init__(self, val):
+        assert isinstance(val, z3.z3.SeqRef)
+        self.value = val
+
+    def toz3(self):
+        return self.value
+    
+    def __str__(self):
+        return str(self.value)
+    
+    def same_value(self, other):
+        if not isinstance(other, StringConstant):
+            return False
+        return self.value == other.value
+
 class Z3GenericBitVector(Z3Value):
     
     def __init__(self, val, width):
@@ -864,7 +881,7 @@ class Interpreter(object):
         if isinstance(arg0, UnionConstant):
             if arg0.variant_name in method_graphs: return method_graphs[arg0.variant_name]
             # these methods usually have an else case, and that graph has no name
-            # on caching these graphs in test_z3riscv.py I named that graph ___init___
+            # on caching these graphs in test_z3riscv.py I named that graph ___default___
             return method_graphs["___default___"] 
         assert 0, "implement method selection on %s" % str(type(arg0))
 
@@ -1242,7 +1259,18 @@ class Interpreter(object):
             return Z3Value(arg0.toz3())
 
     def exec_zbits_str(self, op):
-        import pdb; pdb.set_trace()
+        """ convert bits of bv to string repr e.g. bv: 01010 -> str: '01010' """
+        arg0, = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector):
+            return StringConstant(bin(arg0.value)) #TODO: binary or int repr???
+        else:
+            if not arg0.toz3().sort().size(): return StringConstant("") 
+            zero, one = z3.StringVal("0"), z3.StringVal("1") 
+            res = z3.If(z3.Extract(0,0,arg0.toz3()) == 0, zero, one)
+            for i in range(1, arg0.toz3().sort().size()):
+                res = z3.Concat(res, z3.If(z3.Extract(i, i, arg0.toz3()) == 0, zero, one))
+            return Z3StringValue(res)
+
     ### Arch specific Operations in subclass ###
 
 class NandInterpreter(Interpreter):

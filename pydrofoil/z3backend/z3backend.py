@@ -801,6 +801,8 @@ class Interpreter(object):
         elif isinstance(op,  ir.FieldWrite):
             self.exec_field_write(op)
             return
+        elif op.name in self.sharedstate.mthds:
+            result = self.exec_method_call(op, self.sharedstate.mthds[op.name])
         elif op.name in self.sharedstate.funcs:
             result = self.exec_func_call(op, self.sharedstate.funcs[op.name])
         elif isinstance(op, ir.Comment):
@@ -855,7 +857,38 @@ class Interpreter(object):
             self.w_raises = self.w_raises._create_w_z3_or(interp_fork.w_raises)
         self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
         return w_res
+    
+    def select_method_graph(self, arg0, method_graphs):
+        """ select method graph depending on first arg for method call """
+        ## arg0 is the 'object' the method is called on
+        if isinstance(arg0, UnionConstant):
+            if arg0.variant_name in method_graphs: return method_graphs[arg0.variant_name]
+            # these methods usually have an else case, and that graph has no name
+            # on caching these graphs in test_z3riscv.py I named that graph ___init___
+            return method_graphs["___default___"] 
+        assert 0, "implement method selection on %s" % str(type(arg0))
 
+    def exec_method_call(self, op, graphs):
+        func_args = self.getargs(op)
+        graph = self.select_method_graph(func_args[0], graphs)
+        self._debug_print("graph " + self.graph.name + " mthd call " + op.name)
+        interp_fork = self.call_fork(graph, func_args)
+        w_res = interp_fork.run()
+        self.registers = interp_fork.registers
+        self.memory = interp_fork.memory
+        if isinstance(interp_fork.w_raises, BooleanConstant):
+            if interp_fork.w_raises.value == True:# case: func raises without condition
+                self.w_raises = BooleanConstant(True)
+                self.w_result = UnitConstant()
+            else:
+                # self.w_raises is self.w_raises or False
+                pass
+        else: 
+            # case: func did or didnt raise, but raise was behind a condition
+            self.w_raises = self.w_raises._create_w_z3_or(interp_fork.w_raises)
+        self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
+        return w_res
+    
     def exec_struct_construction(self, op):
         """ Execute a Lazy Struct creation """
         z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
@@ -1263,12 +1296,12 @@ class RiscvInterpreter(Interpreter):
         ### TODO: False?
         return BooleanConstant(False)
     
-    def exec_znum_of_ExceptionType(self, op):
+    """def exec_znum_of_ExceptionType(self, op):
         return ConstantInt(self._get_exception_enum_num(op))      
     
     def exec_zexceptionType_to_bits(self, op):
-        return ConstantSmallBitVector(self._get_exception_enum_num(op), op.resolved_type.width)     
-
+        return ConstantSmallBitVector(self._get_exception_enum_num(op), op.resolved_type.width)"""    
+       
     def _get_exception_enum_num(self, op):
         """ Those are hardwired numbers for exceptions.
             They are NOT in Enum definition Order """ # machine int
@@ -1293,13 +1326,13 @@ class RiscvInterpreter(Interpreter):
         if arg0.variant_name == "zE_Extension": return 24
         assert 0, "this should not happen"
 
-    def exec_ztval(self, op):
+    #def exec_ztval(self, op):
         """ This is basicly a method on union_zoptionzIbzK, 
             but it doesnt get a graph """
         ### TODO: remove when method has a graph by default ###
-        arg0, = self.getargs(op)
-        if not isinstance(arg0, UnionConstant) or not arg0.z3type.name() == "union_zoptionzIbzK":
-            import pdb; pdb.set_trace()
-        funcname = "ztval_zSomezIbzK" if arg0.variant_name == "zSomezIbzK" else "ztval_zNonezIbzK"
-        new_op  = ir.Operation(funcname, op.args, op.resolved_type, None, None)
-        return self.exec_func_call(new_op, self.sharedstate.funcs[funcname])
+        #arg0, = self.getargs(op)
+        #if not isinstance(arg0, UnionConstant) or not arg0.z3type.name() == "union_zoptionzIbzK":
+        #    import pdb; pdb.set_trace()
+        #funcname = "ztval_zSomezIbzK" if arg0.variant_name == "zSomezIbzK" else "ztval_zNonezIbzK"
+        #new_op  = ir.Operation(funcname, op.args, op.resolved_type, None, None)
+        #return self.exec_func_call(new_op, self.sharedstate.funcs[funcname])

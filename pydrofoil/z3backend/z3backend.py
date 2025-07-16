@@ -79,21 +79,6 @@ class ConstantSmallBitVector(AbstractConstant):
             return False
         return (self.value == other.value)
     
-class GenericBitVector(Value):
-    """ Dont use it yet """
-    def __init__(self, val, width):
-        self.value = val
-        self.width = width
-
-    def toz3(self):
-        return z3.BitVecVal(self.value, self.width)
-    
-    def same_value(self, other):
-        if not isinstance(other, GenericBitVector):
-            return False
-        return (self.value == other.value)
-    
-    
 
 class ConstantInt(AbstractConstant): # TODO: renname to ConstantMachineInt
     def __init__(self, val):
@@ -255,7 +240,29 @@ class Z3Value(Value):
         return Z3Value(self.value)
 
     def not_(self):
+        assert 0,  "ilegal"
         return Z3BoolNotValue(self.value)
+    
+class Z3GenericBitVector(Z3Value):
+    
+    def __init__(self, val, width):
+        self.value = val
+        assert isinstance(width, int)
+        self.width = width
+
+    def toz3(self):
+        assert 0, ""
+        return self.value
+    
+    def same_value(self, other):
+        assert 0, ""
+        if self.value.eq(other.toz3()): # syntactical equality
+            return True
+        return False
+    
+    def copy(self):
+        return Z3GenericBitVector(self.value, self.width)
+    
     
 class Z3BoolValue(Z3Value):
 
@@ -346,7 +353,12 @@ class SharedState(object):
         self.type_cache = {}
         self.union_field_cache = {} # (union_name,union_field):z3_type
         self.struct_z3_field_map = {}
+        self.struct_unit_fields = set()
         self.struct_update_map = {}
+        unit = z3.Datatype("____unit____")
+        unit.declare("UNIT")
+        self._z3_unit_type = unit.create()
+        self._z3_unit = self._z3_unit_type.UNIT
         self.fork_counter = 0
 
 
@@ -358,7 +370,11 @@ class SharedState(object):
         fields = []
         # create struct
         for fieldname, typ in resolved_type.internalfieldtyps.items():
-            fields.append((fieldname, self.convert_type_to_z3_type(typ)))
+            if isinstance(typ, types.Unit):
+                self.struct_unit_fields.add((struct, fieldname))
+                fields.append((fieldname, self._z3_unit_type))
+            else:
+                fields.append((fieldname, self.convert_type_to_z3_type(typ)))
         # TODO: give the constructor a real names that contain struct name, calling it 'a' makes results very hard to read
         struct.declare("a", *fields)
         struct = struct.create()
@@ -450,6 +466,8 @@ class SharedState(object):
     def get_w_class_for_ztype(self, ztype):
         """ get the z3backend  wrapper class appropriate for the given z3 type """
         # TODO: think of how to get more specialised types
+        if ztype == z3.BoolSort():
+            return Z3BoolValue 
         return Z3Value
 
     def register_enum(self, name, variants):
@@ -806,6 +824,8 @@ class Interpreter(object):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value):
             return Z3BoolValue(arg0.toz3() == arg1.toz3())
+        elif isinstance(arg0, StructConstant) and isinstance(arg1, StructConstant):
+            import pdb; pdb.set_trace()
         else:
             import pdb; pdb.set_trace()
 
@@ -845,6 +865,9 @@ class Interpreter(object):
         struct, = self.getargs(op)
         struct_type = op.args[0].resolved_type
         struct_type_z3 = self.sharedstate.get_z3_struct_type(struct_type)
+        ## structs can have fields of type  unit, those are always UNIT
+        if (struct_type_z3, field) in self.sharedstate.struct_unit_fields:
+            return UnitConstant() 
         if isinstance(struct, StructConstant):
             index = struct.resolved_type.names.index(op.name)
             return struct.vals_w[index]
@@ -865,7 +888,7 @@ class Interpreter(object):
             if fieldname == field_to_replace:
                 new_args.append(new_value)
             else:
-                res = getattr(z3_struct_type, fieldname)(struct.toz3())
+                res = getattr(z3_struct_type, fieldname)(struct.toz3())# TODO get from vals_w
                 if res.sort() == z3.BoolSort():
                     new_args.append(Z3BoolValue(res))
                 else:
@@ -932,11 +955,10 @@ class Interpreter(object):
     def exec_signed_bv(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
-            res = ConstantInt(supportcode.signed_bv(None, arg0.value, arg1.value))
+            return ConstantInt(supportcode.signed_bv(None, arg0.value, arg1.value))
         else:
             # machine ints are represented as 64-bit bit vectors in z3
-            res = Z3Value(z3.SignExt(64 - arg1.value, arg0.toz3()))
-        return res
+            return Z3Value(z3.SignExt(64 - arg1.value, arg0.toz3()))
     
     def exec_bitvector_concat_bv_bv(self, op):
         arg0, arg1, arg2 = self.getargs(op)
@@ -1221,6 +1243,9 @@ class RiscvInterpreter(Interpreter):
     
     def exec_zsys_enable_zzicbom(self, op):
         return BooleanConstant(True)
+    
+    def exec_zplat_enable_misaligned_access(self, op):
+        return BooleanConstant(False)
 
     def exec_zget_config_print_reg(self, op):
         return BooleanConstant(False)

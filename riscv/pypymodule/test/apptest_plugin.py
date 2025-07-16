@@ -275,9 +275,9 @@ def test_big_fixed_bitvectors():
 def test_compact_union():
     m = _pydrofoil.RISCV64()
     x = m.lowlevel.read_kind_of_flags_specialized_o_o_True(True, True, True)
-    assert x[0] == 'Read_RISCV_strong_acquire'
+    assert x[0] == 'Read_RISCV_reserved_strong_acquire'
     assert x == x
-    assert repr(x) == "Some<Eread_kind%>('Read_RISCV_strong_acquire')"
+    assert repr(x) == "Some<Eread_kind%>('Read_RISCV_reserved_strong_acquire')"
 
 # functions
 

@@ -312,16 +312,17 @@ class CodeEmitter(object):
         arg3 = self._get_arg(op.args[3])
 
         if op.args[0].resolved_type == types.Bool():
-            self.codegen.emit(
-                "assert %s <= int(%s) <= %s, %s"
-                % (
-                    op.args[1].number,
-                    arg0,
-                    op.args[2].number,
-                    arg3,
+            low = op.args[1].number
+            high = op.args[2].number
+            if low == high:
+                self.codegen.emit(
+                    "assert %s%s, %s"
+                    % (
+                        "" if low else "not ",
+                        arg0,
+                        arg3,
+                    )
                 )
-            )
-            return
         elif op.args[0].resolved_type == types.MachineInt():
             self.codegen.emit(
                 "assert %s <= %s <= %s, %s"
@@ -332,20 +333,45 @@ class CodeEmitter(object):
                     arg3,
                 )
             )
-            return
         elif op.args[0].resolved_type == types.Int():
-            lower = self._get_arg(op.args[1])
-            upper = self._get_arg(op.args[2])
+            low_optional = op.args[1]
+            high_optional = op.args[2]
+            low_is_unit = isinstance(low_optional, ir.UnitConstant)
+            high_is_unit = isinstance(high_optional, ir.UnitConstant)
+            if low_is_unit and high_is_unit:
+                return
             self.codegen.emit(
-                "assert %s.le(%s) and %s.le(%s), %s"
-                % (lower, arg0, arg0, upper, arg3)
+                "assert %s%s%s, %s"
+                % (
+                    ""
+                    if low_is_unit
+                    else "%s.le(%s)" % (low_optional.number, arg0),
+                    "" if low_is_unit or high_is_unit else " and ",
+                    ""
+                    if high_is_unit
+                    else "%s.le(%s)" % (arg0, high_optional.number),
+                    arg3,
+                )
             )
         elif op.args[0].resolved_type == types.Packed(types.Int()):
-            lower = self._get_arg(op.args[1])
-            upper = self._get_arg(op.args[2])
+            low_optional = op.args[1]
+            high_optional = op.args[2]
+            low_is_unit = isinstance(low_optional, ir.UnitConstant)
+            high_is_unit = isinstance(high_optional, ir.UnitConstant)
+            if low_is_unit and high_is_unit:
+                return
             self.codegen.emit(
-                "assert %s.le_packed(%s) and %s.ge_packed(%s), %s"
-                % (lower, arg0, upper, arg0, arg3)
+                "assert %s%s%s, %s"
+                % (
+                    ""
+                    if low_is_unit
+                    else "%s.le_packed(%s)" % (low_optional.number, arg0),
+                    "" if low_is_unit or high_is_unit else " and ",
+                    ""
+                    if high_is_unit
+                    else "%s.le_packed(%s)" % (arg0, high_optional.number),
+                    arg3,
+                )
             )
         else:
             assert 0, "unknown type in RangeCheck"

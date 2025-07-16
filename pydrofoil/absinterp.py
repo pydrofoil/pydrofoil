@@ -835,7 +835,10 @@ class IntOpOptimizer(ir.LocalOptimizer):
         )
 
     def _extract_unsigned_bv64(self, arg):
-        if not isinstance(arg, ir.Constant) and arg.resolved_type is types.MachineInt():
+        if (
+            not isinstance(arg, ir.Constant)
+            and arg.resolved_type is types.MachineInt()
+        ):
             value = self.current_values.get(arg, None)
             if value is not None and value.low is not None and value.low >= 0:
                 res = self.newop(
@@ -844,10 +847,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
                     types.SmallFixedBitVector(64),
                 )
                 return res
-        return ir.LocalOptimizer._extract_unsigned_bv64(
-            self, arg
-        )
-
+        return ir.LocalOptimizer._extract_unsigned_bv64(self, arg)
 
     def _optimize_Phi(self, op, block, index):
         if op.resolved_type is types.Int():
@@ -892,6 +892,8 @@ class IntOpOptimizer(ir.LocalOptimizer):
             return ir.REMOVE
         if (
             arg0.resolved_type is types.Int()
+            and isinstance(arg1, ir.IntConstant)
+            and isinstance(arg2, ir.IntConstant)
             and arg1.number >= MININT
             and arg2.number <= MAXINT
         ):
@@ -933,7 +935,9 @@ def apply_interprocedural_optimizations(codegen):
 
 def compute_all_ranges(codegen):
     # type: (makecode.Codegen) -> LocationManager
-    todo_set = set(codegen.all_graph_by_name.values()) - set(codegen.inlinable_functions.values())
+    todo_set = set(codegen.all_graph_by_name.values()) - set(
+        codegen.inlinable_functions.values()
+    )
     location_manager = LocationManager()
     # Initialize ranges with all functions
     for graph in todo_set:
@@ -943,18 +947,25 @@ def compute_all_ranges(codegen):
         absinterp.analyze()
     if codegen.program_entrypoints is not None:
         for entry_point_name in codegen.program_entrypoints:
-            entry_point = codegen.all_graph_by_name[entry_point_name]
-            for arg in entry_point.args:
-                if not arg.resolved_type in RELEVANT_TYPES:
-                    continue
-                location = location_manager.get_location_for_argument(
-                    entry_point, arg
-                )
-                location.write(
-                    default_for_type(arg.resolved_type),
-                    entry_point,
-                    "entrypoint",
-                )
+            if entry_point_name in codegen.method_graphs_by_name:
+                entry_points = codegen.method_graphs_by_name[
+                    entry_point_name
+                ].values()
+            else:
+                entry_points = [codegen.all_graph_by_name[entry_point_name]]
+
+            for entry_point in entry_points:
+                for arg in entry_point.args:
+                    if not arg.resolved_type in RELEVANT_TYPES:
+                        continue
+                    location = location_manager.get_location_for_argument(
+                        entry_point, arg
+                    )
+                    location.write(
+                        default_for_type(arg.resolved_type),
+                        entry_point,
+                        "entrypoint",
+                    )
 
     # run to fixpoint
     while todo_set:
@@ -1204,8 +1215,10 @@ class InterproceduralAbstractInterpreter(AbstractInterpreter):
             for func_arg, bound in zip(func_graph.args, arg_bounds):
                 if func_arg.resolved_type not in RELEVANT_TYPES:
                     continue
-                arg_location = self._location_manager.get_location_for_argument(
-                    func_graph, func_arg
+                arg_location = (
+                    self._location_manager.get_location_for_argument(
+                        func_graph, func_arg
+                    )
                 )
                 arg_location.write(bound, self.graph, op)
             if op.resolved_type not in RELEVANT_TYPES:

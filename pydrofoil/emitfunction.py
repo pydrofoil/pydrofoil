@@ -4,15 +4,19 @@ from rpython.tool.pairtype import pair
 
 from pydrofoil import ir, parse, types, supportcode
 
+
 def emit_function_code(graph, functionast, codegen):
     CodeEmitter(graph, functionast, codegen).emit()
+
 
 class CodeEmitter(object):
     def __init__(self, graph, functionast, codegen):
         self.graph = graph
         self.functionast = functionast
         self.codegen = codegen
-        self.graph_construction_code = ir.print_graph_construction(self.graph, codegen)
+        self.graph_construction_code = ir.print_graph_construction(
+            self.graph, codegen
+        )
         remove_critical_edges(graph)
 
         self.use_count_ops = count_uses(graph)
@@ -32,9 +36,13 @@ class CodeEmitter(object):
     def emit(self):
         codegen = self.codegen
         try:
-            codegen.emit("# return type %s%s" % (self.functionast.resolved_type.restype,
-                " has loop" if self.graph.has_loop else ""
-                ))
+            codegen.emit(
+                "# return type %s%s"
+                % (
+                    self.functionast.resolved_type.restype,
+                    " has loop" if self.graph.has_loop else "",
+                )
+            )
         except AttributeError:
             pass
         for comment in self.graph_construction_code:
@@ -54,15 +62,21 @@ class CodeEmitter(object):
                     # inlined by emit_block_ops
                     continue
                 blockpc = block._pc
-                with codegen.emit_indent("if pc == %s:" % (blockpc, )):
+                with codegen.emit_indent("if pc == %s:" % (blockpc,)):
                     self.emit_block_ops(block)
 
     def emit_block_ops(self, block):
         self.emitted.add(block)
         codegen = self.codegen
         for i, op in enumerate(block.operations):
-            getattr(self, "emit_op_" + op.__class__.__name__, self.emit_op_default)(op)
-        getattr(self, "emit_next_" + block.next.__class__.__name__, self.emit_next_default)(block.next)
+            getattr(
+                self, "emit_op_" + op.__class__.__name__, self.emit_op_default
+            )(op)
+        getattr(
+            self,
+            "emit_next_" + block.next.__class__.__name__,
+            self.emit_next_default,
+        )(block.next)
 
     # ________________________________________________
     # operations
@@ -92,7 +106,7 @@ class CodeEmitter(object):
         if op.name == "@not":
             return True
         name = self.codegen.builtin_names.get(op.name, op.name)
-        name = name.lstrip('@')
+        name = name.lstrip("@")
         return type(op) is ir.Operation and name in supportcode.purefunctions
 
     def _get_arg(self, value):
@@ -115,16 +129,18 @@ class CodeEmitter(object):
             name = "intconst%s" % s
             name = name.replace("-", "_minus_")
             with self.codegen.cached_declaration(s, name) as pyname:
-                self.codegen.emit("%s = bitvector.Integer.fromlong(%s)" % (pyname, s))
+                self.codegen.emit(
+                    "%s = bitvector.Integer.fromlong(%s)" % (pyname, s)
+                )
             return pyname
         if isinstance(value, ir.SmallBitVectorConstant):
             size = value.resolved_type.width
             val = value.value
             if size % 4 == 0:
-                value = '0x' + hex(val)[2:].rjust(size // 4, '0')
+                value = "0x" + hex(val)[2:].rjust(size // 4, "0")
             else:
-                value = '0b' + bin(val)[2:].rjust(size, '0')
-            return "r_uint(%s)" % (value, )
+                value = "0b" + bin(val)[2:].rjust(size, "0")
+            return "r_uint(%s)" % (value,)
         if isinstance(value, ir.DefaultValue):
             return value.resolved_type.uninitialized_value
         if isinstance(value, ir.EnumConstant):
@@ -135,13 +151,17 @@ class CodeEmitter(object):
         if isinstance(value, ir.StringConstant):
             return repr(value.string)
         if isinstance(value, ir.GenericBitVectorConstant):
-            name = "bitvectorconstant%s_%s" % (value.value.size(), value.value.tolong())
+            name = "bitvectorconstant%s_%s" % (
+                value.value.size(),
+                value.value.tolong(),
+            )
             constr = value._construction_expr()
             with self.codegen.cached_declaration(constr, name) as arg:
-                self.codegen.emit("%s = %s" % (
-                    arg, constr))
+                self.codegen.emit("%s = %s" % (arg, constr))
             return arg
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
 
     def _get_args(self, args):
         return ", ".join([self._get_arg(arg) for arg in args])
@@ -163,7 +183,9 @@ class CodeEmitter(object):
         self.codegen.emit(emit)
 
     def emit_op_default(self, op):
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
 
     def emit_op_Operation(self, op):
         codegen = self.codegen
@@ -179,15 +201,26 @@ class CodeEmitter(object):
             elif n == "supportcode.eq_anything":
                 name = "@eq"
         if name.startswith("@"):
-            meth = getattr(op.args[0].resolved_type, "make_op_code_special_" + name[1:], None)
+            meth = getattr(
+                op.args[0].resolved_type,
+                "make_op_code_special_" + name[1:],
+                None,
+            )
             if meth:
-                res = meth(self.codegen, [self._get_arg(arg) for arg in op.args], argtyps, restyp)
+                res = meth(
+                    self.codegen,
+                    [self._get_arg(arg) for arg in op.args],
+                    argtyps,
+                    restyp,
+                )
                 self._op_helper(op, res)
                 return
         args = self._get_args(op.args)
         opname = codegen.getname(name)
         info = codegen.getinfo(name)
-        if isinstance(info.typ, types.Function) or opname.startswith("supportcode."):
+        if isinstance(info.typ, types.Function) or opname.startswith(
+            "supportcode."
+        ):
             # pass machine, even to supportcode functions
             res = "%s(machine, %s)" % (opname, args)
         elif isinstance(info.typ, types.Union):
@@ -212,15 +245,20 @@ class CodeEmitter(object):
         if "%" not in target:
             self.codegen.emit("%s = %s" % (target, value))
         else:
-            self.codegen.emit(target % (value, ))
+            self.codegen.emit(target % (value,))
 
     def emit_op_UnionVariantCheck(self, op):
         clsname = self.codegen.getname(op.name)
-        self._op_helper(op, "not %s.check_variant(%s)" % (clsname, self._get_arg(op.args[0])))
+        self._op_helper(
+            op,
+            "not %s.check_variant(%s)" % (clsname, self._get_arg(op.args[0])),
+        )
 
     def emit_op_UnionCast(self, op):
         clsname = self.codegen.getname(op.name)
-        self._op_helper(op, "%s.convert(%s)" % (clsname, self._get_arg(op.args[0])))
+        self._op_helper(
+            op, "%s.convert(%s)" % (clsname, self._get_arg(op.args[0]))
+        )
 
     def emit_op_StructConstruction(self, op):
         pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
@@ -229,19 +267,24 @@ class CodeEmitter(object):
 
     def emit_op_StructCopy(self, op):
         pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
-        self._op_helper(op, "%s.copy_into(machine)" % self._get_arg(op.args[0]))
+        self._op_helper(
+            op, "%s.copy_into(machine)" % self._get_arg(op.args[0])
+        )
 
     def emit_op_Cast(self, op):
         fromtyp = op.args[0].resolved_type
         totyp = op.resolved_type
-        if (isinstance(fromtyp, types.SmallFixedBitVector) and totyp is
-            types.GenericBitVector() and
-            isinstance(op.args[0], ir.SmallBitVectorConstant)
+        if (
+            isinstance(fromtyp, types.SmallFixedBitVector)
+            and totyp is types.GenericBitVector()
+            and isinstance(op.args[0], ir.SmallBitVectorConstant)
         ):
             name = "bitvectorconstant%s" % op.args[0].value
             with self.codegen.cached_declaration(fromtyp, name) as arg:
-                self.codegen.emit("%s = bitvector.from_ruint(%s, r_uint(%s))" % (
-                    arg, fromtyp.width, op.args[0].value))
+                self.codegen.emit(
+                    "%s = bitvector.from_ruint(%s, r_uint(%s))"
+                    % (arg, fromtyp.width, op.args[0].value)
+                )
 
         else:
             arg = self._get_arg(op.args[0])
@@ -249,28 +292,38 @@ class CodeEmitter(object):
         self._op_helper(op, arg)
 
     def emit_op_FieldAccess(self, op):
-        read = op.resolved_type.packed_field_read("%s.%s" % (self._get_arg(op.args[0]), op.name), bare=True)
+        read = op.resolved_type.packed_field_read(
+            "%s.%s" % (self._get_arg(op.args[0]), op.name), bare=True
+        )
         return self._op_helper(op, read)
 
     def emit_op_FieldWrite(self, op):
         lhs = "%s.%s" % (self._get_arg(op.args[0]), op.name)
-        assert op.args[0].resolved_type.internalfieldtyps[op.name] == op.args[1].resolved_type
-        write = op.args[1].resolved_type.packed_field_write(lhs, self._get_arg(op.args[1]), bare=True)
+        assert (
+            op.args[0].resolved_type.internalfieldtyps[op.name]
+            == op.args[1].resolved_type
+        )
+        write = op.args[1].resolved_type.packed_field_write(
+            lhs, self._get_arg(op.args[1]), bare=True
+        )
         self.codegen.emit(write)
 
     def emit_op_RefAssignment(self, op):
-        self.codegen.emit("%s.update_with(machine, %s)" % (self._get_arg(op.args[0]), self._get_arg(op.args[1])))
+        self.codegen.emit(
+            "%s.update_with(machine, %s)"
+            % (self._get_arg(op.args[0]), self._get_arg(op.args[1]))
+        )
 
     def emit_op_Allocate(self, op):
         pyname = self.codegen.namedtypes[op.resolved_type.name].pyname
-        self._op_helper(op, 'objectmodel.instantiate(%s)' % pyname)
+        self._op_helper(op, "objectmodel.instantiate(%s)" % pyname)
 
     def emit_op_RefOf(self, op):
         regname = op.name
         register = self.codegen.all_registers[regname]
         pyname = register.make_register_ref(self.codegen)
-        #name = "ref_%s" % (regname, )
-        #with self.codegen.cached_declaration(regname, name) as pyname:
+        # name = "ref_%s" % (regname, )
+        # with self.codegen.cached_declaration(regname, name) as pyname:
         #    with self.codegen.emit_indent("class %s(supportcode.RegRef):" % (pyname, )):
         #        with self.codegen.emit_indent("def deref(self, machine):"):
         #            self.codegen.emit("return machine.%s" % (register.pyname, ))
@@ -282,17 +335,23 @@ class CodeEmitter(object):
 
     def emit_op_VectorInit(self, op):
         oftyp = op.resolved_type.typ
-        self._op_helper(op,  "[%s] * %s" % (oftyp.uninitialized_value, self._get_arg(op.args[0])))
+        self._op_helper(
+            op,
+            "[%s] * %s"
+            % (oftyp.uninitialized_value, self._get_arg(op.args[0])),
+        )
 
     def emit_op_VectorUpdate(self, op):
         oftyp = op.resolved_type.typ
         res = self._get_print_varname(op)
         args = self._get_args(op.args)
         # is optimized away in the common case
-        self._op_helper(op, "supportcode.vector_update_list(machine, %s)" % (args, ))
+        self._op_helper(
+            op, "supportcode.vector_update_list(machine, %s)" % (args,)
+        )
 
     def emit_op_Comment(self, op):
-        self.codegen.emit("# %s" % (op.name, ))
+        self.codegen.emit("# %s" % (op.name,))
 
     def emit_op_Phi(self, op):
         pass
@@ -304,7 +363,9 @@ class CodeEmitter(object):
 
     def emit_op_PackPackedField(self, op):
         assert op.args[0].resolved_type.packed_field_size > 1
-        read = op.args[0].resolved_type.packed_field_pack(self._get_arg(op.args[0]))
+        read = op.args[0].resolved_type.packed_field_pack(
+            self._get_arg(op.args[0])
+        )
         return self._op_helper(op, read)
 
     def emit_op_RangeCheck(self, op):
@@ -345,11 +406,11 @@ class CodeEmitter(object):
                 % (
                     ""
                     if low_is_unit
-                    else "%s.le(%s)" % (low_optional.number, arg0),
+                    else "%s.gt(%s)" % (self._get_arg(low_optional), arg0),
                     "" if low_is_unit or high_is_unit else " and ",
                     ""
                     if high_is_unit
-                    else "%s.le(%s)" % (arg0, high_optional.number),
+                    else "%s.le(%s)" % (arg0, self._get_arg(high_optional)),
                     arg3,
                 )
             )
@@ -365,17 +426,18 @@ class CodeEmitter(object):
                 % (
                     ""
                     if low_is_unit
-                    else "%s.le_packed(%s)" % (low_optional.number, arg0),
+                    else "%s.le_packed(%s)"
+                    % (self._get_arg(low_optional), arg0),
                     "" if low_is_unit or high_is_unit else " and ",
                     ""
                     if high_is_unit
-                    else "%s.le_packed(%s)" % (arg0, high_optional.number),
+                    else "%s.ge_packed(%s)"
+                    % (self._get_arg(high_optional), arg0),
                     arg3,
                 )
             )
         else:
             assert 0, "unknown type in RangeCheck"
-
 
     # ________________________________________________
     # jumps etc
@@ -387,10 +449,10 @@ class CodeEmitter(object):
 
     def _emit_jump(self, block, next=None):
         if len(self.entrymap[block]) == 1:
-            self._emit_next_helper(next, "# pc = %s, inlined" % (block._pc, ))
+            self._emit_next_helper(next, "# pc = %s, inlined" % (block._pc,))
             self.emit_block_ops(block)
         else:
-            self._emit_next_helper(next, "pc = %s" % (block._pc, ))
+            self._emit_next_helper(next, "pc = %s" % (block._pc,))
             self.codegen.emit("continue")
 
     def emit_next_Return(self, next):
@@ -399,19 +461,21 @@ class CodeEmitter(object):
             self._emit_next_helper(next, "return %s" % res)
         else:
             # no result, unreachable
-            res = '# no result'
+            res = "# no result"
             self._emit_next_helper(next, "assert 0, 'unreachable'")
 
     def emit_next_Raise(self, next):
         res = self._get_arg(next.kind)
-        self._emit_next_helper(next, "raise supportcode.SailError(%s)" % (res, ))
+        self._emit_next_helper(
+            next, "raise supportcode.SailError(%s)" % (res,)
+        )
 
     def emit_next_Goto(self, next):
         self._emit_jump(next.target, next)
 
     def emit_next_ConditionalGoto(self, next):
         res = self._get_arg(next.booleanvalue)
-        self._emit_next_helper(next, "if %s:" % (res, ))
+        self._emit_next_helper(next, "if %s:" % (res,))
         with self.codegen.emit_indent():
             self._emit_jump(next.truetarget)
         # the truetarget ends with a continue or similar, so we can just write
@@ -422,7 +486,10 @@ class CodeEmitter(object):
         pass
 
     def emit_next_default(self, next):
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
+
 
 def remove_critical_edges(graph):
     entrymap = graph.make_entrymap()
@@ -441,6 +508,7 @@ def remove_critical_edges(graph):
             block.next.replace_next(next_block, new_block)
             next_block.replace_prev(block, new_block)
 
+
 def remove_phis(graph):
     all_newops = defaultdict(list)
     allblocks = list(graph.iterblocks())
@@ -449,13 +517,16 @@ def remove_phis(graph):
             if not isinstance(op, ir.Phi):
                 continue
             for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
-                if op is not prevvalue: # x = x is unnecessary
+                if op is not prevvalue:  # x = x is unnecessary
                     all_newops[prevblock].append((op, prevvalue))
     if all_newops:
         for block, ops in all_newops.iteritems():
-            assert not {target for target, _ in ops}.intersection({source for _, source in ops})
+            assert not {target for target, _ in ops}.intersection(
+                {source for _, source in ops}
+            )
             for target, source in ops:
                 block.operations.append(ir.NonSSAAssignment(target, source))
+
 
 def count_uses(graph):
     uses = defaultdict(int)
@@ -468,4 +539,3 @@ def count_uses(graph):
         for arg in block.next.getargs():
             uses[arg] += 1
     return uses
-

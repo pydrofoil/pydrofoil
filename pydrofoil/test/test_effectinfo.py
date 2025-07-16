@@ -173,3 +173,16 @@ i9 = block0.emit(Operation, '@dummy', [i2, i3, i4, i5, i7, i3, i4, i8], Unit(), 
 block0.next = Return(UnitConstant.UNIT, None)
 graph = Graph('f', [s, t], block0)""",
     )
+
+def test_effectinfo_methods():
+    graphs = get_method_example()
+    methods = {
+        'execute':
+               {"execute_first": graphs["execute_first"],
+                "execute_second": graphs["execute_second"]}
+    }
+    effect_info = compute_all_effects(graphs, methods)
+    assert effect_info['c1'] == EffectInfo(
+        register_writes=frozenset(['zx1', 'zx2'])
+    )
+

@@ -249,7 +249,7 @@ class Codegen(specialize.FixpointSpecializer):
 
     def _optimize_with_effect_info(self):
         from pydrofoil.ir import print_stats, cse_field_reads, cse_global_reads
-        self._effect_infos = compute_all_effects(self.all_graph_by_name)
+        self._effect_infos = compute_all_effects(self.all_graph_by_name, self.method_graphs_by_name)
         for graph in self.all_graph_by_name.itervalues():
             cse_field_reads(graph, self)
             cse_global_reads(graph, self)

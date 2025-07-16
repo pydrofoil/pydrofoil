@@ -1109,6 +1109,11 @@ class Graph(object):
                 assert value in defined_vars or isinstance(value, Constant)
 
     def replace_ops(self, replacements):
+        # shorten a->b->c chains to a->c (b->c stays in the dict too)
+        for op, newop in replacements.iteritems():
+            while newop in replacements:
+                newop = replacements[newop]
+            replacements[op] = newop
         res = False
         for block in self.iterblocks():
             for op in block.operations:
@@ -1560,11 +1565,7 @@ def simplify_phis(graph, codegen):
             else:
                 index += 1
     if changed:
-        while 1:
-            # XXX do it in one go
-            changed = graph.replace_ops(replace_phis)
-            if not changed:
-                break
+        changed = graph.replace_ops(replace_phis)
         graph.check()
         return True
     return False
@@ -1817,6 +1818,7 @@ def remove_superfluous_enum_cases(graph, codegen):
         return True
     return False
 
+
 def remove_superfluous_bitvector_cases(graph, codegen):
     if graph.has_loop:
         return
@@ -1826,19 +1828,26 @@ def remove_superfluous_bitvector_cases(graph, codegen):
         if isinstance(value, SmallBitVectorConstant):
             return {int(value.value)}
         else:
-            return set(range(0, 2**value.resolved_type.width))
+            return set(range(0, 2 ** value.resolved_type.width))
 
     changed = False
     # maps blocks -> values -> sets of bv values
-    possible_bitvector_values = defaultdict(lambda : defaultdict_with_key_arg(init_bv_set))
+    possible_bitvector_values = defaultdict(
+        lambda: defaultdict_with_key_arg(init_bv_set)
+    )
     entrymap = graph.make_entrymap()
     for block in topo_order(graph):
         values_in_block = possible_bitvector_values[block]
         if isinstance(block.next, ConditionalGoto):
             value = block.next.booleanvalue
-            if (isinstance(value, Operation) and value.name == "@eq_bits_bv_bv" and
-                    isinstance(value.args[0].resolved_type, types.SmallFixedBitVector) and
-                    value.args[0].resolved_type.width <= 16):
+            if (
+                isinstance(value, Operation)
+                and value.name == "@eq_bits_bv_bv"
+                and isinstance(
+                    value.args[0].resolved_type, types.SmallFixedBitVector
+                )
+                and value.args[0].resolved_type.width <= 16
+            ):
                 arg0, arg1 = value.args
                 if not isinstance(arg1, SmallBitVectorConstant):
                     arg0, arg1 = arg1, arg0
@@ -1851,14 +1860,19 @@ def remove_superfluous_bitvector_cases(graph, codegen):
                         block.next.booleanvalue = BooleanConstant.TRUE
                     else:
                         if len(entrymap[block.next.truetarget]) == 1:
-                            possible_bitvector_values[block.next.truetarget][arg0] = possible_values_arg1
+                            possible_bitvector_values[block.next.truetarget][
+                                arg0
+                            ] = possible_values_arg1
                         if len(entrymap[block.next.falsetarget]) == 1:
-                            possible_bitvector_values[block.next.falsetarget][arg0] = possible_values_arg0 - possible_values_arg1
+                            possible_bitvector_values[block.next.falsetarget][
+                                arg0
+                            ] = (possible_values_arg0 - possible_values_arg1)
     if changed:
         remove_if_true_false(graph, codegen)
         remove_dead(graph, codegen)
         return True
     return False
+
 
 def remove_superfluous_union_checks(graph, codegen):
     if graph.has_loop:
@@ -1981,11 +1995,7 @@ class BaseOptimizer(object):
             self.current_block = block
             self.optimize_block(block)
         if self.replacements:
-            # XXX do them all in one go
-            while 1:
-                changed = self.graph.replace_ops(self.replacements)
-                if not changed:
-                    break
+            self.graph.replace_ops(self.replacements)
             self.replacements.clear()
             self.changed = True
         if self._dead_blocks:
@@ -4979,11 +4989,7 @@ def cse_global_reads(graph, codegen):
             block.operations = [
                 op for op in block.operations if op is not None
             ]
-        while 1:
-            # XXX do them in one go somehow
-            changed = graph.replace_ops(replacements)
-            if not changed:
-                break
+        graph.replace_ops(replacements)
         return True
     return False
 
@@ -5149,10 +5155,7 @@ def partial_allocation_removal(graph, codegen):
         changes = changes or len(newoperations) != len(block.operations)
         block.operations = newoperations
     if replacements:
-        while 1:
-            res = graph.replace_ops(replacements)
-            if not res:
-                break
+        graph.replace_ops(replacements)
     return changes
 
 
@@ -5228,11 +5231,7 @@ def cse_field_reads(graph, codegen):
             block.operations = [
                 op for op in block.operations if op is not None
             ]
-        while 1:
-            # XXX do them in one go somehow
-            changed = graph.replace_ops(replacements)
-            if not changed:
-                break
+        graph.replace_ops(replacements)
         return True
     return False
 

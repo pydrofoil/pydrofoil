@@ -346,8 +346,9 @@ class Z3BoolNotValue(Z3BoolValue):
     
 class SharedState(object):
 
-    def __init__(self, functions={}, registers={}):
+    def __init__(self, functions={}, registers={}, methods={}):
         self.funcs = functions
+        self.mthds = methods
         self.registers = registers # type: dict[str, types.Type]
         self.enums = {}
         self.type_cache = {}
@@ -486,7 +487,7 @@ class SharedState(object):
 
     def copy(self):
         """ copy state for tests """
-        copystate = SharedState(self.funcs.copy(), self.registers.copy())
+        copystate = SharedState(self.funcs.copy(), self.registers.copy(), self.mthds.copy())
         copystate.enums = self.enums.copy()
         return copystate
     
@@ -824,8 +825,14 @@ class Interpreter(object):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value):
             return Z3BoolValue(arg0.toz3() == arg1.toz3())
-        elif isinstance(arg0, StructConstant) and isinstance(arg1, StructConstant):
-            import pdb; pdb.set_trace()
+        elif isinstance(arg0, UnionConstant) and isinstance(arg1, UnionConstant):
+            same = arg0.same_value(arg1)# TODO: change this, so it does not return three different values (True, False, z3Val)
+            if same == True:
+                return BooleanConstant(True)
+            elif same == False:
+                return BooleanConstant(False)
+            else:
+                return Z3BoolValue(same)
         else:
             import pdb; pdb.set_trace()
 
@@ -1201,6 +1208,8 @@ class Interpreter(object):
         else:
             return Z3Value(arg0.toz3())
 
+    def exec_zbits_str(self, op):
+        import pdb; pdb.set_trace()
     ### Arch specific Operations in subclass ###
 
 class NandInterpreter(Interpreter):

@@ -1345,7 +1345,7 @@ class JustStop(Next):
         self.sourcepos = None
 
     def _repr(self, print_varnames, blocknames=None):
-        return "JustStop(%r)" % (self.sourcepos, )
+        return "JustStop()"
 
 
 class Goto(Next):

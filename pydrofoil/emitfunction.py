@@ -406,7 +406,7 @@ class CodeEmitter(object):
                 % (
                     ""
                     if low_is_unit
-                    else "%s.gt(%s)" % (self._get_arg(low_optional), arg0),
+                    else "%s.le(%s)" % (self._get_arg(low_optional), arg0),
                     "" if low_is_unit or high_is_unit else " and ",
                     ""
                     if high_is_unit

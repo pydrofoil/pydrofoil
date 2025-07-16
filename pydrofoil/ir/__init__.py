@@ -1,13 +1,57 @@
-import sys
-import random
 import time
 from collections import defaultdict
 from typing import Generator
 
-from pydrofoil import parse, types, binaryop, operations, supportcode, bitvector
+from pydrofoil import (
+    parse,
+    types,
+    supportcode,
+    bitvector,
+)
+from pydrofoil.ir.operations import (
+    Value,
+    Argument,
+    Operation,
+    Cast,
+    Allocate,
+    StructConstruction,
+    StructCopy,
+    FieldAccess,
+    FieldWrite,
+    UnionVariantCheck,
+    UnionCast,
+    GlobalRead,
+    GlobalWrite,
+    RefAssignment,
+    RefOf,
+    VectorInit,
+    VectorUpdate,
+    NonSSAAssignment,
+    Comment,
+    UnpackPackedField,
+    PackPackedField,
+    Phi,
+    Constant,
+    BooleanConstant,
+    MachineIntConstant,
+    IntConstant,
+    SmallBitVectorConstant,
+    GenericBitVectorConstant,
+    DefaultValue,
+    EnumConstant,
+    StringConstant,
+    UnitConstant,
+    Next,
+    Return,
+    Raise,
+    JustStop,
+    Goto,
+    ConditionalGoto,
+    RangeCheck,
+)
 
 from rpython.tool.udir import udir
-from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
+from rpython.rlib.rarithmetic import r_uint
 
 from dotviewer.graphpage import GraphPage as BaseGraphPage
 
@@ -32,10 +76,10 @@ from dotviewer.graphpage import GraphPage as BaseGraphPage
 
 # concat(concat(x, const1), const2) -> concat(x, const1+const2)
 # example:
-    # i198 = block110.emit(Operation, 'zget_16_random_bits', [UnitConstant.UNIT], SmallFixedBitVector(16), '`12 827:24-827:44', 'zz42')
-    # i199 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(0x0, SmallFixedBitVector(8)), MachineIntConstant(16), i198], SmallFixedBitVector(24), '`12 828:48-828:66', 'zz417')
-    # i200 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(0, SmallFixedBitVector(6)), MachineIntConstant(24), i199], SmallFixedBitVector(30), '`12 828:32-828:66', 'zz414')
-    # i201 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(0b10, SmallFixedBitVector(2)), MachineIntConstant(30), i200], SmallFixedBitVector(32), '`12 828:14-828:66', 'zz410')
+# i198 = block110.emit(Operation, 'zget_16_random_bits', [UnitConstant.UNIT], SmallFixedBitVector(16), '`12 827:24-827:44', 'zz42')
+# i199 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(0x0, SmallFixedBitVector(8)), MachineIntConstant(16), i198], SmallFixedBitVector(24), '`12 828:48-828:66', 'zz417')
+# i200 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(0, SmallFixedBitVector(6)), MachineIntConstant(24), i199], SmallFixedBitVector(30), '`12 828:32-828:66', 'zz414')
+# i201 = block110.emit(Operation, '@bitvector_concat_bv_bv', [SmallBitVectorConstant(0b10, SmallFixedBitVector(2)), MachineIntConstant(30), i200], SmallFixedBitVector(32), '`12 828:14-828:66', 'zz410')
 
 # vector_update_subrange_o_i_i_o with subrange width == 1 can be turned in vector_update_o_i_o
 
@@ -82,7 +126,7 @@ def construct_ir(functionast, codegen, singleblock=False):
         body = body + [parse.JustStop()]
 
     # first check which ops can be jumped to
-    jumptargets = {getattr(op, 'target', 0) for op in body}
+    jumptargets = {getattr(op, "target", 0) for op in body}
     for i, op in enumerate(body):
         if isinstance(op, parse.ConditionalJump):
             jumptargets.add(i + 1)
@@ -119,15 +163,26 @@ def compute_entryblocks_nextblocks(blocks):
                 nextblocks[pc].add(op.target)
     return entryblocks, nextblocks
 
+
 class SSABuilder(object):
-    def __init__(self, blocks, functionast, functionargs, codegen, startpc=0, extra_args=None):
+    def __init__(
+        self,
+        blocks,
+        functionast,
+        functionargs,
+        codegen,
+        startpc=0,
+        extra_args=None,
+    ):
         self.blocks = blocks
         self.functionast = functionast
         self.functionargs = functionargs
         self.codegen = codegen
-        self.entryblocks, self.nextblocks = compute_entryblocks_nextblocks(blocks)
-        self.variable_map = None # {name: Value}
-        self.variable_maps_at_end = {} # {pc: variable_map}
+        self.entryblocks, self.nextblocks = compute_entryblocks_nextblocks(
+            blocks
+        )
+        self.variable_map = None  # {name: Value}
+        self.variable_maps_at_end = {}  # {pc: variable_map}
         self.has_loop = False
         self.patch_phis = defaultdict(list)
         self.startpc = startpc
@@ -156,10 +211,15 @@ class SSABuilder(object):
             self.patch_phis[pc] = None
             self.variable_maps_at_end[pc] = self.variable_map
             self.variable_map = None
-        graph = Graph(self.functionast.name, self.args, self.allblocks[self.startpc], self.has_loop)
-        #if random.random() < 0.01:
+        graph = Graph(
+            self.functionast.name,
+            self.args,
+            self.allblocks[self.startpc],
+            self.has_loop,
+        )
+        # if random.random() < 0.01:
         #    self.view = 1
-        #mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
+        # mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
         graph.check()
         insert_struct_copies_for_arguments(graph, self.codegen)
         convert_sail_assert_to_exception(graph, self.codegen)
@@ -180,17 +240,23 @@ class SSABuilder(object):
             self.args = []
             if self.functionargs:
                 argtypes = self.functionast.resolved_type.argtype.elements
-                self.variable_map = {var: Argument(var, typ)
-                        for var, typ in zip(self.functionargs, argtypes)}
-                self.args = [self.variable_map[var] for var in self.functionargs]
+                self.variable_map = {
+                    var: Argument(var, typ)
+                    for var, typ in zip(self.functionargs, argtypes)
+                }
+                self.args = [
+                    self.variable_map[var] for var in self.functionargs
+                ]
                 if self.extra_args:
                     for var, typ in self.extra_args:
                         arg = self.variable_map[var] = Argument(var, typ)
                         self.args.append(arg)
             if isinstance(self.functionast.resolved_type, types.Function):
-                self.variable_map['return'] = DefaultValue(self.functionast.resolved_type.restype)
+                self.variable_map["return"] = DefaultValue(
+                    self.functionast.resolved_type.restype
+                )
             else:
-                self.variable_map['return'] = None
+                self.variable_map["return"] = None
 
         elif len(entry) == 1:
             variable_map = self.variable_maps_at_end[entry[0]]
@@ -204,10 +270,12 @@ class SSABuilder(object):
             for var, value0 in self.variable_maps_at_end[entry[0]].iteritems():
                 othervalues = [
                     self.variable_maps_at_end[prevpc].get(var)
-                        for prevpc in entry[1:]
+                    for prevpc in entry[1:]
                 ]
                 if value0 is None or None in othervalues:
-                    self.variable_map[var] = None # uninintialized along some path
+                    self.variable_map[
+                        var
+                    ] = None  # uninintialized along some path
                     continue
                 if len(set(othervalues + [value0])) == 1:
                     self.variable_map[var] = value0
@@ -227,12 +295,14 @@ class SSABuilder(object):
             # be pessimistic and insert Phi's for everything. they need
             # patching later
             prevpc = min(entry)
-            assert entry[0] == prevpc # should be sorted
+            assert entry[0] == prevpc  # should be sorted
             assert prevpc < pc
             self.variable_map = {}
             for var, value in self.variable_maps_at_end[prevpc].iteritems():
                 if value is None:
-                    self.variable_map[var] = None # uninintialized along some path
+                    self.variable_map[
+                        var
+                    ] = None  # uninintialized along some path
                     continue
                 if value.resolved_type is types.Unit():
                     self.variable_map[var] = UnitConstant.UNIT
@@ -262,7 +332,13 @@ class SSABuilder(object):
                 # weird special case for uint64c
                 if op.value is not None:
                     args = self._get_args(op.value.args)
-                    ssaop = Operation(op.value.name, args, op.value.resolved_type, op.value.sourcepos, op.name)
+                    ssaop = Operation(
+                        op.value.name,
+                        args,
+                        op.value.resolved_type,
+                        op.value.sourcepos,
+                        op.name,
+                    )
                 else:
                     if isinstance(op.resolved_type, types.Struct):
                         ssaop = Allocate(op.resolved_type, op.sourcepos)
@@ -278,17 +354,33 @@ class SSABuilder(object):
                 elif op.name == "$zinternal_vector_update":
                     ssaop = VectorUpdate(args, op.resolved_type, op.sourcepos)
                 else:
-                    ssaop = Operation(op.name, args, op.resolved_type, op.sourcepos, op.result)
+                    ssaop = Operation(
+                        op.name,
+                        args,
+                        op.resolved_type,
+                        op.sourcepos,
+                        op.result,
+                    )
                 ssaop = self._addop(ssaop)
                 self._store(op.result, ssaop)
             elif isinstance(op, parse.Assignment):
                 value = self._get_arg(op.value, op.result)
-                if isinstance(op.resolved_type, types.Struct) and not op.resolved_type.tuplestruct:
-                    value = StructCopy(op.resolved_type.name, value, op.resolved_type, op.sourcepos)
+                if (
+                    isinstance(op.resolved_type, types.Struct)
+                    and not op.resolved_type.tuplestruct
+                ):
+                    value = StructCopy(
+                        op.resolved_type.name,
+                        value,
+                        op.resolved_type,
+                        op.sourcepos,
+                    )
                     self._addop(value)
                 if op.resolved_type != op.value.resolved_type:
                     # we need a cast first
-                    value = Cast(value, op.resolved_type, op.sourcepos, op.result)
+                    value = Cast(
+                        value, op.resolved_type, op.sourcepos, op.result
+                    )
                     self._addop(value)
                 self._store(op.result, value)
             elif isinstance(op, parse.StructElementAssignment):
@@ -299,29 +391,47 @@ class SSABuilder(object):
                 for field in firstfields:
                     typ = typ.internalfieldtyps[field]
                     if isinstance(typ, types.Packed):
-                        import pdb;pdb.set_trace()
+                        import pdb
+
+                        pdb.set_trace()
                     obj = self._addop(FieldAccess(field, [obj], typ))
 
                 fieldval = self._get_arg(op.value)
                 typ = typ.internalfieldtyps[lastfield]
                 if isinstance(typ, types.Packed):
                     if typ.typ != fieldval.resolved_type:
-                        if typ.typ is types.GenericBitVector() or isinstance(typ.typ, types.BigFixedBitVector):
+                        if typ.typ is types.GenericBitVector() or isinstance(
+                            typ.typ, types.BigFixedBitVector
+                        ):
                             fieldval = self._addop(Cast(fieldval, typ.typ))
                         else:
-                            import pdb;pdb.set_trace()
+                            import pdb
+
+                            pdb.set_trace()
                     fieldval = self._addop(PackPackedField(fieldval))
                     assert fieldval.resolved_type == typ
                 elif fieldval.resolved_type != typ:
                     fieldval = self._addop(Cast(fieldval, typ, op.sourcepos))
-                self._addop(FieldWrite(lastfield, [obj, fieldval], types.Unit(), op.sourcepos))
+                self._addop(
+                    FieldWrite(
+                        lastfield, [obj, fieldval], types.Unit(), op.sourcepos
+                    )
+                )
 
             elif isinstance(op, parse.GeneralAssignment):
                 args = self._get_args(op.rhs.args)
-                rhs = Operation(op.rhs.name, args, op.rhs.resolved_type, op.sourcepos)
+                rhs = Operation(
+                    op.rhs.name, args, op.rhs.resolved_type, op.sourcepos
+                )
                 self._addop(rhs)
                 if isinstance(op.lhs, parse.RefAssignment):
-                    self._addop(RefAssignment([self._get_arg(op.lhs.ref), rhs], types.Unit(), op.sourcepos))
+                    self._addop(
+                        RefAssignment(
+                            [self._get_arg(op.lhs.ref), rhs],
+                            types.Unit(),
+                            op.sourcepos,
+                        )
+                    )
                 elif isinstance(op.lhs, parse.StructElementAssignment):
                     lastfield = op.lhs.fields[-1]
                     firstfields = op.lhs.fields[:-1]
@@ -334,16 +444,24 @@ class SSABuilder(object):
                     typ = typ.internalfieldtyps[lastfield]
                     if isinstance(typ, types.Packed):
                         if typ.typ != rhs.resolved_type:
-                            import pdb;pdb.set_trace()
+                            import pdb
+
+                            pdb.set_trace()
                         rhs = self._addop(PackPackedField(rhs))
                     elif rhs.resolved_type != typ:
                         rhs = self._addop(Cast(rhs, typ, op.sourcepos))
-                    self._addop(FieldWrite(lastfield, [obj, rhs], types.Unit(), op.sourcepos))
+                    self._addop(
+                        FieldWrite(
+                            lastfield, [obj, rhs], types.Unit(), op.sourcepos
+                        )
+                    )
                 else:
-                    import pdb; pdb.set_trace()
+                    import pdb
+
+                    pdb.set_trace()
 
             elif isinstance(op, parse.End):
-                value = self.variable_map['return']
+                value = self.variable_map["return"]
                 ssablock.next = Return(value, op.sourcepos)
                 assert index == len(block) - 1
             elif isinstance(op, parse.Goto):
@@ -356,7 +474,7 @@ class SSABuilder(object):
                     value,
                     self.allblocks[op.target],
                     self.allblocks[nextop.target],
-                    op.sourcepos
+                    op.sourcepos,
                 )
                 assert index + 2 == len(block)
                 break
@@ -379,13 +497,13 @@ class SSABuilder(object):
             if parseval.name in self.variable_map:
                 assert self.variable_map[parseval.name] is not None
                 return self.variable_map[parseval.name]
-            if parseval.name == 'true':
+            if parseval.name == "true":
                 return BooleanConstant.TRUE
-            elif parseval.name == 'false':
+            elif parseval.name == "false":
                 return BooleanConstant.FALSE
-            if parseval.name == 'bitzero':
+            if parseval.name == "bitzero":
                 return SmallBitVectorConstant(0, types.Bit())
-            elif parseval.name == 'bitone':
+            elif parseval.name == "bitone":
                 return SmallBitVectorConstant(1, types.Bit())
             if parseval.name in self.codegen.let_values:
                 res = self.codegen.let_values[parseval.name]
@@ -394,13 +512,35 @@ class SSABuilder(object):
                     for arg in res.args:
                         if isinstance(arg, Constant):
                             args.append(arg)
-                        elif isinstance(arg, Cast) and isinstance(arg.args[0], Constant):
-                            args.append(self._addop(Cast(arg.args[0], arg.resolved_type)))
-                        elif isinstance(arg, Operation) and arg.name == INT_TO_INT64_NAME and isinstance(arg.args[0], Constant):
-                            args.append(self._addop(Operation(INT_TO_INT64_NAME, [arg.args[0]], arg.resolved_type)))
+                        elif isinstance(arg, Cast) and isinstance(
+                            arg.args[0], Constant
+                        ):
+                            args.append(
+                                self._addop(
+                                    Cast(arg.args[0], arg.resolved_type)
+                                )
+                            )
+                        elif (
+                            isinstance(arg, Operation)
+                            and arg.name == INT_TO_INT64_NAME
+                            and isinstance(arg.args[0], Constant)
+                        ):
+                            args.append(
+                                self._addop(
+                                    Operation(
+                                        INT_TO_INT64_NAME,
+                                        [arg.args[0]],
+                                        arg.resolved_type,
+                                    )
+                                )
+                            )
                         else:
                             assert 0, "not implemented so far"
-                    res = self._addop(StructConstruction(res.name, args, res.resolved_type, res.sourcepos))
+                    res = self._addop(
+                        StructConstruction(
+                            res.name, args, res.resolved_type, res.sourcepos
+                        )
+                    )
                 return res
             if isinstance(parseval.resolved_type, types.Enum):
                 if parseval.name in parseval.resolved_type.elements:
@@ -417,7 +557,9 @@ class SSABuilder(object):
                 if arg.resolved_type != targettyp:
                     if targettyp is types.MachineInt():
                         assert arg.resolved_type == types.Int()
-                        castop = Operation(INT_TO_INT64_NAME, [arg], types.MachineInt())
+                        castop = Operation(
+                            INT_TO_INT64_NAME, [arg], types.MachineInt()
+                        )
                     elif targettyp is types.Int():
                         assert arg.resolved_type == types.MachineInt()
                         castop = Operation(INT64_TO_INT_NAME, [arg], targettyp)
@@ -425,15 +567,23 @@ class SSABuilder(object):
                         if targettyp.typ is not arg.resolved_type:
                             if targettyp.typ is types.Int():
                                 assert arg.resolved_type == types.MachineInt()
-                                arg = self._addop(Operation(INT64_TO_INT_NAME, [arg], targettyp.typ))
+                                arg = self._addop(
+                                    Operation(
+                                        INT64_TO_INT_NAME, [arg], targettyp.typ
+                                    )
+                                )
                             else:
-                                assert targettyp.typ is types.GenericBitVector()
+                                assert (
+                                    targettyp.typ is types.GenericBitVector()
+                                )
                                 arg = self._addop(Cast(arg, targettyp.typ))
                         castop = PackPackedField(arg)
                     else:
                         castop = Cast(arg, targettyp)
                     args[index] = self._addop(castop)
-            ssaop = StructConstruction(parseval.name, args, parseval.resolved_type)
+            ssaop = StructConstruction(
+                parseval.name, args, parseval.resolved_type
+            )
             self._addop(ssaop)
             return ssaop
         elif isinstance(parseval, parse.FieldAccess):
@@ -442,7 +592,9 @@ class SSABuilder(object):
                 index = parseval.obj.fieldnames.index(parseval.element)
                 return self._get_arg(parseval.obj.fieldvalues[index])
             arg = self._get_arg(parseval.obj)
-            internalfieldtyp = arg.resolved_type.internalfieldtyps[parseval.element]
+            internalfieldtyp = arg.resolved_type.internalfieldtyps[
+                parseval.element
+            ]
             ssaop = FieldAccess(parseval.element, [arg], internalfieldtyp)
             self._addop(ssaop)
             if isinstance(internalfieldtyp, types.Packed):
@@ -460,7 +612,9 @@ class SSABuilder(object):
         elif isinstance(parseval, parse.Number):
             return MachineIntConstant(parseval.number)
         elif isinstance(parseval, parse.BitVectorConstant):
-            return SmallBitVectorConstant(r_uint(eval(parseval.constant)), parseval.resolved_type)
+            return SmallBitVectorConstant(
+                r_uint(eval(parseval.constant)), parseval.resolved_type
+            )
         elif isinstance(parseval, parse.String):
             return StringConstant(eval(parseval.string))
         else:
@@ -469,13 +623,29 @@ class SSABuilder(object):
 
     def _build_condition(self, condition, sourcepos):
         if isinstance(condition, parse.Comparison):
-            return self._addop(Operation(condition.operation, self._get_args(condition.args), types.Bool(), sourcepos))
+            return self._addop(
+                Operation(
+                    condition.operation,
+                    self._get_args(condition.args),
+                    types.Bool(),
+                    sourcepos,
+                )
+            )
         elif isinstance(condition, parse.ExprCondition):
             return self._get_arg(condition.expr)
         elif isinstance(condition, parse.UnionVariantCheck):
-            return self._addop(UnionVariantCheck(condition.variant, [self._get_arg(condition.var)], types.Bool(), sourcepos))
+            return self._addop(
+                UnionVariantCheck(
+                    condition.variant,
+                    [self._get_arg(condition.var)],
+                    types.Bool(),
+                    sourcepos,
+                )
+            )
         else:
-            import pdb; pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
     def _addop(self, op):
         assert isinstance(op, (Operation, Phi))
@@ -485,22 +655,32 @@ class SSABuilder(object):
         return op
 
     def _store(self, result, value):
-        if result not in self.variable_map and result != 'return' or result == 'current_exception':
+        if (
+            result not in self.variable_map
+            and result != "return"
+            or result == "current_exception"
+        ):
             self._addop(GlobalWrite(result, [value], value.resolved_type))
         else:
             self.variable_map[result] = value
 
+
 def insert_struct_copies_for_arguments(graph, codegen):
     copy_needed = set()
     for arg in graph.args:
-        if isinstance(arg.resolved_type, types.Struct) and not arg.resolved_type.tuplestruct:
+        if (
+            isinstance(arg.resolved_type, types.Struct)
+            and not arg.resolved_type.tuplestruct
+        ):
             copy_needed.add(arg)
     if not copy_needed:
         return
     mutated_struct_types = compute_mutations_of_non_copied_structs(graph)
-    copied_args = [arg for arg in graph.args
-                   if arg in copy_needed and
-                       arg.resolved_type in mutated_struct_types]
+    copied_args = [
+        arg
+        for arg in graph.args
+        if arg in copy_needed and arg.resolved_type in mutated_struct_types
+    ]
     if not copied_args:
         return
     ops = []
@@ -515,6 +695,7 @@ def insert_struct_copies_for_arguments(graph, codegen):
     if res:
         partial_allocation_removal(graph, codegen)
 
+
 def compute_mutations_of_non_copied_structs(graph):
     # very rough over-approximation
     result = set()
@@ -528,9 +709,14 @@ def compute_mutations_of_non_copied_structs(graph):
     return result
 
 
-def build_ssa(blocks, functionast, functionargs, codegen, startpc=0, extra_args=None):
-    builder = SSABuilder(blocks, functionast, functionargs, codegen, startpc, extra_args)
+def build_ssa(
+    blocks, functionast, functionargs, codegen, startpc=0, extra_args=None
+):
+    builder = SSABuilder(
+        blocks, functionast, functionargs, codegen, startpc, extra_args
+    )
     return builder.build()
+
 
 def extract_global_value(graph, name):
     block = graph.startblock
@@ -552,23 +738,35 @@ INT64_TO_INT_NAME = "zz5i64zDzKz5i"
 
 # graph
 
+
 class Block(object):
-    _pc = -1 # assigned later in emitfunction
+    _pc = -1  # assigned later in emitfunction
 
     def __init__(self, operations=None, next=None):
         if operations is None:
             operations = []
         assert isinstance(operations, list)
-        self.operations = operations # type: list[Value]
+        self.operations = operations  # type: list[Value]
         self.next = next
 
     def __repr__(self):
-        return "<Block operations=%s next=%s>" % (self.operations, self.next.__class__.__name__)
+        return "<Block operations=%s next=%s>" % (
+            self.operations,
+            self.next.__class__.__name__,
+        )
 
     def __getitem__(self, index):
         return self.operations[index]
 
-    def emit(self, cls, opname, args, resolved_type, sourcepos=None, varname_hint=None):
+    def emit(
+        self,
+        cls,
+        opname,
+        args,
+        resolved_type,
+        sourcepos=None,
+        varname_hint=None,
+    ):
         op = Operation(opname, args, resolved_type, sourcepos, varname_hint)
         op.__class__ = cls
         self.operations.append(op)
@@ -583,7 +781,7 @@ class Block(object):
         for op in self.operations:
             if not isinstance(op, Phi):
                 continue
-            #assert otherblock not in op.prevblocks
+            # assert otherblock not in op.prevblocks
             for index, oldblock in enumerate(op.prevblocks):
                 if oldblock is block:
                     op.prevblocks[index] = otherblock
@@ -603,13 +801,16 @@ class Block(object):
     def next_blocks(self):
         return self.next.next_blocks()
 
-    def copy_operations(self, replacements, block_replacements=None, patch_phis=None):
+    def copy_operations(
+        self, replacements, block_replacements=None, patch_phis=None
+    ):
         def replace(arg, is_phi=False):
             if isinstance(arg, Constant):
                 return arg
             if is_phi and arg not in replacements:
                 return None
             return replacements[arg]
+
         res = []
         for op in self.operations:
             if isinstance(op, NonSSAAssignment):
@@ -618,12 +819,21 @@ class Block(object):
                 newop = Phi(
                     [block_replacements[block] for block in op.prevblocks],
                     [replace(arg, is_phi=True) for arg in op.prevvalues],
-                    op.resolved_type)
-                for index, (newarg, arg) in enumerate(zip(newop.prevvalues, op.prevvalues)):
+                    op.resolved_type,
+                )
+                for index, (newarg, arg) in enumerate(
+                    zip(newop.prevvalues, op.prevvalues)
+                ):
                     if newarg is None:
                         patch_phis.append((newop, index, arg))
             else:
-                newop = Operation(op.name, [replace(arg) for arg in op.args], op.resolved_type, op.sourcepos, op.varname_hint)
+                newop = Operation(
+                    op.name,
+                    [replace(arg) for arg in op.args],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
                 newop.__class__ = op.__class__
             replacements[op] = newop
             res.append(newop)
@@ -640,14 +850,18 @@ class Block(object):
         res = []
         for index, op in enumerate(self.operations):
             if op is None:
-                res.append('None')
+                res.append("None")
                 continue
-            name = op._get_print_name(print_varnames) if op is not None else 'None'
+            name = (
+                op._get_print_name(print_varnames)
+                if op is not None
+                else "None"
+            )
             if isinstance(op, Operation):
                 oprepr = "%s(%s) [%s]" % (
                     builtin_names.get(op.name, op.name),
                     ", ".join([a._repr(print_varnames) for a in op.args]),
-                    op.__class__.__name__
+                    op.__class__.__name__,
                 )
             else:
                 assert isinstance(op, Phi)
@@ -668,8 +882,10 @@ class Block(object):
             fillcolor=fillcolor,
         )
         for index, nextblock in enumerate(nextblocks):
-            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges)
-            label = ''
+            nextid = nextblock._dot(
+                dotgen, seen, print_varnames, codegen, backedges
+            )
+            label = ""
             if len(nextblocks) > 1:
                 label = str(bool(index))
             if (self, nextblock) in backedges:
@@ -694,8 +910,10 @@ class Block(object):
         self.next = Goto(newblock)
         return newblock
 
+
 class Graph(object):
     def __init__(self, name, args, startblock, has_loop=False):
+        # type: (str, list[Argument], Block, bool) -> None
         self.name = name
         self.args = args
         self.startblock = startblock
@@ -704,7 +922,7 @@ class Graph(object):
     def __repr__(self):
         return "<Graph %s %s>" % (self.name, self.args)
 
-    def __getitem__(self, node): # compatibility with the networkx algos
+    def __getitem__(self, node):  # compatibility with the networkx algos
         assert isinstance(node, Block)
         return node.next.next_blocks()
 
@@ -713,7 +931,8 @@ class Graph(object):
         from dotviewer import graphclient
         import pytest
         import os
-        dotgen = DotGen('G')
+
+        dotgen = DotGen("G")
         print_varnames = self._dot(dotgen, codegen, maxblocks)
         if self.has_more_than_n_blocks(200) and maxblocks is None:
             p = pytest.ensuretemp("pyparser").join("temp.dot")
@@ -724,7 +943,9 @@ class Graph(object):
             os.system("twopi -Tplain %s > %s" % (p, p2))
             graphclient.display_dot_file(str(p2))
         else:
-            GraphPage(dotgen.generate(target=None), print_varnames, self.args).display()
+            GraphPage(
+                dotgen.generate(target=None), print_varnames, self.args
+            ).display()
 
     def _dot(self, dotgen, codegen, maxblocks):
         name = "graph" + self.name
@@ -732,7 +953,9 @@ class Graph(object):
             name,
             shape="box",
             fillcolor="green",
-            label="\\l".join([self.name, "[" + ", ".join([a.name for a in self.args]) + "]"])
+            label="\\l".join(
+                [self.name, "[" + ", ".join([a.name for a in self.args]) + "]"]
+            ),
         )
         seen = set()
         print_varnames = {}
@@ -745,7 +968,9 @@ class Graph(object):
             blocks = list(self.iterblocks_breadth_first())[:maxblocks]
             for block in blocks:
                 seen.remove(block)
-        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges)
+        firstid = self.startblock._dot(
+            dotgen, seen, print_varnames, codegen, backedges
+        )
         dotgen.emit_edge(name, firstid)
         return print_varnames
 
@@ -794,6 +1019,7 @@ class Graph(object):
 
     def iterblocks_breadth_first(self, start=None):
         from collections import deque
+
         if start is None:
             start = self.startblock
         todo = deque([start])
@@ -825,9 +1051,13 @@ class Graph(object):
 
     def idoms_and_entrymap(self, startblock=None):
         from pydrofoil import graphalgorithms
+
         startblock = self.startblock
         entrymap = self.make_entrymap()
-        return graphalgorithms.immediate_dominators(self, startblock, entrymap), entrymap
+        return (
+            graphalgorithms.immediate_dominators(self, startblock, entrymap),
+            entrymap,
+        )
 
     def immediate_dominators(self):
         return self.idoms_and_entrymap()[0]
@@ -835,9 +1065,9 @@ class Graph(object):
     def check(self):
         # minimal consistency check, will add things later
         idom, entrymap = self.idoms_and_entrymap()
-        defined_vars_per_block = {} # block -> set of values
+        defined_vars_per_block = {}  # block -> set of values
         # first compute vars defined directly in all blocks
-        #all_phi_prevblocks_ids = {}
+        # all_phi_prevblocks_ids = {}
         for block, entry in entrymap.iteritems():
             defined_vars = defined_vars_per_block[block] = set()
             if block is self.startblock:
@@ -846,9 +1076,9 @@ class Graph(object):
                 defined_vars.add(op)
                 if not isinstance(op, Phi):
                     continue
-                #pid = id(op.prevblocks)
-                #assert pid not in all_phi_prevblocks_ids
-                #all_phi_prevblocks_ids[pid] = op
+                # pid = id(op.prevblocks)
+                # assert pid not in all_phi_prevblocks_ids
+                # all_phi_prevblocks_ids[pid] = op
                 for prevblock in op.prevblocks:
                     assert prevblock in entrymap
                     assert prevblock in entry
@@ -863,11 +1093,18 @@ class Graph(object):
             assert len(set(block.operations)) == len(block.operations)
             for op in block:
                 if isinstance(op, Phi):
-                    for prevvalue, prevblock in zip(op.prevvalues, op.prevblocks):
-                        assert isinstance(prevvalue, Constant) or prevvalue in defined_vars_per_block[prevblock]
+                    for prevvalue, prevblock in zip(
+                        op.prevvalues, op.prevblocks
+                    ):
+                        assert (
+                            isinstance(prevvalue, Constant)
+                            or prevvalue in defined_vars_per_block[prevblock]
+                        )
                 else:
                     for value in op.getargs():
-                        assert value in defined_vars or isinstance(value, Constant)
+                        assert value in defined_vars or isinstance(
+                            value, Constant
+                        )
             for value in block.next.getargs():
                 assert value in defined_vars or isinstance(value, Constant)
 
@@ -880,7 +1117,7 @@ class Graph(object):
         res = False
         for block in self.iterblocks():
             for op in block.operations:
-                assert op not in replacements # must have been removed already
+                assert op not in replacements  # must have been removed already
                 res = op.replace_ops(replacements) or res
             res = block.next.replace_ops(replacements) or res
         return res
@@ -888,519 +1125,11 @@ class Graph(object):
     def replace_op(self, oldop, newop):
         return self.replace_ops({oldop: newop})
 
+
 # values
 
-class Value(object):
-    def is_union_creation(self):
-        return False
-
-    def _repr(self, print_varnames):
-        return repr(self)
-
-    def _get_print_name(self, print_varnames):
-        if self in print_varnames:
-            name = print_varnames[self]
-        else:
-            name = "i%s" % (len(print_varnames), )
-            print_varnames[self] = name
-        return name
-
-    def getargs(self):
-        return []
-
-    def comparison_key(self):
-        return self
-
-    def __repr__(self):
-        return "<%s %x>" % (self.__class__.__name__, id(self))
-
-class Argument(Value):
-    def __init__(self, name, resolved_type):
-        self.resolved_type = resolved_type
-        self.name = name
-
-    def __repr__(self):
-        return "Argument(%r, %r)" % (self.name, self.resolved_type)
-
-    def _repr(self, print_varnames):
-        return self.name
-
-class Operation(Value):
-    can_have_side_effects = True
-
-    def __init__(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
-        for arg in args:
-            assert isinstance(arg, Value)
-        self.name = name
-        self.args = args
-        self.resolved_type = resolved_type
-        assert isinstance(sourcepos, (str, type(None)))
-        self.sourcepos = sourcepos
-        self.varname_hint = varname_hint
-
-    def __repr__(self):
-        return "%s(%r, %r, %r, %r)" % (self.__class__.__name__, self.name, self.args, self.resolved_type, self.sourcepos)
-
-    def _repr(self, print_varnames):
-        return self._get_print_name(print_varnames)
-
-    def getargs(self):
-        return self.args
-
-    def replace_ops(self, replacements):
-        assert self not in replacements
-        res = False
-        for index, arg in enumerate(self.args):
-            if arg in replacements:
-                self.args[index] = replacements[arg]
-                res = True
-        return res
-
-    def is_union_creation(self):
-        return isinstance(self.resolved_type, types.Union) and type(self) is Operation and self.name in self.resolved_type.variants
-
-
-class Cast(Operation):
-    can_have_side_effects = False
-
-    def __init__(self, arg, resolved_type, sourcepos=None, varname_hint=None):
-        Operation.__init__(self, "$cast", [arg], resolved_type, sourcepos, varname_hint)
-
-    def __repr__(self):
-        return "Cast(%r, %r, %r)" % (self.args[0], self.resolved_type, self.sourcepos)
-
-class Allocate(Operation):
-    can_have_side_effects = False
-
-    def __init__(self, resolved_type, sourcepos):
-        Operation.__init__(self, "$allocate", [], resolved_type, sourcepos)
-
-    def __repr__(self):
-        return "Allocate(%r, %r)" % (self.resolved_type, self.sourcepos, )
-
-class StructConstruction(Operation):
-    can_have_side_effects = False
-
-    def __repr__(self):
-        return "StructConstruction(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
-
-class StructCopy(Operation):
-    can_have_side_effects = False
-
-    def __init__(self, name, arg, resolved_type, sourcepos=None):
-        Operation.__init__(self, name, [arg], resolved_type, sourcepos)
-
-    def __repr__(self):
-        return "StructCopy(%r, %r, %r, %r)" % (self.name, self.args[0], self.resolved_type, self.sourcepos)
-
-class FieldAccess(Operation):
-    can_have_side_effects = False
-
-    def __repr__(self):
-        return "%s(%r, %r, %r)" % (self.__class__.__name__, self.name, self.args, self.resolved_type)
-
-class FieldWrite(Operation):
-    def __init__(self, name, args, resolved_type=None, sourcepos=None, varname_hint=None):
-        if resolved_type is None:
-            resolved_type = types.Unit()
-        Operation.__init__(self, name, args, resolved_type, sourcepos, varname_hint)
-
-    def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.name, self.args)
-
-class UnionVariantCheck(Operation):
-    can_have_side_effects = False
-
-    def __repr__(self):
-        return "UnionVariantCheck(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
-
-class UnionCast(Operation):
-    can_have_side_effects = False
-    def __repr__(self):
-        return "UnionCast(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
-
-class GlobalRead(Operation):
-    can_have_side_effects = False
-    def __init__(self, name, resolved_type):
-        Operation.__init__(self, name, [], resolved_type, None)
-
-    def __repr__(self):
-        return "GlobalRead(%r, %r)" % (self.name, self.resolved_type)
-
-class GlobalWrite(Operation):
-    def __repr__(self):
-        return "GlobalWrite(%r, %r, %r)" % (self.name, self.args, self.resolved_type)
-
-class RefAssignment(Operation):
-    def __init__(self, args, resolved_type, sourcepos):
-        Operation.__init__(self, "$ref-assign", args, resolved_type, sourcepos)
-
-    def __repr__(self):
-        return "RefAssignment(%r, %r, %r)" % (self.args, self.resolved_type, self.sourcepos, )
-
-class RefOf(Operation):
-    can_have_side_effects = False
-
-    def __init__(self, name, resolved_type, sourcepos=None):
-        Operation.__init__(self, name, [], resolved_type, sourcepos)
-
-    def __repr__(self):
-        return "RefOf(%r, %r, %r)" % (self.name, self.resolved_type, self.sourcepos, )
-
-class VectorInit(Operation):
-    can_have_side_effects = False
-
-    def __init__(self, size, resolved_type, sourcepos):
-        Operation.__init__(self, "$zinternal_vector_init", [size], resolved_type, sourcepos)
-
-    def __repr__(self):
-        return "VectorInit(%r, %r, %r)" % (self.args[0], self.resolved_type, self.sourcepos, )
-
-class VectorUpdate(Operation):
-    can_have_side_effects = False
-
-    def __init__(self, args, resolved_type, sourcepos):
-        Operation.__init__(self, "$zinternal_vector_update", args, resolved_type, sourcepos)
-
-    def __repr__(self):
-        return "VectorUpdate(%r, %r, %r)" % (self.args, self.resolved_type, self.sourcepos, )
-
-class NonSSAAssignment(Operation):
-    def __init__(self, lhs, rhs):
-        Operation.__init__(self, "non_ssa_assign", [lhs, rhs], types.Unit(), None)
-
-    def __repr__(self):
-        return "NonSSAAssignment(%r, %r)" % (self.args[0], self.args[1])
-
-class Comment(Operation):
-    def __init__(self, comment):
-        Operation.__init__(self, comment, [], types.Unit())
-
-
-class UnpackPackedField(Operation):
-    can_have_side_effects = False
-
-    def __init__(self, arg, sourcepos=None):
-        assert isinstance(arg.resolved_type, types.Packed)
-        Operation.__init__(self, "$unpack", [arg], arg.resolved_type.typ, sourcepos)
-
-    def __repr__(self):
-        return "UnpackPackedField(%s)" % self.args[0]
-
-
-class PackPackedField(Operation):
-    can_have_side_effects = False
-
-    def __init__(self, arg, sourcepos=None):
-        assert isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.BigFixedBitVector))
-        Operation.__init__(self, "$pack", [arg], types.Packed(arg.resolved_type), sourcepos)
-
-    def __repr__(self):
-        return "PackPackedField(%s)" % self.args[0]
-
-
-class Phi(Value):
-    can_have_side_effects = False
-
-    def __init__(self, prevblocks, prevvalues, resolved_type):
-        for block in prevblocks:
-            assert isinstance(block, Block)
-        for value in prevvalues:
-            assert isinstance(value, Value) or value is None
-        self.prevblocks = prevblocks
-        self.prevvalues = prevvalues
-        self.resolved_type = resolved_type
-
-    def _repr(self, print_varnames):
-        return self._get_print_name(print_varnames)
-
-    def getargs(self):
-        return self.prevvalues
-
-    def replace_ops(self, replacements):
-        assert self not in replacements
-        res = False
-        for index, op in enumerate(self.prevvalues):
-            if op in replacements:
-                self.prevvalues[index] = replacements[op]
-                res = True
-        return res
-
-class Constant(Value):
-    pass
-
-class BooleanConstant(Constant):
-    def __init__(self, value):
-        assert isinstance(value, bool)
-        self.value = value
-        self.resolved_type = types.Bool()
-
-    def _repr(self, print_varnames):
-        if self.value:
-            return "BooleanConstant.TRUE"
-        else:
-            return "BooleanConstant.FALSE"
-
-    def __repr__(self):
-        return self._repr({})
-
-    @staticmethod
-    def frombool(value):
-        return BooleanConstant.TRUE if value else BooleanConstant.FALSE
-
-BooleanConstant.TRUE = BooleanConstant(True)
-BooleanConstant.FALSE = BooleanConstant(False)
-
-
-class MachineIntConstant(Constant):
-    resolved_type = types.MachineInt()
-    def __init__(self, number):
-        assert isinstance(number, int)
-        self.number = number
-
-    def _repr(self, print_varnames):
-        return repr(self)
-
-    def comparison_key(self):
-        return (MachineIntConstant, self.number, self.resolved_type)
-
-    def __repr__(self):
-        return "MachineIntConstant(%r)" % (self.number, )
-
-
-class IntConstant(Constant):
-    resolved_type = types.Int()
-    def __init__(self, number):
-        self.number = number
-
-    def _repr(self, print_varnames):
-        return repr(self)
-
-    def comparison_key(self):
-        return (IntConstant, self.number, self.resolved_type)
-
-    def __repr__(self):
-        return "IntConstant(%r)" % (self.number, )
-
-
-class SmallBitVectorConstant(Constant):
-    def __init__(self, value, resolved_type):
-        if isinstance(value, int):
-            value = r_uint(value)
-        assert isinstance(value, r_uint)
-        assert isinstance(resolved_type, types.SmallFixedBitVector)
-        self.value = value
-        self.resolved_type = resolved_type
-
-    @staticmethod
-    def from_ruint(size, val):
-        return SmallBitVectorConstant(val, types.SmallFixedBitVector(size))
-
-    def comparison_key(self):
-        return (SmallBitVectorConstant, self.value, self.resolved_type)
-
-    def _repr(self, print_varnames):
-        return repr(self)
-
-    def __repr__(self):
-        size = self.resolved_type.width
-        val = self.value
-        if size % 4 == 0:
-            value = hex(int(val))
-        else:
-            value = bin(int(val))
-        return "SmallBitVectorConstant(%s, %s)" % (value, self.resolved_type)
-
-
-class GenericBitVectorConstant(Constant):
-    resolved_type = types.GenericBitVector()
-
-    def __init__(self, value):
-        assert isinstance(value, bitvector.BitVector)
-        self.value = value
-
-    def comparison_key(self):
-        return (GenericBitVectorConstant, self._construction_expr(), self.resolved_type)
-
-    def _repr(self, print_varnames):
-        return repr(self)
-
-    def _construction_expr(self):
-        val = self.value.tolong()
-        size = self.value.size()
-        if size % 4 == 0:
-            value = hex(int(val))
-        else:
-            value = bin(int(val))
-        if isinstance(self.value, (bitvector.SparseBitVector, bitvector.SmallBitVector)):
-            return "bitvector.from_ruint(%s, r_uint(%s))" % (size, self.value.val)
-        return "bitvector.from_bigint(%s, rbigint.fromlong(%s))" % (size, value)
-
-    def __repr__(self):
-        return "GenericBitVectorConstant(%s)" % self._construction_expr()
-
-
-class DefaultValue(Constant):
-
-    def __init__(self, resolved_type):
-        self.resolved_type = resolved_type
-
-    def comparison_key(self):
-        return (DefaultValue, self.resolved_type)
-
-    def __repr__(self):
-        return "DefaultValue(%r)" % (self.resolved_type, )
-
-
-class EnumConstant(Constant):
-    def __init__(self, variant, resolved_type):
-        self.variant = variant
-        self.resolved_type = resolved_type
-
-    def comparison_key(self):
-        return (EnumConstant, self.variant, self.resolved_type)
-
-    def __repr__(self):
-        return "EnumConstant(%r, %r)" % (self.variant, self.resolved_type)
-
-
-class StringConstant(Constant):
-    resolved_type = types.String()
-
-    def __init__(self, string):
-        self.string = string
-
-    def comparison_key(self):
-        return (StringConstant, self.string, self.resolved_type)
-
-    def __repr__(self):
-        return "StringConstant(%r)" % (self.string, )
-
-
-class UnitConstant(Constant):
-    resolved_type = types.Unit()
-    def __repr__(self):
-        return "UnitConstant.UNIT"
-
-UnitConstant.UNIT = UnitConstant()
-
-# next
-
-class Next(object):
-    def __init__(self, sourcepos):
-        self.sourcepos = sourcepos
-
-    def next_blocks(self):
-        return []
-
-    def getargs(self):
-        return []
-
-    def replace_next(self, block, otherblock):
-        pass
-
-    def replace_ops(self, replacements):
-        return False
-
-    def _repr(self, print_varnames):
-        return self.__class__.__name__
-
-class Return(Next):
-    def __init__(self, value, sourcepos=None):
-        assert isinstance(value, Value) or value is None
-        self.value = value
-        self.sourcepos = sourcepos
-
-    def getargs(self):
-        return [self.value] if self.value is not None else []
-
-    def replace_ops(self, replacements):
-        if self.value in replacements:
-            self.value = replacements[self.value]
-            return True
-        return False
-
-    def _repr(self, print_varnames, blocknames=None):
-        return "Return(%s, %r)" % (None if self.value is None else self.value._repr(print_varnames), self.sourcepos)
-
-class Raise(Next):
-    def __init__(self, kind, sourcepos=None):
-        self.kind = kind
-        self.sourcepos = sourcepos
-
-    def getargs(self):
-        return [self.kind]
-
-    def replace_ops(self, replacements):
-        if self.kind in replacements:
-            self.kind = replacements[self.kind]
-            return True
-        return False
-
-    def _repr(self, print_varnames, blocknames=None):
-        return "Raise(%s, %r)" % (self.kind, self.sourcepos)
-
-class JustStop(Next):
-    def __init__(self):
-        self.sourcepos = None
-
-    def _repr(self, print_varnames, blocknames=None):
-        return "JustStop(%r)" % (self.sourcepos, )
-
-
-class Goto(Next):
-    def __init__(self, target, sourcepos=None):
-        assert isinstance(target, Block)
-        self.target = target
-        self.sourcepos = sourcepos
-
-    def next_blocks(self):
-        return [self.target]
-
-    def replace_next(self, block, otherblock):
-        if self.target is block:
-            self.target = otherblock
-
-    def _repr(self, print_varnames, blocknames=None):
-        if blocknames:
-            return "Goto(%s, %r)" % (blocknames[self.target], self.sourcepos)
-        return "goto"
-
-
-class ConditionalGoto(Next):
-    def __init__(self, booleanvalue, truetarget, falsetarget, sourcepos=None):
-        assert isinstance(truetarget, Block)
-        assert isinstance(falsetarget, Block)
-        assert isinstance(booleanvalue, Value)
-        self.truetarget = truetarget
-        self.falsetarget = falsetarget
-        self.booleanvalue = booleanvalue
-        self.sourcepos = sourcepos
-
-    def getargs(self):
-        return [self.booleanvalue]
-
-    def next_blocks(self):
-        return [self.falsetarget, self.truetarget]
-
-    def replace_next(self, block, otherblock):
-        if self.truetarget is block:
-            self.truetarget = otherblock
-        if self.falsetarget is block:
-            self.falsetarget = otherblock
-
-    def replace_ops(self, replacements):
-        if self.booleanvalue in replacements:
-            self.booleanvalue = replacements[self.booleanvalue]
-            return True
-        return False
-
-    def _repr(self, print_varnames, blocknames=None):
-        if blocknames:
-            return "ConditionalGoto(%s, %s, %s, %r)" % (self.booleanvalue._repr(print_varnames), blocknames[self.truetarget], blocknames[self.falsetarget], self.sourcepos)
-        return "goto if %s" % (self.booleanvalue._repr(print_varnames), )
-
 # printing
+
 
 def print_graph_construction(graph, codegen=None):
     res = []
@@ -1412,6 +1141,7 @@ def print_graph_construction(graph, codegen=None):
 
     bigtyps = []
     seen_bigtyps = {}
+
     def type_repr(typ):
         if isinstance(typ, (types.Union, types.Enum, types.Struct)):
             if typ.name not in seen_bigtyps:
@@ -1424,7 +1154,10 @@ def print_graph_construction(graph, codegen=None):
     print_varnames = {}
     for arg in graph.args:
         print_varnames[arg] = arg.name
-        res.append("%s = Argument(%r, %s)" % (arg.name, arg.name, type_repr(arg.resolved_type)))
+        res.append(
+            "%s = Argument(%r, %s)"
+            % (arg.name, arg.name, type_repr(arg.resolved_type))
+        )
     for block, name in blocknames.iteritems():
         res.append("%s = Block()" % name)
     pending_updates = defaultdict(list)
@@ -1435,48 +1168,86 @@ def print_graph_construction(graph, codegen=None):
             name = op._get_print_name(print_varnames)
             if isinstance(op, Operation):
                 args = ", ".join([a._repr(print_varnames) for a in op.args])
-                res.append("%s = %s.emit(%s, %r, [%s], %s, %r, %r)"  % (name, blockname, op.__class__.__name__, builtin_names.get(op.name, op.name), args, type_repr(op.resolved_type), op.sourcepos, op.varname_hint))
+                res.append(
+                    "%s = %s.emit(%s, %r, [%s], %s, %r, %r)"
+                    % (
+                        name,
+                        blockname,
+                        op.__class__.__name__,
+                        builtin_names.get(op.name, op.name),
+                        args,
+                        type_repr(op.resolved_type),
+                        op.sourcepos,
+                        op.varname_hint,
+                    )
+                )
             else:
                 assert isinstance(op, Phi)
                 blockargs = ", ".join([blocknames[b] for b in op.prevblocks])
                 args = []
                 for index, a in enumerate(op.prevvalues):
                     if isinstance(a, (Operation, Phi)) and a not in seen_ops:
-                        args.append('None')
+                        args.append("None")
                         pending_updates[a].append((name, index))
                     else:
                         args.append(a._repr(print_varnames))
 
                 args = ", ".join(args)
-                res.append("%s = %s.emit_phi([%s], [%s], %s)" % (name, blockname, blockargs, args, type_repr(op.resolved_type)))
+                res.append(
+                    "%s = %s.emit_phi([%s], [%s], %s)"
+                    % (
+                        name,
+                        blockname,
+                        blockargs,
+                        args,
+                        type_repr(op.resolved_type),
+                    )
+                )
             if pending_updates[op]:
                 for prevname, index in pending_updates[op]:
-                    res.append("%s.prevvalues[%s] = %s" % (prevname, index, name))
+                    res.append(
+                        "%s.prevvalues[%s] = %s" % (prevname, index, name)
+                    )
             seen_ops.add(op)
-        res.append("%s.next = %s" % (blockname, block.next._repr(print_varnames, blocknames)))
-    res.append("graph = Graph(%r, [%s], block0%s)" % (graph.name, ", ".join(arg.name for arg in graph.args), ", True" if graph.has_loop else ""))
+        res.append(
+            "%s.next = %s"
+            % (blockname, block.next._repr(print_varnames, blocknames))
+        )
+    res.append(
+        "graph = Graph(%r, [%s], block0%s)"
+        % (
+            graph.name,
+            ", ".join(arg.name for arg in graph.args),
+            ", True" if graph.has_loop else "",
+        )
+    )
     res = bigtyps + res
     return res
 
 
 class GraphPage(BaseGraphPage):
-    save_tmp_file = str(udir.join('graph.dot'))
+    save_tmp_file = str(udir.join("graph.dot"))
 
     def compute(self, source, varnames, args):
         self.source = source
-        self.links = {var: str(op.resolved_type) for op, var in varnames.items()}
+        self.links = {
+            var: str(op.resolved_type) for op, var in varnames.items()
+        }
         for arg in args:
             self.links[arg.name] = str(arg.resolved_type)
 
 
 # some simple graph simplifications
 
+
 class CantFold(Exception):
     pass
+
 
 TIMINGS = defaultdict(float)
 COUNTS = defaultdict(int)
 STACK_START_TIMES = []
+
 
 def print_stats():
     print "OPTIMIZATION STATISTICS"
@@ -1489,11 +1260,19 @@ def print_stats():
         total += t
         maxnamesize = max(maxnamesize, len(name))
     for name, t in timings:
-        print name.rjust(maxnamesize), "time:", round(t, 2), "number of times called:", COUNTS[name], "time[ms]/call:", round(t / COUNTS[name] * 1000, 4), "percentage:", round(t / total * 100, 1)
+        print name.rjust(maxnamesize), "time:", round(
+            t, 2
+        ), "number of times called:", COUNTS[name], "time[ms]/call:", round(
+            t / COUNTS[name] * 1000, 4
+        ), "percentage:", round(
+            t / total * 100, 1
+        )
         total += t
     print "TOTAL", round(total, 2)
 
+
 DEBUG_REPEAT = False
+
 
 def repeat(func):
     def repeated(graph, codegen, *args, **kwargs):
@@ -1502,10 +1281,26 @@ def repeat(func):
         ever_changed = False
         for i in range(1000):
             if DEBUG_REPEAT and repeat.debug_list is not None:
-                repeat.debug_list.append((func.func_name, "before", i, print_graph_construction(graph), ever_changed))
+                repeat.debug_list.append(
+                    (
+                        func.func_name,
+                        "before",
+                        i,
+                        print_graph_construction(graph),
+                        ever_changed,
+                    )
+                )
             changed = func(graph, codegen, *args, **kwargs)
             if DEBUG_REPEAT and repeat.debug_list is not None:
-                repeat.debug_list.append((func.func_name, "after", i, print_graph_construction(graph), changed))
+                repeat.debug_list.append(
+                    (
+                        func.func_name,
+                        "after",
+                        i,
+                        print_graph_construction(graph),
+                        changed,
+                    )
+                )
             assert isinstance(changed, (bool, str, type(None)))
             if not changed:
                 break
@@ -1518,15 +1313,32 @@ def repeat(func):
                     repeat.debug_list = []
                     added_debug_list = True
                 try:
-                    repeat.debug_list.append((func.func_name, "debug start", 0, print_graph_construction(graph), ''))
+                    repeat.debug_list.append(
+                        (
+                            func.func_name,
+                            "debug start",
+                            0,
+                            print_graph_construction(graph),
+                            "",
+                        )
+                    )
                     changed = func(graph, codegen, *args, **kwargs)
-                    repeat.debug_list.append((func.func_name, "debug end", 0, print_graph_construction(graph), ''))
+                    repeat.debug_list.append(
+                        (
+                            func.func_name,
+                            "debug end",
+                            0,
+                            print_graph_construction(graph),
+                            "",
+                        )
+                    )
                     print "CHANGES", changed
                     print "#" * 60
                     print "\n".join(repeat.debug_list[0][3])
                     print "#" * 60
 
                     import difflib, sys
+
                     prev = None
                     for curr in repeat.debug_list:
                         if prev is None:
@@ -1537,7 +1349,14 @@ def repeat(func):
                         print curr[0], curr[1], curr[2], curr[4]
                         l_before = [line + "\n" for line in prev[3]]
                         l_after = [line + "\n" for line in curr[3]]
-                        sys.stdout.writelines(difflib.unified_diff(l_before, l_after, fromfile='before', tofile='after'))
+                        sys.stdout.writelines(
+                            difflib.unified_diff(
+                                l_before,
+                                l_after,
+                                fromfile="before",
+                                tofile="after",
+                            )
+                        )
                         prev = curr
                 finally:
                     if added_debug_list:
@@ -1547,13 +1366,19 @@ def repeat(func):
         assert t2 - t1 >= 0
         TIMINGS[func.func_name] += t2 - t1
         COUNTS[func.func_name] += i + 1
-        if STACK_START_TIMES: # parent optimization overcounts, so add t2 - t1_proper to start time
+        if (
+            STACK_START_TIMES
+        ):  # parent optimization overcounts, so add t2 - t1_proper to start time
             STACK_START_TIMES[-1] += t2 - t1_proper
         if ever_changed:
             ever_changed = func.func_name
         return ever_changed
+
     return repeated
+
+
 repeat.debug_list = None
+
 
 def light_simplify(graph, codegen):
     # in particular, don't specialize
@@ -1566,6 +1391,7 @@ def light_simplify(graph, codegen):
 
 def optimize(graph, codegen):
     from pydrofoil.specialize import SpecializingOptimizer
+
     res = _optimize(graph, codegen)
     if graph.name not in codegen.inlinable_functions:
         for i in range(100):
@@ -1579,9 +1405,11 @@ def optimize(graph, codegen):
         graph.check()
     return res
 
+
 def _bare_optimize(graph, codegen):
     from pydrofoil.absinterp import optimize_with_range_info
     from pydrofoil.optimize import merge_phi_blocks, fix_union_check_switch
+
     res = False
     res = propagate_equality(graph, codegen) or res
     res = join_blocks(graph, codegen) or res
@@ -1607,11 +1435,14 @@ def _bare_optimize(graph, codegen):
     partial_allocation_removal(graph, codegen)
     return res
 
+
 _optimize = repeat(_bare_optimize)
+
 
 @repeat
 def localopt(graph, codegen, do_double_casts=True):
     return LocalOptimizer(graph, codegen, do_double_casts).optimize()
+
 
 @repeat
 def remove_dead(graph, codegen):
@@ -1641,11 +1472,16 @@ def remove_dead(graph, codegen):
             needed.update(args)
         needed.update(block.next.getargs())
     for block in blocks:
-        operations = [op for op in block.operations if op in needed or not can_remove_op(op)]
+        operations = [
+            op
+            for op in block.operations
+            if op in needed or not can_remove_op(op)
+        ]
         if len(operations) != len(block.operations):
             changed = True
             block.operations[:] = operations
     return changed
+
 
 @repeat
 def remove_empty_blocks(graph, codegen):
@@ -1662,6 +1498,7 @@ def remove_empty_blocks(graph, codegen):
             nextblock.next.target.replace_prev(nextblock, block)
             changed = True
     return changed
+
 
 @repeat
 def join_blocks(graph, codegen):
@@ -1686,21 +1523,26 @@ def join_blocks(graph, codegen):
                 nextnextblock.replace_prev(nextblock, block)
     return changed
 
+
 @repeat
 def swap_not(graph, codegen):
     changed = False
     for block in graph.iterblocks():
         cond = block.next
-        if not isinstance(cond, ConditionalGoto) or type(cond.booleanvalue) is not Operation:
+        if (
+            not isinstance(cond, ConditionalGoto)
+            or type(cond.booleanvalue) is not Operation
+        ):
             continue
         if cond.booleanvalue.name != "@not":
             continue
-        cond.booleanvalue, = cond.booleanvalue.args
+        (cond.booleanvalue,) = cond.booleanvalue.args
         cond.truetarget, cond.falsetarget = cond.falsetarget, cond.truetarget
         changed = True
     if changed:
         remove_dead(graph, codegen)
     return changed
+
 
 @repeat
 def simplify_phis(graph, codegen):
@@ -1728,12 +1570,16 @@ def simplify_phis(graph, codegen):
         return True
     return False
 
+
 @repeat
 def remove_if_true_false(graph, codegen):
     changed = False
     for block in graph.iterblocks():
         cond = block.next
-        if not isinstance(cond, ConditionalGoto) or type(cond.booleanvalue) is not BooleanConstant:
+        if (
+            not isinstance(cond, ConditionalGoto)
+            or type(cond.booleanvalue) is not BooleanConstant
+        ):
             continue
         if cond.booleanvalue.value:
             takenblock = cond.truetarget
@@ -1745,6 +1591,7 @@ def remove_if_true_false(graph, codegen):
         # need to remove Phi arguments
         _remove_unreachable_phi_prevvalues(graph)
     return changed
+
 
 def _remove_unreachable_phi_prevvalues(graph):
     replace_phis = {}
@@ -1771,16 +1618,18 @@ def _remove_unreachable_phi_prevvalues(graph):
     if replace_phis:
         graph.replace_ops(replace_phis)
 
+
 @repeat
 def remove_if_phi_constant(graph, codegen):
     from pydrofoil.emitfunction import count_uses
+
     uses = count_uses(graph)
     res = False
     for block in graph.iterblocks():
         ops = [op for op in block.operations if not isinstance(op, Comment)]
         if len(ops) != 1:
             continue
-        op, = ops
+        (op,) = ops
         if not isinstance(op, Phi):
             continue
         if op.resolved_type is not types.Bool():
@@ -1823,21 +1672,24 @@ def convert_sail_assert_to_exception(graph, codegen):
                 continue
             name = op.name
             name = codegen.builtin_names.get(name, name)
-            if name != 'zsail_assert':
+            if name != "zsail_assert":
                 continue
             newblock = block.split(index, keep_op=False)
             failblock = Block()
             failblock.next = Raise(op.args[1], None)
             if isinstance(op.args[1], StringConstant):
-                assert_str = 'sail_assert'
-                assert_str += ' ' + op.args[1].string
+                assert_str = "sail_assert"
+                assert_str += " " + op.args[1].string
                 block.operations.append(Comment(assert_str))
-            block.next = ConditionalGoto(op.args[0], newblock, failblock, op.sourcepos)
+            block.next = ConditionalGoto(
+                op.args[0], newblock, failblock, op.sourcepos
+            )
             res = True
             # try with the next blocks, but if there are multiple asserts in
             # this one we need to repeat
             break
     return res
+
 
 def duplicate_end_blocks(graph, codegen):
     assert not graph.has_loop
@@ -1854,7 +1706,7 @@ def duplicate_end_blocks(graph, codegen):
         block = candidates.pop()
         preds = entrymap[block]
         assert should_duplicate(block)
-        del entrymap[block] # the block won't be reachable at all any more
+        del entrymap[block]  # the block won't be reachable at all any more
         next = block.next
         for predblock in preds:
             num_duplicated += 1
@@ -1869,7 +1721,13 @@ def duplicate_end_blocks(graph, codegen):
                     replacements[op] = value
                 else:
                     assert isinstance(op, Operation)
-                    newop = Operation(op.name, [replacements.get(arg, arg) for arg in op.args], op.resolved_type, op.sourcepos, op.varname_hint)
+                    newop = Operation(
+                        op.name,
+                        [replacements.get(arg, arg) for arg in op.args],
+                        op.resolved_type,
+                        op.sourcepos,
+                        op.varname_hint,
+                    )
                     newop.__class__ = op.__class__
                     replacements[op] = newop
                     ops.append(newop)
@@ -1886,9 +1744,13 @@ def duplicate_end_blocks(graph, codegen):
                 newblock = Block(ops)
                 predblock.next.replace_next(block, newblock)
             if isinstance(next, Return):
-                newblock.next = Return(replacements.get(next.value, next.value), next.sourcepos)
+                newblock.next = Return(
+                    replacements.get(next.value, next.value), next.sourcepos
+                )
             elif isinstance(next, Raise):
-                newblock.next = Raise(replacements.get(next.kind, next.kind), next.sourcepos)
+                newblock.next = Raise(
+                    replacements.get(next.kind, next.kind), next.sourcepos
+                )
             else:
                 assert 0, "unreachable"
     if num_duplicated:
@@ -1899,6 +1761,7 @@ def duplicate_end_blocks(graph, codegen):
 class defaultdict_with_key_arg(dict):
     def __init__(self, factory):
         self.factory = factory
+
     def __missing__(self, key):
         res = self[key] = self.factory(key)
         return res
@@ -1917,14 +1780,19 @@ def remove_superfluous_enum_cases(graph, codegen):
 
     changed = False
     # maps blocks -> values -> sets of enum names
-    possible_enum_values = defaultdict(lambda : defaultdict_with_key_arg(init_enum_set))
+    possible_enum_values = defaultdict(
+        lambda: defaultdict_with_key_arg(init_enum_set)
+    )
     entrymap = graph.make_entrymap()
     for block in topo_order(graph):
         values_in_block = possible_enum_values[block]
         if isinstance(block.next, ConditionalGoto):
             value = block.next.booleanvalue
-            if (isinstance(value, Operation) and value.name == "@eq" and
-                    isinstance(value.args[0].resolved_type, types.Enum)):
+            if (
+                isinstance(value, Operation)
+                and value.name == "@eq"
+                and isinstance(value.args[0].resolved_type, types.Enum)
+            ):
                 arg0, arg1 = value.args
                 if not isinstance(arg1, EnumConstant):
                     arg0, arg1 = arg1, arg0
@@ -1937,14 +1805,19 @@ def remove_superfluous_enum_cases(graph, codegen):
                         block.next.booleanvalue = BooleanConstant.TRUE
                     else:
                         if len(entrymap[block.next.truetarget]) == 1:
-                            possible_enum_values[block.next.truetarget][arg0] = possible_values_arg1
+                            possible_enum_values[block.next.truetarget][
+                                arg0
+                            ] = possible_values_arg1
                         if len(entrymap[block.next.falsetarget]) == 1:
-                            possible_enum_values[block.next.falsetarget][arg0] = possible_values_arg0 - possible_values_arg1
+                            possible_enum_values[block.next.falsetarget][
+                                arg0
+                            ] = (possible_values_arg0 - possible_values_arg1)
     if changed:
         remove_if_true_false(graph, codegen)
         remove_dead(graph, codegen)
         return True
     return False
+
 
 def remove_superfluous_bitvector_cases(graph, codegen):
     if graph.has_loop:
@@ -1955,19 +1828,26 @@ def remove_superfluous_bitvector_cases(graph, codegen):
         if isinstance(value, SmallBitVectorConstant):
             return {int(value.value)}
         else:
-            return set(range(0, 2**value.resolved_type.width))
+            return set(range(0, 2 ** value.resolved_type.width))
 
     changed = False
     # maps blocks -> values -> sets of bv values
-    possible_bitvector_values = defaultdict(lambda : defaultdict_with_key_arg(init_bv_set))
+    possible_bitvector_values = defaultdict(
+        lambda: defaultdict_with_key_arg(init_bv_set)
+    )
     entrymap = graph.make_entrymap()
     for block in topo_order(graph):
         values_in_block = possible_bitvector_values[block]
         if isinstance(block.next, ConditionalGoto):
             value = block.next.booleanvalue
-            if (isinstance(value, Operation) and value.name == "@eq_bits_bv_bv" and
-                    isinstance(value.args[0].resolved_type, types.SmallFixedBitVector) and
-                    value.args[0].resolved_type.width <= 16):
+            if (
+                isinstance(value, Operation)
+                and value.name == "@eq_bits_bv_bv"
+                and isinstance(
+                    value.args[0].resolved_type, types.SmallFixedBitVector
+                )
+                and value.args[0].resolved_type.width <= 16
+            ):
                 arg0, arg1 = value.args
                 if not isinstance(arg1, SmallBitVectorConstant):
                     arg0, arg1 = arg1, arg0
@@ -1980,9 +1860,13 @@ def remove_superfluous_bitvector_cases(graph, codegen):
                         block.next.booleanvalue = BooleanConstant.TRUE
                     else:
                         if len(entrymap[block.next.truetarget]) == 1:
-                            possible_bitvector_values[block.next.truetarget][arg0] = possible_values_arg1
+                            possible_bitvector_values[block.next.truetarget][
+                                arg0
+                            ] = possible_values_arg1
                         if len(entrymap[block.next.falsetarget]) == 1:
-                            possible_bitvector_values[block.next.falsetarget][arg0] = possible_values_arg0 - possible_values_arg1
+                            possible_bitvector_values[block.next.falsetarget][
+                                arg0
+                            ] = (possible_values_arg0 - possible_values_arg1)
     if changed:
         remove_if_true_false(graph, codegen)
         remove_dead(graph, codegen)
@@ -2000,18 +1884,22 @@ def remove_superfluous_union_checks(graph, codegen):
 
     changed = False
     # maps blocks -> values -> sets of variant names
-    possible_union_variants = defaultdict(lambda : defaultdict_with_key_arg(init_variant_set))
+    possible_union_variants = defaultdict(
+        lambda: defaultdict_with_key_arg(init_variant_set)
+    )
     entrymap = graph.make_entrymap()
     for block in topo_order(graph):
         values_in_block = possible_union_variants[block]
-        if not isinstance(block.next, ConditionalGoto) or not isinstance(block.next.booleanvalue, UnionVariantCheck):
+        if not isinstance(block.next, ConditionalGoto) or not isinstance(
+            block.next.booleanvalue, UnionVariantCheck
+        ):
             for nextblock in block.next.next_blocks():
                 if len(entrymap[nextblock]) == 1:
                     possible_union_variants[nextblock].update(values_in_block)
             continue
         cond = block.next.booleanvalue
         assert isinstance(cond, UnionVariantCheck)
-        arg0, = cond.args
+        (arg0,) = cond.args
         possible_values_arg0 = values_in_block[arg0]
         single = frozenset([cond.name])
         if possible_values_arg0 == single:
@@ -2019,10 +1907,14 @@ def remove_superfluous_union_checks(graph, codegen):
             block.next.booleanvalue = BooleanConstant.FALSE
         else:
             if len(entrymap[block.next.truetarget]) == 1:
-                values_in_block = possible_union_variants[block.next.truetarget]
+                values_in_block = possible_union_variants[
+                    block.next.truetarget
+                ]
                 values_in_block[arg0] = possible_values_arg0 - single
             if len(entrymap[block.next.falsetarget]) == 1:
-                values_in_block = possible_union_variants[block.next.falsetarget]
+                values_in_block = possible_union_variants[
+                    block.next.falsetarget
+                ]
                 values_in_block[arg0] = single
     if changed:
         remove_if_true_false(graph, codegen)
@@ -2051,6 +1943,7 @@ def remove_useless_switch(graph, codegen):
 class NoMatchException(Exception):
     pass
 
+
 def symmetric(func):
     def optimize(self, op):
         arg0, arg1 = self._args(op)
@@ -2062,9 +1955,12 @@ def symmetric(func):
             if res is not None:
                 return res
         return func(self, op, arg1, arg0)
+
     return optimize
 
+
 REMOVE = "REMOVE"
+
 
 class BaseOptimizer(object):
     def __init__(self, graph, codegen, do_double_casts=True):
@@ -2084,7 +1980,7 @@ class BaseOptimizer(object):
         self.newoperations = None
         self.replacements = {}
         # cse attributes
-        self.cse_op_available = {} # block -> block -> prev_op
+        self.cse_op_available = {}  # block -> block -> prev_op
         self.cse_op_available_in_block = None
 
     def __repr__(self):
@@ -2111,7 +2007,9 @@ class BaseOptimizer(object):
 
     def optimize_block(self, block):
         # prepare CSE
-        available_in_block = self._compute_available_in_block_from_predecessors(block)
+        available_in_block = (
+            self._compute_available_in_block_from_predecessors(block)
+        )
         self.cse_op_available[block] = available_in_block
         self.cse_op_available_in_block = available_in_block
 
@@ -2142,7 +2040,7 @@ class BaseOptimizer(object):
         prev_blocks = self.entrymap[block]
         if prev_blocks:
             if len(prev_blocks) == 1:
-                prev_block, = prev_blocks
+                (prev_block,) = prev_blocks
                 nextblocks_of_prevblock = self.nextblocks[prev_block]
                 available_in_block = self.cse_op_available[prev_blocks[0]]
                 if len(nextblocks_of_prevblock) > 1:
@@ -2153,7 +2051,7 @@ class BaseOptimizer(object):
                 for prev_block in prev_blocks:
                     prev_cse_dict = self.cse_op_available.get(prev_block, None)
                     if not prev_cse_dict:
-                        break # one of the available dicts is empty, no need to intersect
+                        break  # one of the available dicts is empty, no need to intersect
                     prev_cse_dicts.append(prev_cse_dict)
                 else:
                     prev_cse_dicts.sort(key=len)
@@ -2167,7 +2065,10 @@ class BaseOptimizer(object):
             for prevblock in prev_blocks:
                 nextblocks_of_prevblock = self.nextblocks[prevblock]
                 nextblocks_of_prevblock.discard(block)
-                if not nextblocks_of_prevblock and prevblock in self.cse_op_available:
+                if (
+                    not nextblocks_of_prevblock
+                    and prevblock in self.cse_op_available
+                ):
                     # don't keep all the cse info alive, it's way too huge
                     del self.cse_op_available[prevblock]
         return available_in_block
@@ -2181,19 +2082,45 @@ class BaseOptimizer(object):
         # base implementation, do CSE
         key = None
         if isinstance(op, Phi):
-            key = (Phi, self._cse_comparison_tuple(op.prevvalues), tuple(op.prevblocks), op.resolved_type)
+            key = (
+                Phi,
+                self._cse_comparison_tuple(op.prevvalues),
+                tuple(op.prevblocks),
+                op.resolved_type,
+            )
         elif not self._cse_can_replace(op):
             if isinstance(op, FieldWrite) and self._cse_is_tuplestruct(op):
                 assert not isinstance(op.args[0], StructConstruction)
                 res = op.args[1]
-                writekey = (FieldAccess, op.name, self._cse_comparison_tuple(op.args[:1]), res.resolved_type)
-                self.cse_op_available_in_block[writekey] = self.replacements.get(res, res)
-            if isinstance(op, StructConstruction) and self._cse_is_tuplestruct_typ(op.resolved_type):
+                writekey = (
+                    FieldAccess,
+                    op.name,
+                    self._cse_comparison_tuple(op.args[:1]),
+                    res.resolved_type,
+                )
+                self.cse_op_available_in_block[
+                    writekey
+                ] = self.replacements.get(res, res)
+            if isinstance(
+                op, StructConstruction
+            ) and self._cse_is_tuplestruct_typ(op.resolved_type):
                 for fieldname, val in zip(op.resolved_type.names, op.args):
-                    writekey = (FieldAccess, fieldname, (op, ), val.resolved_type)
-                    self.cse_op_available_in_block[writekey] = self.replacements.get(val, val)
+                    writekey = (
+                        FieldAccess,
+                        fieldname,
+                        (op,),
+                        val.resolved_type,
+                    )
+                    self.cse_op_available_in_block[
+                        writekey
+                    ] = self.replacements.get(val, val)
         else:
-            key = (type(op), op.name, self._cse_comparison_tuple(op.args), op.resolved_type)
+            key = (
+                type(op),
+                op.name,
+                self._cse_comparison_tuple(op.args),
+                op.resolved_type,
+            )
         if key is not None:
             if key in self.cse_op_available_in_block:
                 block.operations[index] = None
@@ -2223,18 +2150,21 @@ class BaseOptimizer(object):
         if op.name == "@not":
             return True
         name = self.codegen.builtin_names.get(op.name, op.name)
-        name = name.lstrip('@')
+        name = name.lstrip("@")
         return type(op) is Operation and name in supportcode.purefunctions
 
     def _cse_comparison_tuple(self, valuelist):
-        return tuple(self.replacements.get(arg, arg).comparison_key() for arg in valuelist)
+        return tuple(
+            self.replacements.get(arg, arg).comparison_key()
+            for arg in valuelist
+        )
 
     # end cse helpers
 
-    def newop(self, name, args, resolved_type, sourcepos=None, varname_hint=None):
-        newop = Operation(
-            name, args, resolved_type, sourcepos,
-            varname_hint)
+    def newop(
+        self, name, args, resolved_type, sourcepos=None, varname_hint=None
+    ):
+        newop = Operation(name, args, resolved_type, sourcepos, varname_hint)
         self.newoperations.append(newop)
         return newop
 
@@ -2259,7 +2189,9 @@ class BaseOptimizer(object):
         return self.newop(INT64_TO_INT_NAME, [arg], types.Int(), sourcepos)
 
     def _make_int_to_int64(self, arg, sourcepos=None):
-        return self.newop(INT_TO_INT64_NAME, [arg], types.MachineInt(), sourcepos)
+        return self.newop(
+            INT_TO_INT64_NAME, [arg], types.MachineInt(), sourcepos
+        )
 
     def _get_op_replacement(self, value):
         while value in self.replacements:
@@ -2273,7 +2205,10 @@ class BaseOptimizer(object):
         return self.codegen.builtin_names.get(name, name)
 
     def _extract_smallfixedbitvector(self, arg):
-        if isinstance(arg, GenericBitVectorConstant) and arg.value.size() <= 64:
+        if (
+            isinstance(arg, GenericBitVectorConstant)
+            and arg.value.size() <= 64
+        ):
             typ = types.SmallFixedBitVector(arg.value.size())
             return SmallBitVectorConstant(arg.value.touint(), typ), typ
         if isinstance(arg.resolved_type, types.SmallFixedBitVector):
@@ -2281,12 +2216,18 @@ class BaseOptimizer(object):
         if not isinstance(arg, Cast):
             if self.newoperations is not None:
                 # xxx, wrong complexity
-                anticipated = self.anticipated_casts.get(self.current_block, set())
-                casts = {typ for (op, typ) in anticipated if self.replacements.get(op, op) is arg}
+                anticipated = self.anticipated_casts.get(
+                    self.current_block, set()
+                )
+                casts = {
+                    typ
+                    for (op, typ) in anticipated
+                    if self.replacements.get(op, op) is arg
+                }
                 if not casts:
                     raise NoMatchException
                 if len(casts) == 1:
-                    typ, = casts
+                    (typ,) = casts
                     return self.newcast(arg, typ), typ
             raise NoMatchException
         expr = arg.args[0]
@@ -2314,10 +2255,20 @@ class BaseOptimizer(object):
         ):
             return arg.args[0]
         if isinstance(arg, Cast):
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
         # check whether we have a cast as an available expression (ie "above" us)
-        key = (Operation, INT_TO_INT64_NAME, self._cse_comparison_tuple([arg]), types.MachineInt())
-        if self.cse_op_available_in_block and key in self.cse_op_available_in_block:
+        key = (
+            Operation,
+            INT_TO_INT64_NAME,
+            self._cse_comparison_tuple([arg]),
+            types.MachineInt(),
+        )
+        if (
+            self.cse_op_available_in_block
+            and key in self.cse_op_available_in_block
+        ):
             return self.cse_op_available_in_block[key]
         if self.newoperations is not None:
             anticipated = self.anticipated_casts.get(self.current_block, set())
@@ -2327,10 +2278,13 @@ class BaseOptimizer(object):
             # XXX can do even better with loops
             prevvalues = []
             for prevvalue in arg.prevvalues:
-                prevvalues.append(self._extract_machineint(
-                    self._get_op_replacement(prevvalue),
-                    want_constant=want_constant,
-                    can_recurse=not self.graph.has_loop))
+                prevvalues.append(
+                    self._extract_machineint(
+                        self._get_op_replacement(prevvalue),
+                        want_constant=want_constant,
+                        can_recurse=not self.graph.has_loop,
+                    )
+                )
             newres = Phi(arg.prevblocks, prevvalues, types.MachineInt())
             self._need_dead_code_removal = True
             # this is quite delicate, need to insert the Phi into the right block
@@ -2355,16 +2309,22 @@ class BaseOptimizer(object):
 
     def _must_be_non_negative(self, arg):
         return isinstance(arg, Operation) and arg.name in (
-                "@unsigned_bv_wrapped_res", "@unsigned_bv", "@length_unwrapped_res", "@vec_length_unwrapped_res")
+            "@unsigned_bv_wrapped_res",
+            "@unsigned_bv",
+            "@length_unwrapped_res",
+            "@vec_length_unwrapped_res",
+        )
+
 
 def is_pow_2(num):
     return num & (num - 1) == 0
 
+
 def shift_amount(num):
     return bitvector.BigInteger._shift_amount(num)
 
-class LocalOptimizer(BaseOptimizer):
 
+class LocalOptimizer(BaseOptimizer):
     def _should_fit_machine_int(self, op):
         anticipated = self.anticipated_casts.get(self.current_block, set())
         return (op, types.MachineInt()) in anticipated
@@ -2382,65 +2342,95 @@ class LocalOptimizer(BaseOptimizer):
         return BaseOptimizer._optimize_op(self, block, index, op)
 
     def _optimize_Cast(self, op, block, index):
-        arg, = self._args(op)
+        (arg,) = self._args(op)
         if op.resolved_type is arg.resolved_type:
             block.operations[index] = None
             return arg
         if isinstance(op.resolved_type, types.SmallFixedBitVector):
             if isinstance(arg, UnpackPackedField):
-                return self.newop("@packed_field_cast_smallfixedbitvector", [MachineIntConstant(op.resolved_type.width), arg.args[0]], op.resolved_type, op.sourcepos)
+                return self.newop(
+                    "@packed_field_cast_smallfixedbitvector",
+                    [MachineIntConstant(op.resolved_type.width), arg.args[0]],
+                    op.resolved_type,
+                    op.sourcepos,
+                )
         if self.do_double_casts and isinstance(arg, Cast):
-            arg2, = self._args(arg)
+            (arg2,) = self._args(arg)
             if arg2.resolved_type is op.resolved_type:
                 block.operations[index] = None
                 return arg2
-            return self.newcast(arg2, op.resolved_type, op.sourcepos, op.varname_hint)
+            return self.newcast(
+                arg2, op.resolved_type, op.sourcepos, op.varname_hint
+            )
 
     def _optimize_PackPackedField(self, op, block, index):
-        arg, = self._args(op)
+        (arg,) = self._args(op)
         if isinstance(arg, UnpackPackedField):
             return arg.args[0]
         if arg.resolved_type is types.GenericBitVector():
             arg, typ = self._extract_smallfixedbitvector(arg)
-            return self.newop("@pack_smallfixedbitvector", [MachineIntConstant(typ.width), arg], op.resolved_type, op.sourcepos)
+            return self.newop(
+                "@pack_smallfixedbitvector",
+                [MachineIntConstant(typ.width), arg],
+                op.resolved_type,
+                op.sourcepos,
+            )
         elif op.args[0].resolved_type is types.Int():
             arg = self._extract_machineint(arg)
-            return self.newop("@pack_machineint", [arg], op.resolved_type, op.sourcepos)
+            return self.newop(
+                "@pack_machineint", [arg], op.resolved_type, op.sourcepos
+            )
 
     def _optimize_UnpackPackedField(self, op, block, index):
-        arg, = self._args(op)
+        (arg,) = self._args(op)
         if not isinstance(op.args[0], FieldAccess):
-            if type(arg) is Operation and arg.name == "@pack_smallfixedbitvector":
-                return self.newcast(arg.args[1], op.resolved_type, op.sourcepos, op.varname_hint)
+            if (
+                type(arg) is Operation
+                and arg.name == "@pack_smallfixedbitvector"
+            ):
+                return self.newcast(
+                    arg.args[1],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
             if type(arg) is Operation and arg.name == "@pack_machineint":
-                return self.newop(INT64_TO_INT_NAME, [arg.args[0]], types.Int(), arg.sourcepos)
+                return self.newop(
+                    INT64_TO_INT_NAME,
+                    [arg.args[0]],
+                    types.Int(),
+                    arg.sourcepos,
+                )
             if isinstance(arg, PackPackedField):
                 return arg.args[0]
             if not isinstance(arg, Phi):
-                import pdb;pdb.set_trace()
+                import pdb
+
+                pdb.set_trace()
             else:
                 l = []
-                for prevvalue, prevblock in zip(arg.prevvalues, arg.prevblocks):
+                for prevvalue, prevblock in zip(
+                    arg.prevvalues, arg.prevblocks
+                ):
                     unpack = UnpackPackedField(prevvalue)
                     prevblock.operations.append(unpack)
                     l.append(unpack)
-                phi = self.newphi(
-                    arg.prevblocks,
-                    l,
-                    arg.resolved_type.typ)
+                phi = self.newphi(arg.prevblocks, l, arg.resolved_type.typ)
                 self.newoperations.pop()
                 self.newoperations.insert(0, phi)
                 return phi
 
-
     def _optimize_Operation(self, op, block, index):
-        if op.name in self.codegen.method_graphs_by_name and op.args[0].is_union_creation():
+        if (
+            op.name in self.codegen.method_graphs_by_name
+            and op.args[0].is_union_creation()
+        ):
             variants = self.codegen.method_graphs_by_name[op.name]
             if op.args[0].name in variants:
                 op.name = variants[op.args[0].name].name
         name = self._builtinname(op.name)
-        if name.lstrip('@') in supportcode.all_unwraps:
-            specs, unwrapped_name = supportcode.all_unwraps[name.lstrip('@')]
+        if name.lstrip("@") in supportcode.all_unwraps:
+            specs, unwrapped_name = supportcode.all_unwraps[name.lstrip("@")]
             # these are unconditional unwraps, just rewrite them right here
             assert len(specs) == len(op.args)
             newargs = []
@@ -2474,7 +2464,7 @@ class LocalOptimizer(BaseOptimizer):
         if not func:
             return
         if op.resolved_type is types.Real():
-            return # later
+            return  # later
         args = self._args(op)
         if name not in supportcode.purefunctions:
             return
@@ -2489,7 +2479,7 @@ class LocalOptimizer(BaseOptimizer):
         for arg in args:
             if isinstance(arg, IntConstant):
                 if not isinstance(arg.number, int):
-                    return None # XXX can be improved
+                    return None  # XXX can be improved
                 runtimeargs.append(bitvector.Integer.fromint(arg.number))
             elif isinstance(arg, MachineIntConstant):
                 runtimeargs.append(arg.number)
@@ -2498,7 +2488,7 @@ class LocalOptimizer(BaseOptimizer):
             elif isinstance(arg, GenericBitVectorConstant):
                 runtimeargs.append(arg.value)
             elif arg.resolved_type is types.Real():
-                return # later
+                return  # later
             elif arg.resolved_type is types.Unit():
                 runtimeargs.append(())
             elif arg.resolved_type is types.String():
@@ -2508,7 +2498,7 @@ class LocalOptimizer(BaseOptimizer):
         try:
             res = func("constfolding", *runtimeargs)
         except CantFold:
-            return None # silent
+            return None  # silent
         except (Exception, AssertionError) as e:
             print "generict const-folding failed", name, op, "with error", e, "arguments", args
             return None
@@ -2538,11 +2528,13 @@ class LocalOptimizer(BaseOptimizer):
                 pass
             elif isinstance(arg, Phi):
                 if phi_index != -1:
-                    #if arg in self.current_block.operations and args[phi_index] in self.current_block.operations:
+                    # if arg in self.current_block.operations and args[phi_index] in self.current_block.operations:
                     #    import pdb;pdb.set_trace()
-                    return # only one phi possible
+                    return  # only one phi possible
                 phi_index = index
-                if not all(isinstance(value, Constant) for value in arg.prevvalues):
+                if not all(
+                    isinstance(value, Constant) for value in arg.prevvalues
+                ):
                     return
             else:
                 return
@@ -2559,7 +2551,9 @@ class LocalOptimizer(BaseOptimizer):
             if not results:
                 first_comparison_key = res.comparison_key()
             else:
-                all_same = all_same and res.comparison_key() == first_comparison_key
+                all_same = (
+                    all_same and res.comparison_key() == first_comparison_key
+                )
             results.append(res)
         if len(results) == 1 or all_same:
             return results[0]
@@ -2586,11 +2580,11 @@ class LocalOptimizer(BaseOptimizer):
                     return correct_block
 
     def _optimize_GlobalWrite(self, op, block, index):
-        arg, = self._args(op)
+        (arg,) = self._args(op)
         # annoying pattern matching
         if not isinstance(arg, Cast):
             return
-        update_op, = self._args(arg)
+        (update_op,) = self._args(arg)
         if not isinstance(update_op, Operation):
             return
         if not update_op.name == "@vector_update_o_i_o":
@@ -2599,32 +2593,39 @@ class LocalOptimizer(BaseOptimizer):
         if update_list.resolved_type is types.GenericBitVector():
             return
         if not isinstance(update_list, Cast):
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
             return
-        update_list_cast, = self._args(update_list)
+        (update_list_cast,) = self._args(update_list)
         if not isinstance(update_list_cast, GlobalRead):
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
             return
         if update_list_cast.name != op.name:
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
             return
         # we read a list (from typically a register), update it, write it back.
         # that means we can do it inplace instead
         update_op.name = "@helper_vector_update_inplace_o_i_o"
         update_op.resolved_type = types.Unit()
-        return REMOVE # don't need the GlobalWrite any more
+        return REMOVE  # don't need the GlobalWrite any more
 
     def _optimize_VectorUpdate(self, op, block, index):
         update_list, index, element = self._args(op)
         if not isinstance(update_list, VectorInit):
             return
-        self.newop("@helper_vector_update_inplace_o_i_o",
+        self.newop(
+            "@helper_vector_update_inplace_o_i_o",
             [update_list, index, element],
             types.Unit(),
             op.sourcepos,
             op.varname_hint,
         )
-        return update_list # it's inplace, so the result is the same as the argument
+        return update_list  # it's inplace, so the result is the same as the argument
 
     def _optimize_Phi(self, op, block, index):
         if op.resolved_type is types.GenericBitVector():
@@ -2634,7 +2635,9 @@ class LocalOptimizer(BaseOptimizer):
                 if isinstance(arg, DefaultValue):
                     bvs.append(DefaultValue(None))
                 else:
-                    arg, typ = self._extract_smallfixedbitvector(self._get_op_replacement(arg))
+                    arg, typ = self._extract_smallfixedbitvector(
+                        self._get_op_replacement(arg)
+                    )
                     bvs.append(arg)
                     if seentyp is None:
                         seentyp = typ
@@ -2644,11 +2647,8 @@ class LocalOptimizer(BaseOptimizer):
                 if isinstance(arg, DefaultValue):
                     arg.resolved_type = seentyp
             return self.newcast(
-                self.newphi(
-                    op.prevblocks,
-                    bvs,
-                    seentyp),
-                types.GenericBitVector()
+                self.newphi(op.prevblocks, bvs, seentyp),
+                types.GenericBitVector(),
             )
         if op.resolved_type is types.Int():
             machineints = []
@@ -2658,13 +2658,16 @@ class LocalOptimizer(BaseOptimizer):
             if all(isinstance(arg, Constant) for arg in machineints):
                 return
             return self._make_int64_to_int(
-                self.newphi(
-                    op.prevblocks,
-                    machineints,
-                    types.MachineInt())
+                self.newphi(op.prevblocks, machineints, types.MachineInt())
             )
-        if isinstance(op.resolved_type, types.Struct) and op.resolved_type.tuplestruct:
-            if not all(isinstance(arg, (StructConstruction, DefaultValue)) for arg in op.prevvalues):
+        if (
+            isinstance(op.resolved_type, types.Struct)
+            and op.resolved_type.tuplestruct
+        ):
+            if not all(
+                isinstance(arg, (StructConstruction, DefaultValue))
+                for arg in op.prevvalues
+            ):
                 return
             fields = []
             for index, name in enumerate(op.resolved_type.names):
@@ -2675,12 +2678,10 @@ class LocalOptimizer(BaseOptimizer):
                         values.append(DefaultValue(fieldtyp))
                     else:
                         values.append(arg.args[index])
-                fields.append(self.newphi(
-                    op.prevblocks,
-                    values,
-                    fieldtyp
-                ))
-            res = StructConstruction(op.resolved_type.name, fields, op.resolved_type)
+                fields.append(self.newphi(op.prevblocks, values, fieldtyp))
+            res = StructConstruction(
+                op.resolved_type.name, fields, op.resolved_type
+            )
             self.newoperations.append(res)
             return res
         if isinstance(op.resolved_type, types.Union):
@@ -2693,19 +2694,22 @@ class LocalOptimizer(BaseOptimizer):
                 names.add(arg.name)
             if len(names) != 1:
                 return
-            variant, = names
+            (variant,) = names
             if variant not in op.resolved_type.variants:
                 return
             self._need_dead_code_removal = True
-            arg = self.newphi(op.prevblocks, [arg.args[0] for arg in op.prevvalues],
-                              op.prevvalues[0].args[0].resolved_type)
+            arg = self.newphi(
+                op.prevblocks,
+                [arg.args[0] for arg in op.prevvalues],
+                op.prevvalues[0].args[0].resolved_type,
+            )
             return self.newop(variant, [arg], op.resolved_type)
 
     def _optimize_NonSSAAssignment(self, op, block, index):
         return REMOVE
 
     def _optimize_UnionVariantCheck(self, op, block, index):
-        arg, = self._args(op)
+        (arg,) = self._args(op)
         if type(arg) is Operation:
             if arg.name == op.name:
                 return BooleanConstant.FALSE
@@ -2733,7 +2737,7 @@ class LocalOptimizer(BaseOptimizer):
         return None
 
     def _optimize_UnionCast(self, op, block, index):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         if arg0.is_union_creation() and arg0.name == op.name:
             assert len(arg0.args) == 1
             assert arg0.args[0].resolved_type == op.resolved_type
@@ -2741,24 +2745,31 @@ class LocalOptimizer(BaseOptimizer):
 
     def _optimize_StructCopy(self, op, block, index):
         from pydrofoil.emitfunction import count_uses
-        arg0, = self._args(op)
+
+        (arg0,) = self._args(op)
         if isinstance(arg0, UnionCast) and block.operations[index - 1] is arg0:
             # a unioncast just before the copy does not need copying again
             uses = count_uses(self.graph)
             if uses[arg0] == 1:
                 return arg0
         if isinstance(arg0, Phi):
-            if all(isinstance(arg, StructConstruction) for arg in arg0.prevvalues):
+            if all(
+                isinstance(arg, StructConstruction) for arg in arg0.prevvalues
+            ):
                 uses = count_uses(self.graph)
-                if op.resolved_type.tuplestruct or all(uses[arg] == 1 for arg in arg0.prevvalues):
+                if op.resolved_type.tuplestruct or all(
+                    uses[arg] == 1 for arg in arg0.prevvalues
+                ):
                     return arg0
 
     def _optimize_StructConstruction(self, op, block, index):
         args = self._args(op)
-        if op.resolved_type.tuplestruct and all(isinstance(arg, FieldAccess) for arg in args):
+        if op.resolved_type.tuplestruct and all(
+            isinstance(arg, FieldAccess) for arg in args
+        ):
             fieldreadargs = {arg.args[0] for arg in args}
             if len(fieldreadargs) == 1:
-                res, = fieldreadargs
+                (res,) = fieldreadargs
                 if res.resolved_type == op.resolved_type:
                     return res
 
@@ -2768,27 +2779,43 @@ class LocalOptimizer(BaseOptimizer):
         arg1 = Cast(arg1, typ)
         self.newoperations.append(arg1)
         return self.newop(
-            "@eq_bits_bv_bv", [arg0, arg1], op.resolved_type, op.sourcepos,
-            op.varname_hint)
+            "@eq_bits_bv_bv",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
 
     @symmetric
     def optimize_neq_bits(self, op, arg0, arg1):
         return self.newop(
-            "@not", [self.newop(
-                "@eq_bits",
-                [arg0, arg1], op.resolved_type, op.sourcepos, op.varname_hint
-            )],
-            op.resolved_type
+            "@not",
+            [
+                self.newop(
+                    "@eq_bits",
+                    [arg0, arg1],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            ],
+            op.resolved_type,
         )
 
     @symmetric
     def optimize_neq(self, op, arg0, arg1):
         return self.newop(
-            "@not", [self.newop(
-                "@eq",
-                [arg0, arg1], op.resolved_type, op.sourcepos, op.varname_hint
-            )],
-            op.resolved_type
+            "@not",
+            [
+                self.newop(
+                    "@eq",
+                    [arg0, arg1],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            ],
+            op.resolved_type,
         )
 
     def optimize_int64_to_int(self, op):
@@ -2816,7 +2843,8 @@ class LocalOptimizer(BaseOptimizer):
                 [arg0.args[0]],
                 op.resolved_type,
                 op.sourcepos,
-                op.varname_hint)
+                op.varname_hint,
+            )
 
         if (
             not isinstance(arg0, Operation)
@@ -2829,14 +2857,22 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_eq_int(self, op, arg0, arg1):
         arg1 = self._extract_machineint(arg1)
         return self.newop(
-            "@eq_int_o_i", [arg0, arg1], op.resolved_type, op.sourcepos, op.varname_hint
+            "@eq_int_o_i",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
         )
 
     def optimize_eq_int_o_i(self, op):
         arg0, arg1 = self._args(op)
         arg0 = self._extract_machineint(arg0)
         return self.newop(
-            "@eq", [arg0, arg1], op.resolved_type, op.sourcepos, op.varname_hint
+            "@eq",
+            [arg0, arg1],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
         )
 
     def optimize_lt(self, op):
@@ -2852,19 +2888,28 @@ class LocalOptimizer(BaseOptimizer):
                 return BooleanConstant.FALSE
         if arg0.resolved_type is not types.Int():
             try:
-                arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+                arg0, arg1 = self._extract_number(arg0), self._extract_number(
+                    arg1
+                )
             except NoMatchException:
                 pass
             else:
                 return BooleanConstant.frombool(arg0.number < arg1.number)
         else:
             try:
-                arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
+                arg0, arg1 = self._extract_machineint(
+                    arg0
+                ), self._extract_machineint(arg1)
             except NoMatchException:
                 pass
             else:
-                return self.newop("@lt", [arg0, arg1], op.resolved_type, op.sourcepos,
-                                  op.varname_hint)
+                return self.newop(
+                    "@lt",
+                    [arg0, arg1],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
         return self._cmp_generic_optimization(op, arg0, arg1)
 
     def optimize_gt(self, op):
@@ -2873,38 +2918,64 @@ class LocalOptimizer(BaseOptimizer):
             return BooleanConstant.FALSE
         if arg0.resolved_type is not types.Int():
             try:
-                arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+                arg0, arg1 = self._extract_number(arg0), self._extract_number(
+                    arg1
+                )
             except NoMatchException:
                 pass
             else:
                 return BooleanConstant.frombool(arg0.number > arg1.number)
         else:
             try:
-                arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
+                arg0, arg1 = self._extract_machineint(
+                    arg0
+                ), self._extract_machineint(arg1)
             except NoMatchException:
                 pass
             else:
-                return self.newop("@gt", [arg0, arg1], op.resolved_type, op.sourcepos,
-                                  op.varname_hint)
+                return self.newop(
+                    "@gt",
+                    [arg0, arg1],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
         return self._cmp_generic_optimization(op, arg0, arg1)
 
     def _cmp_generic_optimization(self, op, arg0, arg1):
         assert arg0.resolved_type is arg1.resolved_type
         if arg0.resolved_type is not types.MachineInt():
-            if (isinstance(arg0, Operation) and arg0.name == "@unsigned_bv_wrapped_res"
-                    and isinstance(arg1, Operation) and arg1.name == "@unsigned_bv_wrapped_res"):
-                newname = "@" + self._builtinname(op.name).lstrip("@") + "_unsigned64"
-                return self.newop(newname, [arg0.args[0],
-                                            arg1.args[0]],
-                                  op.resolved_type,
-                                  op.sourcepos,
-                                  op.varname_hint)
-        add_components, sub_components, constant, useful = self._add_sub_extract_components(arg0, arg1)
+            if (
+                isinstance(arg0, Operation)
+                and arg0.name == "@unsigned_bv_wrapped_res"
+                and isinstance(arg1, Operation)
+                and arg1.name == "@unsigned_bv_wrapped_res"
+            ):
+                newname = (
+                    "@"
+                    + self._builtinname(op.name).lstrip("@")
+                    + "_unsigned64"
+                )
+                return self.newop(
+                    newname,
+                    [arg0.args[0], arg1.args[0]],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+        (
+            add_components,
+            sub_components,
+            constant,
+            useful,
+        ) = self._add_sub_extract_components(arg0, arg1)
         if useful:
-            if len(add_components) + len(sub_components) <= 1 and isinstance(constant, int):
+            if len(add_components) + len(sub_components) <= 1 and isinstance(
+                constant, int
+            ):
                 if sub_components:
                     assert not add_components
-                    rhs, = sub_components
+                    (rhs,) = sub_components
                     if rhs.resolved_type is types.MachineInt():
                         lhs = MachineIntConstant(constant)
                     else:
@@ -2912,7 +2983,7 @@ class LocalOptimizer(BaseOptimizer):
                         lhs = IntConstant(constant)
                 elif add_components:
                     assert not sub_components
-                    lhs, = add_components
+                    (lhs,) = add_components
                     if lhs.resolved_type is types.MachineInt():
                         rhs = MachineIntConstant(-constant)
                     else:
@@ -2923,14 +2994,17 @@ class LocalOptimizer(BaseOptimizer):
                     rhs = MachineIntConstant(0)
                 assert rhs.resolved_type is lhs.resolved_type
                 name = op.name
-                if rhs.resolved_type is types.MachineInt() and not name.startswith("@"):
+                if (
+                    rhs.resolved_type is types.MachineInt()
+                    and not name.startswith("@")
+                ):
                     name = "@" + self._builtinname(name)
                 return self.newop(
                     name,
                     [lhs, rhs],
                     op.resolved_type,
                     op.sourcepos,
-                    op.varname_hint
+                    op.varname_hint,
                 )
 
     def optimize_lteq(self, op):
@@ -2939,29 +3013,41 @@ class LocalOptimizer(BaseOptimizer):
             return BooleanConstant.TRUE
         if arg0.resolved_type is not types.Int():
             try:
-                arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+                arg0, arg1 = self._extract_number(arg0), self._extract_number(
+                    arg1
+                )
             except NoMatchException:
                 pass
             else:
                 return BooleanConstant.frombool(arg0.number <= arg1.number)
         else:
-            if (isinstance(arg0, Operation) and
-                    arg0.name == "@add_unsigned_bv64_unsigned_bv64_wrapped_res" and
-                    isinstance(arg1, Operation) and
-                    arg1.name == "@add_unsigned_bv64_unsigned_bv64_wrapped_res"):
+            if (
+                isinstance(arg0, Operation)
+                and arg0.name == "@add_unsigned_bv64_unsigned_bv64_wrapped_res"
+                and isinstance(arg1, Operation)
+                and arg1.name == "@add_unsigned_bv64_unsigned_bv64_wrapped_res"
+            ):
                 return self.newop(
                     "@lteq_add4_unsigned_bv64",
                     arg0.args + arg1.args,
                     types.Bool(),
                     op.sourcepos,
-                    op.varname_hint)
+                    op.varname_hint,
+                )
             try:
-                arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
+                arg0, arg1 = self._extract_machineint(
+                    arg0
+                ), self._extract_machineint(arg1)
             except NoMatchException:
                 pass
             else:
-                return self.newop("@lteq", [arg0, arg1], op.resolved_type, op.sourcepos,
-                                  op.varname_hint)
+                return self.newop(
+                    "@lteq",
+                    [arg0, arg1],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
         return self._cmp_generic_optimization(op, arg0, arg1)
 
     def optimize_gteq(self, op):
@@ -2970,19 +3056,28 @@ class LocalOptimizer(BaseOptimizer):
             return BooleanConstant.TRUE
         if arg0.resolved_type is not types.Int():
             try:
-                arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+                arg0, arg1 = self._extract_number(arg0), self._extract_number(
+                    arg1
+                )
             except NoMatchException:
                 pass
             else:
                 return BooleanConstant.frombool(arg0.number >= arg1.number)
         else:
             try:
-                arg0, arg1 = self._extract_machineint(arg0), self._extract_machineint(arg1)
+                arg0, arg1 = self._extract_machineint(
+                    arg0
+                ), self._extract_machineint(arg1)
             except NoMatchException:
                 pass
             else:
-                return self.newop("@gteq", [arg0, arg1], op.resolved_type, op.sourcepos,
-                                  op.varname_hint)
+                return self.newop(
+                    "@gteq",
+                    [arg0, arg1],
+                    op.resolved_type,
+                    op.sourcepos,
+                    op.varname_hint,
+                )
         return self._cmp_generic_optimization(op, arg0, arg1)
 
     def optimize_vector_subrange_o_i_i(self, op):
@@ -3021,8 +3116,17 @@ class LocalOptimizer(BaseOptimizer):
                 res,
                 op.resolved_type,
             )
-        add_components, sub_components, constant, useful = self._add_sub_extract_components(arg1, arg2)
-        if not add_components and not sub_components and isinstance(constant, int):
+        (
+            add_components,
+            sub_components,
+            constant,
+            useful,
+        ) = self._add_sub_extract_components(arg1, arg2)
+        if (
+            not add_components
+            and not sub_components
+            and isinstance(constant, int)
+        ):
             return self.newop(
                 "@slice_o_i_i",
                 [arg0, arg2, MachineIntConstant(constant + 1)],
@@ -3031,16 +3135,15 @@ class LocalOptimizer(BaseOptimizer):
                 op.varname_hint,
             )
 
-
     def optimize_vector_subrange_o_i_i_unwrapped_res(self, op):
         arg0, arg1, arg2 = self._args(op)
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         return self.newop(
-             "@vector_subrange_fixed_bv_i_i",
-             [arg0, arg1, arg2],
-             op.resolved_type,
-             op.sourcepos,
-             op.varname_hint,
+            "@vector_subrange_fixed_bv_i_i",
+            [arg0, arg1, arg2],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
         )
 
     def optimize_vector_access_o_i(self, op):
@@ -3092,19 +3195,30 @@ class LocalOptimizer(BaseOptimizer):
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         arg1 = self.newcast(arg1, typ0)
         return self.newcast(
-            self.newop("@or_vec_bv_bv", [arg0, arg1], typ0, op.sourcepos, op.varname_hint),
+            self.newop(
+                "@or_vec_bv_bv",
+                [arg0, arg1],
+                typ0,
+                op.sourcepos,
+                op.varname_hint,
+            ),
             op.resolved_type,
         )
 
     def optimize_not_bits(self, op):
         (arg0,) = self._args(op)
         if isinstance(arg0, Operation) and arg0.name == "@zeros_i":
-            return self.newop("@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos)
+            return self.newop(
+                "@ones_i", [arg0.args[0]], arg0.resolved_type, arg0.sourcepos
+            )
         arg0, typ0 = self._extract_smallfixedbitvector(arg0)
 
         return self.newcast(
             self.newop(
-                "@not_vec_bv", [arg0, MachineIntConstant(typ0.width)], typ0, op.sourcepos
+                "@not_vec_bv",
+                [arg0, MachineIntConstant(typ0.width)],
+                typ0,
+                op.sourcepos,
             ),
             op.resolved_type,
             op.varname_hint,
@@ -3163,7 +3277,7 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_bitvector_concat_bv_gbv_wrapped_res(self, op):
         arg0, arg1, arg2 = self._args(op)
         if isinstance(arg2, Operation) and arg2.name == "@zeros_i":
-            subarg0, = self._args(arg2)
+            (subarg0,) = self._args(arg2)
             if not isinstance(subarg0, Constant):
                 return self.newop(
                     "@bitvector_concat_bv_n_zeros_wrapped_res",
@@ -3195,8 +3309,12 @@ class LocalOptimizer(BaseOptimizer):
 
         # super specific for arm
         typ0 = None
-        if (self.graph.has_loop and isinstance(arg0, Phi) and
-                len(arg0.prevvalues) == 2 and op in arg0.prevvalues):
+        if (
+            self.graph.has_loop
+            and isinstance(arg0, Phi)
+            and len(arg0.prevvalues) == 2
+            and op in arg0.prevvalues
+        ):
             index = 1 - arg0.prevvalues.index(op)
             init = arg0.prevvalues[index]
             try:
@@ -3210,13 +3328,11 @@ class LocalOptimizer(BaseOptimizer):
         res = self.newop(
             "@vector_update_subrange_fixed_bv_i_i_bv",
             [arg0, arg1, arg2, arg3],
-            typ0, op.sourcepos,
+            typ0,
+            op.sourcepos,
             op.varname_hint,
         )
-        return self.newcast(
-            res,
-            types.GenericBitVector()
-        )
+        return self.newcast(res, types.GenericBitVector())
 
     def optimize_slice_o_i_i(self, op):
         arg0, arg1, arg2 = self._args(op)
@@ -3268,18 +3384,25 @@ class LocalOptimizer(BaseOptimizer):
         _, typ = self._extract_smallfixedbitvector(arg4)
         return self.newop(
             "@vector_update_subrange_o_i_i_o",
-            [arg2, MachineIntConstant(start.number + typ.width - 1), start, arg4],
+            [
+                arg2,
+                MachineIntConstant(start.number + typ.width - 1),
+                start,
+                arg4,
+            ],
             op.resolved_type,
             op.sourcepos,
             op.varname_hint,
         )
 
     def optimize_zeros_i(self, op):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         arg0 = self._extract_number(arg0)
         if arg0.number > 64 or arg0.number < 1:
             return
-        resconst = SmallBitVectorConstant(0, types.SmallFixedBitVector(arg0.number))
+        resconst = SmallBitVectorConstant(
+            0, types.SmallFixedBitVector(arg0.number)
+        )
         res = self.newcast(
             resconst,
             op.resolved_type,
@@ -3344,8 +3467,8 @@ class LocalOptimizer(BaseOptimizer):
         try:
             arg0, typ0 = self._extract_smallfixedbitvector(arg0)
         except NoMatchException:
-            if isinstance(arg0, Operation) and arg0.name == '@ones_i':
-                arg0arg0, = self._args(arg0)
+            if isinstance(arg0, Operation) and arg0.name == "@ones_i":
+                (arg0arg0,) = self._args(arg0)
                 return self.newop(
                     "@ones_zero_extended_unwrapped_res",
                     [arg0arg0, arg1],
@@ -3408,21 +3531,44 @@ class LocalOptimizer(BaseOptimizer):
             op.resolved_type,
         )
 
-    ADD_OPS = {"add_int", "@add_o_i_wrapped_res", "@add_i_i_wrapped_res", "@add_i_i_must_fit"}
-    SUB_OPS = {"sub_int", "@sub_o_i_wrapped_res", "@sub_i_o_wrapped_res", "@sub_i_i_wrapped_res", "@sub_i_i_must_fit"}
+    ADD_OPS = {
+        "add_int",
+        "@add_o_i_wrapped_res",
+        "@add_i_i_wrapped_res",
+        "@add_i_i_must_fit",
+    }
+    SUB_OPS = {
+        "sub_int",
+        "@sub_o_i_wrapped_res",
+        "@sub_i_o_wrapped_res",
+        "@sub_i_i_wrapped_res",
+        "@sub_i_i_must_fit",
+    }
 
     def _add_sub_opt_reduce_additions(self, components):
         while len(components) > 1:
             arg1, arg0 = components.pop(), components.pop()
-            if arg0.resolved_type is types.MachineInt() and arg1.resolved_type is types.MachineInt():
+            if (
+                arg0.resolved_type is types.MachineInt()
+                and arg1.resolved_type is types.MachineInt()
+            ):
                 opname = "@add_i_i_wrapped_res"
-            elif arg0.resolved_type is types.MachineInt() and arg1.resolved_type is types.Int():
+            elif (
+                arg0.resolved_type is types.MachineInt()
+                and arg1.resolved_type is types.Int()
+            ):
                 opname = "@add_o_i_wrapped_res"
                 arg0, arg1 = arg1, arg0
-            elif arg0.resolved_type is types.Int() and arg1.resolved_type is types.MachineInt():
+            elif (
+                arg0.resolved_type is types.Int()
+                and arg1.resolved_type is types.MachineInt()
+            ):
                 opname = "@add_o_i_wrapped_res"
             else:
-                assert arg0.resolved_type is types.Int() and arg1.resolved_type is types.Int()
+                assert (
+                    arg0.resolved_type is types.Int()
+                    and arg1.resolved_type is types.Int()
+                )
                 name = "@add_int"
             newop = self.newop(opname, [arg0, arg1], types.Int())
             components.append(newop)
@@ -3443,7 +3589,9 @@ class LocalOptimizer(BaseOptimizer):
                 else:
                     constant += val.number * polarity
                     useful += 1
-            elif type(val) is Operation and (val.name in self.ADD_OPS or val.name in self.SUB_OPS):
+            elif type(val) is Operation and (
+                val.name in self.ADD_OPS or val.name in self.SUB_OPS
+            ):
                 arg0, arg1 = self._args(val)
                 todo.append((arg0, polarity))
                 if val.name in self.SUB_OPS:
@@ -3472,16 +3620,28 @@ class LocalOptimizer(BaseOptimizer):
                 useful += 1
                 continue
             index += 1
-        return add_components, sub_components, int(constant) if constant is not None else None, useful
+        return (
+            add_components,
+            sub_components,
+            int(constant) if constant is not None else None,
+            useful,
+        )
 
     def _general_add_sub_opt(self, op):
         name = self._builtinname(op.name)
         assert name in self.ADD_OPS or name in self.SUB_OPS
-        add_components, sub_components, constant, useful = self._add_sub_extract_components(op)
+        (
+            add_components,
+            sub_components,
+            constant,
+            useful,
+        ) = self._add_sub_extract_components(op)
         if not useful:
             return None
         if useful > 4:
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
         # now we need to reconstruct the result
         if constant:
@@ -3495,18 +3655,30 @@ class LocalOptimizer(BaseOptimizer):
         if not add_components:
             res = MachineIntConstant(0)
         else:
-            res, = add_components
+            (res,) = add_components
         if sub_components:
             arg0 = res
-            arg1, = sub_components
-            if arg0.resolved_type is types.MachineInt() and arg1.resolved_type is types.MachineInt():
+            (arg1,) = sub_components
+            if (
+                arg0.resolved_type is types.MachineInt()
+                and arg1.resolved_type is types.MachineInt()
+            ):
                 opname = "@sub_i_i_wrapped_res"
-            elif arg0.resolved_type is types.MachineInt() and arg1.resolved_type is types.Int():
+            elif (
+                arg0.resolved_type is types.MachineInt()
+                and arg1.resolved_type is types.Int()
+            ):
                 opname = "@sub_i_o_wrapped_res"
-            elif arg0.resolved_type is types.Int() and arg1.resolved_type is types.MachineInt():
+            elif (
+                arg0.resolved_type is types.Int()
+                and arg1.resolved_type is types.MachineInt()
+            ):
                 opname = "@sub_o_i_wrapped_res"
             else:
-                assert arg0.resolved_type is types.Int() and arg1.resolved_type is types.Int()
+                assert (
+                    arg0.resolved_type is types.Int()
+                    and arg1.resolved_type is types.Int()
+                )
                 name = "@sub_int"
             res = self.newop(opname, [arg0, arg1], types.Int())
         if res.resolved_type != op.resolved_type:
@@ -3516,32 +3688,34 @@ class LocalOptimizer(BaseOptimizer):
                 if res.name == "@add_i_i_wrapped_res":
                     self._need_dead_code_removal = True
                     return self.newop(
-                        "@add_i_i_must_fit",
-                        res.args[:],
-                        op.resolved_type
+                        "@add_i_i_must_fit", res.args[:], op.resolved_type
                     )
                 elif res.name == "@sub_i_i_wrapped_res":
                     self._need_dead_code_removal = True
                     return self.newop(
-                        "@sub_i_i_must_fit",
-                        res.args[:],
-                        op.resolved_type
+                        "@sub_i_i_must_fit", res.args[:], op.resolved_type
                     )
                 return self._make_int_to_int64(res)
         return res
 
     def _extract_unsigned_bv64(self, value):
-        if (isinstance(value, Operation) and
-                value.name == "@unsigned_bv_wrapped_res" and
-                isinstance(value.args[1], MachineIntConstant) and
-                value.args[1].number == 64):
+        if (
+            isinstance(value, Operation)
+            and value.name == "@unsigned_bv_wrapped_res"
+            and isinstance(value.args[1], MachineIntConstant)
+            and value.args[1].number == 64
+        ):
             return value.args[0]
         elif isinstance(value, IntConstant):
             if 0 <= value.number < 2 ** 64:
-                return SmallBitVectorConstant(r_uint(value.number), types.SmallFixedBitVector(64))
+                return SmallBitVectorConstant(
+                    r_uint(value.number), types.SmallFixedBitVector(64)
+                )
         elif isinstance(value, MachineIntConstant):
             if value.number >= 0:
-                return SmallBitVectorConstant(r_uint(value.number), types.SmallFixedBitVector(64))
+                return SmallBitVectorConstant(
+                    r_uint(value.number), types.SmallFixedBitVector(64)
+                )
         raise NoMatchException
 
     @symmetric
@@ -3552,9 +3726,13 @@ class LocalOptimizer(BaseOptimizer):
         except NoMatchException:
             pass
         else:
-            return self.newop("@add_unsigned_bv64_unsigned_bv64_wrapped_res",
-                              [bvarg0, bvarg1],
-                              op.resolved_type, op.sourcepos, op.varname_hint)
+            return self.newop(
+                "@add_unsigned_bv64_unsigned_bv64_wrapped_res",
+                [bvarg0, bvarg1],
+                op.resolved_type,
+                op.sourcepos,
+                op.varname_hint,
+            )
 
         res = self._general_add_sub_opt(op)
         if res is not None:
@@ -3579,9 +3757,13 @@ class LocalOptimizer(BaseOptimizer):
         except NoMatchException:
             pass
         else:
-            return self.newop("@add_unsigned_bv64_unsigned_bv64_wrapped_res",
-                              [bvarg0, bvarg1],
-                              op.resolved_type, op.sourcepos, op.varname_hint)
+            return self.newop(
+                "@add_unsigned_bv64_unsigned_bv64_wrapped_res",
+                [bvarg0, bvarg1],
+                op.resolved_type,
+                op.sourcepos,
+                op.varname_hint,
+            )
         num0 = num1 = None
         try:
             num1 = self._extract_number(arg1)
@@ -3592,11 +3774,17 @@ class LocalOptimizer(BaseOptimizer):
                 return arg0
             if isinstance(arg0, Operation):
                 # (a - b) + b == a
-                if (arg0.name == "@sub_i_i_wrapped_res" and
-                    self._args(arg0)[1] == num1):
-                    return self._make_int64_to_int(self._args(arg0)[0], op.sourcepos)
-                if (arg0.name == "@sub_o_i_wrapped_res" and
-                    self._args(arg0)[1] == num1):
+                if (
+                    arg0.name == "@sub_i_i_wrapped_res"
+                    and self._args(arg0)[1] == num1
+                ):
+                    return self._make_int64_to_int(
+                        self._args(arg0)[0], op.sourcepos
+                    )
+                if (
+                    arg0.name == "@sub_o_i_wrapped_res"
+                    and self._args(arg0)[1] == num1
+                ):
                     return self._args(arg0)[0]
         arg0 = self._extract_machineint(arg0)
 
@@ -3618,8 +3806,13 @@ class LocalOptimizer(BaseOptimizer):
         except NoMatchException:
             if self._should_fit_machine_int(op):
                 return self._make_int64_to_int(
-                    self.newop("@add_i_i_must_fit", op.args, types.MachineInt(),
-                               op.sourcepos, op.varname_hint)
+                    self.newop(
+                        "@add_i_i_must_fit",
+                        op.args,
+                        types.MachineInt(),
+                        op.sourcepos,
+                        op.varname_hint,
+                    )
                 )
         else:
             if arg1.number == 0:
@@ -3658,7 +3851,7 @@ class LocalOptimizer(BaseOptimizer):
             [arg0, arg1],
             op.resolved_type,
             op.sourcepos,
-            op.varname_hint
+            op.varname_hint,
         )
 
     def optimize_sub_o_i_wrapped_res(self, op):
@@ -3702,8 +3895,13 @@ class LocalOptimizer(BaseOptimizer):
             return res
         if self._should_fit_machine_int(op):
             return self._make_int64_to_int(
-                self.newop("@sub_i_i_must_fit", op.args, types.MachineInt(),
-                           op.sourcepos, op.varname_hint)
+                self.newop(
+                    "@sub_i_i_must_fit",
+                    op.args,
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
             )
         arg0, arg1 = self._args(op)
         try:
@@ -3724,14 +3922,14 @@ class LocalOptimizer(BaseOptimizer):
             return arg0
 
     def optimize_neg_int(self, op):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         arg0 = self._extract_machineint(arg0)
         return self.newop(
             "@sub_i_i_wrapped_res",
             [MachineIntConstant(0), arg0],
             op.resolved_type,
             op.sourcepos,
-            op.varname_hint
+            op.varname_hint,
         )
 
     @symmetric
@@ -3807,8 +4005,13 @@ class LocalOptimizer(BaseOptimizer):
                 )
         if self._should_fit_machine_int(op):
             return self._make_int64_to_int(
-                self.newop("@mult_i_i_must_fit", op.args, types.MachineInt(),
-                           op.sourcepos, op.varname_hint)
+                self.newop(
+                    "@mult_i_i_must_fit",
+                    op.args,
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
             )
 
     @symmetric
@@ -3872,24 +4075,28 @@ class LocalOptimizer(BaseOptimizer):
     def optimize_shl_int_i_i_wrapped_res(self, op):
         if self._should_fit_machine_int(op):
             arg0, arg1 = self._args(op)
-            return self._make_int64_to_int(self.newop(
-                "@shl_int_i_i_must_fit",
-                [arg0, arg1],
-                types.MachineInt(),
-                op.sourcepos,
-                op.varname_hint,
-            ))
+            return self._make_int64_to_int(
+                self.newop(
+                    "@shl_int_i_i_must_fit",
+                    [arg0, arg1],
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            )
 
     def optimize_pow2_i(self, op):
         if self._should_fit_machine_int(op):
-            arg0, = self._args(op)
-            return self._make_int64_to_int(self.newop(
-                "@shl_int_i_i_must_fit",
-                [MachineIntConstant(1), arg0],
-                types.MachineInt(),
-                op.sourcepos,
-                op.varname_hint,
-            ))
+            (arg0,) = self._args(op)
+            return self._make_int64_to_int(
+                self.newop(
+                    "@shl_int_i_i_must_fit",
+                    [MachineIntConstant(1), arg0],
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            )
 
     def optimize_tdiv_int(self, op):
         arg0, arg1 = self._args(op)
@@ -3903,17 +4110,23 @@ class LocalOptimizer(BaseOptimizer):
         else:
             if arg0.number >= 0 and arg1.number > 0:
                 return IntConstant(arg0.number // arg1.number)
-        if isinstance(arg0, Operation) and arg0.name == "@unsigned_bv_wrapped_res":
+        if (
+            isinstance(arg0, Operation)
+            and arg0.name == "@unsigned_bv_wrapped_res"
+        ):
             if arg1.number >= 2 and is_pow_2(arg1.number):
                 shift = shift_amount(arg1.number)
                 return self._make_int64_to_int(
                     self.newop(
                         "@unsigned_bv64_rshift_int_result",
-                        [self._get_op_replacement(arg0.args[0]), MachineIntConstant(shift)],
-                        types.MachineInt()
+                        [
+                            self._get_op_replacement(arg0.args[0]),
+                            MachineIntConstant(shift),
+                        ],
+                        types.MachineInt(),
                     )
                 )
-            #import pdb;pdb.set_trace()
+            # import pdb;pdb.set_trace()
         if arg1.number not in (0, -1) and isinstance(arg1.number, int):
             arg0 = self._extract_machineint(arg0)
             return self._make_int64_to_int(
@@ -3979,13 +4192,19 @@ class LocalOptimizer(BaseOptimizer):
         arg2 = self._extract_number(arg2)
         if arg2.number != 0:
             return
-        if not isinstance(arg1, Operation) or arg1.name != "@shl_int_i_i_wrapped_res":
+        if (
+            not isinstance(arg1, Operation)
+            or arg1.name != "@shl_int_i_i_wrapped_res"
+        ):
             return
         lshift_arg0, lshift_arg1 = self._args(arg1)
         lshift_arg1 = self._extract_number(lshift_arg1)
         if lshift_arg1.number <= 0:
             return
-        if not isinstance(lshift_arg0, Operation) or lshift_arg0.name != "@unsigned_bv64_rshift_int_result":
+        if (
+            not isinstance(lshift_arg0, Operation)
+            or lshift_arg0.name != "@unsigned_bv64_rshift_int_result"
+        ):
             return
         address, shift = self._args(lshift_arg0)
         shift = self._extract_number(shift)
@@ -3995,7 +4214,10 @@ class LocalOptimizer(BaseOptimizer):
         assert op.resolved_type is types.SmallFixedBitVector(64)
         return self.newop(
             "@and_vec_bv_bv",
-            [address, SmallBitVectorConstant(mask, types.SmallFixedBitVector(64))],
+            [
+                address,
+                SmallBitVectorConstant(mask, types.SmallFixedBitVector(64)),
+            ],
             op.resolved_type,
             op.sourcepos,
             op.varname_hint,
@@ -4032,7 +4254,6 @@ class LocalOptimizer(BaseOptimizer):
             ),
             op.resolved_type,
         )
-
 
     def optimize_shiftl_o_i(self, op):
         arg0, arg1 = self._args(op)
@@ -4080,29 +4301,25 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_shift_bits_left(self, op):
         arg0, arg1 = self._args(op)
-        intarg1 = self.newop(
-            "@sail_unsigned",
-            [arg1],
-            types.Int())
+        intarg1 = self.newop("@sail_unsigned", [arg1], types.Int())
         return self.newop(
             "@shiftl",
             [arg0, intarg1],
             op.resolved_type,
             op.sourcepos,
-            op.varname_hint)
+            op.varname_hint,
+        )
 
     def optimize_shift_bits_right(self, op):
         arg0, arg1 = self._args(op)
-        intarg1 = self.newop(
-            "@sail_unsigned",
-            [arg1],
-            types.Int())
+        intarg1 = self.newop("@sail_unsigned", [arg1], types.Int())
         return self.newop(
             "@shiftr",
             [arg0, intarg1],
             op.resolved_type,
             op.sourcepos,
-            op.varname_hint)
+            op.varname_hint,
+        )
 
     def optimize_arith_shiftr_o_i(self, op):
         arg0, arg1 = self._args(op)
@@ -4127,41 +4344,44 @@ class LocalOptimizer(BaseOptimizer):
         )
 
     def optimize_length(self, op):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         if isinstance(op.args[0].resolved_type, types.Vec):
             res = self.newop(
-                    "@vec_length_unwrapped_res",
-                    [arg0],
-                    types.MachineInt(),
-                    op.sourcepos,
-                    op.varname_hint,
-            )
-            return self._make_int64_to_int(res, op.sourcepos)
-        res = self.newop(
-                "@length_unwrapped_res",
+                "@vec_length_unwrapped_res",
                 [arg0],
                 types.MachineInt(),
                 op.sourcepos,
                 op.varname_hint,
+            )
+            return self._make_int64_to_int(res, op.sourcepos)
+        res = self.newop(
+            "@length_unwrapped_res",
+            [arg0],
+            types.MachineInt(),
+            op.sourcepos,
+            op.varname_hint,
         )
         return self._make_int64_to_int(res, op.sourcepos)
 
     def optimize_length_unwrapped_res(self, op):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         if isinstance(arg0, Cast):
-            arg0arg0, = self._args(arg0)
+            (arg0arg0,) = self._args(arg0)
             realtyp = arg0arg0.resolved_type
-            if isinstance(realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)):
+            if isinstance(
+                realtyp, (types.SmallFixedBitVector, types.BigFixedBitVector)
+            ):
                 return MachineIntConstant(realtyp.width)
 
-
     def optimize_undefined_bitvector_i(self, op):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         num = self._extract_number(arg0)
         if num.number > 64:
             return
         return self.newcast(
-            SmallBitVectorConstant(0 * num.number, types.SmallFixedBitVector(num.number)),
+            SmallBitVectorConstant(
+                0 * num.number, types.SmallFixedBitVector(num.number)
+            ),
             op.resolved_type,
             op.sourcepos,
             op.varname_hint,
@@ -4180,7 +4400,7 @@ class LocalOptimizer(BaseOptimizer):
                 [arg0, num],
                 types.SmallFixedBitVector(num.number),
                 op.sourcepos,
-                op.varname_hint
+                op.varname_hint,
             )
         else:
             if typ.width < num.number:
@@ -4193,13 +4413,16 @@ class LocalOptimizer(BaseOptimizer):
                     [arg0, num],
                     types.SmallFixedBitVector(num.number),
                     op.sourcepos,
-                    op.varname_hint
+                    op.varname_hint,
                 )
         return self.newcast(newop, op.resolved_type)
 
     def optimize_truncate_unwrapped_res(self, op):
         arg0, arg1 = self._args(op)
-        if not isinstance(arg0, Operation) or not arg0.name == '@bitvector_concat_bv_gbv_wrapped_res':
+        if (
+            not isinstance(arg0, Operation)
+            or not arg0.name == "@bitvector_concat_bv_gbv_wrapped_res"
+        ):
             return
         arg1 = self._extract_number(arg1)
         if arg1.number > 64:
@@ -4213,13 +4436,16 @@ class LocalOptimizer(BaseOptimizer):
                 arg0.sourcepos,
                 arg0.varname_hint,
             ),
-            op.resolved_type
+            op.resolved_type,
         )
 
     def optimize_bitvector_concat_bv_gbv_truncate_to(self, op):
         # very cheriot-specific :`-)
         arg0, arg1, arg2, arg3 = self._args(op)
-        if not isinstance(arg2, Operation) or not arg2.name == '@bitvector_concat_bv_n_zeros_wrapped_res':
+        if (
+            not isinstance(arg2, Operation)
+            or not arg2.name == "@bitvector_concat_bv_n_zeros_wrapped_res"
+        ):
             return
         subarg0, subarg1, subarg2 = self._args(arg2)
         return self.newop(
@@ -4227,7 +4453,7 @@ class LocalOptimizer(BaseOptimizer):
             [arg0, arg1, subarg0, subarg1, subarg2, arg3],
             op.resolved_type,
             op.sourcepos,
-            op.varname_hint
+            op.varname_hint,
         )
 
     @symmetric
@@ -4238,37 +4464,33 @@ class LocalOptimizer(BaseOptimizer):
             return arg1
         else:
             return self.newop(
-                "@not",
-                [arg1],
-                types.Bool(),
-                op.sourcepos,
-                op.varname_hint
+                "@not", [arg1], types.Bool(), op.sourcepos, op.varname_hint
             )
 
     def optimize_eq(self, op):
         arg0, arg1 = self._args(op)
         if arg0 is arg1:
             return BooleanConstant.TRUE
-        if isinstance(arg0, MachineIntConstant) and isinstance(arg1, MachineIntConstant):
+        if isinstance(arg0, MachineIntConstant) and isinstance(
+            arg1, MachineIntConstant
+        ):
             return BooleanConstant.frombool(arg0.number == arg1.number)
         if isinstance(arg0, EnumConstant) and isinstance(arg1, EnumConstant):
             return BooleanConstant.frombool(arg0.variant == arg1.variant)
         if isinstance(arg0, Constant) and isinstance(arg1, Constant):
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
     def optimize_not(self, op):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         if isinstance(arg0, BooleanConstant):
             return BooleanConstant.frombool(not arg0.value)
-        if isinstance(arg0, Operation) and arg0.name == '@not':
+        if isinstance(arg0, Operation) and arg0.name == "@not":
             return self._args(arg0)[0]
-        if op.name != "@not": # standardize only, don't change all the time
+        if op.name != "@not":  # standardize only, don't change all the time
             return self.newop(
-                "@not",
-                [arg0],
-                types.Bool(),
-                op.sourcepos,
-                op.varname_hint
+                "@not", [arg0], types.Bool(), op.sourcepos, op.varname_hint
             )
 
     optimize_not_ = optimize_not
@@ -4285,13 +4507,13 @@ class LocalOptimizer(BaseOptimizer):
             return
         return self.newcast(
             self.newop(
-                "@replicate_bv_i_i", [arg0, MachineIntConstant(typ.width),
-                                      arg1],
+                "@replicate_bv_i_i",
+                [arg0, MachineIntConstant(typ.width), arg1],
                 types.SmallFixedBitVector(newwidth),
                 op.sourcepos,
-                op.varname_hint
+                op.varname_hint,
             ),
-            op.resolved_type
+            op.resolved_type,
         )
 
     def optimize_zupdate_fbits(self, op):
@@ -4308,16 +4530,16 @@ class LocalOptimizer(BaseOptimizer):
         arg0, typ = self._extract_smallfixedbitvector(arg0)
         if isinstance(arg1, MachineIntConstant):
             if not 0 <= arg1.number < typ.width:
-                return None # usually means unreachable
+                return None  # usually means unreachable
         return self.newcast(
             self.newop(
-                '$zupdate_fbits',
+                "$zupdate_fbits",
                 [arg0, arg1, arg2],
                 typ,
                 op.sourcepos,
                 op.varname_hint,
             ),
-            op.resolved_type
+            op.resolved_type,
         )
 
     def optimize_platform_read_mem_o_o_o_i(self, op, isfetch=False):
@@ -4337,21 +4559,22 @@ class LocalOptimizer(BaseOptimizer):
                 op.sourcepos,
                 op.varname_hint,
             ),
-            op.resolved_type
+            op.resolved_type,
         )
+
     optimize_read_mem_o_o_o_i = optimize_platform_read_mem_o_o_o_i
 
     def optimize_read_mem_ifetch_o_o_o_i(self, op):
         return self.optimize_platform_read_mem_o_o_o_i(op, isfetch=True)
 
     def optimize_UINT64_C(self, op):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         assert isinstance(arg0, MachineIntConstant)
         assert arg0.number == 0
         return GenericBitVectorConstant(bitvector.from_ruint(0, r_uint(0)))
 
     def optimize_monomorphize(self, op):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         return arg0
 
     def optimize_branch_announce(self, op):
@@ -4366,19 +4589,22 @@ class LocalOptimizer(BaseOptimizer):
             if arg1.name == "@pack_smallfixedbitvector":
                 assert arg0.number == arg1.args[0].number
                 return arg1.args[1]
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
     def optimize_packed_field_int_to_int64(self, op):
-        arg0, = self._args(op)
+        (arg0,) = self._args(op)
         if not isinstance(arg0, FieldAccess) and isinstance(arg0, Operation):
             if arg0.name == "@pack_machineint":
                 return arg0.args[0]
+
 
 @repeat
 def inline(graph, codegen):
     # don't add blocks to functions that are already really big and need to be
     # split later
-    #if graph.name == "zhex_bits_2_forwards":
+    # if graph.name == "zhex_bits_2_forwards":
     #    import pdb;pdb.set_trace()
     really_huge_function = graph.has_more_than_n_blocks(1000)
     changed = False
@@ -4386,9 +4612,15 @@ def inline(graph, codegen):
         index = 0
         while index < len(block.operations):
             op = block[index]
-            if isinstance(op, Operation) and op.name in codegen.inlinable_functions:
+            if (
+                isinstance(op, Operation)
+                and op.name in codegen.inlinable_functions
+            ):
                 subgraph = codegen.inlinable_functions[op.name]
-                if isinstance(subgraph.startblock.next, Return) and subgraph.startblock.next.value is not None:
+                if (
+                    isinstance(subgraph.startblock.next, Return)
+                    and subgraph.startblock.next.value is not None
+                ):
                     newops, res = copy_ops(op, subgraph)
                     newops = [Comment("inlined %s" % subgraph.name)] + newops
                     if newops is not None:
@@ -4397,7 +4629,11 @@ def inline(graph, codegen):
                         index = 0
                         changed = True
                         continue
-                elif not really_huge_function and not subgraph.has_loop and subgraph is not graph:
+                elif (
+                    not really_huge_function
+                    and not subgraph.has_loop
+                    and subgraph is not graph
+                ):
                     # complicated case
                     _inline(graph, codegen, block, index, subgraph)
                     remove_empty_blocks(graph, codegen)
@@ -4411,6 +4647,7 @@ def inline(graph, codegen):
         remove_double_exception_check(graph, codegen)
     return changed
 
+
 def _inline(graph, codegen, block, index, subgraph, add_comment=True):
     # split current block
     op = block.operations[index]
@@ -4419,19 +4656,23 @@ def _inline(graph, codegen, block, index, subgraph, add_comment=True):
         block.operations.append(Comment("inlined %s" % subgraph.name))
     start_block, return_block = copy_blocks(subgraph, op)
     block.next = Goto(start_block)
-    res, = return_block.operations
+    (res,) = return_block.operations
     assert return_block.next is None
     return_block.next = Goto(newblock)
     graph.replace_op(op, return_block.operations[0])
     _remove_unreachable_phi_prevvalues(graph)
     simplify_phis(graph, codegen)
 
+
 def copy_ops(op, subgraph):
     assert isinstance(subgraph.startblock.next, Return)
-    replacements = {arg: argexpr for arg, argexpr in zip(subgraph.args, op.args)}
+    replacements = {
+        arg: argexpr for arg, argexpr in zip(subgraph.args, op.args)
+    }
     ops = subgraph.startblock.copy_operations(replacements)
     res = subgraph.startblock.next.value
     return ops, replacements.get(res, res)
+
 
 def copy_blocks(graph, op):
     returnphi = Phi([], [], None)
@@ -4453,7 +4694,9 @@ def copy_blocks(graph, op):
         next, newblock = todo_next.pop()
         if isinstance(next, Return):
             assert next.value is not None
-            returnphi.prevvalues.append(replacements.get(next.value, next.value))
+            returnphi.prevvalues.append(
+                replacements.get(next.value, next.value)
+            )
             returnphi.prevblocks.append(newblock)
             returnphi.resolved_type = next.value.resolved_type
             newblock.next = Goto(returnblock)
@@ -4467,11 +4710,14 @@ def copy_blocks(graph, op):
                 next.sourcepos,
             )
         elif isinstance(next, Raise):
-            newblock.next = Raise(replacements.get(next.kind, next.kind), next.sourcepos)
+            newblock.next = Raise(
+                replacements.get(next.kind, next.kind), next.sourcepos
+            )
         else:
             assert 0, "unreachable"
 
     return blocks[graph.startblock], returnblock
+
 
 def should_inline(graph, model_specific_should_inline=None):
     if model_specific_should_inline:
@@ -4481,17 +4727,22 @@ def should_inline(graph, model_specific_should_inline=None):
     if graph.has_loop:
         return False
     blocks = list(graph.iterblocks())
-    if any([isinstance(block.next, Return) and block.next.value is None for block in blocks]):
+    if any(
+        [
+            isinstance(block.next, Return) and block.next.value is None
+            for block in blocks
+        ]
+    ):
         return False
     for op, _ in graph.iterblockops():
         if isinstance(op, Operation) and op.name == graph.name:
-            return False # no recursive inlining
+            return False  # no recursive inlining
     number_ops = len([op for block in blocks for op in block.operations])
     return len(blocks) <= 4 and number_ops < 25
 
 
 def topo_order(graph):
-    order = list(graph.iterblocks()) # dfs
+    order = list(graph.iterblocks())  # dfs
 
     # do a (slightly bad) topological sort
     incoming = defaultdict(set)
@@ -4519,7 +4770,7 @@ def topo_order_best_attempt(graph):
     if not graph.has_loop:
         return topo_order(graph)
 
-    order = list(graph.iterblocks()) # dfs
+    order = list(graph.iterblocks())  # dfs
 
     incoming = defaultdict(set)
     for block in order:
@@ -4555,6 +4806,7 @@ def topo_order_best_attempt(graph):
     assert len(set(result)) == len(result)
     return result
 
+
 @repeat
 def remove_double_exception_check(graph, codegen):
     def is_exception_check(block, index):
@@ -4568,6 +4820,7 @@ def remove_double_exception_check(graph, codegen):
         if block.next.booleanvalue is not op:
             return False
         return True
+
     def is_exceptional_return(block):
         if block.operations:
             return False
@@ -4629,6 +4882,7 @@ def remove_double_exception_check(graph, codegen):
         return True
     return False
 
+
 def find_anticipated_casts(graph):
     blocks = topo_order_best_attempt(graph)
     blocks.reverse()
@@ -4643,16 +4897,23 @@ def find_anticipated_casts(graph):
         # errors and would lead to crashes. this can lead to cast errors in
         # situation where a later Raise would have ended the emulation anyway,
         # but that's fine
-        next_blocks = [nextblock for nextblock in block.next.next_blocks()
-                       if not isinstance(nextblock.next, Raise)]
+        next_blocks = [
+            nextblock
+            for nextblock in block.next.next_blocks()
+            if not isinstance(nextblock.next, Raise)
+        ]
 
-        if next_blocks and all(next_block in anticipated_casts for next_block in next_blocks):
+        if next_blocks and all(
+            next_block in anticipated_casts for next_block in next_blocks
+        ):
             s.update(anticipated_casts[next_blocks[0]])
             for next_block in next_blocks[1:]:
                 s.intersection_update(anticipated_casts[next_block])
         # add casts happening *within* the block
         for op in block.operations:
-            if isinstance(op, Cast) and isinstance(op.resolved_type, types.SmallFixedBitVector):
+            if isinstance(op, Cast) and isinstance(
+                op.resolved_type, types.SmallFixedBitVector
+            ):
                 s.add((op.args[0], op.resolved_type))
             if isinstance(op, Operation) and op.name == INT_TO_INT64_NAME:
                 s.add((op.args[0], op.resolved_type))
@@ -4662,6 +4923,7 @@ def find_anticipated_casts(graph):
 @repeat
 def cse_global_reads(graph, codegen):
     from pydrofoil.effectinfo import EffectInfo
+
     # very simple forward load-after-load pass
     def get_effect(op):
         # type: (Operation) -> EffectInfo | None
@@ -4682,7 +4944,7 @@ def cse_global_reads(graph, codegen):
         return None
 
     replacements = {}
-    available = {} # block -> block -> prev_op
+    available = {}  # block -> block -> prev_op
 
     entrymap = graph.make_entrymap()
     blocks = topo_order_best_attempt(graph)
@@ -4695,8 +4957,10 @@ def cse_global_reads(graph, codegen):
             else:
                 # intersection of what's available in the previous blocks
                 for key, prev_op in available[prev_blocks[0]].iteritems():
-                    if not all(available.get(prev_block, {}).get(key, None) == prev_op
-                               for prev_block in prev_blocks):
+                    if not all(
+                        available.get(prev_block, {}).get(key, None) == prev_op
+                        for prev_block in prev_blocks
+                    ):
                         continue
                     available_in_block[key] = prev_op
         available[block] = available_in_block
@@ -4722,10 +4986,13 @@ def cse_global_reads(graph, codegen):
                         del available_in_block[key]
     if replacements:
         for block in blocks:
-            block.operations = [op for op in block.operations if op is not None]
+            block.operations = [
+                op for op in block.operations if op is not None
+            ]
         graph.replace_ops(replacements)
         return True
     return False
+
 
 @repeat
 def sink_allocate(graph, codegen):
@@ -4740,10 +5007,12 @@ def sink_allocate(graph, codegen):
         if count != 1:
             continue
         for index, op in enumerate(block.operations):
-            if (alloc is None and
-                    isinstance(op, Allocate) and
-                    index + 1 < len(block.operations) and
-                    op not in block.operations[index + 1].getargs()):
+            if (
+                alloc is None
+                and isinstance(op, Allocate)
+                and index + 1 < len(block.operations)
+                and op not in block.operations[index + 1].getargs()
+            ):
                 alloc = op
                 continue
             if alloc in op.getargs():
@@ -4758,6 +5027,7 @@ def sink_allocate(graph, codegen):
         if changed:
             block.operations = newoperations
     return changed
+
 
 @repeat
 def partial_allocation_removal(graph, codegen):
@@ -4775,16 +5045,21 @@ def partial_allocation_removal(graph, codegen):
                 else:
                     fieldvalue = DefaultValue(typ.internalfieldtyps[name])
                 fieldvalues.append(fieldvalue)
-            op = StructConstruction(typ.name, fieldvalues, typ, value.sourcepos)
+            op = StructConstruction(
+                typ.name, fieldvalues, typ, value.sourcepos
+            )
             newoperations.append(op)
         else:
             op = Allocate(typ, value.sourcepos)
             newoperations.append(op)
             for name in typ.names:
                 if name in fields:
-                    newoperations.append(FieldWrite(name, [op, escape(fields[name])]))
+                    newoperations.append(
+                        FieldWrite(name, [op, escape(fields[name])])
+                    )
         replacements[value] = op
         return op
+
     def get_repr(value):
         while value in replacements:
             value = replacements[value]
@@ -4815,11 +5090,18 @@ def partial_allocation_removal(graph, codegen):
                 # it into a StructConstruction, but that seems potentially
                 # bloaty. Instead, check whether it's used in the next op of
                 # the current block and only do that if yes.
-                if index + 1 < len(block.operations) and op in block.operations[index + 1].getargs():
+                if (
+                    index + 1 < len(block.operations)
+                    and op in block.operations[index + 1].getargs()
+                ):
                     typ = op.resolved_type
                     fields = {}
                     for fieldname in typ.names:
-                        fieldvalue = FieldAccess(fieldname, [op.args[0]], typ.internalfieldtyps[fieldname])
+                        fieldvalue = FieldAccess(
+                            fieldname,
+                            [op.args[0]],
+                            typ.internalfieldtyps[fieldname],
+                        )
                         newoperations.append(fieldvalue)
                         fields[fieldname] = fieldvalue
                     virtuals_in_block[op] = fields
@@ -4832,10 +5114,16 @@ def partial_allocation_removal(graph, codegen):
             if isinstance(op, FieldAccess):
                 obj = get_repr(op.args[0])
                 if obj in virtuals_in_block:
-                    assert op.resolved_type is virtuals_in_block[obj][op.name].resolved_type
+                    assert (
+                        op.resolved_type
+                        is virtuals_in_block[obj][op.name].resolved_type
+                    )
                     replacements[op] = virtuals_in_block[obj][op.name]
                     continue
-            if isinstance(op, GlobalWrite) and op.name in codegen.all_registers:
+            if (
+                isinstance(op, GlobalWrite)
+                and op.name in codegen.all_registers
+            ):
                 obj = get_repr(op.args[0])
                 if obj in virtuals_in_block:
                     typ = op.args[0].resolved_type
@@ -4846,8 +5134,12 @@ def partial_allocation_removal(graph, codegen):
                         if name in fields:
                             fieldvalue = escape(fields[name])
                         else:
-                            fieldvalue = DefaultValue(typ.internalfieldtyps[name])
-                        newoperations.append(FieldWrite(name, [target, fieldvalue]))
+                            fieldvalue = DefaultValue(
+                                typ.internalfieldtyps[name]
+                            )
+                        newoperations.append(
+                            FieldWrite(name, [target, fieldvalue])
+                        )
                     continue
 
             for arg in op.getargs():
@@ -4870,6 +5162,7 @@ def partial_allocation_removal(graph, codegen):
 @repeat
 def cse_field_reads(graph, codegen):
     from pydrofoil.effectinfo import EffectInfo
+
     # very simple forward load-after-load and load-after-store pass for struct fields
     def get_effects(op):
         # type: (Operation) -> EffectInfo | None
@@ -4888,12 +5181,12 @@ def cse_field_reads(graph, codegen):
         return codegen.get_effects(op.name)
 
     replacements = {}
-    available = {} # block -> block -> prev_op
+    available = {}  # block -> block -> prev_op
 
     entrymap = graph.make_entrymap()
     blocks = topo_order_best_attempt(graph)
     for block in blocks:
-        available_in_block = {} # (type, fieldname) -> (source, result)
+        available_in_block = {}  # (type, fieldname) -> (source, result)
         prev_blocks = entrymap[block]
         if prev_blocks:
             if len(prev_blocks) == 1:
@@ -4901,8 +5194,10 @@ def cse_field_reads(graph, codegen):
             else:
                 # intersection of what's available in the previous blocks
                 for key, val in available[prev_blocks[0]].iteritems():
-                    if not all(available.get(prev_block, {}).get(key, None) == val
-                               for prev_block in prev_blocks):
+                    if not all(
+                        available.get(prev_block, {}).get(key, None) == val
+                        for prev_block in prev_blocks
+                    ):
                         continue
                     available_in_block[key] = val
         available[block] = available_in_block
@@ -4920,7 +5215,9 @@ def cse_field_reads(graph, codegen):
                 key = (op.args[0].resolved_type, op.name)
                 available_in_block[key] = (op.args[0], op.args[1])
             elif isinstance(op, StructConstruction):
-                for arg, typ, name in zip(op.args, op.resolved_type.typs, op.resolved_type.names):
+                for arg, typ, name in zip(
+                    op.args, op.resolved_type.typs, op.resolved_type.names
+                ):
                     available_in_block[op.resolved_type, name] = (op, arg)
             else:
                 effects = get_effects(op)
@@ -4931,16 +5228,21 @@ def cse_field_reads(graph, codegen):
                         available_in_block.pop(key, None)
     if replacements:
         for block in blocks:
-            block.operations = [op for op in block.operations if op is not None]
+            block.operations = [
+                op for op in block.operations if op is not None
+            ]
         graph.replace_ops(replacements)
         return True
     return False
 
+
 # ____________________________________________________________
 # dominator-tree based algorithms
 
+
 def compute_dominators(G):
     return _compute_dominators(G)[0]
+
 
 def _compute_dominators(G):
     preds = G.make_entrymap()
@@ -4958,12 +5260,15 @@ def _compute_dominators(G):
         for node in preds:
             if node == start:
                 continue
-            dom = set(preds).intersection(*[dominators[x] for x in preds[node]])
+            dom = set(preds).intersection(
+                *[dominators[x] for x in preds[node]]
+            )
             dom.add(node)
             if dom != dominators[node]:
                 changed = True
                 dominators[node] = dom
     return dominators, preds
+
 
 def dominatees(G):
     dom, pred = _compute_dominators(G)
@@ -4973,6 +5278,7 @@ def dominatees(G):
             res[dominator_block].add(block)
     return dict(res)
 
+
 def find_backedges(G):
     # a backedge is an edge where the target node dominates the source node
     assert G.has_loop
@@ -4981,10 +5287,11 @@ def find_backedges(G):
         if target in dom[source]:
             yield source, target
 
+
 def propagate_equality(graph, codegen):
     changed = False
     # maps blocks -> values -> [(intconst, prevblock)]
-    int_constants_and_sources = defaultdict(lambda : defaultdict(list))
+    int_constants_and_sources = defaultdict(lambda: defaultdict(list))
 
     entrymap = None
     dom = None
@@ -4992,8 +5299,11 @@ def propagate_equality(graph, codegen):
         if not isinstance(block.next, ConditionalGoto):
             continue
         value = block.next.booleanvalue
-        if (isinstance(value, Operation) and value.name == "@eq" and
-                value.args[0].resolved_type is types.MachineInt()):
+        if (
+            isinstance(value, Operation)
+            and value.name == "@eq"
+            and value.args[0].resolved_type is types.MachineInt()
+        ):
             intarg, intconst = value.args
             if not isinstance(intconst, MachineIntConstant):
                 intarg, intconst = intconst, intarg
@@ -5020,7 +5330,9 @@ def propagate_equality(graph, codegen):
             if len(prevvalues) == 1:
                 newvalue = prevvalues[0]
             else:
-                newvalue = Phi(list(prevblocks), list(prevvalues), types.MachineInt())
+                newvalue = Phi(
+                    list(prevblocks), list(prevvalues), types.MachineInt()
+                )
                 targetblock.operations.insert(0, newvalue)
             d = {intarg: newvalue}
             for op in ops:

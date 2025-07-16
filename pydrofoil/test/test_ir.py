@@ -1446,7 +1446,7 @@ def test_is_ones_subrange():
     block4.next = Goto(block5, None)
     i22 = block5.emit_phi([block6, block4], [None, i21], GenericBitVector())
     i23 = block5.emit(Operation, '@shiftl_o_i', [i22, i17], GenericBitVector(), '`2 340:28-340:50', 'zz44')
-    i24 = block5.emit(Operation, 'sub_int', [i23, i22], GenericBitVector(), '`2 340:19-340:56', 'zz43')
+    i24 = block5.emit(Operation, 'sub_bits', [i23, i22], GenericBitVector(), '`2 340:19-340:56', 'zz43')
     i25 = block5.emit(Operation, 'zz5izDzKz5i64', [zj], MachineInt(), None, None)
     i26 = block5.emit(Operation, '@shiftl_o_i', [i24, i25], GenericBitVector(), '`2 340:4-340:60', 'return')
     i14.prevvalues[0] = i26
@@ -1488,7 +1488,7 @@ i17 = block4.emit(Operation, '@sail_truncate_o_i', [i15, i3], GenericBitVector()
 block4.next = Goto(block5, None)
 i18 = block5.emit_phi([block6, block4], [None, i17], GenericBitVector())
 i19 = block5.emit(Operation, '@shiftl_o_i', [i18, i14], GenericBitVector(), '`2 340:28-340:50', 'zz44')
-i20 = block5.emit(Operation, 'sub_int', [i19, i18], GenericBitVector(), '`2 340:19-340:56', 'zz43')
+i20 = block5.emit(Operation, 'sub_bits', [i19, i18], GenericBitVector(), '`2 340:19-340:56', 'zz43')
 i21 = block5.emit(Operation, '@shiftl_o_i', [i20, i5], GenericBitVector(), '`2 340:4-340:60', 'return')
 i11.prevvalues[0] = i21
 block5.next = Goto(block2, None)
@@ -4922,4 +4922,6 @@ def test_make_entrymap():
     
     # In this graph every Block has at max. 2 parents
     for block in entrymap.keys():
-        assert len(entrymap[block]) < 3  
+        assert len(entrymap[block]) < 3
+
+

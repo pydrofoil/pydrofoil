@@ -850,6 +850,8 @@ def test_op_int():
                     assert a.gt(b) == (v1 > v2)
                     assert a.le(b) == (v1 <= v2)
                     assert a.ge(b) == (v1 >= v2)
+                    assert a.le_packed(b.pack()) == (v1 <= v2)
+                    assert a.ge_packed(b.pack()) == (v1 >= v2)
                 with pytest.raises(ZeroDivisionError):
                     c1(v1).tdiv(c2(0))
                 with pytest.raises(ZeroDivisionError):
@@ -892,6 +894,8 @@ def test_op_int_hypothesis(a, b):
     if isinstance(a, SmallInteger):
         assert b.int_eq(a.val) == (v1 == v2)
     assert a.lt(b) == (v1 < v2)
+    assert a.le_packed(b.pack()) == (v1 <= v2)
+    assert a.ge_packed(b.pack()) == (v1 >= v2)
     assert a.lt(a.int_add(1))
     if v1 > 0:
         assert a.lt(a.lshift(64))

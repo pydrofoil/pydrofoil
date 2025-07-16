@@ -872,6 +872,11 @@ class Graph(object):
                 assert value in defined_vars or isinstance(value, Constant)
 
     def replace_ops(self, replacements):
+        # shorten a->b->c chains to a->c (b->c stays in the dict too)
+        for op, newop in replacements.iteritems():
+            while newop in replacements:
+                newop = replacements[newop]
+            replacements[op] = newop
         res = False
         for block in self.iterblocks():
             for op in block.operations:
@@ -1597,6 +1602,7 @@ def _bare_optimize(graph, codegen):
     res = localopt(graph, codegen, do_double_casts=True) or res
     res = remove_if_phi_constant(graph, codegen) or res
     res = remove_superfluous_enum_cases(graph, codegen) or res
+    res = remove_superfluous_bitvector_cases(graph, codegen) or res
     res = remove_useless_switch(graph, codegen) or res
     partial_allocation_removal(graph, codegen)
     return res
@@ -1699,19 +1705,27 @@ def swap_not(graph, codegen):
 @repeat
 def simplify_phis(graph, codegen):
     replace_phis = {}
+    changed = False
     for block in graph.iterblocks():
-        for index, op in enumerate(block.operations):
+        index = 0
+        while index < len(block.operations):
+            op = block.operations[index]
             if not isinstance(op, Phi):
+                index += 1
                 continue
             values = set(op.prevvalues)
             if len(values) == 1 or (len(values) == 2 and op in values):
                 values.discard(op)
-                value, = values
+                (value,) = values
                 replace_phis[op] = value
-                # this is really inefficient, but I don't want to think
                 del block.operations[index]
-                graph.replace_ops(replace_phis)
-                break # continue with the next block
+                changed = True
+            else:
+                index += 1
+    if changed:
+        changed = graph.replace_ops(replace_phis)
+        graph.check()
+        return True
     return False
 
 @repeat
@@ -1932,6 +1946,50 @@ def remove_superfluous_enum_cases(graph, codegen):
         return True
     return False
 
+def remove_superfluous_bitvector_cases(graph, codegen):
+    if graph.has_loop:
+        return
+
+    def init_bv_set(value):
+        typ = value.resolved_type
+        if isinstance(value, SmallBitVectorConstant):
+            return {int(value.value)}
+        else:
+            return set(range(0, 2**value.resolved_type.width))
+
+    changed = False
+    # maps blocks -> values -> sets of bv values
+    possible_bitvector_values = defaultdict(lambda : defaultdict_with_key_arg(init_bv_set))
+    entrymap = graph.make_entrymap()
+    for block in topo_order(graph):
+        values_in_block = possible_bitvector_values[block]
+        if isinstance(block.next, ConditionalGoto):
+            value = block.next.booleanvalue
+            if (isinstance(value, Operation) and value.name == "@eq_bits_bv_bv" and
+                    isinstance(value.args[0].resolved_type, types.SmallFixedBitVector) and
+                    value.args[0].resolved_type.width <= 16):
+                arg0, arg1 = value.args
+                if not isinstance(arg1, SmallBitVectorConstant):
+                    arg0, arg1 = arg1, arg0
+                if isinstance(arg1, SmallBitVectorConstant):
+                    possible_values_arg0 = values_in_block[arg0]
+                    possible_values_arg1 = values_in_block[arg1]
+                    assert len(possible_values_arg1) == 1
+                    if possible_values_arg0 == possible_values_arg1:
+                        changed = True
+                        block.next.booleanvalue = BooleanConstant.TRUE
+                    else:
+                        if len(entrymap[block.next.truetarget]) == 1:
+                            possible_bitvector_values[block.next.truetarget][arg0] = possible_values_arg1
+                        if len(entrymap[block.next.falsetarget]) == 1:
+                            possible_bitvector_values[block.next.falsetarget][arg0] = possible_values_arg0 - possible_values_arg1
+    if changed:
+        remove_if_true_false(graph, codegen)
+        remove_dead(graph, codegen)
+        return True
+    return False
+
+
 def remove_superfluous_union_checks(graph, codegen):
     if graph.has_loop:
         return
@@ -2041,11 +2099,7 @@ class BaseOptimizer(object):
             self.current_block = block
             self.optimize_block(block)
         if self.replacements:
-            # XXX do them all in one go
-            while 1:
-                changed = self.graph.replace_ops(self.replacements)
-                if not changed:
-                    break
+            self.graph.replace_ops(self.replacements)
             self.replacements.clear()
             self.changed = True
         if self._dead_blocks:
@@ -4669,11 +4723,7 @@ def cse_global_reads(graph, codegen):
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]
-        while 1:
-            # XXX do them in one go somehow
-            changed = graph.replace_ops(replacements)
-            if not changed:
-                break
+        graph.replace_ops(replacements)
         return True
     return False
 
@@ -4813,10 +4863,7 @@ def partial_allocation_removal(graph, codegen):
         changes = changes or len(newoperations) != len(block.operations)
         block.operations = newoperations
     if replacements:
-        while 1:
-            res = graph.replace_ops(replacements)
-            if not res:
-                break
+        graph.replace_ops(replacements)
     return changes
 
 
@@ -4885,11 +4932,7 @@ def cse_field_reads(graph, codegen):
     if replacements:
         for block in blocks:
             block.operations = [op for op in block.operations if op is not None]
-        while 1:
-            # XXX do them in one go somehow
-            changed = graph.replace_ops(replacements)
-            if not changed:
-                break
+        graph.replace_ops(replacements)
         return True
     return False
 

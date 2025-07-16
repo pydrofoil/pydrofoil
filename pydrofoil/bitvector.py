@@ -7,7 +7,8 @@ from rpython.rlib.rbigint import rbigint, _divrem as bigint_divrem, ONERBIGINT, 
 from rpython.rlib.rarithmetic import r_uint, intmask, string_to_int, ovfcheck, \
         int_c_div, int_c_mod, r_ulonglong, uint_mul_high
 from rpython.rlib.objectmodel import always_inline, specialize, \
-        we_are_translated, is_annotation_constant, not_rpython
+        we_are_translated, is_annotation_constant, not_rpython, \
+        try_inline
 from rpython.rlib.rstring import (
     ParseStringError, ParseStringOverflowError)
 from rpython.rlib import jit
@@ -35,7 +36,7 @@ def from_ruint(size, val):
         return SmallBitVector(size, val, True)
     return SparseBitVector(size, val)
 
-@always_inline
+@try_inline
 def from_bigint(size, rval):
     if size <= 64:
         value = rbigint_extract_ruint(rval, 0)
@@ -121,6 +122,10 @@ class BitVector(W_Root):
     def tolong(self): # only for tests:
         return self.tobigint().tolong()
 
+    def tobool(self):
+        """ Return False if self is full of 0s. """
+        raise NotImplementedError()
+
     from_ruint = staticmethod(from_ruint)
     from_bigint = staticmethod(from_bigint)
 
@@ -169,6 +174,14 @@ class BitVector(W_Root):
     def count_leading_zeros(self):
         count = 0
         for i in range(self.size() - 1, -1, -1):
+            if self.read_bit(i):
+                break
+            count += 1
+        return count
+
+    def count_trailing_zeros(self):
+        count = 0
+        for i in range(self.size()):
             if self.read_bit(i):
                 break
             count += 1
@@ -351,6 +364,10 @@ class SmallBitVector(BitVector):
             assert self.size() == expected_width
         return self.val
 
+    def tobool(self):
+        """ Return False if self is full of 0s. """
+        return self.val != r_uint(0)
+
     def tobigint(self):
         jit.jit_debug("SmallInteger.tobigint")
         return rbigint_fromrarith_int(self.val)
@@ -412,11 +429,26 @@ class SmallBitVector(BitVector):
     def _count_leading_zeros(size, val):
         count = 0
         mask = r_uint(1) << (size - 1)
-        for i in range(size - 1, -1, -1):
+        for _ in range(size):
             if val & mask:
                 break
             count += 1
             mask >>= 1
+        return count
+
+    def count_trailing_zeros(self):
+        return self._count_trailing_zeros(self.size(), self.val)
+
+    @staticmethod
+    @jit.elidable
+    def _count_trailing_zeros(size, val):
+        count = 0
+        mask = r_uint(1)
+        for _ in range(size):
+            if val & mask:
+                break
+            count += 1
+            mask <<= 1
         return count
 
 
@@ -631,6 +663,10 @@ class SparseBitVector(BitVector):
         if expected_width:
             assert self.size() == expected_width
         return self.val
+
+    def tobool(self):
+        """ Return False if self is full of 0s. """
+        return self.val != r_uint(0)
 
     def tobigint(self):
         jit.jit_debug("SparseBitVector.tobigint")
@@ -1119,6 +1155,13 @@ class GenericBitVector(BitVector):
             if self.data[i]:
                 raise ValueError
         return self.data[0]
+
+    def tobool(self):
+        """ Return False if self is full of 0s. """
+        for val in self.data:
+            if val:
+                return True
+        return False
 
     def tobigint(self):
         jit.jit_debug("GenericBitVector.tobigint")

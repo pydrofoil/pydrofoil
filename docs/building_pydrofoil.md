@@ -37,8 +37,7 @@ interfere with any existing sail installation you might have.
 ## Building Pydrofoil Starting from a Sail-riscv checkout
 
 To build Pydrofoil, you first need to clone the [Sail-RISC-V
-model](https://github.com/riscv/sail-riscv) repository. If you already have a
-checkout, you can use that instead.
+model](https://github.com/riscv/sail-riscv) repository (you can find a satisfied commit snapshot in [oneshot-script.yml](https://github.com/pydrofoil/pydrofoil/blob/main/.github/workflows/oneshot-script.yml)). If you already have a checkout, you can use that instead.
 
 ```
 git clone https://github.com/riscv/sail-riscv.git # or use your existing checkout
@@ -53,7 +52,9 @@ wget https://raw.githubusercontent.com/pydrofoil/pydrofoil/one-stop-build-script
 chmod a+x build-pydrofoil-from-sail.sh
 ./build-pydrofoil-from-sail.sh
 ```
+
 This will
+
 - clone the pydrofoil repo from github
 - build a local switch with a recent enough sail binary, as well as isla-sail
 - use isla-sail to translate the ISA specifications into JIB files (about 5
@@ -78,6 +79,19 @@ SUCCESS
 Instructions: 305
 Total time (s): 0.000361
 Perf: 844.397835 Kips
+```
+
+## Build Pydrofoil with Nix
+
+See [rpypkgs](https://github.com/rpypkgs/rpypkgs) for details.
+
+Example usage:
+
+Nix with experiment features `nix-command flakes` is required.
+
+```bash
+# Build Pydrofoil-riscv (with artifacts under ./result/)
+nix build github:rpypkgs/rpypkgs#pydrofoil-riscv
 ```
 
 [See here](using_pydrofoil.md) for more instructions on how to **use Pydrofoil**,

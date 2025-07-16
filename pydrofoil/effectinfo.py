@@ -80,26 +80,23 @@ EffectInfo.BOTTOM = EffectInfo()
 
 
 class _EffectComputationState(object):
-    def __init__(self):
+    def __init__(self, graph_map, methods):
+        # type: (dict[str, Graph], dict[str, dict[str, Graph]]) -> None
         self.effect_map = defaultdict(EffectInfo)  # type: dict[str, EffectInfo]
         self.caller_map = defaultdict(set)  # type: dict[str, set[str]]
         self.todo_set = set()  # type: set[str]
+        self.graph_map = graph_map
+        self.methods = methods
 
-    def analyze_all(self, graph_map):
-        # type: (dict[str, Graph]) -> dict[str, EffectInfo]
-        self.todo_set.update(graph_map)
+    def analyze_all(self):
+        self.todo_set.update(self.graph_map)
+        for method_dict in self.methods.itervalues():
+            for graph in method_dict.itervalues():
+                self.todo_set.add(graph.name)
         while self.todo_set:
             graph_name = self.todo_set.pop()
-            graph = graph_map[graph_name]
-            effect_info = self._get_effect_info(graph)
-            # update caller map
-            for block in graph.iterblocks():
-                for op in block.operations:
-                    if isinstance(op, Operation) and op.name in graph_map:
-                        if op.name == graph_name:
-                            continue
-                        self.caller_map[op.name].add(graph_name)
-
+            graph = self.graph_map[graph_name]
+            effect_info = self._get_effect_info_and_update_caller_map(graph)
             old_effects = self.effect_map[graph_name]
             self.effect_map[graph_name] = effect_info
 
@@ -109,14 +106,24 @@ class _EffectComputationState(object):
 
         return self.effect_map
 
-    def _get_effect_info(self, graph):
+    def _get_effect_info_and_update_caller_map(self, graph):
         # type: (Graph) -> EffectInfo
         effect_info = local_effects(graph)
         # Add effects from all called functions
         for block in graph.iterblocks():
             for op in block.operations:
-                if isinstance(op, Operation) and op.name in self.effect_map:
-                    effect_info = effect_info.extend(self.effect_map[op.name])
+                if type(op) is not Operation:
+                    continue
+                if op.name in self.methods:
+                    callees = [called_graph.name for called_graph in self.methods[op.name].itervalues()]
+                elif op.name in self.graph_map:
+                    callees = [op.name]
+                else:
+                    continue
+                for callee_name in callees:
+                    effect_info = effect_info.extend(self.effect_map[callee_name])
+                    self.caller_map[callee_name].add(graph.name)
+
         return effect_info
 
 
@@ -137,7 +144,7 @@ def local_effects(graph):
     return result
 
 
-def compute_all_effects(graph_map):
-    # type: (dict[str, Graph]) -> dict[str, EffectInfo]
-    state = _EffectComputationState()
-    return state.analyze_all(graph_map)
+def compute_all_effects(graph_map, methods={}):
+    # type: (dict[str, Graph], dict[str, dict[str, Graph]]) -> dict[str, EffectInfo]
+    state = _EffectComputationState(graph_map, methods)
+    return state.analyze_all()

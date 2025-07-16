@@ -606,3 +606,38 @@ def get_example_nand():
     block38.next = Goto(block2, None)
     graph_compute_value = Graph('zcompute_value', [za, zop], block0)
     return dict(zcompute_value=graph_compute_value, zexecute_zCINST=graph_execute)
+
+
+def get_method_example():
+    # Graph that writes zx1
+    # Graph that returns zx2
+    # called as method on myunion
+    u = types.Union("myunion", ("first", "second"), (types.Int(), types.Int()))
+
+    uarg = Argument("u", u)
+    block_f = Block()
+    x = block_f.emit(UnionCast, "first", [uarg], types.Int())
+    block_f.emit(GlobalWrite, 'zx1', [x], Int(), None, None)
+    block_f.next = Return(UnitConstant.UNIT)
+    graph_execute_first = Graph("execute_first", [uarg], block_f)
+
+    uarg = Argument("u", u)
+    block_f = Block()
+    x = block_f.emit(UnionCast, "second", [uarg], types.Int())
+    block_f.emit(GlobalWrite, 'zx2', [x], Int(), None, None)
+    block_f.next = Return(UnitConstant.UNIT)
+    graph_execute_second = Graph("execute_second", [uarg], block_f)
+
+    block_c1 = Block()
+    u1 = block_c1.emit(Operation, "first", [IntConstant(5)], u)
+    block_c1.emit(Operation, "execute", [u1], types.Int())
+    u2 = block_c1.emit(Operation, "second", [IntConstant(10)], u)
+    block_c1.emit(Operation, "execute", [u2], types.Int())
+    block_c1.next = Return(UnitConstant.UNIT)
+    graph_c1 = Graph("c1", [], block_c1)
+
+    return {
+        "execute_first": graph_execute_first,
+        "execute_second": graph_execute_second,
+        "c1": graph_c1,
+    }

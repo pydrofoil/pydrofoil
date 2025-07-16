@@ -249,7 +249,7 @@ class Codegen(specialize.FixpointSpecializer):
 
     def _optimize_with_effect_info(self):
         from pydrofoil.ir import print_stats, cse_field_reads, cse_global_reads
-        self._effect_infos = compute_all_effects(self.all_graph_by_name)
+        self._effect_infos = compute_all_effects(self.all_graph_by_name, self.method_graphs_by_name)
         for graph in self.all_graph_by_name.itervalues():
             cse_field_reads(graph, self)
             cse_global_reads(graph, self)
@@ -262,12 +262,20 @@ class Codegen(specialize.FixpointSpecializer):
         self.specialize_all()
         unspecialized_graphs = []
         if self.program_entrypoints is None:
-            program_entrypoints = [g for g, _, _, _ in self._all_graphs]
+            program_entrypoints_graphs = [g for g, _, _, _ in self._all_graphs]
         else:
             program_entrypoints = self.program_entrypoints + ["zinitializze_registers"]
-            program_entrypoints = [self.all_graph_by_name[name] for name in program_entrypoints]
-        extra_graphs = self.extract_needed_extra_graphs(program_entrypoints)
-        graphs_to_emit = set(program_entrypoints)
+            program_entrypoints_graphs = []
+            for name in program_entrypoints:
+                if name in self.all_graph_by_name:
+                    program_entrypoints_graphs.append(self.all_graph_by_name[name])
+                elif name in self.method_graphs_by_name:
+                    for graph in self.method_graphs_by_name[name].values():
+                        program_entrypoints_graphs.append(graph)
+                else:
+                    assert 0, 'should be unreachable'
+        extra_graphs = self.extract_needed_extra_graphs(program_entrypoints_graphs)
+        graphs_to_emit = set(program_entrypoints_graphs)
         for graph, typ in extra_graphs:
             if typ is not None:
                 self.emit_extra_graph(graph, typ)
@@ -855,9 +863,13 @@ class __extend__(parse.Register):
 
         if self.body is None:
             return
-        with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
-            graph = construct_ir(self, codegen, singleblock=True)
-            emit_function_code(graph, self, codegen)
+        graph = construct_ir(self, codegen, singleblock=True)
+        def emit_register(graph, codegen):
+            with codegen.emit_code_type("runtimeinit"), codegen.enter_scope(self):
+                emit_function_code(graph, self, codegen)
+        codegen.add_graph(graph, emit_register)
+        if codegen.program_entrypoints:
+            codegen.program_entrypoints.append(graph.name)
 
     def make_register_ref(self, codegen, read_pyname=None):
         if hasattr(self, 'register_ref_name'):

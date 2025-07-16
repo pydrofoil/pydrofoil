@@ -150,8 +150,25 @@ NullType.typedef = TypeDef("_pydrofoil.sailtypes.Null", Type.typedef,
 )
 NullType.typedef.acceptable_as_base_class = False
 
+# ________________________________________________
+# bitvector types
+
 @unwrap_spec(width="index")
 def descr_bitvector_new(space, w_cls, width):
+    if not 0 < width:
+        raise oefmt(space.w_ValueError, "width must be at least 1")
+    if width <= 64:
+        return SmallFixedBitVector(width)
+    return BigFixedBitVector(width)
+
+FixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.FixedBitVector", Type.typedef,
+    width = interp_attrproperty("width", FixedBitVector, "the width of the bitvector", "newint"),
+    __new__ = interp2app(descr_bitvector_new),
+)
+FixedBitVector.typedef.acceptable_as_base_class = False
+
+@unwrap_spec(width="index")
+def descr_small_bitvector_new(space, w_cls, width):
     if not 0 < width <= 64:
         raise oefmt(space.w_ValueError, "width must be between 1 and 64")
     return SmallFixedBitVector(width)
@@ -160,9 +177,8 @@ class __extend__(SmallFixedBitVector):
     def _applevel_repr(self, space):
         return "_pydrofoil.sailtypes.SmallFixedBitVector(%s)" % (self.width, )
 
-SmallFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.SmallFixedBitVector", Type.typedef,
-    width = interp_attrproperty("width", SmallFixedBitVector, "the width of the bitvector", "newint"),
-    __new__ = interp2app(descr_bitvector_new),
+SmallFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.SmallFixedBitVector", FixedBitVector.typedef,
+    __new__ = interp2app(descr_small_bitvector_new),
 )
 SmallFixedBitVector.typedef.acceptable_as_base_class = False
 
@@ -175,20 +191,31 @@ def descr_big_bitvector_new(space, w_cls, width):
 class __extend__(BigFixedBitVector):
     def _applevel_repr(self, space):
         return "_pydrofoil.sailtypes.BigFixedBitVector(%s)" % (self.width, )
-BigFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.BigFixedBitVector", Type.typedef,
+
+BigFixedBitVector.typedef = TypeDef("_pydrofoil.sailtypes.BigFixedBitVector", FixedBitVector.typedef,
     width = interp_attrproperty("width", BigFixedBitVector, "the width of the bitvector", "newint"),
     __new__ = interp2app(descr_big_bitvector_new),
 )
 BigFixedBitVector.typedef.acceptable_as_base_class = False
 
 class __extend__(GenericBitVector):
-    pass
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.GenericBitVector()"
+
+GENERICBITVECTOR = GenericBitVector()
+
+def descr_genericbitvector_new(space, w_cls):
+    return GENERICBITVECTOR
+
 GenericBitVector.typedef = TypeDef("_pydrofoil.sailtypes.GenericBitVector", Type.typedef,
+    __new__ = interp2app(descr_genericbitvector_new),
 )
+
 GenericBitVector.typedef.acceptable_as_base_class = False
 
 class __extend__(MachineInt):
-    pass
+    def _applevel_repr(self, space):
+        return "_pydrofoil.sailtypes.MachineInt()"
 
 MACHINEINT = MachineInt()
 

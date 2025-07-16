@@ -735,6 +735,11 @@ def test_bitvector_touint():
     for size in [6, 6000]:
         assert bv(size, 0b11).touint() == r_uint(0b11)
 
+def test_bitvector_tobool():
+    for size in [6, 6000]:
+        for value in [0, 1, 100]:
+            assert bv(size, value).tobool() == (value != 0)
+
 def test_add_int():
     for c in bi, si:
         assert bv(6, 0b11).add_int(c(0b111111111)).touint() == (0b11 + 0b111111111) & 0b111111
@@ -1033,6 +1038,29 @@ def test_hypothesis_count_leading_zeros(bv):
     assert 0 <= res <= bitwidth
     as_str = bin(bv.tolong())[2:].rjust(bitwidth, '0')
     as_str_no_zeros = as_str.lstrip('0')
+    assert res == len(as_str) - len(as_str_no_zeros)
+
+def test_count_trailing_zeros():
+    for c1 in gbv, bv:
+        res = c1(4, 0x0).count_trailing_zeros()
+        assert res == 4
+        res = c1(4, 0x1).count_trailing_zeros()
+        assert res == 0
+        res = c1(4, 0x4).count_trailing_zeros()
+        assert res == 2
+        res = c1(4, 0xf).count_trailing_zeros()
+        assert res == 0
+        for i in range(0, 32):
+            res = c1(32, 1).lshift(i).count_trailing_zeros()
+            assert res == i
+
+@given(bitvectors)
+def test_hypothesis_count_trailing_zeros(bv):
+    bitwidth = bv.size()
+    res = bv.count_trailing_zeros()
+    assert 0 <= res <= bitwidth
+    as_str = bin(bv.tolong())[2:].rjust(bitwidth, '0')
+    as_str_no_zeros = as_str.rstrip('0')
     assert res == len(as_str) - len(as_str_no_zeros)
 
 def test_string_of_bits():
@@ -1853,6 +1881,10 @@ def test_hypothesis_bitvector_touint(data):
         assert v.touint() == v.touint(width) == value
         with pytest.raises(AssertionError):
             v.touint(width + 1)
+
+@given(bitvectors)
+def test_hypothesis_bv_tobool(bv):
+    assert bv.tobool() == bool(bv.tolong())
 
 @given(strategies.data())
 @settings(deadline=None)

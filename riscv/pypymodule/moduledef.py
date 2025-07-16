@@ -7,6 +7,7 @@ class TypesModule(MixedModule):
     interpleveldefs = {
         'SailType': 'interp_types.Type',
         'Function': 'interp_types.Function',
+        'FixedBitVector': 'interp_types.FixedBitVector',
         'SmallFixedBitVector': 'interp_types.SmallFixedBitVector',
         'BigFixedBitVector': 'interp_types.BigFixedBitVector',
         'GenericBitVector': 'interp_types.GenericBitVector',
@@ -19,6 +20,9 @@ class TypesModule(MixedModule):
         'Real': 'interp_types.Real',
         'Int': 'interp_types.Int',
         'MachineInt': 'interp_types.MachineInt',
+        'Unit': 'interp_types.Unit',
+        'Vec': 'interp_types.Vec',
+        'FVec': 'interp_types.FVec',
     }
 
     appleveldefs = {}
@@ -37,6 +41,7 @@ class Module(MixedModule):
     interpleveldefs = {
         'RISCV64': 'interp_plugin.W_RISCV64',
         'RISCV32': 'interp_plugin.W_RISCV32',
+        'Callbacks': 'interp_plugin.W_Callbacks',
         'bitvector': 'interp_plugin.BitVector',
     }
 

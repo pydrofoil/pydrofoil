@@ -52,6 +52,8 @@ def wrap_fn(fn):
             w_module = space.getbuiltinmodule('_pydrofoil')
             w_error = space.getattr(w_module, space.newtext('SailAssertionError'))
             raise OperationError(w_error, space.newtext(e.msg))
+        except OperationError:
+            raise
         except Exception as e:
             if not objectmodel.we_are_translated():
                 import pdb; pdb.xpm()
@@ -69,6 +71,10 @@ init_sail = wrap_fn(supportcoderiscv.init_sail)
 @wrap_fn
 def run_sail(machine, insn_limit, do_show_times):
     machine.run_sail(insn_limit, do_show_times)
+
+@wrap_fn
+def initialize_registers(machine):
+    machine.initialize_registers()
 
 
 def _init_register_names(cls, _all_register_names):
@@ -154,7 +160,7 @@ def _init_types(cls, all_type_info):
 def is_valid_identifier(s):
     from pypy.objspace.std.unicodeobject import _isidentifier
     return _isidentifier(s)
- 
+
 def invent_python_cls_union(space, w_mod, type_info, machinecls):
     pyname, sail_name, cls, sail_type_repr = type_info
     sail_type = eval(sail_type_repr, types.__dict__)
@@ -164,6 +170,7 @@ def invent_python_cls_union(space, w_mod, type_info, machinecls):
         __len__=_make_union_len(space, machinecls, cls),
         __repr__=_make_union_repr(space, machinecls, cls),
         __eq__=_make_union_eq(space, machinecls, cls),
+        __hash__=_make_union_hash(space, machinecls, cls),
         sail_type = sail_type
     )
     cls.typedef.acceptable_as_base_class = False
@@ -250,6 +257,11 @@ def _make_union_eq(space, machinecls, basecls):
         return space.newbool(self.eq(w_other))
     return _interp2app_unique_name_as_method(descr_eq, machinecls, basecls)
 
+def _make_union_hash(space, machinecls, basecls):
+    def descr_hash(self, space):
+        return app_hash_union(space, self)
+    return _interp2app_unique_name_as_method(descr_hash, machinecls, basecls)
+
 def _make_union_getitem(space, machinecls, subcls, sail_type):
     unroll_get_fields = unrolling_iterable(
         [(index, info[0], info[1], info[5]) for index, info in enumerate(subcls._field_info)])
@@ -279,6 +291,10 @@ class W_BoundSailFunction(W_Root):
     def descr_call(self, space, args_w):
         return self.func.call(space, self.w_machine, args_w)
 
+    def descr_repr(self, space):
+        return space.newtext("<bound sail function .lowlevel.%s of %s>" % (
+            self.func.sail_name, space.text_w(space.repr(self.w_machine))))
+
     def descr_doc(self, space):
         return space.newtext("""\
 Sail function
@@ -292,6 +308,7 @@ Sail function
 W_BoundSailFunction.typedef = TypeDef("sail-function",
     __call__ = interp2app(W_BoundSailFunction.descr_call),
     __doc__ = GetSetProperty(W_BoundSailFunction.descr_doc),
+    __repr__ = interp2app(W_BoundSailFunction.descr_repr),
     sail_type = GetSetProperty(W_BoundSailFunction.descr_sail_type),
 )
 
@@ -347,12 +364,14 @@ def _init_functions(machinecls, functions):
 
 def _make_function(function_info, d, machinecls):
     pyname, sail_name, func, argument_converters, result_converter, sail_type_repr = function_info
+    sail_type = eval(sail_type_repr, types.__dict__)
+    if sail_type.argtype.elements == (types.Unit(), ):
+        argument_converters = [] # if it's exactly unit, turn it into a zero-argument function
     adaptor_class = _make_function_adaptor(argument_converters, machinecls)
     def py(space, *args):
         res = func(*args)
         return result_converter(space, res)
     py.func_name += pyname
-    sail_type = eval(sail_type_repr, types.__dict__)
     adaptor = d[sail_name] = adaptor_class(py, sail_name, sail_type)
 
 
@@ -412,34 +431,53 @@ def _make_argument_converter_func(argument_converters, cache={}):
     if key in cache:
         return cache[key]
     converters = unrolling_iterable(argument_converters)
+    noargs = argument_converters == []
     def convert(space, args_w):
         args = ()
         i = 0
         for conv in converters:
             args += (conv(space, args_w[i]), )
             i += 1
+        if noargs:
+            # unit argument case:
+            args += ((), )
         return args
     cache[key] = convert
     return convert
 
 class MachineAbstractBase(object):
-    def __init__(self, space, elf=None, dtb=False):
+    def __init__(self, space, elf=None, dtb=False, w_callbacks=None):
+        if w_callbacks is not None:
+            w_callbacks = space.interp_w(W_Callbacks, w_callbacks)
+        else:
+            w_callbacks = None
         self._init_machine()
         self.space = space
         self.elf = elf
         if dtb:
             self.machine.g._create_dtb()
         init_mem(space, self.machine, MemoryObserver)
+        if w_callbacks:
+            mem = ApplevelCallbackMemory(space, w_callbacks.w_mem_read8_intercept,
+                                         w_callbacks.w_mem_write8_intercept)
+            observer = self.machine.g.mem
+            assert isinstance(observer, MemoryObserver)
+            observer.wrapped = mem
         if elf is not None:
             entry = load_sail(space, self.machine, elf)
         else:
             entry = self.machine.g.rv_ram_base
-        self.machine.set_pc(init_sail(space, self.machine, entry))
+        self.reset_pc = init_sail(space, self.machine, entry)
+        self.machine.set_pc(self.reset_pc)
         self.machine.g._init_ranges()
 
         self._step_no = 0
         self._insn_cnt = 0 # used to check whether a tick has been reached
         self._tick = False # should the next step tick
+
+    def reset(self):
+        initialize_registers(self.space, self.machine)
+        self.machine.set_pc(self.reset_pc)
 
     def step(self):
         """ Execute a single instruction. """
@@ -464,11 +502,13 @@ class MachineAbstractBase(object):
 
         kind_of_access is a string, either "read", "read_executable", or
         "write". """
-        result = self.machine.g.mem.memory_observer = []
+        mem = self.machine.g.mem
+        assert isinstance(mem, MemoryObserver)
+        result = mem.memory_observer = []
         try:
             self.step()
         finally:
-            self.machine.g.mem.memory_observer = None
+            mem.memory_observer = None
         space = self.space
         res_w = []
         for kind, start_addr, num_bytes, value in result:
@@ -599,6 +639,60 @@ class MemoryObserver(mem_mod.MemBase):
         return self.wrapped.memory_info()
 
 
+class ApplevelCallbackMemory(mem_mod.MemBase):
+    def __init__(self, space, w_read, w_write):
+        self.space = space
+        self.w_read = w_read
+        self.w_write = w_write
+        self.min_addr = r_uint(2 ** 64 - 1)
+        self.max_addr = r_uint(0)
+
+    def _split_addr(self, start_addr, num_bytes):
+        mem_offset = start_addr >> 3
+        inword_addr = start_addr & 0b111
+        # little endian
+        if num_bytes == 8:
+            mask = r_uint(-1)
+        else:
+            mask = (r_uint(1) << (num_bytes * 8)) - 1
+        return mem_offset, inword_addr, mask
+
+    def _aligned_read(self, start_addr, num_bytes, executable_flag):
+        mem_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+        data = self._read_word(mem_offset)
+        if num_bytes == 8:
+            assert inword_addr == 0
+            return data
+        return (data >> (inword_addr * 8)) & mask
+
+    def _aligned_write(self, start_addr, num_bytes, value):
+        self.min_addr = min(start_addr, self.min_addr)
+        self.max_addr = max(start_addr + num_bytes - 1, self.max_addr)
+        mem_offset, inword_addr, mask = self._split_addr(start_addr, num_bytes)
+        if num_bytes == 8:
+            assert inword_addr == 0
+            self._write_word(mem_offset, value)
+            return
+        assert value & ~mask == 0
+        olddata = self._read_word(mem_offset)
+        mask <<= inword_addr * 8
+        value <<= inword_addr * 8
+        self._write_word(mem_offset, (olddata & ~mask) | value)
+
+    def _read_word(self, addr):
+        w_res = self.space.call_function(self.w_read, BitVector.from_ruint(64, addr))
+        res = self.space.interp_w(BitVector, w_res)
+        return res.touint(64)
+
+    def _write_word(self, addr, value):
+        w_addr = BitVector.from_ruint(64, addr)
+        w_value = BitVector.from_ruint(64, value)
+        self.space.call_function(self.w_write, w_addr, w_value)
+
+    def memory_info(self):
+        return [(self.min_addr, self.max_addr)]
+
+
 class W_RISCV64(W_Root):
     """ Emulator for a RISC-V 64-bit CPU """
     objectmodel.import_from_mixin(MachineAbstractBase)
@@ -608,16 +702,17 @@ class W_RISCV64(W_Root):
 
 
 @unwrap_spec(elf="text_or_none", dtb=bool)
-def riscv64_descr_new(space, w_subtype, elf=None, dtb=False):
+def riscv64_descr_new(space, w_subtype, elf=None, dtb=False, w_callbacks=None):
     """ Create a RISC-V 64-bit CPU. Load elf if given, and create a device tree
     binary if the flag dtb is set. """
     w_res = space.allocate_instance(W_RISCV64, w_subtype)
-    W_RISCV64.__init__(w_res, space, elf, dtb)
+    W_RISCV64.__init__(w_res, space, elf, dtb, w_callbacks)
     return w_res
 
 
 W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     __new__ = interp2app(riscv64_descr_new),
+    reset = interp2app(W_RISCV64.reset),
     step = interp2app(W_RISCV64.step),
     step_monitor_mem = interp2app(W_RISCV64.step_monitor_mem),
     read_register = interp2app(W_RISCV64.read_register),
@@ -643,16 +738,17 @@ class W_RISCV32(W_Root):
 
 
 @unwrap_spec(elf="text_or_none", dtb=bool)
-def riscv32_descr_new(space, w_subtype, elf=None, dtb=False):
+def riscv32_descr_new(space, w_subtype, elf=None, dtb=False, w_callbacks=None):
     """ Create a RISC-V 32-bit CPU. Load elf if given, and create a device tree
     binary if the flag dtb is set. """
     w_res = space.allocate_instance(W_RISCV32, w_subtype)
-    W_RISCV32.__init__(w_res, space, elf, dtb)
+    W_RISCV32.__init__(w_res, space, elf, dtb, w_callbacks)
     return w_res
 
 
 W_RISCV32.typedef = TypeDef("_pydrofoil.RISCV32",
     __new__ = interp2app(riscv32_descr_new),
+    reset = interp2app(W_RISCV32.reset),
     step = interp2app(W_RISCV32.step),
     step_monitor_mem = interp2app(W_RISCV32.step_monitor_mem),
     read_register = interp2app(W_RISCV32.read_register),
@@ -732,7 +828,8 @@ class __extend__(BitVector):
             return space.newint(0)
 
     def descr_eq(self, space, w_other):
-        w_other = self._pypy_coerce(space, w_other)
+        if not isinstance(w_other, BitVector):
+            w_other = self._pypy_coerce(space, w_other)
         if w_other is None:
             return space.w_NotImplemented
         if self.size() != w_other.size():
@@ -793,6 +890,34 @@ class __extend__(BitVector):
             return space.w_NotImplemented
         return self.append(w_other)
 
+    def _check_shift(self, space, shift):
+        if shift < 0:
+            raise oefmt(space.w_ValueError, "negative shift count")
+        return shift
+
+    @unwrap_spec(shift=int)
+    def descr_lshift(self, space, shift):
+        """ Shift bitvector to the left. """
+        return self.lshift(self._check_shift(space, shift))
+
+    def descr_rshift(self, space, w_other):
+        """rshift is not implemented. use .arithmetic_rshift() or .logical_rshift()."""
+        raise oefmt(space.w_TypeError, "rshift is not implemented. use .arithmetic_rshift() or .logical_rshift().")
+
+    @unwrap_spec(shift=int)
+    def descr_logical_rshift(self, space, shift):
+        """Perform a logical right shift, i.e. shift in zeros."""
+        return self.rshift(self._check_shift(space, shift))
+
+    @unwrap_spec(shift=int)
+    def descr_arithmetic_rshift(self, space, shift):
+        """Perform a logical right shift, i.e. shift in zeros."""
+        return self.arith_rshift(self._check_shift(space, shift))
+
+    def descr_neg(self, space):
+        # implement as 0 - self
+        return BitVector.from_ruint(self.size(), r_uint(0)).sub_bits(self)
+
     def descr_invert(self, space):
         return self.invert()
 
@@ -818,10 +943,34 @@ class __extend__(BitVector):
         """ Sign-extend the bitvector to width target_size. """
         return self.sign_extend(target_size)
 
+    def descr_index(self, space):
+        """ Interpret the bitvector as an integer """
+        return self.descr_unsigned(space)
 
-@unwrap_spec(width=int, value=r_uint)
-def bitvector_descr_new(w_type, space, width, value):
-    return BitVector.from_ruint(width, value)
+    def descr_hash(self, space):
+        return space.newint(self.tobigint().hash() ^ self.size())
+
+    def descr_bool(self, space):
+        return space.newbool(self.tobool())
+
+
+@unwrap_spec(width=int)
+def bitvector_descr_new(w_type, space, width, w_value):
+    if width < 0:
+        raise oefmt(space.w_ValueError, "width must not be negative")
+    try:
+        value = space.uint_w(w_value)
+    except OperationError as e:
+        if not e.match(space, space.w_TypeError) and not e.match(space, space.w_OverflowError):
+            raise
+    else:
+        return BitVector.from_ruint(width, value)
+    try:
+        return BitVector.from_bigint(width, space.bigint_w(w_value))
+    except OperationError as e:
+        if not e.match(space, space.w_TypeError):
+            raise
+        raise oefmt(space.w_TypeError, "bitvector value must be integer")
 
 
 BitVector.typedef = TypeDef("bitvector",
@@ -843,9 +992,20 @@ BitVector.typedef = TypeDef("bitvector",
     __sub__ = interp2app(BitVector.descr_sub),
     __rsub__ = interp2app(BitVector.descr_rsub),
 
+    __rshift__ = interp2app(BitVector.descr_rshift),
+    __lshift__ = interp2app(BitVector.descr_lshift),
+    arithmetic_rshift = interp2app(BitVector.descr_arithmetic_rshift),
+    logical_rshift = interp2app(BitVector.descr_logical_rshift),
+
     __matmul__ = interp2app(BitVector.descr_matmul),
 
+    __neg__ = interp2app(BitVector.descr_neg),
     __invert__ = interp2app(BitVector.descr_invert),
+
+    __index__ = interp2app(BitVector.descr_index),
+    __hash__ = interp2app(BitVector.descr_hash),
+
+    __bool__ = interp2app(BitVector.descr_bool),
 
     signed = interp2app(BitVector.descr_signed),
     unsigned = interp2app(BitVector.descr_unsigned),
@@ -866,3 +1026,33 @@ with open(appfile, "r") as f:
 app = applevel(content, filename=__file__)
 app_repr_union = app.interphook('repr_union')
 app_repr_struct = app.interphook('repr_struct')
+app_hash_union = app.interphook('hash_union')
+
+# ________________________________________________
+
+class W_Callbacks(W_Root):
+    _immutable_fields_ = ['w_mem_read8_intercept', 'w_mem_write8_intercept']
+
+    def __init__(self, w_mem_read8_intercept, w_mem_write8_intercept):
+        self.w_mem_read8_intercept = w_mem_read8_intercept
+        self.w_mem_write8_intercept = w_mem_write8_intercept
+
+    def descr_repr(self, space):
+        res = ["_pydrofoil.Callbacks("]
+        if self.w_mem_read8_intercept:
+            res.append("mem_read8_intercept=")
+            res.append(space.text_w(self.w_mem_read8_intercept))
+        if self.w_mem_write8_intercept:
+            res.append("mem_write8_intercept=")
+            res.append(space.text_w(self.w_mem_write8_intercept))
+        res.append(")")
+        return space.newtext(''.join(res))
+
+def callbacks_descr_new(space, w_subtype, __kwonly__, w_mem_read8_intercept=None, w_mem_write8_intercept=None):
+    return W_Callbacks(w_mem_read8_intercept, w_mem_write8_intercept)
+
+W_Callbacks.typedef = TypeDef("_pydrofoil.Callbacks",
+    __new__ = interp2app(callbacks_descr_new),
+    __repr__ = interp2app(W_Callbacks.descr_repr),
+)
+W_Callbacks.acceptable_as_base_class = False

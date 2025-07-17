@@ -19,6 +19,25 @@ class Value(object):
         if not isinstance(other, Value):
             return False
         return self.value == other.value
+    
+class Packed(Value):
+    """ this is only a wrapper on the python side
+        Values are not packed on z3 level """
+
+    def __init__(self, w_value):
+        self.w_value = w_value
+    
+    def toz3(self):
+        return self.w_value.toz3()
+    
+    def __str__(self):
+        return str(self.w_value)
+    
+    def __repr__(self):
+        return self.__str__()
+    
+    def same_value(self, other):
+        return self.w_value.same_value(other)
 
 class Enum(Value):# AbstractConstant
     
@@ -357,7 +376,6 @@ class Z3BoolNotValue(Z3BoolValue):
                 return BooleanConstant(True)
         return Z3BoolValue(z3.Or(self.toz3(), w_other.toz3())) # use self.toz3() here as this method is inherited to Z3BoolNotValue
 
-
     def not_(self):
         return Z3BoolValue(self.value)
     
@@ -478,14 +496,17 @@ class SharedState(object):
             return z3.ArraySort(z3.IntSort(), subtyp)
         elif isinstance(typ, types.String):
             return z3.StringSort()
+        elif isinstance(typ, types.Packed):# packed only in python, not on z3 level
+            return self.convert_type_to_z3_type(typ.typ)
         else:
             import pdb; pdb.set_trace()
 
     def get_w_class_for_ztype(self, ztype):
         """ get the z3backend  wrapper class appropriate for the given z3 type """
         # TODO: think of how to get more specialised types
-        if ztype == z3.BoolSort():
-            return Z3BoolValue 
+        if ztype == z3.BoolSort(): return Z3BoolValue 
+        if ztype == z3.StringSort(): return Z3StringValue
+        # TODO. maybe this must check for the shared_state unit constant?
         return Z3Value
 
     def register_enum(self, name, variants):
@@ -740,10 +761,12 @@ class Interpreter(object):
                 w_arg = StringConstant(arg.string)
             else:
                 assert 0, "Some ir Constant " + str(arg) 
+        elif isinstance(arg, types.Packed):
+            # TODO: can this even happen?
+            import pdb; pdb.set_trace()
         else:
             w_arg = self.environment[arg]    
         return w_arg
-
 
     def getargs(self, op):
         """ get all wrapped args of an operation """
@@ -877,7 +900,7 @@ class Interpreter(object):
         self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
         return w_res
     
-    def select_method_graph(self, arg0, method_graphs):
+    def _select_method_graph(self, arg0, method_graphs):
         """ select method graph depending on first arg for method call """
         ## arg0 is the 'object' the method is called on
         if isinstance(arg0, UnionConstant):
@@ -889,7 +912,7 @@ class Interpreter(object):
 
     def exec_method_call(self, op, graphs):
         func_args = self.getargs(op)
-        graph = self.select_method_graph(func_args[0], graphs)
+        graph = self._select_method_graph(func_args[0], graphs)
         self._debug_print("graph " + self.graph.name + " mthd call " + op.name)
         interp_fork = self.call_fork(graph, func_args)
         w_res = interp_fork.run()
@@ -907,6 +930,20 @@ class Interpreter(object):
             self.w_raises = self.w_raises._create_w_z3_or(interp_fork.w_raises)
         self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
         return w_res
+    
+    def exec_allocate(self, op):
+        if isinstance(op.resolved_type, types.Struct):
+            z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
+            fields, _ = self.sharedstate.struct_z3_field_map[z3type]
+            vals_w = []
+            for field, typ in fields:
+                if type is not self.sharedstate._z3_unit:
+                    val = self.sharedstate.get_abstract_const_of_ztype(typ, "alloc_uninit_%s_" % field)
+                else:
+                    val = self.sharedstate._z3_unit
+                vals_w.append(self.sharedstate.get_w_class_for_ztype(typ)(val))
+            return StructConstant(vals_w, op.resolved_type, z3type)
+        assert 0 , "implement allocate %s" % str(op.resolved_type)
     
     def exec_struct_construction(self, op):
         """ Execute a Lazy Struct creation """
@@ -940,19 +977,20 @@ class Interpreter(object):
             By creating a new struct instance """
         field_to_replace = op.name
         struct, new_value = self.getargs(op)
-        z3_struct_type = struct.toz3().sort()
-        fields, resolved_type = self.sharedstate.struct_z3_field_map[z3_struct_type]
+        struct_type = op.args[0].resolved_type
+        struct_type_z3 = self.sharedstate.get_z3_struct_type(struct_type)
+        fields, resolved_type = self.sharedstate.struct_z3_field_map[struct_type_z3]
         new_args  = []
         for fieldname, _ in fields:
             if fieldname == field_to_replace:
                 new_args.append(new_value)
             else:
-                res = getattr(z3_struct_type, fieldname)(struct.toz3())# TODO get from vals_w
+                res = getattr(struct_type_z3, fieldname)(struct.toz3())# TODO get from vals_w
                 if res.sort() == z3.BoolSort():
                     new_args.append(Z3BoolValue(res))
                 else:
                     new_args.append(Z3Value(res))  
-        new_struct = StructConstant(new_args, resolved_type, z3_struct_type)
+        new_struct = StructConstant(new_args, resolved_type, struct_type_z3)
 
         # whenever struct is used it must be replaced with new_struct now
         self.sharedstate.struct_update_map[struct] = new_struct
@@ -1220,6 +1258,12 @@ class Interpreter(object):
             return ConstantSmallBitVector(supportcode.vector_access_bv_i(None, arg0.value, arg1.value), op.resolved_type.width)
         else:
             return Z3Value(z3.Extract(arg1.value, arg1.value, arg0.toz3()))
+
+    def exec_pack_smallfixedbitvector(self, op):
+        """ pack a smallfixedbitvector into a Packed Wrapper object 
+            DONT omit this, there are 'unpack' operations """
+        arg0, arg1 = self.getargs(op) #arg0 = bits? ,arg1 = SmallFixedBV
+        return Packed(arg1)
 
     def exec_zero_extend_bv_i_i(self, op):
         """ extend bitvector from arg1 to arg2 with zeros """

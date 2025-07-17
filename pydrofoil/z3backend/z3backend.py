@@ -736,6 +736,8 @@ class Interpreter(object):
                 w_arg = BooleanConstant(arg.value)
             elif isinstance(arg, ir.UnitConstant):
                 w_arg = UnitConstant()
+            elif isinstance(arg, ir.StringConstant):
+                w_arg = StringConstant(arg.string)
             else:
                 assert 0, "Some ir Constant " + str(arg) 
         else:
@@ -1201,7 +1203,6 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector):
             return ConstantSmallBitVector(supportcode.vector_update_subrange_fixed_bv_i_i_bv(None, arg0.value, arg1.value, arg2.value, arg3.value), op.resolved_type.width)
         else:
-            # TODO: This should be tested explicitly
             res = arg3.toz3()
             bv_size = arg0.toz3().sort().size()
             if arg1.value != (bv_size - 1):
@@ -1262,7 +1263,7 @@ class Interpreter(object):
         """ convert bits of bv to string repr e.g. bv: 01010 -> str: '01010' """
         arg0, = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector):
-            return StringConstant(bin(arg0.value)) #TODO: binary or int repr???
+            return StringConstant(bin(arg0.value))
         else:
             if not arg0.toz3().sort().size(): return StringConstant("") 
             zero, one = z3.StringVal("0"), z3.StringVal("1") 
@@ -1270,6 +1271,14 @@ class Interpreter(object):
             for i in range(1, arg0.toz3().sort().size()):
                 res = z3.Concat(z3.If(z3.Extract(i, i, arg0.toz3()) == 0, zero, one), res) # concat(x,y) = xy, but bv extract index 0is on the right side
             return Z3StringValue(res)
+
+    def exec_zconcat_str(self, op):
+        """ str concat arg0 and arg1 """
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, StringConstant) and isinstance(arg1, StringConstant):
+            return StringConstant("".join([arg0.value, arg1.value]))
+        else:
+            return Z3StringValue(z3.Concat(arg0.toz3(), arg1.toz3()))
 
     ### Arch specific Operations in subclass ###
 
@@ -1324,43 +1333,3 @@ class RiscvInterpreter(Interpreter):
         ### TODO: False?
         return BooleanConstant(False)
     
-    """def exec_znum_of_ExceptionType(self, op):
-        return ConstantInt(self._get_exception_enum_num(op))      
-    
-    def exec_zexceptionType_to_bits(self, op):
-        return ConstantSmallBitVector(self._get_exception_enum_num(op), op.resolved_type.width)"""    
-       
-    def _get_exception_enum_num(self, op):
-        """ Those are hardwired numbers for exceptions.
-            They are NOT in Enum definition Order """ # machine int
-        # TODO: can this only be a constant?
-        arg0, = self.getargs(op)
-        if arg0.variant_name == "zE_Fetch_Addr_Align": return 0
-        if arg0.variant_name == "zE_Fetch_Access_Fault": return 1
-        if arg0.variant_name == "zE_Illegal_Instr": return 2
-        if arg0.variant_name == "zE_Breakpoint": return 3
-        if arg0.variant_name == "zE_Load_Addr_Align": return 4
-        if arg0.variant_name == "zE_Load_Access_Fault": return 5
-        if arg0.variant_name == "zE_SAMO_Addr_Align": return 6
-        if arg0.variant_name == "zE_SAMO_Access_Fault": return 7
-        if arg0.variant_name == "zE_U_EnvCall": return 8
-        if arg0.variant_name == "zE_S_EnvCall": return 9
-        if arg0.variant_name == "zE_Reserved_10": return 10
-        if arg0.variant_name == "zE_M_EnvCall": return 11
-        if arg0.variant_name == "zE_Fetch_Page_Fault": return 12
-        if arg0.variant_name == "zE_Load_Page_Fault": return 13
-        if arg0.variant_name == "zE_Reserved_14": return 14
-        if arg0.variant_name == "zE_SAMO_Page_Fault": return 15
-        if arg0.variant_name == "zE_Extension": return 24
-        assert 0, "this should not happen"
-
-    #def exec_ztval(self, op):
-        """ This is basicly a method on union_zoptionzIbzK, 
-            but it doesnt get a graph """
-        ### TODO: remove when method has a graph by default ###
-        #arg0, = self.getargs(op)
-        #if not isinstance(arg0, UnionConstant) or not arg0.z3type.name() == "union_zoptionzIbzK":
-        #    import pdb; pdb.set_trace()
-        #funcname = "ztval_zSomezIbzK" if arg0.variant_name == "zSomezIbzK" else "ztval_zNonezIbzK"
-        #new_op  = ir.Operation(funcname, op.args, op.resolved_type, None, None)
-        #return self.exec_func_call(new_op, self.sharedstate.funcs[funcname])

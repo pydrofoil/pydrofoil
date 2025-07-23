@@ -89,12 +89,12 @@ class Struct(Type):
         assert type(self) is not Struct
         assert self.tuplestruct == tuplestruct
         assert isinstance(name, str)
-        self.name = name
-        self.demangled_name = demangle(name)
-        self.names = names
+        self.name = name # type: str
+        self.demangled_name = demangle(name) # type: str
+        self.names = names # type: tuple[str, ...]
         self.names_list = [demangle(name) for name in names]
-        self.typs = typs
-        self.typs_list = list(typs)
+        self.typs = typs # type: tuple[Type, ...]
+        self.typs_list = list(typs) # type: list[Type]
         self.internaltyps = tuple((Packed(typ) if typ.packed_field_size else typ) for typ in typs)
         self.fieldtyps = {}
         self.internalfieldtyps = {}
@@ -102,7 +102,7 @@ class Struct(Type):
         for name, typ, internaltyp in zip(names, self.typs, self.internaltyps):
             self.fieldtyps[name] = typ
             self.internalfieldtyps[name] = internaltyp
-        self.tuplestruct = tuplestruct
+        self.tuplestruct = tuplestruct # type: bool
 
     def sail_repr(self):
         from pydrofoil.mangle import demangle

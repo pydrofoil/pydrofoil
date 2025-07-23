@@ -1050,12 +1050,15 @@ class Interpreter(object):
         assert 0, "implement cast %s to %s" % (op.args[0].resolved_type, op.resolved_type)
 
     def exec_signed_bv(self, op):
-        arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
-            return ConstantInt(supportcode.signed_bv(None, arg0.value, arg1.value))
+        w_value, w_width = self.getargs(op)
+        return self._signed_bv(w_value, w_width)
+
+    def _signed_bv(self, w_value, w_width):
+        if isinstance(w_value, ConstantSmallBitVector) and isinstance(w_width, ConstantInt):
+            return ConstantInt(supportcode.signed_bv(None, w_value.value, w_width.value))
         else:
             # machine ints are represented as 64-bit bit vectors in z3
-            return Z3Value(z3.SignExt(64 - arg1.value, arg0.toz3()))
+            return Z3Value(z3.SignExt(64 - w_width.value, w_value.toz3()))
     
     def exec_bitvector_concat_bv_bv(self, op):
         arg0, arg1, arg2 = self.getargs(op)

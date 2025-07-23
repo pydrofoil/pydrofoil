@@ -390,7 +390,6 @@ class SharedState(object):
         self.union_field_cache = {} # (union_name,union_field):z3_type
         self.struct_z3_field_map = {}
         self.struct_unit_fields = set()
-        self.struct_update_map = {}
         unit = z3.Datatype("____unit____")
         unit.declare("UNIT")
         self._z3_unit_type = unit.create()
@@ -773,11 +772,6 @@ class Interpreter(object):
         res = []
         for arg in op.args:
             w_arg = self.convert(arg)
-            # structs can change in rpython, but not in z3, so after a field write a struct is replaced
-            # the replacement value is stored in sharedstate.struct_update_map with the old struct as key
-            # TODO: this can be optimized by replacing ALL old instances of one struct with the most recent in field write   
-            while w_arg in self.sharedstate.struct_update_map:
-                w_arg = self.sharedstate.struct_update_map[w_arg]
             res.append(w_arg)
         return res
     
@@ -992,8 +986,9 @@ class Interpreter(object):
                     new_args.append(Z3Value(res))  
         new_struct = StructConstant(new_args, resolved_type, struct_type_z3)
 
-        # whenever struct is used it must be replaced with new_struct now
-        self.sharedstate.struct_update_map[struct] = new_struct
+        # replace struct in env
+        # old struct shall not be used anymore
+        self.environment[op.args[0]] = new_struct
 
     def exec_union_variant_check(self, op):
         instance, = self.getargs(op)
@@ -1014,11 +1009,11 @@ class Interpreter(object):
         ###       if yes => remove typecheck in sharedstate.ir_union_variant_to_z3_type
         union_type = op.args[0].resolved_type
         to_specialized_variant = op.name 
-        res_type = op.resolved_type# TODO: res_type can be removed, maybe ? 
+        res_type = op.resolved_type# TODO: can res_type can be removed ? 
         instance, = self.getargs(op)
         if isinstance(instance, Z3Value):
             z3_cast_instance = self.sharedstate.ir_union_variant_to_z3_type(instance, union_type, to_specialized_variant, res_type)
-            # TODO: do we need to check for BoolSortt here too?
+            # TODO: do we need to check for BoolSort here too?
             return Z3Value(z3_cast_instance)
         elif isinstance(instance, UnionConstant):
             assert op.name == instance.variant_name

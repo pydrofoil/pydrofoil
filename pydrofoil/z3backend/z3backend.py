@@ -681,14 +681,16 @@ class Interpreter(object):
             return Z3Value(z3.SignExt(64 - w_width.value, w_value.toz3()))
     
     def exec_bitvector_concat_bv_bv(self, op):
-        arg0, arg1, arg2 = self.getargs(op)
-        if (isinstance(arg0, ConstantSmallBitVector) and
-             isinstance(arg1, ConstantInt) and 
-             isinstance(arg2, ConstantSmallBitVector)):
-            return ConstantSmallBitVector(supportcode.bitvector_concat_bv_bv(None, arg0.value, arg1.value, arg2.value))
+        bv0, width, bv1 = self.getargs(op)
+        return self._bitvector_concat_bv_bv(bv0, bv1, width)
+    
+    def _bitvector_concat_bv_bv(self, bv0, bv1, width):
+        if (isinstance(bv0, ConstantSmallBitVector) and
+             isinstance(bv1, ConstantSmallBitVector) and
+             isinstance(width, ConstantInt)): 
+            return ConstantSmallBitVector(supportcode.bitvector_concat_bv_bv(None, bv0.value, width.value, bv1.value), bv0.width + width.value)
         else:
-            return Z3Value(z3.Concat(arg0.toz3(), arg2.toz3()))
-
+            return Z3Value(z3.Concat(bv0.toz3(), bv1.toz3()))
 
     def exec_eq_bits_bv_bv(self, op):
         arg0, arg1 = self.getargs(op)

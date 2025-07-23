@@ -2023,3 +2023,122 @@ block6.next = Goto(block3, None)
 block7.next = Goto(block3, None)
 graph = Graph('zwithin_phys_mem_specialized_o_i', [zaddr, zwidth], block0)
 """)
+
+
+def test_loop_bug():
+    zx = Argument("zx", MachineInt())
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    block7 = Block()
+    block8 = Block()
+    block9 = Block()
+    block10 = Block()
+    i1 = block0.emit(Operation, "int64_to_int", [zx], Int(), None, None)
+    i2 = block0.emit(
+        Operation,
+        "@gteq",
+        [zx, MachineIntConstant(0)],
+        Bool(),
+        "`9 6817:11-6817:17",
+        "zz419",
+    )
+    i3 = block0.emit(
+        Comment,
+        "sail_assert src/v8_base.sail:6817.17-6817.18",
+        [],
+        Unit(),
+        None,
+        None,
+    )
+    block0.next = ConditionalGoto(i2, block1, block10, "`9 6816:23-6829:1")
+    i4 = block1.emit(
+        Operation,
+        "@eq",
+        [zx, MachineIntConstant(0)],
+        Bool(),
+        "`9 6819:7-6819:13",
+        "zz414",
+    )
+    block1.next = ConditionalGoto(i4, block2, block4, "`9 6819:4-6821:5")
+    block2.next = Goto(block3, None)
+    i5 = block3.emit_phi([block2, block8], [IntConstant(0), None], Int())
+    block3.next = Return(i5, None)
+    block4.next = Goto(block5, None)
+    i6 = block5.emit_phi([block4, block6], [IntConstant(1), None], Int())
+    i7 = block5.emit(Operation, "int_to_int64", [i6], MachineInt(), None, None)
+    i8 = block5.emit(
+        Operation, "@pow2_i", [i7], Int(), "`9 6822:15-6822:22", "zz412"
+    )
+    i9 = block5.emit(
+        Operation, "gteq", [i1, i8], Bool(), "`9 6822:10-6822:22", "zz49"
+    )
+    block5.next = ConditionalGoto(i9, block6, block7, "`9 6822:4-6824:5")
+    i10 = block6.emit(
+        Operation,
+        "@add_i_i_wrapped_res",
+        [i7, MachineIntConstant(1)],
+        Int(),
+        "`9 6823:12-6823:17",
+        "zz40",
+    )
+    i6.prevvalues[1] = i10
+    block6.next = Goto(block5, None)
+    i11 = block7.emit(
+        Operation,
+        "@sub_i_i_must_fit",
+        [i7, MachineIntConstant(1)],
+        MachineInt(),
+        "`9 6826:17-6826:22",
+        "zz47",
+    )
+    i12 = block7.emit(
+        Operation, "@pow2_i", [i11], Int(), "`9 6826:12-6826:23", "zz43"
+    )
+    i5.prevvalues[1] = i12
+    i13 = block7.emit(
+        Operation,
+        "gteq",
+        [i12, IntConstant(0)],
+        Bool(),
+        "`9 6827:11-6827:17",
+        "zz44",
+    )
+    i14 = block7.emit(
+        Comment,
+        "sail_assert src/v8_base.sail:6827.17-6827.18",
+        [],
+        Unit(),
+        None,
+        None,
+    )
+    block7.next = ConditionalGoto(i13, block8, block9, "`9 6827:4-6828:13")
+    block8.next = Goto(block3, None)
+    block9.next = Raise(
+        StringConstant("src/v8_base.sail:6827.17-6827.18"), None
+    )
+    block10.next = Raise(
+        StringConstant("src/v8_base.sail:6817.17-6817.18"), None
+    )
+    graph = Graph("zFloorPow2_specialized_i", [zx], block0, True)
+    res = topo_order_best_attempt(graph)
+    # the important part is that the return block3 is before the two incoming edges
+    assert res == [
+        block0,
+        block1,
+        block2,
+        block4,
+        block10,
+        block5,
+        block6,
+        block7,
+        block8,
+        block3,
+        block9,
+    ]
+    values = analyze(graph, fakecodegen)
+    assert values[block3][i5] == Range(0, None)

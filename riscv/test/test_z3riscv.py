@@ -3,7 +3,7 @@ import os
 import z3
 from pydrofoil import graphalgorithms
 from pydrofoil import ir
-from pydrofoil.z3backend import z3backend
+from pydrofoil.z3backend import z3backend, z3btypes
 from rpython.rlib.rarithmetic import r_uint 
 
 @pytest.fixture(scope='session')
@@ -83,9 +83,9 @@ def test_decode_and_execute_addi(riscvsharedstate):
     #assert "zeq_anythingzIEArchitecturez5zK" in riscvsharedstate.funcs
     graph = riscvsharedstate.funcs['zencdec_backwards']
     #graph.view()
-    interp = z3backend.RiscvInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0xfe0f0f13), 64)], riscvsharedstate.copy())
+    interp = z3backend.RiscvInterpreter(graph, [z3btypes.ConstantSmallBitVector(r_uint(0xfe0f0f13), 64)], riscvsharedstate.copy())
     ast = interp.run()
-    assert isinstance(ast, z3backend.UnionConstant)
+    assert isinstance(ast, z3btypes.UnionConstant)
     assert ast.variant_name == "zITYPE"
     assert str(ast.w_val) == "<StructConstant [4064, 30, 30, zRISCV_ADDI] ztuplez3z5bv12_z5bv5_z5bv5_z5enumz0zziop>"
 
@@ -98,8 +98,8 @@ def test_decode_and_execute_addi(riscvsharedstate):
 
     print("start executing", ast)
     graph = riscvsharedstate.funcs['zexecute_zITYPE']
-    ast.w_val.vals_w[1] = z3backend.Z3Value(z3.FreshConst(z3.BitVecSort(5)))
-    ast.w_val.vals_w[2] = z3backend.Z3Value(z3.FreshConst(z3.BitVecSort(5)))
+    ast.w_val.vals_w[1] = z3btypes.Z3Value(z3.FreshConst(z3.BitVecSort(5)))
+    ast.w_val.vals_w[2] = z3btypes.Z3Value(z3.FreshConst(z3.BitVecSort(5)))
     interp = z3backend.RiscvInterpreter(graph, [ast], riscvsharedstate.copy())
     res = interp.run()
 
@@ -111,7 +111,7 @@ def test_prove_itype_cant_switch_mode(riscvsharedstate):
     struct_typ = union_typ.variants['zITYPE']
     z3_struct = riscvsharedstate.get_abstract_struct_const_of_type(struct_typ, '')
     z3_union_typ = riscvsharedstate.convert_type_to_z3_type(union_typ)
-    arg = z3backend.UnionConstant('zITYPE', z3backend.Z3Value(z3_struct), union_typ, z3_union_typ)
+    arg = z3backend.UnionConstant('zITYPE', z3btypes.Z3Value(z3_struct), union_typ, z3_union_typ)
     interp = z3backend.RiscvInterpreter(graph, [arg], riscvsharedstate.copy())
     registers_old = interp.registers.copy()
     interp.run()
@@ -122,19 +122,19 @@ def test_prove_itype_cant_switch_mode(riscvsharedstate):
 def test_invalid_opcode(riscvsharedstate):
     graph = riscvsharedstate.funcs['zencdec_backwards']
     print("start executing", graph)
-    interp = z3backend.RiscvInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0x65), 32)], riscvsharedstate.copy())
+    interp = z3backend.RiscvInterpreter(graph, [z3btypes.ConstantSmallBitVector(r_uint(0x65), 32)], riscvsharedstate.copy())
     res = interp.run()
-    assert isinstance(res, z3backend.Z3Value)
+    assert isinstance(res, z3btypes.Z3Value)
     #assert str(res) == "?" # TODO: check for invalid opcode, after we use correct misa and mstatus values
 
 def test_decode_all(riscvsharedstate):
     graph = riscvsharedstate.funcs['zencdec_backwards']
     print("start executing", graph)
     inst = z3.BitVec("inst", 32)
-    interp = z3backend.RiscvInterpreter(graph, [z3backend.Z3Value(inst)], riscvsharedstate.copy())
+    interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3Value(inst)], riscvsharedstate.copy())
     res = interp.run()
 
-    assert isinstance(res, z3backend.Z3Value)
+    assert isinstance(res, z3btypes.Z3Value)
 
     res_sub = z3.substitute(res.toz3(), (inst, z3.BitVecVal(0xfe0f0f13, 32)))
     res_simple = z3.simplify(res_sub)
@@ -143,7 +143,7 @@ def test_decode_all(riscvsharedstate):
 def test_decode_execute_itype(riscvsharedstate):# func_zstep
     graph = riscvsharedstate.funcs['zencdec_backwards']
     print("start executing", graph)
-    interp = z3backend.RiscvInterpreter(graph, [z3backend.ConstantSmallBitVector(r_uint(0xfe0f0f13), 32)], riscvsharedstate.copy())
+    interp = z3backend.RiscvInterpreter(graph, [z3btypes.ConstantSmallBitVector(r_uint(0xfe0f0f13), 32)], riscvsharedstate.copy())
     instr_ast = interp.run()
 
     assert str(instr_ast.toz3()) == "zITYPE(a(4064, 30, 30, zRISCV_ADDI))" # 4064 in 12 bit bv = 111111100000 = -32
@@ -161,15 +161,15 @@ def test_decode_execute_all_abstract(riscvsharedstate):
 
     graph = riscvsharedstate.funcs['zencdec_backwards']
     print("start executing", graph)
-    interp = z3backend.RiscvInterpreter(graph, [z3backend.Z3Value(z3.BitVec("z3mergez3var", 32))], riscvsharedstate.copy())
+    interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3Value(z3.BitVec("z3mergez3var", 32))], riscvsharedstate.copy())
     instr_ast = interp.run()
 
-    assert isinstance(instr_ast, z3backend.Z3Value)
+    assert isinstance(instr_ast, z3btypes.Z3Value)
 
     for name, func in riscvsharedstate.funcs.iteritems():
         #if not "zexecute_zSHIFTIOP" == name: continue
         if not "zexecute_" in name: continue
         interp = z3backend.RiscvInterpreter(func, [instr_ast], riscvsharedstate.copy())
         res = interp.run()
-        assert isinstance(res, z3backend.Enum) or isinstance(res, z3backend.Z3Value)
+        assert isinstance(res, z3btypes.Enum) or isinstance(res, z3btypes.Z3Value)
 

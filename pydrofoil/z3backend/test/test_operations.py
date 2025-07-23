@@ -1,5 +1,5 @@
 from pydrofoil import bitvector, ir, types
-from pydrofoil.z3backend import z3backend
+from pydrofoil.z3backend import z3backend, z3btypes
 from hypothesis import given, strategies, assume, example, settings
 import z3
 import pytest
@@ -61,16 +61,16 @@ DummyGraph.Dummy = DummyGraph()
 @given(interpreter, small_bitvectors)
 def test_signed_bv(interp, bv_con):
 
-    w_width = z3backend.ConstantInt(bv_con.resolved_type.width)
+    w_width = z3btypes.ConstantInt(bv_con.resolved_type.width)
 
-    w_bv_abs = z3backend.Z3Value(z3.BitVec("bitvec", w_width.value))
+    w_bv_abs = z3btypes.Z3Value(z3.BitVec("bitvec", w_width.value))
     w_bv_con = interp.convert(bv_con)
 
     res_abs = interp._signed_bv(w_bv_abs, w_width)
     res_con = interp._signed_bv(w_bv_con, w_width)
 
-    assert isinstance(res_con, z3backend.ConstantInt)
-    assert isinstance(res_abs, z3backend.Z3Value)
+    assert isinstance(res_con, z3btypes.ConstantInt)
+    assert isinstance(res_abs, z3btypes.Z3Value)
 
     # res can be negative
     # we must interpret bv_cons bits as signed bv

@@ -203,6 +203,12 @@ class Interpreter(object):
         self.w_result = None
         self.path_condition = []
 
+    def _set_graph_reset_env_set_args(self, graph, args):
+        """ only for z3backend_executor.
+            do not use elsewhere """
+        self.graph = graph
+        self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
+
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
         todo = collections.deque()

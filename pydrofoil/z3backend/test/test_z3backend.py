@@ -839,8 +839,8 @@ def test_merge_abstract():
     interp = z3backend.NandInterpreter(graph, [avar, bvar], sharedstate.copy())
     res = interp.run()
     assert str(res).startswith("""If(b,
-   If(a == 0, init_zA!6599, init_zC!6600) + 1 + 7,
-   If(a == 0, init_zA!6599, init_zC!6600) + 1 + 15)""")
+   If(a == 0, init_zA!6899, init_zC!6900) + 1 + 7,
+   If(a == 0, init_zA!6899, init_zC!6900) + 1 + 15)""")
 
 def test_merge_concrete():
     graph = get_double_diamond_graph()

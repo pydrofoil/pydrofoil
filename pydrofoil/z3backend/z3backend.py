@@ -508,10 +508,15 @@ class Interpreter(object):
     def exec_func_call(self, op, graph):
         self._debug_print("graph " + self.graph.name + " func call " + op.name)
         func_args = self.getargs(op)
+        w_res, memory, registers = self._func_call(graph, func_args)
+        self.memory = memory
+        self.registers = registers 
+        self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
+        return w_res
+    
+    def _func_call(self, graph, func_args):
         interp_fork = self.call_fork(graph, func_args)
         w_res = interp_fork.run()
-        self.registers = interp_fork.registers
-        self.memory = interp_fork.memory
         if isinstance(interp_fork.w_raises, BooleanConstant):
             if interp_fork.w_raises.value == True:# case: func raises without condition
                 self.w_raises = BooleanConstant(True)
@@ -522,8 +527,7 @@ class Interpreter(object):
         else: 
             # case: func did or didnt raise, but raise was behind a condition
             self.w_raises = self.w_raises._create_w_z3_or(interp_fork.w_raises)
-        self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
-        return w_res
+        return w_res, interp_fork.memory, interp_fork.registers
     
     def _select_method_graph(self, arg0, method_graphs):
         """ select method graph depending on first arg for method call """

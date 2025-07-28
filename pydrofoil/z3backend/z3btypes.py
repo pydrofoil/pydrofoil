@@ -31,7 +31,7 @@ class Packed(Value):
         return str(self.w_value)
     
     def __repr__(self):
-        return self.__str__()
+        return "Packed(%s)" % self.__str__()
     
     def same_value(self, other):
         return self.w_value.same_value(other)
@@ -102,7 +102,7 @@ class ConstantInt(AbstractConstant): # TODO: renname to ConstantMachineInt
         self.value = val
 
     def toz3(self):
-        return self.value
+        return z3.Int(self.value)
     
     def same_value(self, other):
         if not isinstance(other, ConstantInt):

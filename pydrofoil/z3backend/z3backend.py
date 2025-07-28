@@ -506,6 +506,7 @@ class Interpreter(object):
             import pdb; pdb.set_trace()
 
     def exec_func_call(self, op, graph):
+        """ execute a sail function call"""
         self._debug_print("graph " + self.graph.name + " func call " + op.name)
         func_args = self.getargs(op)
         w_res, memory, registers = self._func_call(graph, func_args)
@@ -540,13 +541,19 @@ class Interpreter(object):
         assert 0, "implement method selection on %s" % str(type(arg0))
 
     def exec_method_call(self, op, graphs):
-        func_args = self.getargs(op)
-        graph = self._select_method_graph(func_args[0], graphs)
+        """ execute a sail method call"""
+        mthd_args = self.getargs(op)
+        graph = self._select_method_graph(mthd_args[0], graphs)
         self._debug_print("graph " + self.graph.name + " mthd call " + op.name)
-        interp_fork = self.call_fork(graph, func_args)
+        w_res, memory, registers = self._method_call(graph, mthd_args)
+        self.memory = memory
+        self.registers = registers 
+        self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
+        return w_res
+    
+    def _method_call(self, graph, mthd_args):
+        interp_fork = self.call_fork(graph, mthd_args)
         w_res = interp_fork.run()
-        self.registers = interp_fork.registers
-        self.memory = interp_fork.memory
         if isinstance(interp_fork.w_raises, BooleanConstant):
             if interp_fork.w_raises.value == True:# case: func raises without condition
                 self.w_raises = BooleanConstant(True)
@@ -557,9 +564,8 @@ class Interpreter(object):
         else: 
             # case: func did or didnt raise, but raise was behind a condition
             self.w_raises = self.w_raises._create_w_z3_or(interp_fork.w_raises)
-        self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
-        return w_res
-    
+        return w_res, interp_fork.memory, interp_fork.registers
+
     def exec_allocate(self, op):
         if isinstance(op.resolved_type, types.Struct):
             z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
@@ -899,6 +905,11 @@ class Interpreter(object):
             DONT omit this, there are 'unpack' operations """
         arg0, arg1 = self.getargs(op) #arg0 = bits? ,arg1 = SmallFixedBV
         return Packed(arg1)
+    
+    def exec_pack_machineint(self, op):
+        """ pack a MachineInt into a Packed Wrapper object """
+        arg0, = self.getargs(op) 
+        return Packed(arg0)
 
     def exec_zero_extend_bv_i_i(self, op):
         """ extend bitvector from arg1 to arg2 with zeros """
@@ -950,6 +961,32 @@ class Interpreter(object):
             for i in range(1, arg0.toz3().sort().size()):
                 res = z3.Concat(z3.If(z3.Extract(i, i, arg0.toz3()) == 0, zero, one), res) # concat(x,y) = xy, but bv extract index 0is on the right side
             return Z3StringValue(res)
+        
+    def exec_zhex_str(self, op):
+        """convert int? to hex as string
+           currently only the lowest 64 bits can be used when converting an abstract argument"""
+        arg0, = self.getargs(op)
+        if isinstance(arg0, ConstantInt) or isinstance(arg0, ConstantGenericInt):
+            return StringConstant(hex(arg0.value))
+        else:
+            res = None
+            bits = 64
+            bv = z3.Int2BV(arg0.toz3(), bits) # TODO: find a way to repr generic ints as hex 
+            i = 0
+            while (bits-i)>0:
+                num = z3.BV2Int(z3.Extract(i+min(3, bits-i), i, bv))
+                i += 4
+                if res == None:
+                    res = self._build_4bit_hex_expr(num, 2**(min(3, bits-i)+2)-1)
+                else:
+                    res = z3.Concat(self._build_4bit_hex_expr(num, 2**(min(3, bits-i)+2)-1), res)
+            return Z3StringValue(res)
+
+    def _build_4bit_hex_expr(self, num, ctr):
+        if ctr != 1:
+            sym = chr(ctr+30) if (ctr>=0 and ctr<=9) else chr(ctr+131)
+            return z3.If(num == ctr, z3.StringVal(sym), self._build_4bit_hex_expr(num, ctr - 1))
+        return z3.If(num == ctr, z3.StringVal("1"), z3.StringVal("0"))
 
     def exec_zconcat_str(self, op):
         """ str concat arg0 and arg1 """

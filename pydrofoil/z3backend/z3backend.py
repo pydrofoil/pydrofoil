@@ -351,7 +351,7 @@ class Interpreter(object):
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
         f_interp.path_condition = self.path_condition if path_condition is None else path_condition
-        f_interp.w_raises = self.w_raises # if self raises, the fork must to
+        f_interp.w_raises = self.w_raises # if self raises, the fork must also raise
         return f_interp
     
     def call_fork(self, graph, args):
@@ -660,7 +660,7 @@ class Interpreter(object):
             assert op.name == instance.variant_name
             return instance.w_val
         else:
-            assert 0
+            assert 0 , "%s is not allowed in unioncast" % str(union_type) 
 
     def exec_union_creation(self, op):
         """ Execute union creation"""
@@ -693,8 +693,7 @@ class Interpreter(object):
         if isinstance(w_value, ConstantSmallBitVector) and isinstance(w_width, ConstantInt):
             return ConstantInt(supportcode.signed_bv(None, w_value.value, w_width.value))
         else:
-            # machine ints are represented as 64-bit bit vectors in z3
-            return Z3Value(z3.SignExt(64 - w_width.value, w_value.toz3()))
+            return Z3Value(z3.BV2Int(w_value.toz3(), is_signed=True))
     
     def exec_bitvector_concat_bv_bv(self, op):
         bv0, width, bv1 = self.getargs(op)
@@ -787,7 +786,7 @@ class Interpreter(object):
             return Z3Value(~arg0.toz3())
         
     def exec_sub_bits_bv_bv(self, op):
-        arg0, arg1, arg2 = self.getargs(op) 
+        arg0, arg1, _ = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
             return ConstantSmallBitVector(arg0.value - arg1.value, op.resolved_type.width)
         else:
@@ -795,10 +794,10 @@ class Interpreter(object):
 
     def exec_add_bits_int_bv_i(self, op):
         arg0, arg1, _ = self.getargs(op) 
-        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantSmallBitVector):
             return ConstantSmallBitVector(supportcode.add_bits_int_bv_i(None, arg0.value, arg1.value), op.resolved_type.width) 
         else:
-            return Z3Value(arg0.toz3() + arg1.toz3())
+            return Z3Value(arg0.toz3() + z3.Int2BV(arg1.toz3(), arg0.toz3().sort().size()))
 
     def exec_add_bits_bv_bv(self, op):
         arg0, arg1, _ = self.getargs(op) 

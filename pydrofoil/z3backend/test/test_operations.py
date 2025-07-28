@@ -93,8 +93,9 @@ def test_signed_bv(interp, bv_con):
     assert res_con.value == bv_con_val
 
     solver = z3.Solver()
-    solver.add(w_bv_abs.toz3() == res_con.toz3())
+    solver.add(w_bv_abs.toz3() == z3.Int2BV(res_con.toz3(), w_width.value))
     solvable = solver.check(z3.Not(res_con.toz3() == res_abs.toz3()))
+    
     assert solvable == z3.unsat
 
 @settings(deadline=1000)

@@ -280,7 +280,7 @@ def test_func_call_rv64_li(riscvsharedstate, abs_zast, li_params):
 
 @settings(deadline=5000)
 @given(li_params)
-def test_func_call_rv64_li(riscvsharedstate, abs_zast, li_params):
+def test_method_call_rv64_li(riscvsharedstate, abs_zast, li_params):
 
     zast, bv_zast = abs_zast
 

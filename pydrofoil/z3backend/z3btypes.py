@@ -102,7 +102,7 @@ class ConstantInt(AbstractConstant): # TODO: renname to ConstantMachineInt
         self.value = val
 
     def toz3(self):
-        return z3.Int(self.value)
+        return z3.IntVal(self.value)
     
     def same_value(self, other):
         if not isinstance(other, ConstantInt):

@@ -203,11 +203,10 @@ class Interpreter(object):
         self.w_result = None
         self.path_condition = []
 
-    def _set_graph_reset_env_set_args(self, graph, args):
+    def _reset_env(self):
         """ only for z3backend_executor.
             do not use elsewhere """
-        self.graph = graph
-        self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
+        self.environment = {}
 
     def run(self, block=None):
         """ interpret a graph, either begin with graph.startblock or the block passed as arg """
@@ -354,14 +353,14 @@ class Interpreter(object):
         f_interp.w_raises = self.w_raises # if self raises, the fork must also raise
         return f_interp
     
-    def call_fork(self, graph, args):
+    def call_fork(self, graph, args, extra_w_cond=None):
         """ create a copy of the interpreter, for evaluating func calls"""
         cls = type(self)
         f_interp = cls(graph, args, self.sharedstate)# dont pass entrymap, must compute entrymap for new graph in init
         f_interp.registers = self.registers.copy()
         f_interp.memory = self.memory # z3 array is immutable
         f_interp.w_raises = self.w_raises
-        f_interp.path_condition = self.path_condition
+        f_interp.path_condition = self.path_condition if extra_w_cond == None else (self.path_condition + [extra_w_cond])
         return f_interp
     
     def _create_z3_if(self, cond, true, false):
@@ -530,29 +529,68 @@ class Interpreter(object):
             self.w_raises = self.w_raises._create_w_z3_or(interp_fork.w_raises)
         return w_res, interp_fork.memory, interp_fork.registers
     
-    def _select_method_graph(self, arg0, method_graphs):
+    def _select_method_graph(self, instance, method_graphs):
         """ select method graph depending on first arg for method call """
-        ## arg0 is the 'object' the method is called on
-        if isinstance(arg0, UnionConstant):
-            if arg0.variant_name in method_graphs: return method_graphs[arg0.variant_name]
-            # these methods usually have an else case, and that graph has no name
-            # on caching these graphs in test_z3riscv.py I named that graph ___default___
-            return method_graphs["___default___"] 
-        assert 0, "implement method selection on %s" % str(type(arg0))
+        ## arg0 is the 'object/instance' the method is called on
+        if instance.variant_name in method_graphs: 
+            return method_graphs[instance.variant_name]
+        # these methods usually have an else case, and that graph has no name
+        # on caching these graphs in test_z3riscv.py I named that graph ___default___
+        ### AFAIK the unnamed (___default___)  method is always an unconditional raise ###
+        return method_graphs["___default___"]
+
 
     def exec_method_call(self, op, graphs):
-        """ execute a sail method call"""
+        """ execute a sail method call """
         mthd_args = self.getargs(op)
-        graph = self._select_method_graph(mthd_args[0], graphs)
         self._debug_print("graph " + self.graph.name + " mthd call " + op.name)
-        w_res, memory, registers = self._method_call(graph, mthd_args)
-        self.memory = memory
-        self.registers = registers 
-        self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
+        if isinstance(mthd_args[0], UnionConstant):
+            w_res = self._concrete_method_call(graphs, mthd_args)
+        elif isinstance(mthd_args[0], Z3Value):
+            w_res = self._abstract_method_call(graphs, mthd_args, op.args[0].resolved_type)
+        else:
+            assert 0, "illegal method argument type: %s" % str(mthd_args[0].__class__)
+        self._debug_print("return from " + op.name)
         return w_res
     
-    def _method_call(self, graph, mthd_args):
-        interp_fork = self.call_fork(graph, mthd_args)
+    def _concrete_method_call(self, graphs, mthd_args):
+        """ execute a method call on a UnionConstant """
+        method_graph = self._select_method_graph(mthd_args[0], graphs)
+        w_res, memory, registers = self._method_call(method_graph, mthd_args)
+        self.memory = memory
+        self.registers = registers
+        return w_res
+    
+    def _abstract_method_call(self, graphs, mthd_args,  union_type):
+        """ execute all possible methods on an abstract UnionConstant (Z3Value of a Union) """
+        variant_mthd_graphs = graphs.keys()
+        w_res = None
+        ### TODO: implement executing  ___default___ method
+        ### ___default___ method just raises unconditionally 
+        ### or maybe remove ___default___ in general?
+        for variant in variant_mthd_graphs:
+            if variant == "___default___": continue
+            w_checker = self._get_w_checker_union_variant(mthd_args[0], union_type, variant)
+            #args = [Z3Value(self.sharedstate.ir_union_variant_to_z3_type(mthd_args[0], union_type, variant, "?"))]
+            temp_w_res, memory, registers = self._method_call(graphs[variant], mthd_args, w_checker)
+            w_cond = BooleanConstant(True)._create_w_z3_and(*(self.path_condition + [w_checker]))
+            if w_res == None:
+                w_res = temp_w_res
+                self.memory =  memory
+                self.registers =  registers
+            else:
+                w_res = w_cond._create_w_z3_if(temp_w_res, w_res)
+                self.memory = z3.If(w_cond.toz3(), memory, self.memory)
+                self.registers = {reg:w_cond._create_w_z3_if(registers[reg], self.registers[reg]) for reg in self.registers}
+        return w_res
+    
+    def _get_w_checker_union_variant(self, instance, union_type, variant_name):
+        """ create Z3BoolValue for checking if an instance of a union is a certain variant"""
+        checker = self.sharedstate.get_ir_union_typechecker(union_type, variant_name)
+        return Z3BoolValue(checker(instance.toz3()))
+    
+    def _method_call(self, graph, mthd_args, extra_w_cond=None):
+        interp_fork = self.call_fork(graph, mthd_args, extra_w_cond)
         w_res = interp_fork.run()
         if isinstance(interp_fork.w_raises, BooleanConstant):
             if interp_fork.w_raises.value == True:# case: func raises without condition

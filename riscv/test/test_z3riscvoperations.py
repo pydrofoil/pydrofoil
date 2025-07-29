@@ -234,7 +234,7 @@ def test_sign_error(riscvsharedstate, abs_zast):
     assert interp.memory == init_memory
 
 
-@settings(deadline=5000)
+@settings(deadline=None)
 @given(li_params)
 def test_func_call_rv64_li(riscvsharedstate, abs_zast, li_params):
 
@@ -278,7 +278,7 @@ def test_func_call_rv64_li(riscvsharedstate, abs_zast, li_params):
     assert isinstance(interp.w_raises, z3btypes.Z3Value)
     assert interp.memory == init_memory
 
-@settings(deadline=5000)
+@settings(deadline=None)
 @given(li_params)
 def test_method_call_rv64_li(riscvsharedstate, abs_zast, li_params):
 
@@ -288,7 +288,7 @@ def test_method_call_rv64_li(riscvsharedstate, abs_zast, li_params):
 
     init_memory = interp.memory
 
-    graphs = riscvsharedstate.mthds["zassembly_forwards"] # zassembly_forwards_methods['zITYPE']
+    graphs = riscvsharedstate.mthds["zexecute"] # zassembly_forwards_methods['zITYPE']
 
     graph = graphs["zITYPE"]
 

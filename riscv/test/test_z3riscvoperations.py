@@ -288,7 +288,7 @@ def test_method_call_rv64_li(riscvsharedstate, abs_zast, li_params):
 
     init_memory = interp.memory
 
-    graphs = riscvsharedstate.mthds["zexecute"] # zassembly_forwards_methods['zITYPE']
+    graphs = riscvsharedstate.mthds["zexecute"]
 
     graph = graphs["zITYPE"]
 

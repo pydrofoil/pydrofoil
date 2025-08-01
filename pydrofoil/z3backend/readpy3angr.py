@@ -13,11 +13,12 @@ def load_executions(filename):
 def gen_code_run_angr(num_ops=128, arch="rv64"):
     """ Generate random instructions, simulate with angr abd load the executionobjects """
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
-    outfile = tempfile.NamedTemporaryFile()
-    cmd = ["PYDROFOILANGR", "-m", "angr-z3-converter", "-arch", arch, "-file", outfile.name, "-numops", str(num_ops)]
-    subprocess.run(" ".join(cmd))
-    executions = load_executions(outfile.name)
-    outfile.close()
+    outfile_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp.py")
+    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", outfile_path, "-numops", str(num_ops)]
+    subprocess.check_call(" ".join(cmd),shell=True)
+    executions = load_executions("pydrofoil.z3backend.temp")
+    if os.path.exists(outfile_path):
+        os.remove(outfile_path)
     return executions
 
 #############################

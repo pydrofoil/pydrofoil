@@ -31,6 +31,12 @@ def _make_2_small_bitvectors_w_le_64(data):
     value1 = data.draw(strategies.integers(0, 2**width1-1))
     return ir.SmallBitVectorConstant.from_ruint(width0, r_uint(value0)), ir.SmallBitVectorConstant.from_ruint(width1, r_uint(value1))
 
+def _make_2_small_bitvectors_same_width(data):
+    width = data.draw(strategies.integers(1, 64))
+    value0 = data.draw(strategies.integers(0, 2**width-1))
+    value1 = data.draw(strategies.integers(0, 2**width-1))
+    return ir.SmallBitVectorConstant.from_ruint(width, r_uint(value0)), ir.SmallBitVectorConstant.from_ruint(width, r_uint(value1))
+
 small_bitvectors = strategies.builds(
     _make_small_bitvector,
     strategies.data())
@@ -41,6 +47,10 @@ small_bitvectors_w_ge_2 = strategies.builds(
 
 small_bitvector_2tuple_w_le_64 = strategies.builds(
     _make_2_small_bitvectors_w_le_64,
+    strategies.data())
+
+small_bitvectors_2tuple_same_width = strategies.builds(
+    _make_2_small_bitvectors_same_width,
     strategies.data())
 
 generic_bitvectors = strategies.builds(
@@ -115,7 +125,6 @@ def test_bitvector_concat_bv_bv(interp, bv_tuple):
 
     res_val = (bv0.value << bv1.resolved_type.width) + bv1.value
 
-
     res_con_con = interp._bitvector_concat_bv_bv(w_con_bv0, w_con_bv1, l_shift_width)
     res_con_abs = interp._bitvector_concat_bv_bv(w_con_bv0, w_abs_bv1, l_shift_width)
     res_abs_con = interp._bitvector_concat_bv_bv(w_abs_bv0, w_con_bv1, l_shift_width)
@@ -144,3 +153,69 @@ def test_bitvector_concat_bv_bv(interp, bv_tuple):
     solver.add(w_abs_bv0.toz3() == bv0.value)
     solvable = solver.check(z3.Not(res_abs_abs.toz3() == res_val))
     assert solvable == z3.unsat
+
+@settings(deadline=1000)
+@given(interpreter, small_bitvectors_2tuple_same_width)
+def test_eq_anything_bv(interp, bv_tuple):
+    bv0, bv1 = bv_tuple
+    
+    w_con_bv0 = z3btypes.ConstantSmallBitVector(bv0.value, bv0.resolved_type.width)
+    w_con_bv1 = z3btypes.ConstantSmallBitVector(bv1.value, bv1.resolved_type.width)
+
+    w_abs_bv0 = z3btypes.Z3Value(z3.BitVec("abs_bv0", bv0.resolved_type.width))
+    w_abs_bv1 = z3btypes.Z3Value(z3.BitVec("abs_bv1", bv1.resolved_type.width))
+
+    equal = bv0.value == bv1.value
+
+    #res_con_con = interp._eq_anything(w_con_bv0, w_con_bv1) # 2 non z3  values not implemented yet
+    res_con_abs = interp._eq_anything(w_con_bv0, w_abs_bv1)
+    res_abs_con = interp._eq_anything(w_abs_bv0, w_con_bv1)
+    res_abs_abs = interp._eq_anything(w_abs_bv0, w_abs_bv1)
+
+    #assert isinstance(res_con_con, z3btypes.ConstantSmallBitVector)
+    assert isinstance(res_con_abs, z3btypes.Z3Value)
+    assert isinstance(res_abs_con, z3btypes.Z3Value)
+    assert isinstance(res_abs_abs, z3btypes.Z3Value)
+
+    solver = z3.Solver()
+    solver.add(w_abs_bv1.toz3() == bv1.value)
+    solvable = solver.check(z3.Not(res_con_abs.toz3() == equal))
+    assert solvable == z3.unsat
+
+    solver = z3.Solver()
+    solver.add(w_abs_bv0.toz3() == bv0.value)
+    solvable = solver.check(z3.Not(res_abs_con.toz3() == equal))
+    assert solvable == z3.unsat
+
+    solver = z3.Solver()
+    solver.add(w_abs_bv1.toz3() == bv1.value)
+    solver.add(w_abs_bv0.toz3() == bv0.value)
+    solvable = solver.check(z3.Not(res_abs_abs.toz3() == equal))
+    assert solvable == z3.unsat
+
+
+@settings(deadline=1000)
+@given(interpreter, strategies.integers(0,1), strategies.integers(0,1),  small_bitvectors_2tuple_same_width)
+def test_eq_anything_union(interp, variant0, variant1,  bv_tuple):
+    bv0, bv1 = bv_tuple
+
+    test_union = types.Union("test",  ("A", "B"), (types.SmallFixedBitVector(64), types.Bool()))
+    z3typ = interp.sharedstate.get_z3_union_type(test_union)
+
+    if variant0 == 0:
+        w_union0 = z3btypes.UnionConstant("A", z3btypes.ConstantSmallBitVector(bv0.value, 64), test_union, z3typ)
+    else:
+        w_union0 = z3btypes.UnionConstant("B", z3btypes.BooleanConstant(bv0.value % 2 == 0), test_union, z3typ)
+
+    if variant1 == 0:
+        w_union1 = z3btypes.UnionConstant("A", z3btypes.ConstantSmallBitVector(bv1.value, 64), test_union, z3typ)
+    else:
+        w_union1 = z3btypes.UnionConstant("B", z3btypes.BooleanConstant(bv1.value % 2 == 0), test_union, z3typ)
+
+    equal = (variant0 == variant1) and ((variant0 == 0 and bv0.value == bv1.value) or (variant0 == 1 and bv0.value % 2 == bv1.value % 2))
+    
+    w_res = interp._eq_anything(w_union0, w_union1)
+
+    assert isinstance(w_res,z3btypes.BooleanConstant)
+    assert w_res.value == equal
+

@@ -489,8 +489,11 @@ class Interpreter(object):
 
     def exec_eq_anything(self, op):
         """ check for equality """
-        ### TODO: is this really generic or only for RISC-V ??? ###
+        ### TODO: is this really generic or only for RISCV ??? ###
         arg0, arg1 = self.getargs(op)
+        return self._eq_anything(arg0, arg1)
+    
+    def _eq_anything(self, arg0, arg1):
         if isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value):
             return Z3BoolValue(arg0.toz3() == arg1.toz3())
         elif isinstance(arg0, UnionConstant) and isinstance(arg1, UnionConstant):
@@ -499,8 +502,7 @@ class Interpreter(object):
                 return BooleanConstant(True)
             elif same == False:
                 return BooleanConstant(False)
-            else:
-                return Z3BoolValue(same)
+            return Z3BoolValue(same)
         else:
             import pdb; pdb.set_trace()
 
@@ -610,7 +612,7 @@ class Interpreter(object):
             fields, _ = self.sharedstate.struct_z3_field_map[z3type]
             vals_w = []
             for field, typ in fields:
-                if type is not self.sharedstate._z3_unit:
+                if typ is not self.sharedstate._z3_unit:
                     val = self.sharedstate.get_abstract_const_of_ztype(typ, "alloc_uninit_%s_" % field)
                 else:
                     val = self.sharedstate._z3_unit

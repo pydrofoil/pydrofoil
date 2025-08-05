@@ -163,18 +163,18 @@ class BooleanConstant(AbstractConstant):
 class UnitConstant(AbstractConstant):
     """ None """
     
-    def __init__(self):
-        pass
+    def __init__(self, z3_unit):
+        self.z3_unit = z3_unit
 
     def toz3(self):
-        """ should never be called """
-        assert 0
+        return self.z3_unit
     
     def __str__(self):
         return "UNIT"
     
     def same_value(self, other):
-        import pdb; pdb.set_trace()
+        if isinstance(other, UnitConstant): return True
+        return  False
 
     
 class UnionConstant(AbstractConstant):

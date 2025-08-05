@@ -385,7 +385,7 @@ class Interpreter(object):
             elif isinstance(arg, ir.BooleanConstant):
                 w_arg = BooleanConstant(arg.value)
             elif isinstance(arg, ir.UnitConstant):
-                w_arg = UnitConstant()
+                w_arg = UnitConstant(self.sharedstate._z3_unit)
             elif isinstance(arg, ir.StringConstant):
                 w_arg = StringConstant(arg.string)
             else:
@@ -522,7 +522,7 @@ class Interpreter(object):
         if isinstance(interp_fork.w_raises, BooleanConstant):
             if interp_fork.w_raises.value == True:# case: func raises without condition
                 self.w_raises = BooleanConstant(True)
-                self.w_result = UnitConstant()
+                self.w_result = UnitConstant(self.sharedstate._z3_unit)
             else:
                 # self.w_raises is self.w_raises or False
                 pass
@@ -597,7 +597,7 @@ class Interpreter(object):
         if isinstance(interp_fork.w_raises, BooleanConstant):
             if interp_fork.w_raises.value == True:# case: func raises without condition
                 self.w_raises = BooleanConstant(True)
-                self.w_result = UnitConstant()
+                self.w_result = UnitConstant(self.sharedstate._z3_unit)
             else:
                 # self.w_raises is self.w_raises or False
                 pass
@@ -607,18 +607,22 @@ class Interpreter(object):
         return w_res, interp_fork.memory, interp_fork.registers
 
     def exec_allocate(self, op):
-        if isinstance(op.resolved_type, types.Struct):
-            z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
+        return self._allocate(op.resolved_type)
+    
+    def _allocate(self, resolved_type):
+        if isinstance(resolved_type, types.Struct):
+            z3type = self.sharedstate.get_z3_struct_type(resolved_type)
             fields, _ = self.sharedstate.struct_z3_field_map[z3type]
             vals_w = []
             for field, typ in fields:
-                if typ is not self.sharedstate._z3_unit:
+                if typ is not self.sharedstate._z3_unit_type:
                     val = self.sharedstate.get_abstract_const_of_ztype(typ, "alloc_uninit_%s_" % field)
+                    vals_w.append(self.sharedstate.get_w_class_for_ztype(typ)(val))
                 else:
-                    val = self.sharedstate._z3_unit
-                vals_w.append(self.sharedstate.get_w_class_for_ztype(typ)(val))
-            return StructConstant(vals_w, op.resolved_type, z3type)
-        assert 0 , "implement allocate %s" % str(op.resolved_type)
+                    #val = self.sharedstate._z3_unit
+                    vals_w.append(UnitConstant(self.sharedstate._z3_unit))
+            return StructConstant(vals_w, resolved_type, z3type)
+        assert 0 , "implement allocate %s" % str(resolved_type)
     
     def exec_struct_construction(self, op):
         """ Execute a Lazy Struct creation """
@@ -638,7 +642,7 @@ class Interpreter(object):
         struct_type_z3 = self.sharedstate.get_z3_struct_type(struct_type)
         ## structs can have fields of type  unit, those are always UNIT
         if (struct_type_z3, field) in self.sharedstate.struct_unit_fields:
-            return UnitConstant() 
+            return UnitConstant(self.sharedstate._z3_unit)
         if isinstance(struct, StructConstant):
             index = struct.resolved_type.names.index(op.name)
             return struct.vals_w[index]
@@ -1085,6 +1089,5 @@ class RiscvInterpreter(Interpreter):
         return BooleanConstant(False)
     
     def exec_zget_config_print_platform(self, op):
-        ### TODO: False?
         return BooleanConstant(False)
     

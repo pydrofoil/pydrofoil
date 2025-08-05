@@ -219,3 +219,14 @@ def test_eq_anything_union(interp, variant0, variant1,  bv_tuple):
     assert isinstance(w_res,z3btypes.BooleanConstant)
     assert w_res.value == equal
 
+@given(interpreter)
+def test_allocate(interp):
+    test_union = types.Struct("test",  ("a", "b"), (types.SmallFixedBitVector(64), types.Unit()))
+
+    struct_instance = interp._allocate(test_union)
+
+    assert isinstance(struct_instance, z3btypes.StructConstant)
+
+    assert isinstance(struct_instance.vals_w[0], z3btypes.Z3Value)
+    assert isinstance(struct_instance.vals_w[1], z3btypes.UnitConstant)
+

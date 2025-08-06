@@ -221,12 +221,44 @@ def test_eq_anything_union(interp, variant0, variant1,  bv_tuple):
 
 @given(interpreter)
 def test_allocate(interp):
-    test_union = types.Struct("test",  ("a", "b"), (types.SmallFixedBitVector(64), types.Unit()))
+    test_struct = types.Struct("test",  ("a", "b"), (types.SmallFixedBitVector(64), types.Unit()))
 
-    struct_instance = interp._allocate(test_union)
+    struct_instance = interp._allocate(test_struct)
 
     assert isinstance(struct_instance, z3btypes.StructConstant)
 
     assert isinstance(struct_instance.vals_w[0], z3btypes.Z3Value)
     assert isinstance(struct_instance.vals_w[1], z3btypes.UnitConstant)
+
+@given(interpreter)
+def test_struct_construction(interp):
+    test_struct = types.Struct("test",  ("a", "b"), (types.SmallFixedBitVector(64), types.Unit()))
+
+    args = [z3btypes.ConstantSmallBitVector(1337, 64), z3btypes.UnitConstant(interp.sharedstate._z3_unit)]
+    struct_instance = interp._struct_construction(args, test_struct)
+
+    assert isinstance(struct_instance, z3btypes.StructConstant)
+
+    assert isinstance(struct_instance.vals_w[0], z3btypes.ConstantSmallBitVector)
+    assert struct_instance.vals_w[0].value == 1337
+
+    assert isinstance(struct_instance.vals_w[1], z3btypes.UnitConstant)
+
+@given(interpreter)
+def test_struct_copy(interp):
+    test_struct = types.Struct("test",  ("a", "b"), (types.SmallFixedBitVector(64), types.Unit()))
+
+    args = [z3btypes.ConstantSmallBitVector(1234567, 64), z3btypes.UnitConstant(interp.sharedstate._z3_unit)]
+    struct_instance = z3btypes.StructConstant(args, test_struct, interp.sharedstate.get_z3_struct_type(test_struct))
+
+    copied_struct_instance = interp._struct_copy(struct_instance)
+
+    assert struct_instance != copied_struct_instance
+
+    assert isinstance(copied_struct_instance, z3btypes.StructConstant)
+
+    assert isinstance(copied_struct_instance.vals_w[0], z3btypes.ConstantSmallBitVector)
+    assert struct_instance.vals_w[0].value == 1234567
+
+    assert isinstance(copied_struct_instance.vals_w[1], z3btypes.UnitConstant)
 

@@ -626,13 +626,19 @@ class Interpreter(object):
     
     def exec_struct_construction(self, op):
         """ Execute a Lazy Struct creation """
-        z3type = self.sharedstate.get_z3_struct_type(op.resolved_type)
-        return StructConstant(self.getargs(op), op.resolved_type, z3type)
+        return self._struct_construction(self.getargs(op), op.resolved_type)
+    
+    def _struct_construction(self, args, resolved_type):
+        z3type = self.sharedstate.get_z3_struct_type(resolved_type)
+        return StructConstant(args, resolved_type, z3type)
     
     def exec_struct_copy(self, op):
         """ TODO: is this a shallow or deep copy? """
         arg, = self.getargs(op)
-        return arg.copy()
+        return self._struct_copy(arg)
+    
+    def _struct_copy(self, struct_instance):
+        return struct_instance.copy()
 
     def exec_field_access(self, op):
         """ access field of struct """

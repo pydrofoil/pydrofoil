@@ -645,16 +645,20 @@ class Interpreter(object):
         field = op.name
         struct, = self.getargs(op)
         struct_type = op.args[0].resolved_type
+        return self._field_access(field, struct, struct_type)
+    
+    def _field_access(self, field, struct, struct_type):
         struct_type_z3 = self.sharedstate.get_z3_struct_type(struct_type)
         ## structs can have fields of type  unit, those are always UNIT
         if (struct_type_z3, field) in self.sharedstate.struct_unit_fields:
             return UnitConstant(self.sharedstate._z3_unit)
         if isinstance(struct, StructConstant):
-            index = struct.resolved_type.names.index(op.name)
+            index = struct.resolved_type.names.index(field)
             return struct.vals_w[index]
         res = getattr(struct_type_z3, field)(struct.toz3())# get accessor from slot with getattr
         if res.sort() == z3.BoolSort():
             return Z3BoolValue(res)
+        # TODO: check for Unit
         return Z3Value(res)
 
     def exec_field_write(self, op):

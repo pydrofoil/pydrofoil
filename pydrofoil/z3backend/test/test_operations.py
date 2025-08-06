@@ -262,3 +262,35 @@ def test_struct_copy(interp):
 
     assert isinstance(copied_struct_instance.vals_w[1], z3btypes.UnitConstant)
 
+@given(interpreter, strategies.integers(0,1), small_bitvectors)
+def test_field_access(interp, const, bv):
+    test_struct = types.Struct("test",  ("a", "b", "c"), (types.SmallFixedBitVector(bv.resolved_type.width), types.Unit(), types.Bool()))
+
+    if const:
+        args = [z3btypes.ConstantSmallBitVector(bv.value, bv.resolved_type.width), z3btypes.UnitConstant(interp.sharedstate._z3_unit), z3btypes.BooleanConstant(True)]
+        struct_instance = z3btypes.StructConstant(args, test_struct, interp.sharedstate.get_z3_struct_type(test_struct))
+    else:
+        z3type = interp.sharedstate.get_z3_struct_type(test_struct)
+        struct_instance = z3btypes.Z3Value(interp.sharedstate.get_abstract_const_of_ztype(z3type, "test"))
+
+    field_a = interp._field_access("a", struct_instance, test_struct)
+    field_b = interp._field_access("b", struct_instance, test_struct)
+    field_c = interp._field_access("c", struct_instance, test_struct)
+
+    if const: 
+        assert isinstance(field_a, z3btypes.ConstantSmallBitVector)
+        assert field_a.value == bv.value
+        assert field_a.width == bv.resolved_type.width
+
+        assert isinstance(field_b, z3btypes.UnitConstant)
+
+        assert isinstance(field_c, z3btypes.BooleanConstant)
+        assert field_c.value == True
+    else:
+        assert isinstance(field_a, z3btypes.Z3Value)
+        assert field_a.toz3().sort().size() == bv.resolved_type.width
+
+        # TODO: make _field_access("a", Z3Value, ...) return UnitConstant if 'a' is Unit
+        assert isinstance(field_b, z3btypes.Z3Value) 
+
+        assert isinstance(field_c, z3btypes.Z3BoolValue)

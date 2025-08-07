@@ -997,13 +997,23 @@ class Interpreter(object):
     def exec_pack_smallfixedbitvector(self, op):
         """ pack a smallfixedbitvector into a Packed Wrapper object 
             DONT omit this, there are 'unpack' operations """
-        arg0, arg1 = self.getargs(op) #arg0 = bits? ,arg1 = SmallFixedBV
+        _, arg1 = self.getargs(op) #arg0 = bits? ,arg1 = SmallFixedBV
         return Packed(arg1)
     
     def exec_pack_machineint(self, op):
         """ pack a MachineInt into a Packed Wrapper object """
         arg0, = self.getargs(op) 
         return Packed(arg0)
+    
+    def exec_ones_zero_extended_unwrapped_res(self, op):
+        """ create a bv of arg0 many ones and  a leading 0 ???"""
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return ConstantSmallBitVector(supportcode.ones_zero_extended_unwrapped_res(arg0.value, arg1.value))
+        else:
+            return Z3Value(z3.If(arg0.toz3() < arg1.toz3(),
+                                  (1 << z3.Int2BV(arg0.toz3(), op.resolved_type.width)) - 1,
+                                  (1 << z3.Int2BV(arg1.toz3(), op.resolved_type.width)) - 1))
 
     def exec_zero_extend_bv_i_i(self, op):
         """ extend bitvector from arg1 to arg2 with zeros """

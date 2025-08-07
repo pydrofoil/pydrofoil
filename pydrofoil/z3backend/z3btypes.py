@@ -17,6 +17,25 @@ class Value(object):
             return False
         return self.value == other.value
     
+class Vec(Value):
+    """ Vector
+        This is only a wrapper on the python side """
+
+    def __init__(self, w_value):
+        self.w_value = w_value# can types.Vec only hold one value
+    
+    def toz3(self):
+        return self.w_value.toz3()
+    
+    def __str__(self):
+        return str(self.w_value)
+    
+    def __repr__(self):
+        return "Vec(%s)" % self.__str__()
+    
+    def same_value(self, other):
+        return self.w_value.same_value(other)
+    
 class Packed(Value):
     """ this is only a wrapper on the python side
         Values are not packed on z3 level """

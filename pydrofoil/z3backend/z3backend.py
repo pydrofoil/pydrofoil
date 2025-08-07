@@ -105,6 +105,8 @@ class SharedState(object):
         elif isinstance(typ, types.GenericBitVector):
             return z3.BitVecSort(64)# TODO: generic bs as 64 bit bv?
             #return z3.BitVecSort()
+        elif isinstance(typ, types.Int):
+            return z3.IntSort()
         elif isinstance(typ, types.MachineInt):
             return z3.IntSort()# This must be the number bits of the machine that runs pydrofoil
         elif isinstance(typ, types.Union):
@@ -115,6 +117,9 @@ class SharedState(object):
             return self.get_z3_enum_type(typ)
         elif isinstance(typ, types.Bool) or typ == types.Bool:
             return z3.BoolSort()
+        elif isinstance(typ, types.Vec):
+            subtyp = self.convert_type_to_z3_type(typ.typ)
+            return z3.ArraySort(z3.IntSort(), subtyp)
         elif isinstance(typ, types.FVec):
             subtyp = self.convert_type_to_z3_type(typ.typ)
             return z3.ArraySort(z3.IntSort(), subtyp)
@@ -723,21 +728,27 @@ class Interpreter(object):
     
     def exec_cast(self, op):
         arg0, = self.getargs(op)
-        if isinstance(op.args[0].resolved_type, types.SmallFixedBitVector): # from
-            if isinstance(op.resolved_type, types.GenericBitVector): # to
+        from_type = op.args[0].resolved_type
+        to_type = op.resolved_type
+        if isinstance(from_type, types.SmallFixedBitVector): # from
+            if isinstance(to_type, types.GenericBitVector): # to
                 if isinstance(arg0, ConstantSmallBitVector):
-                    return ConstantSmallBitVector(arg0.value, op.args[0].resolved_type.width)
+                    return ConstantSmallBitVector(arg0.value,from_type.width)
                 else:
                     return Z3Value(arg0.value)
                 
-        elif isinstance(op.args[0].resolved_type, types.GenericBitVector): # from
-            if isinstance(op.resolved_type, types.SmallFixedBitVector): # to
+        elif isinstance(from_type, types.GenericBitVector): # from
+            if isinstance(to_type, types.SmallFixedBitVector): # to
                 if isinstance(arg0, ConstantSmallBitVector):
-                    return ConstantSmallBitVector(arg0.value, op.resolved_type.width)
+                    return ConstantSmallBitVector(arg0.value, to_type.width)
                 else: 
                     return Z3Value(arg0.value)
-                
-        assert 0, "implement cast %s to %s" % (op.args[0].resolved_type, op.resolved_type)
+
+        elif isinstance(from_type,  types.FVec):
+            if isinstance(to_type, types.Vec):
+                return Vec(arg0)# Vec takes a w arg
+
+        assert 0, "implement cast %s to %s" % (from_type, to_type)
 
     def exec_signed_bv(self, op):
         w_value, w_width = self.getargs(op)
@@ -953,6 +964,15 @@ class Interpreter(object):
         else:
             return Z3Value(z3.Extract(arg1.value, arg1.value, arg0.toz3()))
 
+    def exec_vector_access_o_i(self, op):
+        """ Is this function supposed to access a vector  e.g. vec = [a,b,c], vector_access_o_i(vec,1) = b
+            Or is it supposed to return one bit of a bv e.g. bv = 010100..., vector_access_o_i(bv,2) = 0?"""
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, Vec):
+            return Z3Value(arg0.toz3()[arg1.toz3()])
+        else:
+            import pdb; pdb.set_trace()
+        
     def exec_pack_smallfixedbitvector(self, op):
         """ pack a smallfixedbitvector into a Packed Wrapper object 
             DONT omit this, there are 'unpack' operations """
@@ -1023,8 +1043,8 @@ class Interpreter(object):
             return StringConstant(hex(arg0.value))
         else:
             res = None
-            bits = 64
-            bv = z3.Int2BV(arg0.toz3(), bits) # TODO: find a way to repr generic ints as hex 
+            bits = arg0.toz3().sort().size()
+            bv = z3.Int2BV(arg0.toz3(), bits)
             i = 0
             while (bits-i)>0:
                 num = z3.BV2Int(z3.Extract(i+min(3, bits-i), i, bv))

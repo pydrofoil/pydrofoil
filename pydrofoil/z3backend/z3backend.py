@@ -849,27 +849,6 @@ class Interpreter(object):
             return ConstantSmallBitVector(~arg0.value, op.resolved_type.width)
         else:
             return Z3Value(~arg0.toz3())
-        
-    def exec_sub_bits_bv_bv(self, op):
-        arg0, arg1, _ = self.getargs(op) 
-        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
-            return ConstantSmallBitVector(arg0.value - arg1.value, op.resolved_type.width)
-        else:
-            return Z3Value(arg0.toz3() - arg1.toz3())
-
-    def exec_add_bits_int_bv_i(self, op):
-        arg0, arg1, _ = self.getargs(op) 
-        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantSmallBitVector):
-            return ConstantSmallBitVector(supportcode.add_bits_int_bv_i(None, arg0.value, arg1.value), op.resolved_type.width) 
-        else:
-            return Z3Value(arg0.toz3() + z3.Int2BV(arg1.toz3(), arg0.toz3().sort().size()))
-
-    def exec_add_bits_bv_bv(self, op):
-        arg0, arg1, _ = self.getargs(op) 
-        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
-            return ConstantSmallBitVector(arg0.value + arg1.value, op.resolved_type.width) 
-        else:
-            return Z3Value(arg0.toz3() + arg1.toz3())
 
     def exec_and_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
@@ -891,7 +870,49 @@ class Interpreter(object):
             return ConstantSmallBitVector(arg0.value | arg1.value, op.resolved_type.width) 
         else:
             return Z3Value(arg0.toz3() | arg1.toz3())
+                  
+    def exec_sub_bits_bv_bv(self, op):
+        arg0, arg1, _ = self.getargs(op) 
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
+            return ConstantSmallBitVector(arg0.value - arg1.value, op.resolved_type.width)
+        else:
+            return Z3Value(arg0.toz3() - arg1.toz3())
         
+    def exec_sub_i_i_must_fit(self, op):
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return ConstantInt(arg0.value - arg1.value)
+        else:
+            return Z3Value(arg0.toz3() - arg1.toz3())
+
+    def exec_add_bits_int_bv_i(self, op):
+        arg0, arg1, _ = self.getargs(op) 
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantSmallBitVector):
+            return ConstantSmallBitVector(supportcode.add_bits_int_bv_i(None, arg0.value, arg1.value), op.resolved_type.width) 
+        else:
+            return Z3Value(arg0.toz3() + z3.Int2BV(arg1.toz3(), arg0.toz3().sort().size()))
+
+    def exec_add_bits_bv_bv(self, op):
+        arg0, arg1, _ = self.getargs(op) 
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
+            return ConstantSmallBitVector(arg0.value + arg1.value, op.resolved_type.width) 
+        else:
+            return Z3Value(arg0.toz3() + arg1.toz3())
+        
+    def exec_add_i_i_must_fit(self, op):
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return ConstantInt(arg0.value + arg1.value)
+        else:
+            return Z3Value(arg0.toz3() + arg1.toz3())
+        
+    def exec_mult_i_i_must_fit(self, op):
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return ConstantInt(arg0.value * arg1.value)
+        else:
+            return Z3Value(arg0.toz3() * arg1.toz3())
+
     def exec_shiftl_bv_i(self, op):
         ## Assume that this is meant to be an logical shift ##
         arg0, arg1, arg2 = self.getargs(op)
@@ -1043,7 +1064,7 @@ class Interpreter(object):
             return StringConstant(hex(arg0.value))
         else:
             res = None
-            bits = arg0.toz3().sort().size()
+            bits = 64#arg0.toz3().sort().size()
             bv = z3.Int2BV(arg0.toz3(), bits)
             i = 0
             while (bits-i)>0:

@@ -1,5 +1,6 @@
 import z3
 import collections
+import struct
 from pydrofoil import supportcode
 from pydrofoil import ir, types
 from pydrofoil.z3backend.z3btypes import *
@@ -20,7 +21,6 @@ class SharedState(object):
         self._z3_unit_type = unit.create()
         self._z3_unit = self._z3_unit_type.UNIT
         self.fork_counter = 0
-
 
     def get_z3_struct_type(self, resolved_type):
         if resolved_type in self.type_cache:
@@ -83,7 +83,6 @@ class SharedState(object):
         union_type_z3 = self.get_z3_union_type(union_type)
         return getattr(union_type_z3, "is_" + variant)
       
-
     def get_z3_enum_type(self, resolved_type):
         """ get declared z3 enum type via ir type """
         if not resolved_type in self.type_cache:
@@ -207,6 +206,7 @@ class Interpreter(object):
         self.w_raises = BooleanConstant(False)
         self.w_result = None
         self.path_condition = []
+        self.bits = struct.calcsize("P") * 8
 
     def _reset_env(self):
         """ only for z3backend_executor.
@@ -922,6 +922,14 @@ class Interpreter(object):
             arg2_z3 = arg2.toz3() if not isinstance(arg2.toz3(), int) else z3.Int(arg2.toz3())
             return Z3Value(arg0.toz3() << z3.Int2BV(arg2_z3, arg0.toz3().sort().size()))
         
+    def exec_shl_int_i_i_must_fit(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return ConstantInt(arg0.value << arg1.value) 
+        else:
+            # z3 does not support int shifts, thus we convert to bvs with host machine size
+            return Z3Value(z3.BV2Int(z3.Int2BV(arg0.toz3(), self.bits) << z3.Int2BV(arg1.toz3(), self.bits), is_signed=True))
+        
     def exec_shiftr_bv_i(self, op):
         # Assume that this is meant to be an logical shift ##
         arg0, arg1, arg2 = self.getargs(op)
@@ -1152,3 +1160,6 @@ class RiscvInterpreter(Interpreter):
     def exec_zget_config_print_platform(self, op):
         return BooleanConstant(False)
     
+    def exec_zsys_pmp_count(self, op):
+        # pmp enabling not supported yet, thus 0 
+        return ConstantInt(0)

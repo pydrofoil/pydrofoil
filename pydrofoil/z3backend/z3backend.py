@@ -1047,10 +1047,18 @@ class Interpreter(object):
             return Z3Value(z3.SignExt(arg1.value - arg0.toz3().sort().size(), arg0.toz3()))
 
     def exec_unsigned_bv(self, op):
-        """ arg is a bv , result is that bv cast to (Machine) int """
+        """ arg is a bv , result is that bv cast to MachineInt """
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
             return ConstantInt(supportcode.unsigned_bv(None, arg0.value, arg1.value))
+        else:
+            return Z3Value(z3.BV2Int(z3.ZeroExt(64 - arg1.value, arg0.toz3())))
+        
+    def exec_unsigned_bv_wrapped_res(self, op):
+        """ arg is a bv , result is that bv cast to generic int """
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
+            return ConstantGenericInt(supportcode.unsigned_bv(None, arg0.value, arg1.value))
         else:
             return Z3Value(z3.BV2Int(z3.ZeroExt(64 - arg1.value, arg0.toz3())))
 
@@ -1085,8 +1093,8 @@ class Interpreter(object):
             bits = 64#arg0.toz3().sort().size()
             bv = z3.Int2BV(arg0.toz3(), bits)
             i = 0
-            while (bits-i)>0:
-                num = z3.BV2Int(z3.Extract(i+min(3, bits-i), i, bv))
+            while (bits-i) > 0:
+                num = z3.BV2Int(z3.Extract(i + min(3, bits-i), i, bv))
                 i += 4
                 if res == None:
                     res = self._build_4bit_hex_expr(num, 2**(min(3, bits-i)+2)-1)
@@ -1163,3 +1171,11 @@ class RiscvInterpreter(Interpreter):
     def exec_zsys_pmp_count(self, op):
         # pmp enabling not supported yet, thus 0 
         return ConstantInt(0)
+    
+    def exec_zplat_clint_base(self, op):
+        # value copied from supportcoderiscv
+        return ConstantSmallBitVector(0x2000000, op.resolved_type.width)
+    
+    def exec_zplat_clint_sizze(self, op):
+        # value copied from supportcoderiscv
+        return ConstantSmallBitVector(0xc0000, op.resolved_type.width)

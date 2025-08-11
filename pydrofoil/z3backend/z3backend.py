@@ -838,6 +838,13 @@ class Interpreter(object):
             return BooleanConstant(arg0.value < arg1.value)
         else:
             return Z3BoolValue(z3.ULT(arg0.toz3(), arg1.toz3()))
+        
+    def exec_lteq_unsigned64(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return BooleanConstant(arg0.value <= arg1.value)
+        else:
+            return Z3BoolValue(z3.ULE(arg0.toz3(), arg1.toz3()))
             
     def exec_not(self, op):
         arg0, = self.getargs(op)
@@ -903,6 +910,14 @@ class Interpreter(object):
         arg0, arg1 = self.getargs(op) 
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return ConstantInt(arg0.value + arg1.value)
+        else:
+            return Z3Value(arg0.toz3() + arg1.toz3())
+        
+    def exec_add_o_i_wrapped_res(self, op):
+        """ Gets GenericInt and MachineInt and returns thier sum as GenericInt"""
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return ConstantGenericInt(arg0.value + arg1.value)
         else:
             return Z3Value(arg0.toz3() + arg1.toz3())
         
@@ -1057,7 +1072,7 @@ class Interpreter(object):
     def exec_unsigned_bv_wrapped_res(self, op):
         """ arg is a bv , result is that bv cast to generic int """
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
+        if isinstance(arg0, ConstantGenericInt) and isinstance(arg1, ConstantInt):
             return ConstantGenericInt(supportcode.unsigned_bv(None, arg0.value, arg1.value))
         else:
             return Z3Value(z3.BV2Int(z3.ZeroExt(64 - arg1.value, arg0.toz3())))

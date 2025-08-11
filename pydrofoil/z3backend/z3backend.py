@@ -825,13 +825,6 @@ class Interpreter(object):
         else:
             return Z3BoolValue(arg0.toz3() < arg1.toz3())
 
-    def exec_lteq(self, op):
-        arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
-            return BooleanConstant(arg0.value <= arg1.value)
-        else:
-            return Z3BoolValue(arg0.toz3() <= arg1.toz3())
-        
     def exec_lt_unsigned64(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
@@ -839,13 +832,28 @@ class Interpreter(object):
         else:
             return Z3BoolValue(z3.ULT(arg0.toz3(), arg1.toz3()))
         
+    def exec_lteq(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return BooleanConstant(arg0.value <= arg1.value)
+        else:
+            return Z3BoolValue(arg0.toz3() <= arg1.toz3())
+        
     def exec_lteq_unsigned64(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return BooleanConstant(arg0.value <= arg1.value)
         else:
             return Z3BoolValue(z3.ULE(arg0.toz3(), arg1.toz3()))
-            
+        
+    def exec_zlteq_int(self, op):
+        arg0, arg1 = self.getargs(op)# TODO: every constantInt or ConstantGenericInt case applies for both
+        if ((isinstance(arg0, ConstantInt) or isinstance(arg0, ConstantGenericInt)) 
+            and (isinstance(arg1, ConstantInt) or isinstance(arg1, ConstantGenericInt))):
+            return BooleanConstant(arg0.value <= arg1.value)
+        else:
+            return Z3BoolValue(arg0.toz3()  <= arg1.toz3())
+        
     def exec_not(self, op):
         arg0, = self.getargs(op)
         return arg0.not_()
@@ -921,6 +929,13 @@ class Interpreter(object):
         else:
             return Z3Value(arg0.toz3() + arg1.toz3())
         
+    def exec_add_unsigned_bv64_unsigned_bv64_wrapped_res(self, op):
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
+            return ConstantGenericInt(arg0.value + arg1.value) 
+        else:
+            return Z3Value(z3.BV2Int(arg0.toz3() + arg1.toz3(), is_signed=False))
+
     def exec_mult_i_i_must_fit(self, op):
         arg0, arg1 = self.getargs(op) 
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):

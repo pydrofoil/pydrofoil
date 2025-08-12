@@ -14,7 +14,7 @@ class SharedState(object):
         self.enums = {}
         self.type_cache = {}
         self.union_field_cache = {} # (union_name,union_field):z3_type
-        self.struct_z3_field_map = {}
+        self.struct_z3_field_map = {}# z3type:(fields, resolved_type)
         self.struct_unit_fields = set()
         unit = z3.Datatype("____unit____")
         unit.declare("UNIT")
@@ -102,8 +102,7 @@ class SharedState(object):
         elif isinstance(typ, types.BigFixedBitVector):
             return z3.BitVecSort(typ.width)
         elif isinstance(typ, types.GenericBitVector):
-            return z3.BitVecSort(64)# TODO: generic bs as 64 bit bv?
-            #return z3.BitVecSort()
+            return z3.IntSort()
         elif isinstance(typ, types.Int):
             return z3.IntSort()
         elif isinstance(typ, types.MachineInt):
@@ -494,7 +493,6 @@ class Interpreter(object):
 
     def exec_eq_anything(self, op):
         """ check for equality """
-        ### TODO: is this really generic or only for RISCV ??? ###
         arg0, arg1 = self.getargs(op)
         return self._eq_anything(arg0, arg1)
     
@@ -735,16 +733,16 @@ class Interpreter(object):
         if isinstance(from_type, types.SmallFixedBitVector): # from
             if isinstance(to_type, types.GenericBitVector): # to
                 if isinstance(arg0, ConstantSmallBitVector):
-                    return ConstantSmallBitVector(arg0.value,from_type.width)
+                    return ConstantGenericBitVector(arg0.value)
                 else:
-                    return Z3Value(arg0.value)
+                    return Z3Value(z3.BV2Int(arg0.value, is_signed=False))
                 
         elif isinstance(from_type, types.GenericBitVector): # from
             if isinstance(to_type, types.SmallFixedBitVector): # to
-                if isinstance(arg0, ConstantSmallBitVector):
+                if isinstance(arg0, ConstantGenericBitVector):
                     return ConstantSmallBitVector(arg0.value, to_type.width)
                 else: 
-                    return Z3Value(arg0.value)
+                    return Z3Value(z3.Int2BV(arg0.value, to_type.width))
 
         elif isinstance(from_type,  types.FVec):
             if isinstance(to_type, types.Vec):
@@ -975,17 +973,27 @@ class Interpreter(object):
         """ shift generic bv to the right """
         ## Assume that this is meant to be an logical shift ##
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt):
-            return ConstantSmallBitVector(arg0.value >> arg1.value, arg0.width) # TODO. we currently cannot represent generic bvs very good 
+        assert not isinstance(arg0, ConstantSmallBitVector), "?"
+        if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
+             return ConstantGenericBitVector(arg0.value >> arg1.value)
         else:
-            # This assumes that the shift is by less than 2**arg0's-width
-            arg1_z3 = arg1.toz3() if not isinstance(arg1.toz3(), int) else z3.Int(arg1.toz3())
-            return Z3Value(arg0.toz3() >> z3.Int2BV(arg1_z3, arg0.toz3().sort().size()))
+            ## arg0 is always >= 0
+            return Z3Value(arg0.toz3() / arg1.toz3())
+        
+    """ s = z3.Solver()
+        >>>> y = z3.BitVec("y", 64)
+        >>>> x = z3.BitVec("x", 64)
+        >>>> z = z3.BitVec("z", 64)
+        >>>> s.add(y == z3.Int2BV(2**z3.BV2Int(z, is_signed=False),64))
+        >>>> s.add(z >= 0,  z<= (2**64)-1)
+        >>>> s.check(x/y != x >>  z)
+            unsat
+    """
 
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
-        if isinstance(arg0, ConstantSmallBitVector):# ConstantGenericBitVector
+        if isinstance(arg0, ConstantSmallBitVector) or isinstance(arg0, ConstantGenericBitVector):
             return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
         else:
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
@@ -993,14 +1001,16 @@ class Interpreter(object):
     def exec_vector_subrange_o_i_i_unwrapped_res(self, op):
         """ slice generic bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
-        if isinstance(arg0, ConstantSmallBitVector):
+        assert not isinstance(arg0, ConstantSmallBitVector), "?"
+        if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
             mask_low = 2 ** (arg2 + 1) - 1
             mask_high = 2 ** (arg1 + 1) - 1
             mask = mask_high - mask_low
             # supportcode cant handle morethan 64 bits #
-            return ConstantSmallBitVector(arg0.value & mask, op.resolved_type.width)
+            return ConstantGenericBitVector(arg0.value & mask)
         else:
-            return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
+            # bv must at least be as large as  the extract range
+            return Z3Value(z3.Extract(arg1.value, arg2.value, z3.Int2BV(arg0.toz3(), arg1.value + 1)))
                 
     def exec_vector_update_subrange_fixed_bv_i_i_bv(self, op):
         arg0, arg1, arg2, arg3 = self.getargs(op)#  bv high low new_val 
@@ -1035,10 +1045,13 @@ class Interpreter(object):
             import pdb; pdb.set_trace()
         
     def exec_pack_smallfixedbitvector(self, op):
-        """ pack a smallfixedbitvector into a Packed Wrapper object 
+        """ convert smallfixedbitvector into GenericBitVector and pack into a Packed Wrapper object 
             DONT omit this, there are 'unpack' operations """
         _, arg1 = self.getargs(op) #arg0 = bits? ,arg1 = SmallFixedBV
-        return Packed(arg1)
+        if isinstance(arg1, ConstantSmallBitVector):
+            return Packed(ConstantGenericInt(arg1.value))
+        else:
+            return Packed(Z3Value(z3.BV2Int(arg1.toz3(), is_signed=False)))
     
     def exec_pack_machineint(self, op):
         """ pack a MachineInt into a Packed Wrapper object """
@@ -1072,11 +1085,12 @@ class Interpreter(object):
         
     def exec_sign_extend_o_i(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, ConstantSmallBitVector):
-            return ConstantSmallBitVector(arg0.value, op.resolved_type.width)
+        ### Generic BVs are storedas  z3 or py int, thus a sign extension does not do anything
+        if isinstance(arg0, ConstantGenericBitVector):
+            return ConstantGenericBitVector(arg0.value)
         else:
             # this assumes arg1 is larger than arg0's size
-            return Z3Value(z3.SignExt(arg1.value - arg0.toz3().sort().size(), arg0.toz3()))
+            return Z3Value(arg0.toz3())
 
     def exec_unsigned_bv(self, op):
         """ arg is a bv , result is that bv cast to MachineInt """
@@ -1104,9 +1118,12 @@ class Interpreter(object):
     def exec_zbits_str(self, op):
         """ convert bits of bv to string repr e.g. bv: 01010 -> str: '01010' """
         arg0, = self.getargs(op)
-        if isinstance(arg0, ConstantSmallBitVector):
+        if isinstance(arg0, ConstantSmallBitVector) or isinstance(arg0, ConstantGenericBitVector):
             return StringConstant(bin(arg0.value))
         else:
+            if arg0.toz3().sort() == z3.IntSort():
+                # We dont know the Generic BVs true size here  
+                arg0 = Z3Value(z3.Int2BV(arg0.toz3(), 64)) # TODO: this fails for Generic VS using more than  64 bits
             if not arg0.toz3().sort().size(): return StringConstant("") 
             zero, one = z3.StringVal("0"), z3.StringVal("1") 
             res = z3.If(z3.Extract(0,0,arg0.toz3()) == 0, zero, one)# index read from right

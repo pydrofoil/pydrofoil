@@ -1,4 +1,5 @@
 import z3
+from pydrofoil import types
 
 class Value(object):
 
@@ -110,10 +111,21 @@ class ConstantSmallBitVector(AbstractConstant):
         return z3.BitVecVal(self.value, self.width)
     
     def same_value(self, other):
-        if not isinstance(other, ConstantSmallBitVector):
+        if not isinstance(other, ConstantSmallBitVector) or not isinstance(other, ConstantGenericBitVector):
             return False
         return (self.value == other.value)
     
+class ConstantGenericBitVector(AbstractConstant):
+    def __init__(self, val, width):
+        self.value = val
+
+    def toz3(self):
+        return z3.IntVal(self.value)
+    
+    def same_value(self, other):
+        if not isinstance(other, ConstantGenericBitVector) or not isinstance(other, ConstantSmallBitVector):
+            return False 
+        return (self.value == other.value)
 
 class ConstantInt(AbstractConstant): # TODO: renname to ConstantMachineInt
     def __init__(self, val):
@@ -135,7 +147,7 @@ class ConstantGenericInt(AbstractConstant):
         self.value = val
 
     def toz3(self):
-        return self.value
+        return z3.IntVal(self.value)
     
     def same_value(self, other):
         if not isinstance(other, ConstantGenericInt):

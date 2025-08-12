@@ -105,7 +105,7 @@ def solve_assert_z3_unequality_exprs(exprs, failfast=True, verbose=True):
             print "failed: %s:%s == z3.unsat" % (name, str(value))
             ok = False
         elif verbose:
-            print "ok: %s:%s == z3.unsat" % (name, str(value))
+            print "ok:     %s:%s == z3.unsat" % (name, str(value))
     if ok and verbose: 
         print "==============    registers/memory ok    =============="
     print ""

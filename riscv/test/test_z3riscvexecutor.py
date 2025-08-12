@@ -157,20 +157,20 @@ def test_complete(riscvsharedstate):
         z3backend_executor.solve_assert_z3_unequality_exprs(exprs, False)
 
 def test_gen_code_run_angr_and_compare(riscvsharedstate):
-    executions = readpy3angr.gen_code_run_angr(num_ops=2**8)
-    # failed:         0xd4158413, 0xf48f3413, 0x9acb413
-    # reg_50:         0xa2944c13, 0x6e942113
-    # ReferenceError:
+    executions = readpy3angr.gen_code_run_angr(num_ops=2**7)
+    # failed:         0xd4158413, 0xf48f3413, 0x9acb413, 0x98d68413, 0x7e6e413, 0x5ab10413, 0x40987413
+    # reg_50:         0xa2944c13, 0x6e942113, 0x68847593, 0x843293, 0xbab42a93
+    # ReferenceError: 0x13007379, 0xef206093, 0x0xfffa8013
 
     graph_decode = riscvsharedstate.funcs['zencdec_backwards']
-    graph_execute = riscvsharedstate.funcs["zexecute_zITYPE"]
-    #graph_execute = riscvsharedstate.mthds["zexecute"]
+    #graph_execute = riscvsharedstate.funcs["zexecute_zITYPE"]
+    graph_execute = riscvsharedstate.mthds["zexecute"]
 
-    mthd = False # True
+    mthd = True # True
 
     for execution in executions:
         w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
-        code  = readpy3angr.get_code_from_execution(execution)
+        code = readpy3angr.get_code_from_execution(execution)
 
         interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
                                                           riscvsharedstate, graph_decode, graph_execute, mthd, w_regs, {})

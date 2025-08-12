@@ -6,6 +6,9 @@
     "python.testing.pytestPath": "./pypy_binary/bin/pypy pypy2/pytest.py",
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
+    "python.analysis.extraPaths": [
+        "pypy2"
+    ],
     "customLocalFormatters.formatters": [
         {
             "command": "black --line-length 79 --fast -",

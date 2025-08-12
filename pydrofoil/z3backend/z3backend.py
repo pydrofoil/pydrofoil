@@ -35,7 +35,7 @@ class SharedState(object):
                 fields.append((fieldname, self._z3_unit_type))
             else:
                 fields.append((fieldname, self.convert_type_to_z3_type(typ)))
-        # TODO: give the constructor a real names that contain struct name, calling it 'a' makes results very hard to read
+        # TODO: give the constructor a real name that contains the struct name, calling it 'a' makes results very hard to read
         struct.declare("a", *fields)
         struct = struct.create()
         self.type_cache[resolved_type] = struct
@@ -1211,3 +1211,7 @@ class RiscvInterpreter(Interpreter):
     def exec_zplat_clint_sizze(self, op):
         # value copied from supportcoderiscv
         return ConstantSmallBitVector(0xc0000, op.resolved_type.width)
+    
+    def exec_zplat_htif_tohost(self, op):
+        # value copied from supportcoderiscv
+        return ConstantSmallBitVector(0x80001000, op.resolved_type.width)

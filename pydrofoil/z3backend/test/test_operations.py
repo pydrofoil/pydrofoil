@@ -196,7 +196,7 @@ def test_eq_anything_bv(interp, bv_tuple):
 
 @settings(deadline=1000)
 @given(interpreter, strategies.integers(0,1), strategies.integers(0,1),  small_bitvectors_2tuple_same_width)
-def test_eq_anything_union(interp, variant0, variant1,  bv_tuple):
+def test_eq_anything_union(interp, variant0, variant1, bv_tuple):
     bv0, bv1 = bv_tuple
 
     test_union = types.Union("test",  ("A", "B"), (types.SmallFixedBitVector(64), types.Bool()))
@@ -294,3 +294,51 @@ def test_field_access(interp, const, bv):
         assert isinstance(field_b, z3btypes.Z3Value) 
 
         assert isinstance(field_c, z3btypes.Z3BoolValue)
+
+@given(interpreter, small_bitvectors)
+def test_field_write(interp, bv):
+    test_struct = types.Struct("test",  ("a", "b", "c"), (types.SmallFixedBitVector(bv.resolved_type.width), types.Unit(), types.Bool()))
+
+    z3type = interp.sharedstate.get_z3_struct_type(test_struct)
+    struct_instance = z3btypes.Z3Value(interp.sharedstate.get_abstract_const_of_ztype(z3type, "test"))
+
+    new_a = z3btypes.ConstantSmallBitVector(bv.value, bv.resolved_type.width)
+    new_b = z3btypes.UnitConstant(interp.sharedstate._z3_unit)
+    new_c = z3btypes.BooleanConstant(bv.value % 7 == 0)
+
+    struct_new_field_a = interp._field_write(struct_instance, test_struct, "a", new_a)
+    struct_new_field_b = interp._field_write(struct_instance, test_struct, "b", new_b)
+    struct_new_field_c = interp._field_write(struct_instance, test_struct, "c", new_c)
+
+    assert struct_new_field_a is not struct_instance
+    assert struct_new_field_b is not struct_instance
+    assert struct_new_field_c is not struct_instance
+
+
+    struct_na_a = interp._field_access("a", struct_new_field_a, test_struct)
+    struct_na_b = interp._field_access("b", struct_new_field_a, test_struct)
+    struct_na_c = interp._field_access("c", struct_new_field_a, test_struct)
+
+    assert isinstance(struct_na_a, z3btypes.ConstantSmallBitVector)
+    assert struct_na_a.value == bv.value
+    assert isinstance(struct_na_b, z3btypes.Z3Value) 
+    assert isinstance(struct_na_c, z3btypes.Z3BoolValue)
+
+
+    struct_nb_a = interp._field_access("a", struct_new_field_b, test_struct)
+    struct_nb_b = interp._field_access("b", struct_new_field_b, test_struct)
+    struct_nb_c = interp._field_access("c", struct_new_field_b, test_struct)
+
+    assert isinstance(struct_nb_a, z3btypes.Z3Value)
+    assert isinstance(struct_nb_b, z3btypes.UnitConstant) 
+    assert isinstance(struct_nb_c, z3btypes.Z3BoolValue)
+
+
+    struct_nc_a = interp._field_access("a", struct_new_field_c, test_struct)
+    struct_nc_b = interp._field_access("b", struct_new_field_c, test_struct)
+    struct_nc_c = interp._field_access("c", struct_new_field_c, test_struct)
+
+    assert isinstance(struct_nc_a, z3btypes.Z3Value)
+    assert isinstance(struct_nc_b, z3btypes.Z3Value) 
+    assert isinstance(struct_nc_c, z3btypes.BooleanConstant)
+    assert struct_nc_c.value == bool(bv.value % 7 == 0)

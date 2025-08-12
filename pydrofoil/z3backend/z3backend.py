@@ -672,6 +672,12 @@ class Interpreter(object):
         field_to_replace = op.name
         struct, new_value = self.getargs(op)
         struct_type = op.args[0].resolved_type
+        new_struct = self._field_write(struct, struct_type, field_to_replace, new_value)
+        # replace struct in env
+        # old struct shall not be used anymore
+        self.environment[op.args[0]] = new_struct
+
+    def _field_write(self, struct, struct_type, field_to_replace, new_value):
         struct_type_z3 = self.sharedstate.get_z3_struct_type(struct_type)
         fields, resolved_type = self.sharedstate.struct_z3_field_map[struct_type_z3]
         new_args  = []
@@ -684,11 +690,7 @@ class Interpreter(object):
                     new_args.append(Z3BoolValue(res))
                 else:
                     new_args.append(Z3Value(res))  
-        new_struct = StructConstant(new_args, resolved_type, struct_type_z3)
-
-        # replace struct in env
-        # old struct shall not be used anymore
-        self.environment[op.args[0]] = new_struct
+        return StructConstant(new_args, resolved_type, struct_type_z3)
 
     def exec_union_variant_check(self, op):
         instance, = self.getargs(op)

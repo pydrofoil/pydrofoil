@@ -160,10 +160,9 @@ def test_gen_code_run_angr_and_compare(riscvsharedstate):
     executions = readpy3angr.gen_code_run_angr(num_ops=2**7)
     # failed:         0xd4158413, 0xf48f3413, 0x9acb413, 0x98d68413, 0x7e6e413, 0x5ab10413, 0x40987413
     # reg_50:         0xa2944c13, 0x6e942113, 0x68847593, 0x843293, 0xbab42a93
-    # ReferenceError: 0x13007379, 0xef206093, 0x0xfffa8013
+    # ReferenceError: 0x13007379, 0xef206093, 0x0xfffa8013, 0x8f6cab93
 
     graph_decode = riscvsharedstate.funcs['zencdec_backwards']
-    #graph_execute = riscvsharedstate.funcs["zexecute_zITYPE"]
     graph_execute = riscvsharedstate.mthds["zexecute"]
 
     mthd = True # True
@@ -185,3 +184,84 @@ def test_gen_code_run_angr_and_compare(riscvsharedstate):
         exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, reg_init_reg_name_mapping,  init_reg_name_to_z3_mapping)
 
         z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbose=True)
+
+
+def test_run_angr_failed(riscvsharedstate):
+    opcode = 0xd4158413 # addi x8 x11 -703
+
+    executions =  readpy3angr.run_angr_opcodes(opcodes=[opcode])
+    execution = executions[0]
+
+    graph_decode = riscvsharedstate.funcs['zencdec_backwards']
+    graph_execute = riscvsharedstate.mthds["zexecute"]
+
+    w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
+    code = readpy3angr.get_code_from_execution(execution)
+
+    interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
+                                                        riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
+    
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+    angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+
+    z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
+
+    reg_init_reg_name_mapping = readpy3angr.get_init_reg_names_from_execution(execution)
+
+    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, reg_init_reg_name_mapping,  init_reg_name_to_z3_mapping)
+
+    z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbose=True)
+
+
+def test_run_angr_reg50_error(riscvsharedstate):
+    opcode = 0xa2944c13 # xori x24 x8 -1495
+    opcode = 0xff44c13
+    executions =  readpy3angr.run_angr_opcodes(opcodes=[opcode], verbose=True)
+    execution = executions[0]
+
+    graph_decode = riscvsharedstate.funcs['zencdec_backwards']
+    graph_execute = riscvsharedstate.mthds["zexecute"]
+
+    w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
+    code = readpy3angr.get_code_from_execution(execution)
+
+    interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
+                                                        riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
+    
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+    angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+
+    z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
+
+    reg_init_reg_name_mapping = readpy3angr.get_init_reg_names_from_execution(execution)
+
+    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, reg_init_reg_name_mapping,  init_reg_name_to_z3_mapping)
+
+    z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbose=True)
+
+
+def test_run_angr_reference_error(riscvsharedstate):
+    opcode = 0xef206093 # xori x1 x0 -270
+
+    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode])
+    execution = executions[0]
+
+    graph_decode = riscvsharedstate.funcs['zencdec_backwards']
+    graph_execute = riscvsharedstate.mthds["zexecute"]
+
+    w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
+    code = readpy3angr.get_code_from_execution(execution)
+
+    interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
+                                                        riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
+    
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+    angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+
+    z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
+
+    reg_init_reg_name_mapping = readpy3angr.get_init_reg_names_from_execution(execution)
+
+    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, reg_init_reg_name_mapping,  init_reg_name_to_z3_mapping)
+
+    z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbose=True)

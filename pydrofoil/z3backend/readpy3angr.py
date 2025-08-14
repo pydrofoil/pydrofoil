@@ -11,10 +11,26 @@ def load_executions(filename):
     return d["executions"]
 
 def gen_code_run_angr(num_ops=128, arch="rv64"):
-    """ Generate random instructions, simulate with angr abd load the executionobjects """
+    """ Generate random instructions, simulate with angr abd load the execution objects """
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
     outfile_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp.py")
     cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", outfile_path, "-numops", str(num_ops)]
+    subprocess.check_call(" ".join(cmd),shell=True)
+    executions = load_executions("pydrofoil.z3backend.temp")
+    if os.path.exists(outfile_path):
+        os.remove(outfile_path)
+    return executions
+
+def run_angr_opcodes(opcodes=[], arch="rv64", verbose=False):
+    """ simulate opcodes with angr abd load the execution objects """
+    assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
+    opcodes = [str(opc) for opc in opcodes]
+    outfile_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp.py")
+    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", outfile_path]
+    if verbose:
+        cmd.append("-verbose")
+    cmd.append("-opcodes")
+    cmd.append(str(" ".join(opcodes)))
     subprocess.check_call(" ".join(cmd),shell=True)
     executions = load_executions("pydrofoil.z3backend.temp")
     if os.path.exists(outfile_path):

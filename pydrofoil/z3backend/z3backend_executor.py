@@ -11,6 +11,8 @@ ARM9_4REGISTERS = {}
 
 def patch_name(name):
     """ append a 'z' to the name """
+    if name == "pc": return "zPC" # for some reason pc is uppercase in sail
+    # nextPC is uppercase to, but does not exist in angr
     return "z" + name
 
 def prepare_interpreter(interp, registers_w, memory_w):

@@ -1,6 +1,7 @@
 from pydrofoil.z3backend.z3btypes import Z3Value, ConstantSmallBitVector
 import z3
 import os, subprocess, tempfile
+import shutil
 
 
 def load_executions(filename):
@@ -10,31 +11,78 @@ def load_executions(filename):
     eval(compile("from %s import executions" % filename, "<string>", 'exec'), d)
     return d["executions"]
 
+def load_code(filename):
+    """ load generated instructions from file """
+    d = {}
+    #eval("from %s import executions" % filename, d)
+    eval(compile("from %s import code" % filename, "<string>", 'exec'), d)
+    return d["code"]
+
+def gen_code_run_angr_single(num_ops=128, arch="rv64", verbose=False):
+    """ Generate random instructions, simulate each with angr in single subprocess and load the execution objects """
+    assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
+    file = tempfile.NamedTemporaryFile(suffix=".py")
+    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", file.name, "-numops", str(num_ops), "-generate"]
+    subprocess.check_call(" ".join(cmd),shell=True, env=os.environ)
+    copy_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), str(file.name)[1:])
+    shutil.copy(file.name, copy_path)
+    code = load_code("pydrofoil.z3backend%s" % file.name.replace("/", ".")[:-3])
+    if os.path.exists(copy_path):
+        os.remove(copy_path)
+    if os.path.exists(copy_path + "c"):
+        os.remove(copy_path + "c") 
+    executions = []
+    while code:
+        instrs = [code.pop() for _ in range(min(4, len(code)))] 
+        excs = run_angr_opcodes(instrs, arch, verbose)
+        while excs is None: excs = run_angr_opcodes(instrs, arch, verbose)
+        executions.extend(excs)
+    file.close()
+    return executions
+
 def gen_code_run_angr(num_ops=128, arch="rv64"):
-    """ Generate random instructions, simulate with angr abd load the execution objects """
+    """ Generate random instructions, simulate with angr and load the execution objects """
+    #assert "CPY3ANGR" in os.environ, "cant find cpy3 with angr in environment " 
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
     outfile_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp.py")
     cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", outfile_path, "-numops", str(num_ops)]
-    subprocess.check_call(" ".join(cmd),shell=True)
+    subprocess.check_call(" ".join(cmd),shell=True, env=os.environ)
     executions = load_executions("pydrofoil.z3backend.temp")
     if os.path.exists(outfile_path):
         os.remove(outfile_path)
+    if os.path.exists(outfile_path + "c"):
+        os.remove(outfile_path + "c") 
     return executions
 
 def run_angr_opcodes(opcodes=[], arch="rv64", verbose=False):
-    """ simulate opcodes with angr abd load the execution objects """
+    """ simulate opcodes with angr and load the execution objects """
+    #assert "CPY3ANGR" in os.environ, "cant find cpy3 with angr in environment " 
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
     opcodes = [str(opc) for opc in opcodes]
-    outfile_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp.py")
-    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", outfile_path]
+    file = tempfile.NamedTemporaryFile(suffix=".py")
+    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", file.name]
     if verbose:
         cmd.append("-verbose")
     cmd.append("-opcodes")
     cmd.append(str(" ".join(opcodes)))
-    subprocess.check_call(" ".join(cmd),shell=True)
-    executions = load_executions("pydrofoil.z3backend.temp")
-    if os.path.exists(outfile_path):
-        os.remove(outfile_path)
+    try:
+        subprocess.check_call(" ".join(cmd),shell=True, env=os.environ)
+    except subprocess.CalledProcessError as cpe:
+        #print "CalledProcessError"
+        #if "ReferenceError" in str(cpe.output): 
+        #    print "ReferenceError"
+        #else:
+        #    print cpe.output
+        file.close()
+        return None
+    copy_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), str(file.name)[1:])
+    shutil.copy(file.name, copy_path)
+    executions = load_executions("pydrofoil.z3backend%s" % file.name.replace("/", ".")[:-3])
+    if os.path.exists(copy_path):
+        os.remove(copy_path)
+    if os.path.exists(copy_path + "c"):
+        os.remove(copy_path + "c") 
+    file.close()
     return executions
 
 #############################
@@ -68,6 +116,10 @@ def create_wrapped_init_register_values(execution, pc_ip_reg_size=None): # TODO:
         regname, regsize = pc_ip_reg_size
         w_regs[pc_ip_reg_size[0]] = ConstantSmallBitVector(get_load_addr_from_execution(execution), regsize)
         init_name_z3_mapping[init_regs[regname]] = w_regs[regname].toz3()
+
+        for alias in arch.register_aliases[regname]:
+            w_regs[alias] = ConstantSmallBitVector(get_load_addr_from_execution(execution), regsize)
+            init_name_z3_mapping[init_regs[alias]] = w_regs[alias].toz3()
     
     return w_regs, init_name_z3_mapping
 

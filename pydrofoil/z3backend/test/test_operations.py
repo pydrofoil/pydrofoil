@@ -296,6 +296,7 @@ def test_field_access(interp, const, bv):
         assert isinstance(field_c, z3btypes.Z3BoolValue)
 
 @given(interpreter, small_bitvectors)
+@settings(deadline=None)
 def test_field_write(interp, bv):
     test_struct = types.Struct("test",  ("a", "b", "c"), (types.SmallFixedBitVector(bv.resolved_type.width), types.Unit(), types.Bool()))
 

@@ -343,3 +343,31 @@ def test_field_write(interp, bv):
     assert isinstance(struct_nc_b, z3btypes.Z3Value) 
     assert isinstance(struct_nc_c, z3btypes.BooleanConstant)
     assert struct_nc_c.value == bool(bv.value % 7 == 0)
+
+@settings(deadline=1000)
+@given(interpreter, strategies.integers(0,1))
+def test_union_variant_check(interp, variant0):
+
+    test_union = types.Union("test",  ("A", "B"), (types.SmallFixedBitVector(64), types.Bool()))
+    z3typ = interp.sharedstate.get_z3_union_type(test_union)
+
+    if variant0 == 0:
+        w_union = z3btypes.UnionConstant("A", z3btypes.ConstantSmallBitVector(7, 64), test_union, z3typ)
+    else:
+        w_union = z3btypes.UnionConstant("B", z3btypes.BooleanConstant(True), test_union, z3typ)
+    
+    w_res_a = interp._union_variant_check(w_union, test_union, "A")
+
+    assert isinstance(w_res_a, z3btypes.BooleanConstant)
+    assert w_res_a.value == bool(variant0)
+
+    w_res_b = interp._union_variant_check(w_union, test_union, "B")
+
+    assert isinstance(w_res_b, z3btypes.BooleanConstant)
+    assert w_res_b.value != bool(variant0)
+
+    abstract_w_union = z3btypes.Z3Value(interp.sharedstate.get_abstract_union_const_of_type(test_union, "test"))
+
+    w_res_abs = interp._union_variant_check(abstract_w_union, test_union, "A")
+
+    assert isinstance(w_res_abs, z3btypes.Z3BoolValue)

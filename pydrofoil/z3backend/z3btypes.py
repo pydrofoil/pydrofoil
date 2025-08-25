@@ -116,7 +116,7 @@ class ConstantSmallBitVector(AbstractConstant):
         return (self.value == other.value)
     
 class ConstantGenericBitVector(AbstractConstant):
-    def __init__(self, val, width):
+    def __init__(self, val):
         self.value = val
 
     def toz3(self):

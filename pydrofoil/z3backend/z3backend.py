@@ -206,6 +206,7 @@ class Interpreter(object):
         self.w_result = None
         self.path_condition = []
         self.bits = struct.calcsize("P") * 8
+        self._allow_ir_print = False
 
     def _reset_env(self):
         """ only for z3backend_executor.
@@ -692,11 +693,15 @@ class Interpreter(object):
 
     def exec_union_variant_check(self, op):
         instance, = self.getargs(op)
+        union_type = op.args[0].resolved_type
+        variant_name = op.name
+        return self._union_variant_check(instance, union_type, variant_name)
+
+    def _union_variant_check(self, instance, union_type, variant_name):
         if isinstance(instance, UnionConstant):
-            return BooleanConstant(instance.variant_name != op.name) # confusingly enough, the result is negated from what one would expect
+            return BooleanConstant(instance.variant_name != variant_name) # confusingly enough, the result is negated from what one would expect
         elif isinstance(instance, Z3Value):
-            union_type = op.args[0].resolved_type
-            checker = self.sharedstate.get_ir_union_typechecker(union_type, op.name)
+            checker = self.sharedstate.get_ir_union_typechecker(union_type, variant_name)
             return Z3BoolValue(checker(instance.toz3()))
         else:
             import pdb;pdb.set_trace()
@@ -942,6 +947,13 @@ class Interpreter(object):
             return ConstantInt(arg0.value * arg1.value)
         else:
             return Z3Value(arg0.toz3() * arg1.toz3())
+        
+    def exec_zmult_atom(self, op):
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return ConstantInt(arg0.value * arg1.value)
+        else:
+            return Z3Value(arg0.toz3() * arg1.toz3())
 
     def exec_shiftl_bv_i(self, op):
         ## Assume that this is meant to be an logical shift ##
@@ -990,6 +1002,8 @@ class Interpreter(object):
             unsat
     """
 
+
+
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
@@ -1003,13 +1017,13 @@ class Interpreter(object):
         arg0, arg1, arg2 = self.getargs(op)
         assert not isinstance(arg0, ConstantSmallBitVector), "?"
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
-            mask_low = 2 ** (arg2 + 1) - 1
-            mask_high = 2 ** (arg1 + 1) - 1
+            mask_low = 2 ** (arg2.value + 1) - 1
+            mask_high = 2 ** (arg1.value + 1) - 1
             mask = mask_high - mask_low
-            # supportcode cant handle morethan 64 bits #
+            # supportcode cant handle more than 64 bits #
             return ConstantGenericBitVector(arg0.value & mask)
         else:
-            # bv must at least be as large as  the extract range
+            # bv must at least be as large as the extract range
             return Z3Value(z3.Extract(arg1.value, arg2.value, z3.Int2BV(arg0.toz3(), arg1.value + 1)))
                 
     def exec_vector_update_subrange_fixed_bv_i_i_bv(self, op):
@@ -1057,6 +1071,11 @@ class Interpreter(object):
         """ pack a MachineInt into a Packed Wrapper object """
         arg0, = self.getargs(op) 
         return Packed(arg0)
+    
+    def exec_pack(self, op):
+        """ pack arg into a Packed Wrapper object"""
+        arg, = self.getargs(op)
+        return Packed(arg)
     
     def exec_ones_zero_extended_unwrapped_res(self, op):
         """ create a bv of arg0 many ones and  a leading 0 ???"""
@@ -1232,3 +1251,21 @@ class RiscvInterpreter(Interpreter):
     def exec_zplat_htif_tohost(self, op):
         # value copied from supportcoderiscv
         return ConstantSmallBitVector(0x80001000, op.resolved_type.width)
+    
+    def exec_zplat_ram_base(self, op):
+        return ConstantSmallBitVector(0x80000000, op.resolved_type.width)
+    
+    def exec_zplat_ram_sizze(self, op): 
+        # this function is actually called zplat_ram_sizze, its not a spelling mistake
+        return ConstantSmallBitVector(0x4000000, op.resolved_type.width)
+    
+    def exec_zplat_rom_base(self, op):
+        return ConstantSmallBitVector(0x1000, op.resolved_type.width)
+    
+    def exec_zplat_rom_sizze(self, op):
+        # this function is actually called zplat_rom_sizze, its not a spelling mistake
+        return ConstantSmallBitVector(0x100, op.resolved_type.width)
+
+    def exec_zprint_platform(self, op):
+        if self.exec_zget_config_print_platform(None).value and self._allow_ir_print:
+            print str(self.getargs(op)[0])

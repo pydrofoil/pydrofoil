@@ -418,7 +418,7 @@ class CodeEmitter(object):
             )
         elif op.args[0].resolved_type == types.Packed(types.Int()):
             self.codegen.emit(
-                    "if not (%s%s%s): raise supportcode.SailError(%s)"
+                "if not (%s%s%s): raise supportcode.SailError(%s)"
                 % (
                     ""
                     if low_is_unit
@@ -435,20 +435,30 @@ class CodeEmitter(object):
         elif op.args[0].resolved_type == types.GenericBitVector():
             if op.args[2].number <= 64:
                 self.codegen.emit(
-                    "assert isinstance(%s, bitvector.SmallBitVector)" % arg0
+                    (
+                        "if not isinstance(%s, bitvector.SmallBitVector): "
+                        "raise supportcode.SailError(%s)"
+                    )
+                    % (arg0, arg3)
                 )
             assert not low_is_unit and not high_is_unit
             self.codegen.emit(
-                "assert %s <= %s.size() <= %s, %s"
+                (
+                    "if not (%s <= %s.size() <= %s): "
+                    "raise supportcode.SailError(%s)"
+                )
                 % (op.args[1].number, arg0, op.args[2].number, arg3)
             )
         elif op.args[0].resolved_type == types.Packed(
             types.GenericBitVector()
         ):
             if op.args[2].number <= 64:
-                self.codegen.emit("assert %s[2] is None" % arg0)
+                self.codegen.emit(
+                    "if %s[2] is not None: raise supportcode.SailError(%s)"
+                    % (arg0, arg3)
+                )
             self.codegen.emit(
-                "assert %s <= %s[0] <= %s, %s"
+                "if not (%s <= %s[0] <= %s): raise supportcode.SailError(%s)"
                 % (op.args[1].number, arg0, op.args[2].number, arg3)
             )
             pass

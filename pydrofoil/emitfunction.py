@@ -384,6 +384,7 @@ class CodeEmitter(object):
                         arg3,
                     )
                 )
+            return
         elif op.args[0].resolved_type == types.MachineInt():
             self.codegen.emit(
                 "assert %s <= %s <= %s, %s"
@@ -394,13 +395,14 @@ class CodeEmitter(object):
                     arg3,
                 )
             )
-        elif op.args[0].resolved_type == types.Int():
-            low_optional = op.args[1]
-            high_optional = op.args[2]
-            low_is_unit = isinstance(low_optional, ir.UnitConstant)
-            high_is_unit = isinstance(high_optional, ir.UnitConstant)
-            if low_is_unit and high_is_unit:
-                return
+            return
+        low_optional = op.args[1]
+        high_optional = op.args[2]
+        low_is_unit = isinstance(low_optional, ir.UnitConstant)
+        high_is_unit = isinstance(high_optional, ir.UnitConstant)
+        if low_is_unit and high_is_unit:
+            return
+        if op.args[0].resolved_type == types.Int():
             self.codegen.emit(
                 "assert %s%s%s, %s"
                 % (
@@ -415,12 +417,6 @@ class CodeEmitter(object):
                 )
             )
         elif op.args[0].resolved_type == types.Packed(types.Int()):
-            low_optional = op.args[1]
-            high_optional = op.args[2]
-            low_is_unit = isinstance(low_optional, ir.UnitConstant)
-            high_is_unit = isinstance(high_optional, ir.UnitConstant)
-            if low_is_unit and high_is_unit:
-                return
             self.codegen.emit(
                 "assert %s%s%s, %s"
                 % (
@@ -436,6 +432,26 @@ class CodeEmitter(object):
                     arg3,
                 )
             )
+        elif op.args[0].resolved_type == types.GenericBitVector():
+            if op.args[2].number <= 64:
+                self.codegen.emit(
+                    "assert isinstance(%s, bitvector.SmallBitVector)" % arg0
+                )
+            assert not low_is_unit and not high_is_unit
+            self.codegen.emit(
+                "assert %s <= %s.size() <= %s, %s"
+                % (op.args[1].number, arg0, op.args[2].number, arg3)
+            )
+        elif op.args[0].resolved_type == types.Packed(
+            types.GenericBitVector()
+        ):
+            if op.args[2].number <= 64:
+                self.codegen.emit("assert %s[2] is None" % arg0)
+            self.codegen.emit(
+                "assert %s <= %s[0] <= %s, %s"
+                % (op.args[1].number, arg0, op.args[2].number, arg3)
+            )
+            pass
         else:
             assert 0, "unknown type in RangeCheck"
 

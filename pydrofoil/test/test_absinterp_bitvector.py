@@ -121,34 +121,6 @@ def test_get_slice_int_i_o_i():
     assert new_range == Range(0, 42)
 
 
-def test_vector_subrange_o_i_i_unwrapped_res():
-    new_range = _run_op(
-        "vector_subrange_o_i_i_unwrapped_res",
-        (types.GenericBitVector(), Range(0, 100)),
-        (types.Int(), Range(0, 20)),
-        (types.Int(), Range(0, 20)),
-    )
-    assert new_range == Range(0, 2 ** 21 - 1)
-
-    new_range = _run_op(
-        "vector_subrange_o_i_i_unwrapped_res",
-        (types.GenericBitVector(), Range(0, 100)),
-        (types.Int(), Range(None, 20)),
-        (types.Int(), Range(3, None)),
-    )
-    bv = bitvector.from_bigint(100, rbigint.fromint(-1))
-    assert bv.subrange_unwrapped_res(20, 3) == 2 ** 18 - 1
-    assert new_range == Range(0, 2 ** 18 - 1)
-
-    new_range = _run_op(
-        "vector_subrange_o_i_i_unwrapped_res",
-        (types.GenericBitVector(), Range(0, 64)),
-        (types.Int(), Range(None, None)),
-        (types.Int(), Range(None, None)),
-    )
-    assert new_range == Range(0, 2 ** 64 - 1)
-
-
 def test_vector_subrange_o_i_i():
     new_range = _run_op(
         "vector_subrange_o_i_i",
@@ -240,15 +212,6 @@ def test_read_mem_exclusive_o_o_o_i():
     assert new_range == Range(32, 64)
 
 
-def test_vector_access():
-    new_range = _run_op(
-        "vector_access_o_i",
-        (types.GenericBitVector(), Range(0, None)),
-        (types.Int(), Range(None, None)),
-    )
-    assert new_range == Range(0, 1)
-
-
 def test_vector_update_subrange_o_i_i_o():
     new_range = _run_op(
         "vector_update_subrange_o_i_i_o",
@@ -266,7 +229,7 @@ def test_eq_bits():
         (types.GenericBitVector(), Range(0, 100)),
         (types.GenericBitVector(), Range(0, 100)),
     )
-    assert new_range == Range(0, 100)
+    assert new_range == Range(0, 1)
 
 
 def test_bitvector_concat_bv_gbv_wrapped_res():

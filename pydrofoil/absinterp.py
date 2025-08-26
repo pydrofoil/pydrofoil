@@ -6,6 +6,8 @@ from pydrofoil import ir, makecode, types
 MININT = -sys.maxint - 1
 MAXINT = sys.maxint
 
+MAX_CONSIDERED_NUMBER_OF_BITS = 128
+
 
 _RECOMPUTE_LIMIT = 100
 
@@ -297,7 +299,7 @@ class Range(object):
         if is_signed:
             # For high numbers of bits, calculating the power of 2 is too
             # costly, so we just use None
-            if number_of_bits > 64:
+            if number_of_bits > MAX_CONSIDERED_NUMBER_OF_BITS:
                 low, high = None, None
             else:
                 power = 2 ** (number_of_bits - 1)
@@ -305,7 +307,7 @@ class Range(object):
                 high = power - 1
         else:
             low = 0
-            if number_of_bits > 64:
+            if number_of_bits > MAX_CONSIDERED_NUMBER_OF_BITS:
                 high = None
             else:
                 high = 2 ** (number_of_bits) - 1
@@ -325,6 +327,7 @@ RELEVANT_TYPES = (
     types.Bool(),
     types.Packed(types.Int()),
     types.GenericBitVector(),
+    types.Packed(types.GenericBitVector()),
 )
 INT_TYPES = (types.MachineInt(), types.Int())
 
@@ -497,9 +500,17 @@ class AbstractInterpreter(object):
             )
             res = meth(op)
             if op.resolved_type in RELEVANT_TYPES:
+                if res is None:
+                    import pdb
+
+                    pdb.set_trace()
                 assert res is not None
                 self.current_values[op] = res
             else:
+                if res is not None:
+                    import pdb
+
+                    pdb.set_trace()
                 assert res is None
 
     def _init_loop_header(self, block):
@@ -522,44 +533,15 @@ class AbstractInterpreter(object):
             return UNBOUNDED
         if op.resolved_type is types.GenericBitVector():
             return BIT_VECTOR
+        if op.resolved_type is types.Packed(types.GenericBitVector()):
+            return BIT_VECTOR
         return None
 
     def analyze_Operation(self, op):
         name = op.name.lstrip("@$")
         name = self._builtinname(name)
-        if (
-            name != "emulator_read_tag"
-            and not hasattr(self, "analyze_" + name)
-            and (
-                "@" in op.name
-                or "$" in op.name
-                or name != op.name.lstrip("@$")
-            )
-            and (
-                op.resolved_type is types.GenericBitVector()
-                or (
-                    op.resolved_type in RELEVANT_TYPES
-                    and any(
-                        arg.resolved_type is types.GenericBitVector()
-                        for arg in op.args
-                    )
-                )
-            )
-        ):
-            i = "type: %s   args: %s   name: %s (%s)" % (
-                op.resolved_type,
-                op.args,
-                op.name,
-                name,
-            )
-            from pydrofoil import bitvector
-            from rpython.rlib.rbigint import rbigint
-            import pdb
-
-            pdb.set_trace()
         meth = getattr(self, "analyze_" + name, self.analyze_default)
-        res = meth(op)
-        return res
+        return meth(op)
 
     def analyze_Phi(self, op):
         if op.resolved_type not in RELEVANT_TYPES:
@@ -602,6 +584,8 @@ class AbstractInterpreter(object):
             return FALSE
         if isinstance(op, (ir.MachineIntConstant, ir.IntConstant)):
             return Range.fromconst(op.number)
+        if isinstance(op, ir.GenericBitVectorConstant):
+            return Range.fromconst(op.value.size())
         if op.resolved_type not in RELEVANT_TYPES:
             return None
         if isinstance(op, ir.DefaultValue):
@@ -769,16 +753,16 @@ class AbstractInterpreter(object):
     analyze_not_bits = _analyze_gbv_identity
     analyze_add_bits_int = _analyze_gbv_identity
     analyze_length_unwrapped_res = _analyze_gbv_identity
-    analyze_not_bits = _analyze_gbv_identity
     analyze_shiftr_o_i = _analyze_gbv_identity
     analyze_shiftl_o_i = _analyze_gbv_identity
     analyze_or_bits = _analyze_gbv_identity
-    analyze_or_bits = _analyze_gbv_identity
     analyze_vector_update_subrange_o_i_i_o = _analyze_gbv_identity
-    analyze_eq_bits = _analyze_gbv_identity
     analyze_xor_bits = _analyze_gbv_identity
     analyze_and_bits = _analyze_gbv_identity
     analyze_undefined_bitvector_i = _analyze_gbv_identity
+
+    def analyze_eq_bits(self, op):
+        return BOOL
 
     def _analyze_extend(arg_index):
         """For bitvector operations that create a new bitvector with the size given by an argument."""
@@ -806,19 +790,13 @@ class AbstractInterpreter(object):
             return UNBOUNDED
         return Range.for_int_with_bits(bound.high, True)
 
-    def analyze_vector_subrange_o_i_i_unwrapped_res(self, op):
-        width_bound = self.analyze_vector_subrange_o_i_i(op)
-        if width_bound is None or width_bound.high is None:
-            return Range(0, None)
-        return Range.for_int_with_bits(width_bound.high, False)
-
     def analyze_vector_subrange_o_i_i(self, op):
         (bv_bound, n_bound, m_bound) = self._argbounds(op)
         assert bv_bound is not None
         assert n_bound is not None
         assert m_bound is not None
         # The width of the resulting vector is n - m + 1
-        return n_bound.sub(m_bound).add(Range(1, 1)).intersect(bv_bound)
+        return n_bound.sub(m_bound).add(Range(1, 1)).make_le(bv_bound)
 
     def analyze_bv_bit_op(self, op):
         (bound_a, bound_b) = self._argbounds(op)
@@ -829,20 +807,21 @@ class AbstractInterpreter(object):
     analyze_add_bits = analyze_bv_bit_op
     analyze_sub_bits = analyze_bv_bit_op
 
-    def analyze_read_mem_exclusive_o_o_o_i(self, op):
+    def analyze_read_mem(self, op):
         # Result is a bitvector with n bytes
         (_, _, _, bound_n) = self._argbounds(op)
         assert bound_n is not None
         return bound_n.mul(Range(8, 8)).intersect(BIT_VECTOR)
 
-    def analyze_vector_access_o_i(self, op):
-        return BOOL
+    analyze_read_mem_exclusive_o_o_o_i = analyze_read_mem
+    analyze_read_mem_ifetch_o_o_o_i = analyze_read_mem
+    analyze_read_mem_o_o_o_i = analyze_read_mem
 
     def analyze_slice_o_i_i(self, op):
         (bound_bv, _, bound_length) = self._argbounds(op)
         assert bound_bv is not None
         assert bound_length is not None
-        return bound_length.intersect(bound_bv)
+        return bound_length.make_le(bound_bv)
 
     def analyze_bitvector_concat_bv_gbv_wrapped_res(self, op):
         (_, bound_width, bound_gbv) = self._argbounds(op)

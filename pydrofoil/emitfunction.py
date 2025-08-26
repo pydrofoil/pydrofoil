@@ -377,9 +377,9 @@ class CodeEmitter(object):
             high = op.args[2].number
             if low == high:
                 self.codegen.emit(
-                    "assert %s%s, %s"
+                    "if %s%s: raise supportcode.SailError(%s)"
                     % (
-                        "" if low else "not ",
+                        "not " if low else "",
                         arg0,
                         arg3,
                     )
@@ -387,7 +387,7 @@ class CodeEmitter(object):
             return
         elif op.args[0].resolved_type == types.MachineInt():
             self.codegen.emit(
-                "assert %s <= %s <= %s, %s"
+                "if not (%s <= %s <= %s): raise supportcode.SailError(%s)"
                 % (
                     op.args[1].number,
                     arg0,
@@ -404,11 +404,11 @@ class CodeEmitter(object):
             return
         if op.args[0].resolved_type == types.Int():
             self.codegen.emit(
-                "assert %s%s%s, %s"
+                "if not (%s%s%s): raise supportcode.SailError(%s)"
                 % (
                     ""
                     if low_is_unit
-                    else "%s.gt(%s)" % (self._get_arg(low_optional), arg0),
+                    else "%s.le(%s)" % (self._get_arg(low_optional), arg0),
                     "" if low_is_unit or high_is_unit else " and ",
                     ""
                     if high_is_unit
@@ -418,7 +418,7 @@ class CodeEmitter(object):
             )
         elif op.args[0].resolved_type == types.Packed(types.Int()):
             self.codegen.emit(
-                "assert %s%s%s, %s"
+                    "if not (%s%s%s): raise supportcode.SailError(%s)"
                 % (
                     ""
                     if low_is_unit

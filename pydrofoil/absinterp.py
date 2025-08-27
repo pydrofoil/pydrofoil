@@ -511,6 +511,12 @@ class AbstractInterpreter(object):
         res = None
         for prevblock, value in zip(op.prevblocks, op.prevvalues):
             b = self._bounds(value, must_exist=False, block=prevblock)
+            # if b is None and the graph does not have a loop, it means that
+            # prevblock is unreachable
+            if b is None and self.graph.has_loop:
+                # The previous nodes might not have been visited yet
+                b = default_for_type(value.resolved_type)
+
             if res is None:
                 res = b
             elif b is not None:

@@ -4770,8 +4770,6 @@ def topo_order_best_attempt(graph):
     if not graph.has_loop:
         return topo_order(graph)
 
-    backedges = list(find_backedges(graph))
-    backedges.reverse()
     order = list(graph.iterblocks())  # dfs
 
     incoming = defaultdict(set)
@@ -4797,11 +4795,12 @@ def topo_order_best_attempt(graph):
                         del incoming[child]
         if not incoming:
             break
-        from_, to = backedges.pop()
-        assert from_ in incoming[to]
-
-        no_incoming.append(to)
-        del incoming[to]
+        # we have a loop. just pick a block
+        for block in order:
+            if block in incoming:
+                no_incoming.append(block)
+                del incoming[block]
+                break
     # check result
     assert set(result) == set(order)
     assert len(set(result)) == len(result)

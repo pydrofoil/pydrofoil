@@ -555,7 +555,8 @@ class AbstractInterpreter(object):
                 for arg, bound in zip(op.args, self._argbounds(op))
             )
             # Result is TOP
-            and (res is None or res.contains_range(op.resolved_type))
+            and (res is None or res.contains_range(default_for_type(op.resolved_type)))
+            and name not in ('lt', 'eq', 'gt', 'gteq', 'lteq', 'ones_i', 'zeros_i', 'undefined_bitvector_i', 'mult_o_i_wrapped_res', 'iadd', 'eq_int_o_i')
         ):
             import pdb
 

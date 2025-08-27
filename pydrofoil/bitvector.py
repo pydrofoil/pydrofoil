@@ -1283,6 +1283,17 @@ class Integer(object):
             return SmallInteger(val)
         return BigInteger(rval, val)
 
+    @try_inline
+    def le_packed(self, other):
+        # default implementation, faster one in SmallInteger
+        return self.le(Integer.unpack(*other))
+
+    @try_inline
+    def ge_packed(self, other):
+        # default implementation, faster one in SmallInteger
+        return self.ge(Integer.unpack(*other))
+
+
 class SmallInteger(Integer):
     _immutable_fields_ = ['val']
 
@@ -1353,17 +1364,39 @@ class SmallInteger(Integer):
         return self.val == other
 
     def lt(self, other):
+        selfval = self.val
         if isinstance(other, SmallInteger):
-            return self.val < other.val
+            return selfval < other.val
         assert isinstance(other, BigInteger)
-        selfdata, selfsign = _data_and_sign_from_int(self.val)
-        return _data_lt(selfdata, selfsign, other.data, other.sign)
+        # NB: this isn't returning sign == 0 ever, so we can't use _digit_and_sign_from_int
+        if selfval >= 0:
+            selfsign = 1
+            selfdigit = r_uint(selfval)
+        else:
+            selfsign = -1
+            selfdigit = -r_uint(selfval)
+        return _data_1lt(selfdigit, selfsign, other.data, other.sign)
 
     def le(self, other):
         if isinstance(other, SmallInteger):
             return self.val <= other.val
         assert isinstance(other, BigInteger)
         return other.ge(self)
+
+    @try_inline
+    def le_packed(self, other):
+        val, rval = other
+        if rval is None:
+            return self.val <= val
+        return BigInteger(rval, val).ge(self)
+
+    @try_inline
+    def ge_packed(self, other):
+        val, rval = other
+        if rval is None:
+            return self.val >= val
+        return BigInteger(rval, val).le(self)
+
 
     def gt(self, other):
         if isinstance(other, SmallInteger):
@@ -1686,18 +1719,22 @@ class BigInteger(Integer):
 
     def lt(self, other):
         if isinstance(other, SmallInteger):
-            if other.val > 0:
-                othersign = 1
-                otherdigit = r_uint(other.val)
-            else:
-                othersign = -1
-                otherdigit = -r_uint(other.val)
-            return _data_lt1(self.data, self.sign, otherdigit, othersign)
+            return self._lt_small(other.val)
         else:
             assert isinstance(other, BigInteger)
             othersign = other.sign
             otherdata = other.data
         return _data_lt(self.data, self.sign, otherdata, othersign)
+
+    def _lt_small(self, otherval):
+        # see comment in _data_lt1 about treatment of 0
+        if otherval > 0:
+            othersign = 1
+            otherdigit = r_uint(otherval)
+        else:
+            othersign = -1
+            otherdigit = -r_uint(otherval)
+        return _data_lt1(self.data, self.sign, otherdigit, othersign)
 
     def le(self, other):
         return not other.lt(self)
@@ -1707,6 +1744,17 @@ class BigInteger(Integer):
 
     def ge(self, other):
         return not self.lt(other)
+
+    @try_inline
+    def xle_packed(self, other):
+        return self.le(Integer.unpack(*other))
+
+    @try_inline
+    def ge_packed(self, other):
+        val, rval = other
+        if rval is None:
+            return not self._lt_small(val)
+        return self.ge(Integer.unpack(*other))
 
     def abs(self):
         if self.sign != -1:
@@ -2123,6 +2171,8 @@ def _data_lt(selfdata, selfsign, otherdata, othersign):
 
 @jit.unroll_safe
 def _data_lt1(selfdata, selfsign, otherdigit, othersign):
+    # this is a bit tricky logic, because we treat 0 as having a single digit.
+    # in that case othersign is -1
     if selfsign != othersign:
         return selfsign < othersign
     ld1 = len(selfdata)
@@ -2136,6 +2186,26 @@ def _data_lt1(selfdata, selfsign, otherdigit, othersign):
     elif d1 < d2:
         return othersign > 0
     return False
+
+@jit.unroll_safe
+def _data_1lt(selfdigit, selfsign, otherdata, othersign):
+    # this is a bit tricky logic, because we treat 0 as having a single digit.
+    # in that case selfsign is 1
+    if selfsign != othersign:
+        return selfsign < othersign
+    ld2 = len(otherdata)
+    if 1 < ld2:
+        return othersign > 0
+    i = 0
+    d1 = selfdigit
+    d2 = otherdata[0]
+    if d1 > d2:
+        return othersign <= 0
+    elif d1 < d2:
+        return othersign > 0
+    i -= 1
+    return False
+
 
 @jit.unroll_safe
 def _data_mul1(selfdata, otherdigit):

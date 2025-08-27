@@ -1,5 +1,18 @@
-from pydrofoil.absinterp import analyze, BOOL, UNBOUNDED, TRUE, FALSE, MACHINEINT, Range
-from pydrofoil.absinterp import optimize_with_range_info
+from pydrofoil.absinterp import (
+    analyze,
+    BOOL,
+    UNBOUNDED,
+    TRUE,
+    FALSE,
+    MACHINEINT,
+    Range,
+)
+from pydrofoil.absinterp import (
+    optimize_with_range_info,
+    MININT,
+    MAXINT,
+    IntOpOptimizer,
+)
 from pydrofoil.test.test_ir import compare, FakeCodeGen
 
 from pydrofoil.types import *
@@ -7,9 +20,10 @@ from pydrofoil.ir import *
 
 fakecodegen = FakeCodeGen()
 
+
 def test_analyze_stageoa():
-    zia = Argument('zia', SmallFixedBitVector(64))
-    zaddress = Argument('zaddress', SmallFixedBitVector(52))
+    zia = Argument("zia", SmallFixedBitVector(64))
+    zaddress = Argument("zaddress", SmallFixedBitVector(52))
     mi = Argument("mi", MachineInt())
     block2 = Block()
     block3 = Block()
@@ -23,47 +37,240 @@ def test_analyze_stageoa():
     block11 = Block()
     block12 = Block()
     block13 = Block()
-    i24 = block2.emit(Operation, '@lteq', [MachineIntConstant(0), mi], Bool(), '`7 9343:23-9343:35', 'zz435')
-    block2.next = ConditionalGoto(i24, block3, block13, '`7 9343:23-9343:51')
-    i26 = block3.emit(Operation, '@lteq', [mi, MachineIntConstant(51)], Bool(), '`7 9343:38-9343:51', 'zz436')
-    block3.next = ConditionalGoto(i26, block4, block13, '`7 9342:4-9346:14')
-    i29 = block4.emit(Operation, '@sub_i_i_must_fit', [mi, MachineIntConstant(1)], MachineInt(), '`7 9344:22-9344:38', 'zz431')
-    i30 = block4.emit(Operation, '@lteq', [MachineIntConstant(0), i29], Bool(), '`7 9344:22-9344:38', 'zz423')
-    block4.next = ConditionalGoto(i30, block5, block12, '`7 9342:4-9346:14')
-    i35 = block5.emit(Operation, '@sub_i_i_wrapped_res', [MachineIntConstant(51), mi], Int(), '`4 166:45-166:48', 'zz418')
-    i36 = block5.emit(Operation, '@add_o_i_wrapped_res', [i35, MachineIntConstant(1)], Int(), '`4 166:45-166:50', 'zz417')
-    i38 = block5.emit(Operation, '@gteq', [i36, IntConstant(52)], Bool(), '`2 336:5-336:11', 'zz40')
-    block5.next = ConditionalGoto(i38, block6, block11, '`2 336:2-341:3')
-    i40 = block6.emit(Operation, '@shiftl_bv_i', [SmallBitVectorConstant(0xfffffffffffff, SmallFixedBitVector(52)), MachineIntConstant(52), mi], SmallFixedBitVector(52), '`2 337:4-337:35', 'return')
+    i24 = block2.emit(
+        Operation,
+        "@lteq",
+        [MachineIntConstant(0), mi],
+        Bool(),
+        "`7 9343:23-9343:35",
+        "zz435",
+    )
+    block2.next = ConditionalGoto(i24, block3, block13, "`7 9343:23-9343:51")
+    i26 = block3.emit(
+        Operation,
+        "@lteq",
+        [mi, MachineIntConstant(51)],
+        Bool(),
+        "`7 9343:38-9343:51",
+        "zz436",
+    )
+    block3.next = ConditionalGoto(i26, block4, block13, "`7 9342:4-9346:14")
+    i29 = block4.emit(
+        Operation,
+        "@sub_i_i_must_fit",
+        [mi, MachineIntConstant(1)],
+        MachineInt(),
+        "`7 9344:22-9344:38",
+        "zz431",
+    )
+    i30 = block4.emit(
+        Operation,
+        "@lteq",
+        [MachineIntConstant(0), i29],
+        Bool(),
+        "`7 9344:22-9344:38",
+        "zz423",
+    )
+    block4.next = ConditionalGoto(i30, block5, block12, "`7 9342:4-9346:14")
+    i35 = block5.emit(
+        Operation,
+        "@sub_i_i_wrapped_res",
+        [MachineIntConstant(51), mi],
+        Int(),
+        "`4 166:45-166:48",
+        "zz418",
+    )
+    i36 = block5.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i35, MachineIntConstant(1)],
+        Int(),
+        "`4 166:45-166:50",
+        "zz417",
+    )
+    i38 = block5.emit(
+        Operation,
+        "@gteq",
+        [i36, IntConstant(52)],
+        Bool(),
+        "`2 336:5-336:11",
+        "zz40",
+    )
+    block5.next = ConditionalGoto(i38, block6, block11, "`2 336:2-341:3")
+    i40 = block6.emit(
+        Operation,
+        "@shiftl_bv_i",
+        [
+            SmallBitVectorConstant(0xFFFFFFFFFFFFF, SmallFixedBitVector(52)),
+            MachineIntConstant(52),
+            mi,
+        ],
+        SmallFixedBitVector(52),
+        "`2 337:4-337:35",
+        "return",
+    )
     block6.next = Goto(block7, None)
-    i41 = block7.emit_phi([block11, block6], [None, i40], SmallFixedBitVector(52))
-    i42 = block7.emit(Operation, '@and_vec_bv_bv', [zaddress, i41], SmallFixedBitVector(52), '`4 166:27-166:51', 'zz414')
-    i43 = block7.emit(Operation, '@shiftr_bv_i', [i42, MachineIntConstant(52), mi], SmallFixedBitVector(52), '`4 166:11-166:55', 'zz40')
-    i44 = block7.emit(Operation, '@add_i_i_wrapped_res', [i29, MachineIntConstant(1)], Int(), '`4 167:46-167:53', 'zz411')
-    i46 = block7.emit(Operation, '@gteq', [i44, IntConstant(64)], Bool(), '`2 336:5-336:11', 'zz40')
-    block7.next = ConditionalGoto(i46, block8, block10, '`2 336:2-341:3')
+    i41 = block7.emit_phi(
+        [block11, block6], [None, i40], SmallFixedBitVector(52)
+    )
+    i42 = block7.emit(
+        Operation,
+        "@and_vec_bv_bv",
+        [zaddress, i41],
+        SmallFixedBitVector(52),
+        "`4 166:27-166:51",
+        "zz414",
+    )
+    i43 = block7.emit(
+        Operation,
+        "@shiftr_bv_i",
+        [i42, MachineIntConstant(52), mi],
+        SmallFixedBitVector(52),
+        "`4 166:11-166:55",
+        "zz40",
+    )
+    i44 = block7.emit(
+        Operation,
+        "@add_i_i_wrapped_res",
+        [i29, MachineIntConstant(1)],
+        Int(),
+        "`4 167:46-167:53",
+        "zz411",
+    )
+    i46 = block7.emit(
+        Operation,
+        "@gteq",
+        [i44, IntConstant(64)],
+        Bool(),
+        "`2 336:5-336:11",
+        "zz40",
+    )
+    block7.next = ConditionalGoto(i46, block8, block10, "`2 336:2-341:3")
     block8.next = Goto(block9, None)
-    i48 = block9.emit_phi([block10, block8], [None, SmallBitVectorConstant(r_uint(0xffffffffffffffff), SmallFixedBitVector(64))], SmallFixedBitVector(64))
-    i49 = block9.emit(Operation, '@and_vec_bv_bv', [zia, i48], SmallFixedBitVector(64), '`4 167:27-167:54', 'zz48')
-    i51 = block9.emit(Operation, '@add_i_i_must_fit', [i29, MachineIntConstant(1)], MachineInt(), '`4 168:31-168:42', 'zz45')
-    i52 = block9.emit(Operation, '@shiftl_bv_i', [i43, MachineIntConstant(52), i51], SmallFixedBitVector(52), '`4 168:2-168:43', 'zz42')
-    i54 = block9.emit(Operation, '@truncate_bv_i', [i49, MachineIntConstant(52)], SmallFixedBitVector(52), '`4 80:17-80:31', 'return')
-    i55 = block9.emit(Operation, '@or_vec_bv_bv', [i52, i54], SmallFixedBitVector(52), '`4 168:2-168:58', 'return')
+    i48 = block9.emit_phi(
+        [block10, block8],
+        [
+            None,
+            SmallBitVectorConstant(
+                r_uint(0xFFFFFFFFFFFFFFFF), SmallFixedBitVector(64)
+            ),
+        ],
+        SmallFixedBitVector(64),
+    )
+    i49 = block9.emit(
+        Operation,
+        "@and_vec_bv_bv",
+        [zia, i48],
+        SmallFixedBitVector(64),
+        "`4 167:27-167:54",
+        "zz48",
+    )
+    i51 = block9.emit(
+        Operation,
+        "@add_i_i_must_fit",
+        [i29, MachineIntConstant(1)],
+        MachineInt(),
+        "`4 168:31-168:42",
+        "zz45",
+    )
+    i52 = block9.emit(
+        Operation,
+        "@shiftl_bv_i",
+        [i43, MachineIntConstant(52), i51],
+        SmallFixedBitVector(52),
+        "`4 168:2-168:43",
+        "zz42",
+    )
+    i54 = block9.emit(
+        Operation,
+        "@truncate_bv_i",
+        [i49, MachineIntConstant(52)],
+        SmallFixedBitVector(52),
+        "`4 80:17-80:31",
+        "return",
+    )
+    i55 = block9.emit(
+        Operation,
+        "@or_vec_bv_bv",
+        [i52, i54],
+        SmallFixedBitVector(52),
+        "`4 168:2-168:58",
+        "return",
+    )
     block9.next = Return(i55, None)
-    i58 = block10.emit(Operation, 'int_to_int64', [i44], MachineInt(), None, None)
-    i59 = block10.emit(Operation, '@shiftl_bv_i', [SmallBitVectorConstant(0x1, SmallFixedBitVector(64)), MachineIntConstant(64), i58], SmallFixedBitVector(64), '`2 340:28-340:50', 'zz44')
-    i60 = block10.emit(Operation, '@sub_bits_bv_bv', [i59, SmallBitVectorConstant(0x1, SmallFixedBitVector(64)), MachineIntConstant(64)], SmallFixedBitVector(64), '`2 340:19-340:56', 'zz43')
+    i58 = block10.emit(
+        Operation, "int_to_int64", [i44], MachineInt(), None, None
+    )
+    i59 = block10.emit(
+        Operation,
+        "@shiftl_bv_i",
+        [
+            SmallBitVectorConstant(0x1, SmallFixedBitVector(64)),
+            MachineIntConstant(64),
+            i58,
+        ],
+        SmallFixedBitVector(64),
+        "`2 340:28-340:50",
+        "zz44",
+    )
+    i60 = block10.emit(
+        Operation,
+        "@sub_bits_bv_bv",
+        [
+            i59,
+            SmallBitVectorConstant(0x1, SmallFixedBitVector(64)),
+            MachineIntConstant(64),
+        ],
+        SmallFixedBitVector(64),
+        "`2 340:19-340:56",
+        "zz43",
+    )
     i48.prevvalues[0] = i60
     block10.next = Goto(block9, None)
-    i62 = block11.emit(Operation, 'int_to_int64', [i36], MachineInt(), None, None)
-    i63 = block11.emit(Operation, '@shiftl_bv_i', [SmallBitVectorConstant(0x1, SmallFixedBitVector(52)), MachineIntConstant(52), i62], SmallFixedBitVector(52), '`2 340:28-340:50', 'zz44')
-    i64 = block11.emit(Operation, '@sub_bits_bv_bv', [i63, SmallBitVectorConstant(0x1, SmallFixedBitVector(52)), MachineIntConstant(52)], SmallFixedBitVector(52), '`2 340:19-340:56', 'zz43')
-    i65 = block11.emit(Operation, '@shiftl_bv_i', [i64, MachineIntConstant(52), mi], SmallFixedBitVector(52), '`2 340:4-340:60', 'return')
+    i62 = block11.emit(
+        Operation, "int_to_int64", [i36], MachineInt(), None, None
+    )
+    i63 = block11.emit(
+        Operation,
+        "@shiftl_bv_i",
+        [
+            SmallBitVectorConstant(0x1, SmallFixedBitVector(52)),
+            MachineIntConstant(52),
+            i62,
+        ],
+        SmallFixedBitVector(52),
+        "`2 340:28-340:50",
+        "zz44",
+    )
+    i64 = block11.emit(
+        Operation,
+        "@sub_bits_bv_bv",
+        [
+            i63,
+            SmallBitVectorConstant(0x1, SmallFixedBitVector(52)),
+            MachineIntConstant(52),
+        ],
+        SmallFixedBitVector(52),
+        "`2 340:19-340:56",
+        "zz43",
+    )
+    i65 = block11.emit(
+        Operation,
+        "@shiftl_bv_i",
+        [i64, MachineIntConstant(52), mi],
+        SmallFixedBitVector(52),
+        "`2 340:4-340:60",
+        "return",
+    )
     i41.prevvalues[0] = i65
     block11.next = Goto(block7, None)
-    block12.next = Raise(StringConstant('src/v8_base.sail:9344.39-9344.40'), None)
-    block13.next = Raise(StringConstant('src/v8_base.sail:9343.53-9343.54'), None)
-    graph = Graph('zStageOA', [zia, zaddress, mi], block2)
+    block12.next = Raise(
+        StringConstant("src/v8_base.sail:9344.39-9344.40"), None
+    )
+    block13.next = Raise(
+        StringConstant("src/v8_base.sail:9343.53-9343.54"), None
+    )
+    graph = Graph("zStageOA", [zia, zaddress, mi], block2)
     values = analyze(graph, fakecodegen)
     assert values[block2][i24] == BOOL
     assert values[block3][mi] == Range(0, None)
@@ -80,7 +287,9 @@ def test_analyze_stageoa():
     res = optimize_with_range_info(graph, fakecodegen)
     light_simplify(graph, fakecodegen)
     assert res
-    compare(graph, """
+    compare(
+        graph,
+        """
 zia = Argument('zia', SmallFixedBitVector(64))
 zaddress = Argument('zaddress', SmallFixedBitVector(52))
 mi = Argument('mi', MachineInt())
@@ -112,13 +321,14 @@ block3.next = Return(i17, None)
 block4.next = Raise(StringConstant('src/v8_base.sail:9344.39-9344.40'), None)
 block5.next = Raise(StringConstant('src/v8_base.sail:9343.53-9343.54'), None)
 graph = Graph('zStageOA', [zia, zaddress, mi], block0)
-""")
+""",
+    )
 
 
 def test_add_with_carry32():
-    zx = Argument('zx', SmallFixedBitVector(32))
-    zy = Argument('zy', SmallFixedBitVector(32))
-    zcarry_in = Argument('zcarry_in', SmallFixedBitVector(1))
+    zx = Argument("zx", SmallFixedBitVector(32))
+    zy = Argument("zy", SmallFixedBitVector(32))
+    zcarry_in = Argument("zcarry_in", SmallFixedBitVector(1))
     block0 = Block()
     block1 = Block()
     block2 = Block()
@@ -129,61 +339,249 @@ def test_add_with_carry32():
     block7 = Block()
     block8 = Block()
     block9 = Block()
-    i3 = block0.emit(Operation, '@unsigned_bv', [zx, MachineIntConstant(32)], MachineInt(), '`7 147805:24-147805:31', 'zz470')
-    i4 = block0.emit(Operation, '@unsigned_bv', [zy, MachineIntConstant(32)], MachineInt(), '`7 147805:34-147805:41', 'zz471')
-    i5 = block0.emit(Operation, '@add_i_i_wrapped_res', [i3, i4], Int(), '`7 147805:24-147805:41', 'zz465')
-    i6 = block0.emit(Operation, '@unsigned_bv', [zcarry_in, MachineIntConstant(1)], MachineInt(), '`7 147805:44-147805:58', 'zz469')
-    i7 = block0.emit(Operation, '@add_o_i_wrapped_res', [i5, i6], Int(), '`7 147805:24-147805:58', 'zz40')
-    i8 = block0.emit(Operation, '@signed_bv', [zx, MachineIntConstant(32)], MachineInt(), '`7 147806:22-147806:29', 'zz463')
-    i9 = block0.emit(Operation, '@signed_bv', [zy, MachineIntConstant(32)], MachineInt(), '`7 147806:32-147806:39', 'zz464')
-    i10 = block0.emit(Operation, '@add_i_i_wrapped_res', [i8, i9], Int(), '`7 147806:22-147806:39', 'zz458')
-    i11 = block0.emit(Operation, '@add_o_i_wrapped_res', [i10, i6], Int(), '`7 147806:22-147806:56', 'zz43')
-    i12 = block0.emit(Comment, 'inlined zinteger_subrange', [], Unit(), None, None)
-    i13 = block0.emit(Operation, '@get_slice_int_i_o_i_unwrapped_res', [MachineIntConstant(32), i7, MachineIntConstant(0)], SmallFixedBitVector(32), '`5 176:39-176:72', 'return')
-    i14 = block0.emit(Operation, '@vector_access_bv_i', [i13, MachineIntConstant(31)], SmallFixedBitVector(1), '`7 147808:23-147808:37', 'zz448')
-    i15 = block0.emit(Comment, 'inlined zinteger_subrange', [], Unit(), None, None)
-    i16 = block0.emit(Comment, 'inlined zIsZero', [], Unit(), None, None)
-    i17 = block0.emit(Operation, '@eq_bits_bv_bv', [i13, SmallBitVectorConstant(0x0, SmallFixedBitVector(32))], Bool(), '`5 164:22-164:41', 'return')
-    block0.next = ConditionalGoto(i17, block1, block9, '`7 147809:22-147809:57')
+    i3 = block0.emit(
+        Operation,
+        "@unsigned_bv",
+        [zx, MachineIntConstant(32)],
+        MachineInt(),
+        "`7 147805:24-147805:31",
+        "zz470",
+    )
+    i4 = block0.emit(
+        Operation,
+        "@unsigned_bv",
+        [zy, MachineIntConstant(32)],
+        MachineInt(),
+        "`7 147805:34-147805:41",
+        "zz471",
+    )
+    i5 = block0.emit(
+        Operation,
+        "@add_i_i_wrapped_res",
+        [i3, i4],
+        Int(),
+        "`7 147805:24-147805:41",
+        "zz465",
+    )
+    i6 = block0.emit(
+        Operation,
+        "@unsigned_bv",
+        [zcarry_in, MachineIntConstant(1)],
+        MachineInt(),
+        "`7 147805:44-147805:58",
+        "zz469",
+    )
+    i7 = block0.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i5, i6],
+        Int(),
+        "`7 147805:24-147805:58",
+        "zz40",
+    )
+    i8 = block0.emit(
+        Operation,
+        "@signed_bv",
+        [zx, MachineIntConstant(32)],
+        MachineInt(),
+        "`7 147806:22-147806:29",
+        "zz463",
+    )
+    i9 = block0.emit(
+        Operation,
+        "@signed_bv",
+        [zy, MachineIntConstant(32)],
+        MachineInt(),
+        "`7 147806:32-147806:39",
+        "zz464",
+    )
+    i10 = block0.emit(
+        Operation,
+        "@add_i_i_wrapped_res",
+        [i8, i9],
+        Int(),
+        "`7 147806:22-147806:39",
+        "zz458",
+    )
+    i11 = block0.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i10, i6],
+        Int(),
+        "`7 147806:22-147806:56",
+        "zz43",
+    )
+    i12 = block0.emit(
+        Comment, "inlined zinteger_subrange", [], Unit(), None, None
+    )
+    i13 = block0.emit(
+        Operation,
+        "@get_slice_int_i_o_i_unwrapped_res",
+        [MachineIntConstant(32), i7, MachineIntConstant(0)],
+        SmallFixedBitVector(32),
+        "`5 176:39-176:72",
+        "return",
+    )
+    i14 = block0.emit(
+        Operation,
+        "@vector_access_bv_i",
+        [i13, MachineIntConstant(31)],
+        SmallFixedBitVector(1),
+        "`7 147808:23-147808:37",
+        "zz448",
+    )
+    i15 = block0.emit(
+        Comment, "inlined zinteger_subrange", [], Unit(), None, None
+    )
+    i16 = block0.emit(Comment, "inlined zIsZero", [], Unit(), None, None)
+    i17 = block0.emit(
+        Operation,
+        "@eq_bits_bv_bv",
+        [i13, SmallBitVectorConstant(0x0, SmallFixedBitVector(32))],
+        Bool(),
+        "`5 164:22-164:41",
+        "return",
+    )
+    block0.next = ConditionalGoto(
+        i17, block1, block9, "`7 147809:22-147809:57"
+    )
     block1.next = Goto(block2, None)
-    i18 = block2.emit_phi([block9, block1], [SmallBitVectorConstant(0b0, SmallFixedBitVector(1)), SmallBitVectorConstant(0b1, SmallFixedBitVector(1))], SmallFixedBitVector(1))
-    i19 = block2.emit(Comment, 'inlined zinteger_subrange', [], Unit(), None, None)
-    i20 = block2.emit(Operation, '@unsigned_bv', [i13, MachineIntConstant(32)], MachineInt(), '`7 147810:25-147810:37', 'zz436')
-    i21 = block2.emit(Operation, '@eq_int_o_i', [i7, i20], Bool(), '`7 147810:25-147810:53', 'zz435')
-    block2.next = ConditionalGoto(i21, block3, block8, '`7 147810:22-147810:71')
+    i18 = block2.emit_phi(
+        [block9, block1],
+        [
+            SmallBitVectorConstant(0b0, SmallFixedBitVector(1)),
+            SmallBitVectorConstant(0b1, SmallFixedBitVector(1)),
+        ],
+        SmallFixedBitVector(1),
+    )
+    i19 = block2.emit(
+        Comment, "inlined zinteger_subrange", [], Unit(), None, None
+    )
+    i20 = block2.emit(
+        Operation,
+        "@unsigned_bv",
+        [i13, MachineIntConstant(32)],
+        MachineInt(),
+        "`7 147810:25-147810:37",
+        "zz436",
+    )
+    i21 = block2.emit(
+        Operation,
+        "@eq_int_o_i",
+        [i7, i20],
+        Bool(),
+        "`7 147810:25-147810:53",
+        "zz435",
+    )
+    block2.next = ConditionalGoto(
+        i21, block3, block8, "`7 147810:22-147810:71"
+    )
     block3.next = Goto(block4, None)
-    i22 = block4.emit_phi([block8, block3], [SmallBitVectorConstant(0b1, SmallFixedBitVector(1)), SmallBitVectorConstant(0b0, SmallFixedBitVector(1))], SmallFixedBitVector(1))
-    i23 = block4.emit(Comment, 'inlined zinteger_subrange', [], Unit(), None, None)
-    i24 = block4.emit(Operation, '@signed_bv', [i13, MachineIntConstant(32)], MachineInt(), '`7 147811:25-147811:37', 'zz429')
-    i25 = block4.emit(Operation, '@eq_int_o_i', [i11, i24], Bool(), '`7 147811:25-147811:51', 'zz428')
-    block4.next = ConditionalGoto(i25, block5, block7, '`7 147811:22-147811:69')
+    i22 = block4.emit_phi(
+        [block8, block3],
+        [
+            SmallBitVectorConstant(0b1, SmallFixedBitVector(1)),
+            SmallBitVectorConstant(0b0, SmallFixedBitVector(1)),
+        ],
+        SmallFixedBitVector(1),
+    )
+    i23 = block4.emit(
+        Comment, "inlined zinteger_subrange", [], Unit(), None, None
+    )
+    i24 = block4.emit(
+        Operation,
+        "@signed_bv",
+        [i13, MachineIntConstant(32)],
+        MachineInt(),
+        "`7 147811:25-147811:37",
+        "zz429",
+    )
+    i25 = block4.emit(
+        Operation,
+        "@eq_int_o_i",
+        [i11, i24],
+        Bool(),
+        "`7 147811:25-147811:51",
+        "zz428",
+    )
+    block4.next = ConditionalGoto(
+        i25, block5, block7, "`7 147811:22-147811:69"
+    )
     block5.next = Goto(block6, None)
-    i26 = block6.emit_phi([block7, block5], [SmallBitVectorConstant(0b1, SmallFixedBitVector(1)), SmallBitVectorConstant(0b0, SmallFixedBitVector(1))], SmallFixedBitVector(1))
-    i27 = block6.emit(Comment, 'inlined zinteger_subrange', [], Unit(), None, None)
-    i28 = block6.emit(Operation, '@bitvector_concat_bv_bv', [i14, MachineIntConstant(1), i18], SmallFixedBitVector(2), '`7 147812:22-147812:27', 'zz423')
-    i29 = block6.emit(Operation, '@bitvector_concat_bv_bv', [i28, MachineIntConstant(1), i22], SmallFixedBitVector(3), '`7 147812:21-147812:32', 'zz420')
-    i30 = block6.emit(Operation, '@bitvector_concat_bv_bv', [i29, MachineIntConstant(1), i26], SmallFixedBitVector(4), '`7 147812:20-147812:37', 'zz416')
-    i31 = block6.emit(StructConstruction, 'tup_ztuplez3z5bv_z5bv4_bv32_o', [i13, i30], Struct('tup_ztuplez3z5bv_z5bv4_bv32_o', ('bv32_0', 'o_1'), (SmallFixedBitVector(32), SmallFixedBitVector(4)), True), None, None)
+    i26 = block6.emit_phi(
+        [block7, block5],
+        [
+            SmallBitVectorConstant(0b1, SmallFixedBitVector(1)),
+            SmallBitVectorConstant(0b0, SmallFixedBitVector(1)),
+        ],
+        SmallFixedBitVector(1),
+    )
+    i27 = block6.emit(
+        Comment, "inlined zinteger_subrange", [], Unit(), None, None
+    )
+    i28 = block6.emit(
+        Operation,
+        "@bitvector_concat_bv_bv",
+        [i14, MachineIntConstant(1), i18],
+        SmallFixedBitVector(2),
+        "`7 147812:22-147812:27",
+        "zz423",
+    )
+    i29 = block6.emit(
+        Operation,
+        "@bitvector_concat_bv_bv",
+        [i28, MachineIntConstant(1), i22],
+        SmallFixedBitVector(3),
+        "`7 147812:21-147812:32",
+        "zz420",
+    )
+    i30 = block6.emit(
+        Operation,
+        "@bitvector_concat_bv_bv",
+        [i29, MachineIntConstant(1), i26],
+        SmallFixedBitVector(4),
+        "`7 147812:20-147812:37",
+        "zz416",
+    )
+    i31 = block6.emit(
+        StructConstruction,
+        "tup_ztuplez3z5bv_z5bv4_bv32_o",
+        [i13, i30],
+        Struct(
+            "tup_ztuplez3z5bv_z5bv4_bv32_o",
+            ("bv32_0", "o_1"),
+            (SmallFixedBitVector(32), SmallFixedBitVector(4)),
+            True,
+        ),
+        None,
+        None,
+    )
     block6.next = Return(i31, None)
     block7.next = Goto(block6, None)
     block8.next = Goto(block4, None)
     block9.next = Goto(block2, None)
-    graph = Graph('zAddWithCarry_specialized_bv32_bv32_o__tup_bv32_o_put', [zx, zy, zcarry_in], block0)
+    graph = Graph(
+        "zAddWithCarry_specialized_bv32_bv32_o__tup_bv32_o_put",
+        [zx, zy, zcarry_in],
+        block0,
+    )
 
     values = analyze(graph, fakecodegen)
-    assert values[block0][i3] == Range(0, 2**32-1)
+    assert values[block0][i3] == Range(0, 2 ** 32 - 1)
     assert values[block0][i6] == Range(0, 1)
-    assert values[block0][i5] == Range(0, (2**32-1) * 2)
-    assert values[block0][i7] == Range(0, (2**32-1) * 2 + 1)
-    assert values[block0][i8] == Range(-2**31, 2**31-1)
-    assert values[block0][i9] == Range(-2**31, 2**31-1)
-    assert values[block0][i10] == Range(-2**32, 2**32-2)
-    assert values[block0][i11] == Range(-2**32, 2**32-1)
+    assert values[block0][i5] == Range(0, (2 ** 32 - 1) * 2)
+    assert values[block0][i7] == Range(0, (2 ** 32 - 1) * 2 + 1)
+    assert values[block0][i8] == Range(-(2 ** 31), 2 ** 31 - 1)
+    assert values[block0][i9] == Range(-(2 ** 31), 2 ** 31 - 1)
+    assert values[block0][i10] == Range(-(2 ** 32), 2 ** 32 - 2)
+    assert values[block0][i11] == Range(-(2 ** 32), 2 ** 32 - 1)
 
     res = optimize_with_range_info(graph, fakecodegen)
     light_simplify(graph, fakecodegen)
     assert res
-    compare(graph, """
+    compare(
+        graph,
+        """
 tup_ztuplez3z5bv_z5bv4_bv32_o = Struct('tup_ztuplez3z5bv_z5bv4_bv32_o', ('bv32_0', 'o_1'), (SmallFixedBitVector(32), SmallFixedBitVector(4)), True)
 zx = Argument('zx', SmallFixedBitVector(32))
 zy = Argument('zy', SmallFixedBitVector(32))
@@ -238,10 +636,75 @@ block7.next = Goto(block6, None)
 block8.next = Goto(block4, None)
 block9.next = Goto(block2, None)
 graph = Graph('zAddWithCarry_specialized_bv32_bv32_o__tup_bv32_o_put', [zx, zy, zcarry_in], block0)
-""")
+""",
+    )
+
 
 def test_startlevel():
-    zwalkparams = Argument('zwalkparams', Struct('zS1TTWParams', ('zcmow', 'zdc', 'zdct', 'zds', 'ze0pd', 'zee', 'zepan', 'zha', 'zhd', 'zhpd', 'zirgn', 'zmair', 'znfd', 'zntlsmd', 'znv1', 'zorgn', 'zps', 'zsh', 'zsif', 'zt0szz', 'zt1szz', 'ztbi', 'ztbid', 'ztgx', 'ztxszz', 'zuwxn', 'zwxn'), (SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(2), SmallFixedBitVector(64), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(2), SmallFixedBitVector(3), SmallFixedBitVector(2), SmallFixedBitVector(1), SmallFixedBitVector(3), SmallFixedBitVector(3), SmallFixedBitVector(1), SmallFixedBitVector(1), Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB')), SmallFixedBitVector(6), SmallFixedBitVector(1), SmallFixedBitVector(1))))
+    zwalkparams = Argument(
+        "zwalkparams",
+        Struct(
+            "zS1TTWParams",
+            (
+                "zcmow",
+                "zdc",
+                "zdct",
+                "zds",
+                "ze0pd",
+                "zee",
+                "zepan",
+                "zha",
+                "zhd",
+                "zhpd",
+                "zirgn",
+                "zmair",
+                "znfd",
+                "zntlsmd",
+                "znv1",
+                "zorgn",
+                "zps",
+                "zsh",
+                "zsif",
+                "zt0szz",
+                "zt1szz",
+                "ztbi",
+                "ztbid",
+                "ztgx",
+                "ztxszz",
+                "zuwxn",
+                "zwxn",
+            ),
+            (
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(2),
+                SmallFixedBitVector(64),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(2),
+                SmallFixedBitVector(3),
+                SmallFixedBitVector(2),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(3),
+                SmallFixedBitVector(3),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                Enum("zTGx", ("zTGx_4KB", "zTGx_16KB", "zTGx_64KB")),
+                SmallFixedBitVector(6),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+            ),
+        ),
+    )
     block0 = Block()
     block1 = Block()
     block2 = Block()
@@ -251,34 +714,146 @@ def test_startlevel():
     block6 = Block()
     block7 = Block()
     block8 = Block()
-    i1 = block0.emit(FieldAccess, 'ztxszz', [zwalkparams], SmallFixedBitVector(6), None, None)
-    i3 = block0.emit(Operation, '@unsigned_bv', [i1, MachineIntConstant(6)], MachineInt(), '`7 9030:16-9030:26', 'zz47')
-    i4 = block0.emit(Operation, '@sub_i_i_must_fit', [MachineIntConstant(64), i3], MachineInt(), '`7 9030:11-9030:26', 'zz45')
-    i5 = block0.emit(FieldAccess, 'ztgx', [zwalkparams], Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB')), None, None)
-    i7 = block0.emit(Operation, '@eq', [EnumConstant('zTGx_4KB', Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB'))), i5], Bool(), '`7 9061:6-9061:13', None)
-    block0.next = ConditionalGoto(i7, block1, block6, '`7 9061:6-9061:13')
+    i1 = block0.emit(
+        FieldAccess,
+        "ztxszz",
+        [zwalkparams],
+        SmallFixedBitVector(6),
+        None,
+        None,
+    )
+    i3 = block0.emit(
+        Operation,
+        "@unsigned_bv",
+        [i1, MachineIntConstant(6)],
+        MachineInt(),
+        "`7 9030:16-9030:26",
+        "zz47",
+    )
+    i4 = block0.emit(
+        Operation,
+        "@sub_i_i_must_fit",
+        [MachineIntConstant(64), i3],
+        MachineInt(),
+        "`7 9030:11-9030:26",
+        "zz45",
+    )
+    i5 = block0.emit(
+        FieldAccess,
+        "ztgx",
+        [zwalkparams],
+        Enum("zTGx", ("zTGx_4KB", "zTGx_16KB", "zTGx_64KB")),
+        None,
+        None,
+    )
+    i7 = block0.emit(
+        Operation,
+        "@eq",
+        [
+            EnumConstant(
+                "zTGx_4KB",
+                Enum("zTGx", ("zTGx_4KB", "zTGx_16KB", "zTGx_64KB")),
+            ),
+            i5,
+        ],
+        Bool(),
+        "`7 9061:6-9061:13",
+        None,
+    )
+    block0.next = ConditionalGoto(i7, block1, block6, "`7 9061:6-9061:13")
     block1.next = Goto(block2, None)
-    i8 = block2.emit_phi([block1, block7, block8], [IntConstant(9), IntConstant(11), IntConstant(13)], Int())
-    i9 = block2.emit_phi([block1, block7, block8], [MachineIntConstant(12), MachineIntConstant(14), MachineIntConstant(16)], MachineInt())
-    i10 = block2.emit(Operation, '@sub_i_i_wrapped_res', [i4, MachineIntConstant(1)], Int(), '`7 9394:29-9394:39', 'zz413')
-    i11 = block2.emit(Operation, '@sub_o_i_wrapped_res', [i10, i9], Int(), '`7 9394:29-9394:53', 'zz412')
-    i13 = block2.emit(Operation, '@lt', [i11, IntConstant(0)], Bool(), '`1 185:5-185:10', 'zz414')
-    block2.next = ConditionalGoto(i13, block3, block5, '`1 185:5-185:18')
-    i14 = block3.emit(Operation, '@add_o_i_wrapped_res', [i11, MachineIntConstant(1)], Int(), '`1 186:13-186:18', 'zz43')
-    i15 = block3.emit(Operation, 'tdiv_int', [i14, i8], Int(), '`1 186:4-186:22', 'zz41')
-    i16 = block3.emit(Operation, '@sub_o_i_wrapped_res', [i15, MachineIntConstant(1)], Int(), '`1 186:4-186:26', 'return')
+    i8 = block2.emit_phi(
+        [block1, block7, block8],
+        [IntConstant(9), IntConstant(11), IntConstant(13)],
+        Int(),
+    )
+    i9 = block2.emit_phi(
+        [block1, block7, block8],
+        [
+            MachineIntConstant(12),
+            MachineIntConstant(14),
+            MachineIntConstant(16),
+        ],
+        MachineInt(),
+    )
+    i10 = block2.emit(
+        Operation,
+        "@sub_i_i_wrapped_res",
+        [i4, MachineIntConstant(1)],
+        Int(),
+        "`7 9394:29-9394:39",
+        "zz413",
+    )
+    i11 = block2.emit(
+        Operation,
+        "@sub_o_i_wrapped_res",
+        [i10, i9],
+        Int(),
+        "`7 9394:29-9394:53",
+        "zz412",
+    )
+    i13 = block2.emit(
+        Operation,
+        "@lt",
+        [i11, IntConstant(0)],
+        Bool(),
+        "`1 185:5-185:10",
+        "zz414",
+    )
+    block2.next = ConditionalGoto(i13, block3, block5, "`1 185:5-185:18")
+    i14 = block3.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i11, MachineIntConstant(1)],
+        Int(),
+        "`1 186:13-186:18",
+        "zz43",
+    )
+    i15 = block3.emit(
+        Operation, "tdiv_int", [i14, i8], Int(), "`1 186:4-186:22", "zz41"
+    )
+    i16 = block3.emit(
+        Operation,
+        "@sub_o_i_wrapped_res",
+        [i15, MachineIntConstant(1)],
+        Int(),
+        "`1 186:4-186:26",
+        "return",
+    )
     block3.next = Goto(block4, None)
     i17 = block4.emit_phi([block5, block3], [None, i16], Int())
-    i18 = block4.emit(Operation, '@sub_i_o_wrapped_res', [MachineIntConstant(3), i17], Int(), '`7 9394:11-9394:62', 'zz49')
+    i18 = block4.emit(
+        Operation,
+        "@sub_i_o_wrapped_res",
+        [MachineIntConstant(3), i17],
+        Int(),
+        "`7 9394:11-9394:62",
+        "zz49",
+    )
     block4.next = Return(i18, None)
-    i19 = block5.emit(Operation, 'tdiv_int', [i11, i8], Int(), '`1 190:4-190:18', 'return')
+    i19 = block5.emit(
+        Operation, "tdiv_int", [i11, i8], Int(), "`1 190:4-190:18", "return"
+    )
     i17.prevvalues[0] = i19
     block5.next = Goto(block4, None)
-    i20 = block6.emit(Operation, '@eq', [EnumConstant('zTGx_16KB', Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB'))), i5], Bool(), '`7 9064:6-9064:14', None)
-    block6.next = ConditionalGoto(i20, block7, block8, '`7 9064:6-9064:14')
+    i20 = block6.emit(
+        Operation,
+        "@eq",
+        [
+            EnumConstant(
+                "zTGx_16KB",
+                Enum("zTGx", ("zTGx_4KB", "zTGx_16KB", "zTGx_64KB")),
+            ),
+            i5,
+        ],
+        Bool(),
+        "`7 9064:6-9064:14",
+        None,
+    )
+    block6.next = ConditionalGoto(i20, block7, block8, "`7 9064:6-9064:14")
     block7.next = Goto(block2, None)
     block8.next = Goto(block2, None)
-    graph = Graph('zAArch64_S1StartLevel_specialized_o', [zwalkparams], block0)
+    graph = Graph("zAArch64_S1StartLevel_specialized_o", [zwalkparams], block0)
     values = analyze(graph, fakecodegen)
     assert values[block2][i8] == Range(9, 13)
     assert values[block2][i9] == Range(12, 16)
@@ -290,13 +865,15 @@ def test_startlevel():
     assert values[block5][i19] == Range(0, 5)
     assert values[block4][i17] == Range(-2, 5)
     assert values[block4][i18] == Range(-2, 5)
-    
+
     res = optimize_with_range_info(graph, fakecodegen)
     light_simplify(graph, fakecodegen)
     assert res
     res = optimize_with_range_info(graph, fakecodegen)
     light_simplify(graph, fakecodegen)
-    compare(graph, """
+    compare(
+        graph,
+        """
 zS1TTWParams = Struct('zS1TTWParams', ('zcmow', 'zdc', 'zdct', 'zds', 'ze0pd', 'zee', 'zepan', 'zha', 'zhd', 'zhpd', 'zirgn', 'zmair', 'znfd', 'zntlsmd', 'znv1', 'zorgn', 'zps', 'zsh', 'zsif', 'zt0szz', 'zt1szz', 'ztbi', 'ztbid', 'ztgx', 'ztxszz', 'zuwxn', 'zwxn'), (SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(2), SmallFixedBitVector(64), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(2), SmallFixedBitVector(3), SmallFixedBitVector(2), SmallFixedBitVector(1), SmallFixedBitVector(3), SmallFixedBitVector(3), SmallFixedBitVector(1), SmallFixedBitVector(1), Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB')), SmallFixedBitVector(6), SmallFixedBitVector(1), SmallFixedBitVector(1)))
 zTGx = Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB'))
 zwalkparams = Argument('zwalkparams', zS1TTWParams)
@@ -337,7 +914,9 @@ block6.next = ConditionalGoto(i17, block7, block8, '`7 9064:6-9064:14')
 block7.next = Goto(block2, None)
 block8.next = Goto(block2, None)
 graph = Graph('zAArch64_S1StartLevel_specialized_o', [zwalkparams], block0)
-""")
+""",
+    )
+
 
 def test_phi_node_dead_prevvalue():
     block0 = Block()
@@ -349,18 +928,29 @@ def test_phi_node_dead_prevvalue():
     block6 = Block()
     block7 = Block()
     block8 = Block()
-    i1 = block0.emit(Operation, "@gt", [MachineIntConstant(0), MachineIntConstant(10)], types.Bool())
+    i1 = block0.emit(
+        Operation,
+        "@gt",
+        [MachineIntConstant(0), MachineIntConstant(10)],
+        types.Bool(),
+    )
     block0.next = ConditionalGoto(i1, block1, block2)
-    i2 = block1.emit(Operation, "@pow_i", [MachineIntConstant(10)], types.MachineInt())
+    i2 = block1.emit(
+        Operation, "@pow_i", [MachineIntConstant(10)], types.MachineInt()
+    )
     block1.next = Goto(block3)
     block2.next = Goto(block3)
-    i3 = block3.emit_phi([block2, block1], [MachineIntConstant(2), i2], types.MachineInt())
+    i3 = block3.emit_phi(
+        [block2, block1], [MachineIntConstant(2), i2], types.MachineInt()
+    )
     block3.next = Return(i3)
-    graph = Graph('g', [], block0)
+    graph = Graph("g", [], block0)
 
     values = analyze(graph, fakecodegen)
     res = optimize_with_range_info(graph, fakecodegen)
-    compare(graph, """
+    compare(
+        graph,
+        """
 block0 = Block()
 block1 = Block()
 block2 = Block()
@@ -368,7 +958,9 @@ block0.next = Goto(block1, None)
 block1.next = Goto(block2, None)
 block2.next = Return(MachineIntConstant(2), None)
 graph = Graph('g', [], block0)
-""")
+""",
+    )
+
 
 def test_gt_condition():
     bv = Argument("bv", types.SmallFixedBitVector(6))
@@ -381,15 +973,29 @@ def test_gt_condition():
     block6 = Block()
     block7 = Block()
     block8 = Block()
-    i1 = block0.emit(Operation, "unsigned_bv", [bv, MachineIntConstant(6)], types.MachineInt())
-    i2 = block0.emit(Operation, "@gt", [i1, MachineIntConstant(6)], types.MachineInt())
+    i1 = block0.emit(
+        Operation,
+        "unsigned_bv",
+        [bv, MachineIntConstant(6)],
+        types.MachineInt(),
+    )
+    i2 = block0.emit(
+        Operation, "@gt", [i1, MachineIntConstant(6)], types.MachineInt()
+    )
     block0.next = ConditionalGoto(i2, block2, block1)
-    i3 = block1.emit(Operation, "@add_i_i_must_fit", [i1, MachineIntConstant(10)], types.MachineInt())
+    i3 = block1.emit(
+        Operation,
+        "@add_i_i_must_fit",
+        [i1, MachineIntConstant(10)],
+        types.MachineInt(),
+    )
     block1.next = Goto(block3)
     block2.next = Goto(block3)
-    i3 = block3.emit_phi([block1, block2], [i3, MachineIntConstant(2)], types.MachineInt())
+    i3 = block3.emit_phi(
+        [block1, block2], [i3, MachineIntConstant(2)], types.MachineInt()
+    )
     block3.next = Return(i3)
-    graph = Graph('g', [bv], block0)
+    graph = Graph("g", [bv], block0)
 
     values = analyze(graph, fakecodegen)
     assert values[block0][i1] == Range(0, 63)
@@ -397,6 +1003,7 @@ def test_gt_condition():
     assert values[block1][i1] == Range(0, 6)
     assert values[block3][i1] == Range(0, 63)
     assert values[block3][i3] == Range(2, 16)
+
 
 def test_eq_condition():
     bv = Argument("bv", types.SmallFixedBitVector(6))
@@ -409,25 +1016,35 @@ def test_eq_condition():
     block6 = Block()
     block7 = Block()
     block8 = Block()
-    i1 = block0.emit(Operation, "unsigned_bv", [bv, MachineIntConstant(6)], types.MachineInt())
-    i2 = block0.emit(Operation, "@eq", [i1, MachineIntConstant(6)], types.Bool())
+    i1 = block0.emit(
+        Operation,
+        "unsigned_bv",
+        [bv, MachineIntConstant(6)],
+        types.MachineInt(),
+    )
+    i2 = block0.emit(
+        Operation, "@eq", [i1, MachineIntConstant(6)], types.Bool()
+    )
     block0.next = ConditionalGoto(i2, block3, block1)
-    i3 = block1.emit(Operation, "@eq", [i1, MachineIntConstant(7)], types.Bool())
+    i3 = block1.emit(
+        Operation, "@eq", [i1, MachineIntConstant(7)], types.Bool()
+    )
     block1.next = ConditionalGoto(i3, block3, block2)
     block2.next = Raise(StringConstant("foo"), None)
     block3.next = Return(i3)
-    graph = Graph('g', [bv], block0)
+    graph = Graph("g", [bv], block0)
 
     values = analyze(graph, fakecodegen)
     assert values[block3][i1] == Range(6, 7)
 
+
 def test_decode():
-    zRd = Argument('zRd', SmallFixedBitVector(5))
-    zRn = Argument('zRn', SmallFixedBitVector(5))
-    zo0 = Argument('zo0', SmallFixedBitVector(1))
-    zsizze = Argument('zsizze', SmallFixedBitVector(2))
-    zU = Argument('zU', SmallFixedBitVector(1))
-    zQ = Argument('zQ', SmallFixedBitVector(1))
+    zRd = Argument("zRd", SmallFixedBitVector(5))
+    zRn = Argument("zRn", SmallFixedBitVector(5))
+    zo0 = Argument("zo0", SmallFixedBitVector(1))
+    zsizze = Argument("zsizze", SmallFixedBitVector(2))
+    zU = Argument("zU", SmallFixedBitVector(1))
+    zQ = Argument("zQ", SmallFixedBitVector(1))
     block0 = Block()
     block1 = Block()
     block2 = Block()
@@ -443,44 +1060,192 @@ def test_decode():
     block12 = Block()
     block13 = Block()
     block14 = Block()
-    i6 = block0.emit(Operation, '@unsigned_bv', [zRd, MachineIntConstant(5)], MachineInt(), '`10 136762:13-136762:21', 'zz479')
-    i7 = block0.emit(Operation, '@unsigned_bv', [zRn, MachineIntConstant(5)], MachineInt(), '`10 136763:13-136763:21', 'zz477')
-    i8 = block0.emit(Operation, '@unsigned_bv', [zsizze, MachineIntConstant(2)], MachineInt(), '`10 136764:23-136764:33', 'zz475')
-    i9 = block0.emit(Operation, 'shl_mach_int', [MachineIntConstant(8), i8], MachineInt(), '`10 136764:18-136764:33', 'zz46')
-    i10 = block0.emit(Operation, '@eq_bits_bv_bv', [zQ, SmallBitVectorConstant(0b1, SmallFixedBitVector(1))], Bool(), '`10 136765:23-136765:31', 'zz466')
-    block0.next = ConditionalGoto(i10, block1, block14, '`10 136765:20-136765:48')
+    i6 = block0.emit(
+        Operation,
+        "@unsigned_bv",
+        [zRd, MachineIntConstant(5)],
+        MachineInt(),
+        "`10 136762:13-136762:21",
+        "zz479",
+    )
+    i7 = block0.emit(
+        Operation,
+        "@unsigned_bv",
+        [zRn, MachineIntConstant(5)],
+        MachineInt(),
+        "`10 136763:13-136763:21",
+        "zz477",
+    )
+    i8 = block0.emit(
+        Operation,
+        "@unsigned_bv",
+        [zsizze, MachineIntConstant(2)],
+        MachineInt(),
+        "`10 136764:23-136764:33",
+        "zz475",
+    )
+    i9 = block0.emit(
+        Operation,
+        "shl_mach_int",
+        [MachineIntConstant(8), i8],
+        MachineInt(),
+        "`10 136764:18-136764:33",
+        "zz46",
+    )
+    i10 = block0.emit(
+        Operation,
+        "@eq_bits_bv_bv",
+        [zQ, SmallBitVectorConstant(0b1, SmallFixedBitVector(1))],
+        Bool(),
+        "`10 136765:23-136765:31",
+        "zz466",
+    )
+    block0.next = ConditionalGoto(
+        i10, block1, block14, "`10 136765:20-136765:48"
+    )
     block1.next = Goto(block2, None)
-    i11 = block2.emit_phi([block14, block1], [IntConstant(64), IntConstant(128)], Int())
-    i12 = block2.emit_phi([block14, block1], [MachineIntConstant(64), MachineIntConstant(128)], MachineInt())
-    i13 = block2.emit(Operation, '@bitvector_concat_bv_bv', [zo0, MachineIntConstant(1), zU], SmallFixedBitVector(2), '`10 136766:23-136766:29', 'zz465')
-    i14 = block2.emit(Operation, '@unsigned_bv', [i13, MachineIntConstant(2)], MachineInt(), '`10 136767:7-136767:15', 'zz462')
-    i15 = block2.emit(Operation, '@add_i_i_must_fit', [i14, i8], MachineInt(), '`10 136767:7-136767:28', 'zz458')
-    i16 = block2.emit(Operation, '@gteq', [i15, MachineIntConstant(3)], Bool(), '`10 136767:7-136767:33', 'zz448')
-    block2.next = ConditionalGoto(i16, block3, block5, '`10 136767:4-136769:5')
-    i19 = block3.emit(GlobalWrite, 'have_exception', [BooleanConstant.TRUE], Bool(), None, None)
-    i20 = block3.emit(GlobalWrite, 'throw_location', [StringConstant('src/instrs64.sail:136768.8-136768.32')], String(), None, None)
+    i11 = block2.emit_phi(
+        [block14, block1], [IntConstant(64), IntConstant(128)], Int()
+    )
+    i12 = block2.emit_phi(
+        [block14, block1],
+        [MachineIntConstant(64), MachineIntConstant(128)],
+        MachineInt(),
+    )
+    i13 = block2.emit(
+        Operation,
+        "@bitvector_concat_bv_bv",
+        [zo0, MachineIntConstant(1), zU],
+        SmallFixedBitVector(2),
+        "`10 136766:23-136766:29",
+        "zz465",
+    )
+    i14 = block2.emit(
+        Operation,
+        "@unsigned_bv",
+        [i13, MachineIntConstant(2)],
+        MachineInt(),
+        "`10 136767:7-136767:15",
+        "zz462",
+    )
+    i15 = block2.emit(
+        Operation,
+        "@add_i_i_must_fit",
+        [i14, i8],
+        MachineInt(),
+        "`10 136767:7-136767:28",
+        "zz458",
+    )
+    i16 = block2.emit(
+        Operation,
+        "@gteq",
+        [i15, MachineIntConstant(3)],
+        Bool(),
+        "`10 136767:7-136767:33",
+        "zz448",
+    )
+    block2.next = ConditionalGoto(i16, block3, block5, "`10 136767:4-136769:5")
+    i19 = block3.emit(
+        GlobalWrite,
+        "have_exception",
+        [BooleanConstant.TRUE],
+        Bool(),
+        None,
+        None,
+    )
+    i20 = block3.emit(
+        GlobalWrite,
+        "throw_location",
+        [StringConstant("src/instrs64.sail:136768.8-136768.32")],
+        String(),
+        None,
+        None,
+    )
     block3.next = Goto(block4, None)
     block4.next = Return(DefaultValue(Unit()), None)
-    i21 = block5.emit(Operation, '@eq_bits_bv_bv', [i13, SmallBitVectorConstant(0b10, SmallFixedBitVector(2))], Bool(), '`10 136772:6-136772:10', 'zz443')
-    block5.next = ConditionalGoto(i21, block6, block9, '`10 136771:4-136782:5')
+    i21 = block5.emit(
+        Operation,
+        "@eq_bits_bv_bv",
+        [i13, SmallBitVectorConstant(0b10, SmallFixedBitVector(2))],
+        Bool(),
+        "`10 136772:6-136772:10",
+        "zz443",
+    )
+    block5.next = ConditionalGoto(i21, block6, block9, "`10 136771:4-136782:5")
     block6.next = Goto(block7, None)
-    i22 = block7.emit_phi([block6, block10, block12, block13], [IntConstant(16), IntConstant(32), IntConstant(64), IntConstant(16)], Int())
-    i23 = block7.emit(Operation, 'ediv_int', [i11, i22], Int(), '`10 136784:22-136784:51', 'zz429')
-    i24 = block7.emit(Operation, 'int64_to_int', [i9], Int(), '`10 136785:34-136785:60', 'zz425')
-    i25 = block7.emit(Operation, 'ediv_int', [i22, i24], Int(), '`10 136785:34-136785:60', 'zz426')
-    i26 = block7.emit(Operation, 'zexecute_aarch64_instrs_vector_arithmetic_unary_rev', [i23, i6, i12, i25, i9, i7], Unit(), '`10 136786:4-136786:113', 'zz420')
-    i27 = block7.emit(GlobalRead, 'have_exception', [], Bool(), None, None)
-    block7.next = ConditionalGoto(i27, block4, block8, '`10 136786:4-136786:113')
+    i22 = block7.emit_phi(
+        [block6, block10, block12, block13],
+        [IntConstant(16), IntConstant(32), IntConstant(64), IntConstant(16)],
+        Int(),
+    )
+    i23 = block7.emit(
+        Operation,
+        "ediv_int",
+        [i11, i22],
+        Int(),
+        "`10 136784:22-136784:51",
+        "zz429",
+    )
+    i24 = block7.emit(
+        Operation,
+        "int64_to_int",
+        [i9],
+        Int(),
+        "`10 136785:34-136785:60",
+        "zz425",
+    )
+    i25 = block7.emit(
+        Operation,
+        "ediv_int",
+        [i22, i24],
+        Int(),
+        "`10 136785:34-136785:60",
+        "zz426",
+    )
+    i26 = block7.emit(
+        Operation,
+        "zexecute_aarch64_instrs_vector_arithmetic_unary_rev",
+        [i23, i6, i12, i25, i9, i7],
+        Unit(),
+        "`10 136786:4-136786:113",
+        "zz420",
+    )
+    i27 = block7.emit(GlobalRead, "have_exception", [], Bool(), None, None)
+    block7.next = ConditionalGoto(
+        i27, block4, block8, "`10 136786:4-136786:113"
+    )
     block8.next = Return(UnitConstant.UNIT, None)
-    i28 = block9.emit(Operation, '@eq_bits_bv_bv', [i13, SmallBitVectorConstant(0b1, SmallFixedBitVector(2))], Bool(), '`10 136775:6-136775:10', 'zz438')
-    block9.next = ConditionalGoto(i28, block10, block11, '`10 136771:4-136782:5')
+    i28 = block9.emit(
+        Operation,
+        "@eq_bits_bv_bv",
+        [i13, SmallBitVectorConstant(0b1, SmallFixedBitVector(2))],
+        Bool(),
+        "`10 136775:6-136775:10",
+        "zz438",
+    )
+    block9.next = ConditionalGoto(
+        i28, block10, block11, "`10 136771:4-136782:5"
+    )
     block10.next = Goto(block7, None)
-    i29 = block11.emit(Operation, '@eq_bits_bv_bv', [i13, SmallBitVectorConstant(0b0, SmallFixedBitVector(2))], Bool(), '`10 136778:6-136778:10', 'zz433')
-    block11.next = ConditionalGoto(i29, block12, block13, '`10 136771:4-136782:5')
+    i29 = block11.emit(
+        Operation,
+        "@eq_bits_bv_bv",
+        [i13, SmallBitVectorConstant(0b0, SmallFixedBitVector(2))],
+        Bool(),
+        "`10 136778:6-136778:10",
+        "zz433",
+    )
+    block11.next = ConditionalGoto(
+        i29, block12, block13, "`10 136771:4-136782:5"
+    )
     block12.next = Goto(block7, None)
     block13.next = Goto(block7, None)
     block14.next = Goto(block2, None)
-    graph = Graph('zdecode_rev16_advsimd_aarch64_instrs_vector_arithmetic_unary_rev', [zRd, zRn, zo0, zsizze, zU, zQ], block0)
+    graph = Graph(
+        "zdecode_rev16_advsimd_aarch64_instrs_vector_arithmetic_unary_rev",
+        [zRd, zRn, zo0, zsizze, zU, zQ],
+        block0,
+    )
     values = analyze(graph, fakecodegen)
     assert values[block0][i9] == Range(8, 64)
     assert values[block2][i15] == Range(0, 6)
@@ -488,6 +1253,7 @@ def test_decode():
     assert values[block5][i15] == Range(0, 2)
     assert values[block7][i23] == Range(0, 128)
     assert values[block7][i25] == Range(0, 64)
+
 
 def test_same_condition_twice():
     bv = Argument("bv", types.SmallFixedBitVector(6))
@@ -500,14 +1266,26 @@ def test_same_condition_twice():
     block6 = Block()
     block7 = Block()
     block8 = Block()
-    i1 = block0.emit(Operation, "unsigned_bv", [bv, MachineIntConstant(6)], types.MachineInt())
-    i2 = block0.emit(Operation, "@gt", [i1, MachineIntConstant(6)], types.MachineInt())
+    i1 = block0.emit(
+        Operation,
+        "unsigned_bv",
+        [bv, MachineIntConstant(6)],
+        types.MachineInt(),
+    )
+    i2 = block0.emit(
+        Operation, "@gt", [i1, MachineIntConstant(6)], types.MachineInt()
+    )
     block0.next = ConditionalGoto(i2, block2, block1)
-    i3 = block1.emit(Operation, "@add_i_i_must_fit", [i1, MachineIntConstant(10)], types.MachineInt())
+    i3 = block1.emit(
+        Operation,
+        "@add_i_i_must_fit",
+        [i1, MachineIntConstant(10)],
+        types.MachineInt(),
+    )
     block1.next = ConditionalGoto(i2, block2, block3)
     block2.next = Raise(StringConstant("abc"), None)
     block3.next = Return(i3)
-    graph = Graph('g', [bv], block0)
+    graph = Graph("g", [bv], block0)
 
     values = analyze(graph, fakecodegen)
     assert values[block0][i1] == Range(0, 63)
@@ -516,6 +1294,7 @@ def test_same_condition_twice():
     assert values[block1][i2] == Range(0, 0)
     assert values[block3][i1] == Range(0, 6)
     assert values[block3][i3] == Range(10, 16)
+
 
 def test_int_to_int64_in_wrong_block():
     mi = Argument("mi", Int())
@@ -532,24 +1311,44 @@ def test_int_to_int64_in_wrong_block():
     block11 = Block()
     block12 = Block()
     block13 = Block()
-    i1 = block2.emit(Operation, '@lteq', [IntConstant(0), mi], Bool(), '`7 9343:23-9343:35', 'zz435')
-    block2.next = ConditionalGoto(i1, block3, block13, '`7 9343:23-9343:51')
-    i2 = block3.emit(Operation, '@lteq', [mi, IntConstant(51)], Bool(), '`7 9343:38-9343:51', 'zz436')
-    block3.next = ConditionalGoto(i2, block4, block13, '`7 9342:4-9346:14')
+    i1 = block2.emit(
+        Operation,
+        "@lteq",
+        [IntConstant(0), mi],
+        Bool(),
+        "`7 9343:23-9343:35",
+        "zz435",
+    )
+    block2.next = ConditionalGoto(i1, block3, block13, "`7 9343:23-9343:51")
+    i2 = block3.emit(
+        Operation,
+        "@lteq",
+        [mi, IntConstant(51)],
+        Bool(),
+        "`7 9343:38-9343:51",
+        "zz436",
+    )
+    block3.next = ConditionalGoto(i2, block4, block13, "`7 9342:4-9346:14")
     block13.next = Raise(StringConstant("nope"), None)
     block4.next = ConditionalGoto(b, block5, block6)
-    i3 = block5.emit(Operation, "@add_o_i_wrapped_res", [mi, MachineIntConstant(1)], Int())
+    i3 = block5.emit(
+        Operation, "@add_o_i_wrapped_res", [mi, MachineIntConstant(1)], Int()
+    )
     block5.next = Goto(block6)
     i4 = block6.emit_phi([block5, block4], [i3, mi], Int())
-    i5 = block6.emit(Operation, "@add_o_i_wrapped_res", [i4, MachineIntConstant(1)], Int())
+    i5 = block6.emit(
+        Operation, "@add_o_i_wrapped_res", [i4, MachineIntConstant(1)], Int()
+    )
     block6.next = Return(i5)
-    g = Graph('g', [mi, b], block2)
+    g = Graph("g", [mi, b], block2)
     g.check()
     values = analyze(g, fakecodegen)
     res = optimize_with_range_info(g, fakecodegen)
     light_simplify(g, fakecodegen)
     g.check()
-    compare(g, """
+    compare(
+        g,
+        """
 mi = Argument('mi', Int())
 b = Argument('b', Bool())
 block0 = Block()
@@ -572,11 +1371,65 @@ i8 = block4.emit(Operation, 'zz5i64zDzKz5i', [i7], Int(), None, None)
 block4.next = Return(i8, None)
 block5.next = Raise(StringConstant('nope'), None)
 graph = Graph('g', [mi, b], block0)
-""")
+""",
+    )
 
 
 def test_with_mul():
-    zwalkparams = Argument('zwalkparams', Struct('zS2TTWParams', ('zcmow', 'zds', 'zee', 'zfwb', 'zha', 'zhd', 'zirgn', 'znsa', 'znsw', 'zorgn', 'zps', 'zptw', 'zs', 'zsa', 'zsh', 'zsl0', 'zsl2', 'zsw', 'zt0szz', 'ztgx', 'ztxszz', 'zvm'), (SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(2), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(2), SmallFixedBitVector(3), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(2), SmallFixedBitVector(2), SmallFixedBitVector(1), SmallFixedBitVector(1), SmallFixedBitVector(4), Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB')), SmallFixedBitVector(6), SmallFixedBitVector(1))))
+    zwalkparams = Argument(
+        "zwalkparams",
+        Struct(
+            "zS2TTWParams",
+            (
+                "zcmow",
+                "zds",
+                "zee",
+                "zfwb",
+                "zha",
+                "zhd",
+                "zirgn",
+                "znsa",
+                "znsw",
+                "zorgn",
+                "zps",
+                "zptw",
+                "zs",
+                "zsa",
+                "zsh",
+                "zsl0",
+                "zsl2",
+                "zsw",
+                "zt0szz",
+                "ztgx",
+                "ztxszz",
+                "zvm",
+            ),
+            (
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(2),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(2),
+                SmallFixedBitVector(3),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(2),
+                SmallFixedBitVector(2),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(1),
+                SmallFixedBitVector(4),
+                Enum("zTGx", ("zTGx_4KB", "zTGx_16KB", "zTGx_64KB")),
+                SmallFixedBitVector(6),
+                SmallFixedBitVector(1),
+            ),
+        ),
+    )
     block0 = Block()
     block1 = Block()
     block2 = Block()
@@ -586,67 +1439,228 @@ def test_with_mul():
     block6 = Block()
     block7 = Block()
     block8 = Block()
-    i1 = block0.emit(FieldAccess, 'zsl0', [zwalkparams], SmallFixedBitVector(2), None, None)
-    i2 = block0.emit(Comment, 'inlined zAArch32_S2StartLevel', [], Unit(), None, None)
-    i3 = block0.emit(Operation, '@unsigned_bv', [i1, MachineIntConstant(2)], MachineInt(), '`7 77025:15-77025:24', 'zz47')
-    i4 = block0.emit(Operation, '@sub_i_i_must_fit', [MachineIntConstant(2), i3], MachineInt(), '`7 77025:11-77025:24', 'zz45')
-    i5 = block0.emit(Operation, '@sub_i_i_must_fit', [MachineIntConstant(3), i4], MachineInt(), '`7 77032:18-77032:42', 'zz43')
-    i6 = block0.emit(FieldAccess, 'ztgx', [zwalkparams], Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB')), None, None)
-    i7 = block0.emit(Comment, 'inlined zTGxGranuleBits', [], Unit(), None, None)
-    i8 = block0.emit(Operation, '@eq', [EnumConstant('zTGx_4KB', Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB'))), i6], Bool(), '`7 9061:6-9061:13', None)
-    block0.next = ConditionalGoto(i8, block1, block6, '`7 9061:6-9061:13')
+    i1 = block0.emit(
+        FieldAccess, "zsl0", [zwalkparams], SmallFixedBitVector(2), None, None
+    )
+    i2 = block0.emit(
+        Comment, "inlined zAArch32_S2StartLevel", [], Unit(), None, None
+    )
+    i3 = block0.emit(
+        Operation,
+        "@unsigned_bv",
+        [i1, MachineIntConstant(2)],
+        MachineInt(),
+        "`7 77025:15-77025:24",
+        "zz47",
+    )
+    i4 = block0.emit(
+        Operation,
+        "@sub_i_i_must_fit",
+        [MachineIntConstant(2), i3],
+        MachineInt(),
+        "`7 77025:11-77025:24",
+        "zz45",
+    )
+    i5 = block0.emit(
+        Operation,
+        "@sub_i_i_must_fit",
+        [MachineIntConstant(3), i4],
+        MachineInt(),
+        "`7 77032:18-77032:42",
+        "zz43",
+    )
+    i6 = block0.emit(
+        FieldAccess,
+        "ztgx",
+        [zwalkparams],
+        Enum("zTGx", ("zTGx_4KB", "zTGx_16KB", "zTGx_64KB")),
+        None,
+        None,
+    )
+    i7 = block0.emit(
+        Comment, "inlined zTGxGranuleBits", [], Unit(), None, None
+    )
+    i8 = block0.emit(
+        Operation,
+        "@eq",
+        [
+            EnumConstant(
+                "zTGx_4KB",
+                Enum("zTGx", ("zTGx_4KB", "zTGx_16KB", "zTGx_64KB")),
+            ),
+            i6,
+        ],
+        Bool(),
+        "`7 9061:6-9061:13",
+        None,
+    )
+    block0.next = ConditionalGoto(i8, block1, block6, "`7 9061:6-9061:13")
     block1.next = Goto(block2, None)
-    i9 = block2.emit_phi([block1, block7, block8], [MachineIntConstant(8), MachineIntConstant(10), MachineIntConstant(12)], MachineInt())
-    i10 = block2.emit_phi([block1, block7, block8], [MachineIntConstant(9), MachineIntConstant(11), MachineIntConstant(13)], MachineInt())
-    i11 = block2.emit_phi([block1, block7, block8], [MachineIntConstant(12), MachineIntConstant(14), MachineIntConstant(16)], MachineInt())
-    i12 = block2.emit(Operation, '@mult_i_i_wrapped_res', [i5, i10], Int(), '`7 77035:25-77035:40', 'zz431')
-    i13 = block2.emit(Operation, '@add_o_i_wrapped_res', [i12, i11], Int(), '`7 77035:25-77035:54', 'zz429')
-    i14 = block2.emit(Operation, '@add_o_i_wrapped_res', [i13, MachineIntConstant(1)], Int(), '`7 77035:25-77035:58', 'zz412')
-    i15 = block2.emit(Operation, '@add_o_i_wrapped_res', [i14, i9], Int(), '`7 77036:25-77036:53', 'zz425')
-    i16 = block2.emit(Operation, '@add_o_i_wrapped_res', [i15, MachineIntConstant(4)], Int(), '`7 77036:25-77036:57', 'zz415')
-    i17 = block2.emit(FieldAccess, 'zt0szz', [zwalkparams], SmallFixedBitVector(4), None, None)
-    i18 = block2.emit(Comment, 'inlined zAArch32_S2IASizze', [], Unit(), None, None)
-    i19 = block2.emit(Operation, '@signed_bv', [i17, MachineIntConstant(4)], MachineInt(), '`7 76935:16-76935:26', 'zz47')
-    i20 = block2.emit(Operation, '@sub_i_i_must_fit', [MachineIntConstant(32), i19], MachineInt(), '`7 76935:11-76935:26', 'zz45')
-    i21 = block2.emit(Operation, 'int64_to_int', [i20], Int(), None, None)
-    i22 = block2.emit(Operation, 'lt', [i21, i14], Bool(), '`7 77038:11-77038:33', 'zz422')
-    block2.next = ConditionalGoto(i22, block3, block5, '`7 77038:11-77038:58')
+    i9 = block2.emit_phi(
+        [block1, block7, block8],
+        [
+            MachineIntConstant(8),
+            MachineIntConstant(10),
+            MachineIntConstant(12),
+        ],
+        MachineInt(),
+    )
+    i10 = block2.emit_phi(
+        [block1, block7, block8],
+        [
+            MachineIntConstant(9),
+            MachineIntConstant(11),
+            MachineIntConstant(13),
+        ],
+        MachineInt(),
+    )
+    i11 = block2.emit_phi(
+        [block1, block7, block8],
+        [
+            MachineIntConstant(12),
+            MachineIntConstant(14),
+            MachineIntConstant(16),
+        ],
+        MachineInt(),
+    )
+    i12 = block2.emit(
+        Operation,
+        "@mult_i_i_wrapped_res",
+        [i5, i10],
+        Int(),
+        "`7 77035:25-77035:40",
+        "zz431",
+    )
+    i13 = block2.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i12, i11],
+        Int(),
+        "`7 77035:25-77035:54",
+        "zz429",
+    )
+    i14 = block2.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i13, MachineIntConstant(1)],
+        Int(),
+        "`7 77035:25-77035:58",
+        "zz412",
+    )
+    i15 = block2.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i14, i9],
+        Int(),
+        "`7 77036:25-77036:53",
+        "zz425",
+    )
+    i16 = block2.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i15, MachineIntConstant(4)],
+        Int(),
+        "`7 77036:25-77036:57",
+        "zz415",
+    )
+    i17 = block2.emit(
+        FieldAccess,
+        "zt0szz",
+        [zwalkparams],
+        SmallFixedBitVector(4),
+        None,
+        None,
+    )
+    i18 = block2.emit(
+        Comment, "inlined zAArch32_S2IASizze", [], Unit(), None, None
+    )
+    i19 = block2.emit(
+        Operation,
+        "@signed_bv",
+        [i17, MachineIntConstant(4)],
+        MachineInt(),
+        "`7 76935:16-76935:26",
+        "zz47",
+    )
+    i20 = block2.emit(
+        Operation,
+        "@sub_i_i_must_fit",
+        [MachineIntConstant(32), i19],
+        MachineInt(),
+        "`7 76935:11-76935:26",
+        "zz45",
+    )
+    i21 = block2.emit(Operation, "int64_to_int", [i20], Int(), None, None)
+    i22 = block2.emit(
+        Operation, "lt", [i21, i14], Bool(), "`7 77038:11-77038:33", "zz422"
+    )
+    block2.next = ConditionalGoto(i22, block3, block5, "`7 77038:11-77038:58")
     block3.next = Goto(block4, None)
-    i23 = block4.emit_phi([block5, block3], [None, BooleanConstant.TRUE], Bool())
+    i23 = block4.emit_phi(
+        [block5, block3], [None, BooleanConstant.TRUE], Bool()
+    )
     block4.next = Return(i23, None)
-    i24 = block5.emit(Operation, 'gt', [i21, i16], Bool(), '`7 77038:36-77038:58', 'zz423')
+    i24 = block5.emit(
+        Operation, "gt", [i21, i16], Bool(), "`7 77038:36-77038:58", "zz423"
+    )
     i23.prevvalues[0] = i24
     block5.next = Goto(block4, None)
-    i25 = block6.emit(Operation, '@eq', [EnumConstant('zTGx_16KB', Enum('zTGx', ('zTGx_4KB', 'zTGx_16KB', 'zTGx_64KB'))), i6], Bool(), '`7 9064:6-9064:14', None)
-    block6.next = ConditionalGoto(i25, block7, block8, '`7 9064:6-9064:14')
+    i25 = block6.emit(
+        Operation,
+        "@eq",
+        [
+            EnumConstant(
+                "zTGx_16KB",
+                Enum("zTGx", ("zTGx_4KB", "zTGx_16KB", "zTGx_64KB")),
+            ),
+            i6,
+        ],
+        Bool(),
+        "`7 9064:6-9064:14",
+        None,
+    )
+    block6.next = ConditionalGoto(i25, block7, block8, "`7 9064:6-9064:14")
     block7.next = Goto(block2, None)
     block8.next = Goto(block2, None)
-    graph = Graph('zAArch32_S2InconsistentSL', [zwalkparams], block0)
+    graph = Graph("zAArch32_S2InconsistentSL", [zwalkparams], block0)
     values = analyze(graph, fakecodegen)
     assert values[block2][i12] == Range(9, 52)
     assert values[block2][i16] == Range(34, 85)
+
 
 def test_int_to_int64():
     i = Argument("i", Int())
     block1 = Block()
     block2 = Block()
     block3 = Block()
-    i1 = block1.emit(Operation, '@lteq', [IntConstant(0), i], Bool(), '`7 9343:23-9343:35', 'zz435')
-    block1.next = ConditionalGoto(i1, block2, block3, '`7 9343:23-9343:51')
-    block3.next = Raise(StringConstant('negative!'), None)
+    i1 = block1.emit(
+        Operation,
+        "@lteq",
+        [IntConstant(0), i],
+        Bool(),
+        "`7 9343:23-9343:35",
+        "zz435",
+    )
+    block1.next = ConditionalGoto(i1, block2, block3, "`7 9343:23-9343:51")
+    block3.next = Raise(StringConstant("negative!"), None)
     i2 = block2.emit(Operation, "int_to_int64", [i], MachineInt())
-    i3 = block2.emit(Operation, "sub_i_i_wrapped_res", [i2, MachineIntConstant(1)], Int())
-    i4 = block2.emit(Operation, "add_o_i_wrapped_res", [i, MachineIntConstant(1)], Int())
+    i3 = block2.emit(
+        Operation, "sub_i_i_wrapped_res", [i2, MachineIntConstant(1)], Int()
+    )
+    i4 = block2.emit(
+        Operation, "add_o_i_wrapped_res", [i, MachineIntConstant(1)], Int()
+    )
     i5 = block2.emit(Operation, "add_int", [i3, i4], Int())
     i6 = block2.emit(Operation, "int_to_int64", [i5], Int())
     block2.next = Return(i6)
-    g = Graph('g', [i], block1)
+    g = Graph("g", [i], block1)
     values = analyze(g, fakecodegen)
     assert values[block2][i] == Range(0, MACHINEINT.high)
     assert values[block2][i3] == Range(-1, MACHINEINT.high - 1)
     assert values[block2][i4] == Range(1, MACHINEINT.high + 1)
     assert values[block2][i5] == Range(0, MACHINEINT.high)
     assert values[block2][i6] == Range(0, MACHINEINT.high)
+
 
 def test_max():
     i = Argument("i", MachineInt())
@@ -658,23 +1672,34 @@ def test_max():
     block1.next = ConditionalGoto(i1, block2, block3)
     block2.next = Goto(block4)
     block3.next = Goto(block4)
-    i2 = block4.emit_phi([block2, block3], [MachineIntConstant(6), i], MachineInt())
+    i2 = block4.emit_phi(
+        [block2, block3], [MachineIntConstant(6), i], MachineInt()
+    )
     block4.next = Return(i2)
-    g = Graph('g', [i], block1)
+    g = Graph("g", [i], block1)
     values = analyze(g, fakecodegen)
     assert values[block4][i2] == Range(6, None)
+
 
 def test_shr_int():
     i = Argument("i", MachineInt())
     block1 = Block()
-    i1 = block1.emit(Operation, "@assert_in_range", [i, MachineIntConstant(0), MachineIntConstant(10)], MachineInt())
+    i1 = block1.emit(
+        Operation,
+        "@assert_in_range",
+        [i, MachineIntConstant(0), MachineIntConstant(10)],
+        MachineInt(),
+    )
     i2 = block1.emit(Operation, "int64_to_int", [i1], Int())
-    i3 = block1.emit(Operation, "@shr_int_o_i", [i2, MachineIntConstant(1)], Int())
+    i3 = block1.emit(
+        Operation, "@shr_int_o_i", [i2, MachineIntConstant(1)], Int()
+    )
     i4 = block1.emit(Operation, "int_to_int64", [i3], MachineInt())
     block1.next = Return(i4)
-    g = Graph('g', [i], block1)
+    g = Graph("g", [i], block1)
     values = analyze(g, fakecodegen)
     assert values[block1][i4] == Range(0, 5)
+
 
 def test_le():
     i = Argument("i", MachineInt())
@@ -683,39 +1708,73 @@ def test_le():
     block2 = Block()
     block3 = Block()
     block4 = Block()
-    i1 = block1.emit(Operation, "@assert_in_range", [i, MachineIntConstant(0), MachineIntConstant(10)], MachineInt())
+    i1 = block1.emit(
+        Operation,
+        "@assert_in_range",
+        [i, MachineIntConstant(0), MachineIntConstant(10)],
+        MachineInt(),
+    )
     i1 = block1.emit(Operation, "@lteq", [i, j], Bool())
     block1.next = ConditionalGoto(i1, block2, block3)
     block2.next = Goto(block4)
     block3.next = Goto(block4)
-    i2 = block4.emit_phi([block2, block3], [MachineIntConstant(6), j], MachineInt())
+    i2 = block4.emit_phi(
+        [block2, block3], [MachineIntConstant(6), j], MachineInt()
+    )
     block4.next = Return(i2)
-    g = Graph('g', [i, j], block1)
+    g = Graph("g", [i, j], block1)
     values = analyze(g, fakecodegen)
     assert values[block4][i2] == Range(None, 9)
+
 
 def test_length():
     v = Argument("v", GenericBitVector())
     block1 = Block()
     i1 = block1.emit(Operation, "@length_unwrapped_res", [v], MachineInt())
     block1.next = Return(i1)
-    g = Graph('g', [v], block1)
+    g = Graph("g", [v], block1)
     values = analyze(g, fakecodegen)
     assert values[block1][i1] == Range(0, None)
 
+
 def test_pow2_i():
-    v = Argument('v', SmallFixedBitVector(4))
+    v = Argument("v", SmallFixedBitVector(4))
     block1 = Block()
-    i1 = block1.emit(Operation, '@unsigned_bv', [v, MachineIntConstant(4)], MachineInt(), '`19 781:20-781:47', 'zz458')
-    i2 = block1.emit(Operation, '@pow2_i', [i1], Int(), '`19 781:15-781:48', 'zz455')
-    i3 = block1.emit(Operation, 'int_to_int64', [i2], MachineInt(), '`19 781:15-781:48', 'zz449')
-    i4 = block1.emit(Operation, '@shl_int_i_i_must_fit', [i3, MachineIntConstant(2)], MachineInt(), '`19 781:11-781:48', 'zz452')
+    i1 = block1.emit(
+        Operation,
+        "@unsigned_bv",
+        [v, MachineIntConstant(4)],
+        MachineInt(),
+        "`19 781:20-781:47",
+        "zz458",
+    )
+    i2 = block1.emit(
+        Operation, "@pow2_i", [i1], Int(), "`19 781:15-781:48", "zz455"
+    )
+    i3 = block1.emit(
+        Operation,
+        "int_to_int64",
+        [i2],
+        MachineInt(),
+        "`19 781:15-781:48",
+        "zz449",
+    )
+    i4 = block1.emit(
+        Operation,
+        "@shl_int_i_i_must_fit",
+        [i3, MachineIntConstant(2)],
+        MachineInt(),
+        "`19 781:11-781:48",
+        "zz452",
+    )
     block1.next = Return(i4)
-    g = Graph('g', [v], block1)
+    g = Graph("g", [v], block1)
     values = analyze(g, fakecodegen)
-    assert values[block1][i2] == Range(1, 2**(2**4 - 1))
+    assert values[block1][i2] == Range(1, 2 ** (2 ** 4 - 1))
     light_simplify(g, fakecodegen)
-    compare(g, """
+    compare(
+        g,
+        """
 v = Argument('v', SmallFixedBitVector(4))
 block0 = Block()
 i1 = block0.emit(Operation, '@unsigned_bv', [v, MachineIntConstant(4)], MachineInt(), '`19 781:20-781:47', 'zz458')
@@ -723,18 +1782,101 @@ i2 = block0.emit(Operation, '@shl_int_i_i_must_fit', [MachineIntConstant(1), i1]
 i3 = block0.emit(Operation, '@shl_int_i_i_must_fit', [i2, MachineIntConstant(2)], MachineInt(), '`19 781:11-781:48', 'zz452')
 block0.next = Return(i3, None)
 graph = Graph('g', [v], block0)
-""")
+""",
+    )
+
 
 def test_unsigned_bv_wrapped_res():
-    i11 = Argument('i11', MachineInt())
+    i11 = Argument("i11", MachineInt())
     block0 = Block()
-    i12 = block0.emit(Operation, 'zrX', [i11], SmallFixedBitVector(64), '`17 145:42-145:57', 'return')
-    i31 = block0.emit(Operation, '@unsigned_bv_wrapped_res', [i12, MachineIntConstant(64)], Int(), '`41 36:69-36:86', 'zz414001')
+    i12 = block0.emit(
+        Operation,
+        "zrX",
+        [i11],
+        SmallFixedBitVector(64),
+        "`17 145:42-145:57",
+        "return",
+    )
+    i31 = block0.emit(
+        Operation,
+        "@unsigned_bv_wrapped_res",
+        [i12, MachineIntConstant(64)],
+        Int(),
+        "`41 36:69-36:86",
+        "zz414001",
+    )
     block0.next = Return(i31)
-    graph = Graph('uwrapped', [i11], block0)
+    graph = Graph("uwrapped", [i11], block0)
     values = analyze(graph, fakecodegen)
     assert values[block0][i31].high == 2 ** 64 - 1
     assert values[block0][i31].low == 0
+
+
+def test_with_loop():
+    zxs = Argument("zxs", SmallFixedBitVector(8))
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block0.next = Goto(block1, None)
+    i1 = block1.emit_phi(
+        [block0, block3],
+        [SmallBitVectorConstant(0x0, SmallFixedBitVector(8)), None],
+        SmallFixedBitVector(8),
+    )
+    i2 = block1.emit_phi(
+        [block0, block3], [MachineIntConstant(0), None], MachineInt()
+    )
+    i3 = block1.emit(
+        Operation,
+        "@gt",
+        [i2, MachineIntConstant(7)],
+        Bool(),
+        "`5 194:2-195:19",
+        None,
+    )
+    block1.next = ConditionalGoto(i3, block2, block3, "`5 194:2-195:19")
+    block2.next = Return(i1, None)
+    i4 = block3.emit(
+        Operation,
+        "@sub_i_i_must_fit",
+        [MachineIntConstant(7), i2],
+        MachineInt(),
+        "`5 195:15-195:18",
+        "zz416",
+    )
+    i5 = block3.emit(
+        Operation,
+        "@vector_access_bv_i",
+        [zxs, i4],
+        SmallFixedBitVector(1),
+        "`5 195:12-195:19",
+        "zz47",
+    )
+    i6 = block3.emit(
+        Operation,
+        "$zupdate_fbits",
+        [i1, i2, i5],
+        SmallFixedBitVector(8),
+        "`5 195:4-195:9",
+        "zz410",
+    )
+    i1.prevvalues[1] = i6
+    i7 = block3.emit(
+        Operation,
+        "@iadd",
+        [i2, MachineIntConstant(1)],
+        MachineInt(),
+        "`5 194:2-195:19",
+        "zz45",
+    )
+    i2.prevvalues[1] = i7
+    block3.next = Goto(block1, None)
+    graph = Graph("zreverse_bits_in_byte", [zxs], block0, True)
+    values = analyze(graph, fakecodegen)
+    assert values[block1][i2] == MACHINEINT
+    assert values[block3][i2] == Range(MININT, 7)
+    assert values[block2][i2] == Range(8, MAXINT)
 
 
 def test_pack_unpack():
@@ -773,3 +1915,327 @@ def test_pack_machineint_unpack():
     graph_f = Graph("f", [], block_f)
     values = analyze(graph_f, fakecodegen)
     assert values[block_f][a3] == Range(2, 2)
+
+
+def test_packed_field_int_to_int64_machineint_unpack():
+    block_f = Block()
+    c2 = block_f.emit(
+        Operation,
+        "@pack_machineint",
+        [MachineIntConstant(2)],
+        Packed(Int()),
+        None,
+        None,
+    )
+    a3 = block_f.emit(
+        Operation, "@packed_field_int_to_int64", [c2], types.Int(), None, None
+    )
+    block_f.next = Return(a3)
+    graph_f = Graph("f", [], block_f)
+    values = analyze(graph_f, fakecodegen)
+    assert values[block_f][a3] == Range(2, 2)
+
+
+def test_dont_remove_const_bool_res_op_with_side_effects():
+    block = Block()
+    b = block.emit(
+        Operation,
+        "some_random_func",
+        [MachineIntConstant(2)],
+        Bool(),
+        None,
+        None,
+    )
+    block.next = Return(b)
+    graph = Graph("f", [], block)
+
+    class absinterp:
+        values = {block: {b: Range(1, 1)}}
+
+    IntOpOptimizer(graph, fakecodegen, absinterp).optimize()
+    assert block.operations == [
+        b
+    ]  # must not be removed even if the result is always a const
+
+
+def test_extract_unsigned_from_range():
+    from pydrofoil.test.test_ir import check_optimize
+
+    zaddr = Argument("zaddr", SmallFixedBitVector(64))
+    zwidth = Argument("zwidth", MachineInt())
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    block7 = Block()
+    i2 = block0.emit(
+        RangeCheck,
+        "$rangecheck",
+        [
+            zwidth,
+            IntConstant(1),
+            IntConstant(9223372036854775807),
+            StringConstant("Argument 'zwidth' of function 'zwithin_phys_mem'"),
+        ],
+        Unit(),
+        None,
+        None,
+    )
+    i3 = block0.emit(
+        Cast, "$cast", [zaddr], GenericBitVector(), "`31 79:21-79:35", "zz450"
+    )
+    i4 = block0.emit(
+        Operation,
+        "@unsigned_bv_wrapped_res",
+        [zaddr, MachineIntConstant(64)],
+        Int(),
+        "`31 79:21-79:35",
+        "zz40",
+    )
+    i5 = block0.emit(
+        Operation,
+        "plat_ram_base",
+        [UnitConstant.UNIT],
+        SmallFixedBitVector(64),
+        "`31 80:30-80:46",
+        "zz448",
+    )
+    i6 = block0.emit(
+        Operation,
+        "plat_rom_base",
+        [UnitConstant.UNIT],
+        SmallFixedBitVector(64),
+        "`31 81:30-81:46",
+        "zz446",
+    )
+    i7 = block0.emit(
+        Operation,
+        "plat_ram_size",
+        [UnitConstant.UNIT],
+        SmallFixedBitVector(64),
+        "`31 82:30-82:46",
+        "zz444",
+    )
+    i8 = block0.emit(
+        Operation,
+        "plat_rom_size",
+        [UnitConstant.UNIT],
+        SmallFixedBitVector(64),
+        "`31 83:30-83:46",
+        "zz442",
+    )
+    i9 = block0.emit(
+        Operation,
+        "@lteq_unsigned64",
+        [i5, zaddr],
+        Bool(),
+        "`31 86:13-86:37",
+        "zz437",
+    )
+    block0.next = ConditionalGoto(i9, block1, block4, "`31 86:13-87:69")
+    i10 = block1.emit(Comment, "inlined z__id", [], Unit(), None, None)
+    i11 = block1.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i4, zwidth],
+        Int(),
+        "`31 87:14-87:35",
+        "zz439",
+    )
+    i12 = block1.emit(
+        Operation,
+        "@add_unsigned_bv64_unsigned_bv64_wrapped_res",
+        [i5, i7],
+        Int(),
+        "`31 87:41-87:68",
+        "zz440",
+    )
+    i13 = block1.emit(
+        Operation, "lteq", [i11, i12], Bool(), "`31 87:13-87:69", "zz438"
+    )
+    block1.next = ConditionalGoto(i13, block2, block4, "`31 86:2-99:3")
+    block2.next = Goto(block3, None)
+    i14 = block3.emit_phi(
+        [block7, block6, block2],
+        [BooleanConstant.FALSE, BooleanConstant.TRUE, BooleanConstant.TRUE],
+        Bool(),
+    )
+    block3.next = Return(i14, None)
+    i15 = block4.emit(
+        Operation,
+        "@lteq_unsigned64",
+        [i6, zaddr],
+        Bool(),
+        "`31 89:13-89:37",
+        "zz432",
+    )
+    block4.next = ConditionalGoto(i15, block5, block7, "`31 89:13-90:69")
+    i16 = block5.emit(Comment, "inlined z__id", [], Unit(), None, None)
+    i17 = block5.emit(
+        Operation,
+        "@add_o_i_wrapped_res",
+        [i4, zwidth],
+        Int(),
+        "`31 90:14-90:35",
+        "zz434",
+    )
+    i18 = block5.emit(
+        Operation,
+        "@add_unsigned_bv64_unsigned_bv64_wrapped_res",
+        [i6, i8],
+        Int(),
+        "`31 90:41-90:68",
+        "zz435",
+    )
+    i19 = block5.emit(
+        Operation, "lteq", [i17, i18], Bool(), "`31 90:13-90:69", "zz433"
+    )
+    block5.next = ConditionalGoto(i19, block6, block7, "`31 89:7-99:3")
+    block6.next = Goto(block3, None)
+    block7.next = Goto(block3, None)
+    graph = Graph("zwithin_phys_mem_specialized_o_i", [zaddr, zwidth], block0)
+    check_optimize(
+        graph,
+        """
+zaddr = Argument('zaddr', SmallFixedBitVector(64))
+zwidth = Argument('zwidth', MachineInt())
+block0 = Block()
+block1 = Block()
+block2 = Block()
+block3 = Block()
+block4 = Block()
+block5 = Block()
+block6 = Block()
+block7 = Block()
+i2 = block0.emit(RangeCheck, '$rangecheck', [zwidth, IntConstant(1), IntConstant(9223372036854775807), StringConstant("Argument 'zwidth' of function 'zwithin_phys_mem'")], Unit(), None, None)
+i3 = block0.emit(Operation, 'plat_ram_base', [UnitConstant.UNIT], SmallFixedBitVector(64), '`31 80:30-80:46', 'zz448')
+i4 = block0.emit(Operation, 'plat_rom_base', [UnitConstant.UNIT], SmallFixedBitVector(64), '`31 81:30-81:46', 'zz446')
+i5 = block0.emit(Operation, 'plat_ram_size', [UnitConstant.UNIT], SmallFixedBitVector(64), '`31 82:30-82:46', 'zz444')
+i6 = block0.emit(Operation, 'plat_rom_size', [UnitConstant.UNIT], SmallFixedBitVector(64), '`31 83:30-83:46', 'zz442')
+i7 = block0.emit(Operation, '@lteq_unsigned64', [i3, zaddr], Bool(), '`31 86:13-86:37', 'zz437')
+block0.next = ConditionalGoto(i7, block1, block4, '`31 86:13-87:69')
+i8 = block1.emit(Comment, 'inlined z__id', [], Unit(), None, None)
+i9 = block1.emit(Operation, '@get_slice_int_i_i_i', [MachineIntConstant(64), zwidth, MachineIntConstant(0)], SmallFixedBitVector(64), None, None)
+i10 = block1.emit(Operation, '@lteq_add4_unsigned_bv64', [zaddr, i9, i3, i5], Bool(), '`31 87:13-87:69', 'zz438')
+block1.next = ConditionalGoto(i10, block2, block4, '`31 86:2-99:3')
+block2.next = Goto(block3, None)
+i11 = block3.emit_phi([block7, block6, block2], [BooleanConstant.FALSE, BooleanConstant.TRUE, BooleanConstant.TRUE], Bool())
+block3.next = Return(i11, None)
+i12 = block4.emit(Operation, '@lteq_unsigned64', [i4, zaddr], Bool(), '`31 89:13-89:37', 'zz432')
+block4.next = ConditionalGoto(i12, block5, block7, '`31 89:13-90:69')
+i13 = block5.emit(Comment, 'inlined z__id', [], Unit(), None, None)
+i14 = block5.emit(Operation, '@get_slice_int_i_i_i', [MachineIntConstant(64), zwidth, MachineIntConstant(0)], SmallFixedBitVector(64), None, None)
+i15 = block5.emit(Operation, '@lteq_add4_unsigned_bv64', [zaddr, i14, i4, i6], Bool(), '`31 90:13-90:69', 'zz433')
+block5.next = ConditionalGoto(i15, block6, block7, '`31 89:7-99:3')
+block6.next = Goto(block3, None)
+block7.next = Goto(block3, None)
+graph = Graph('zwithin_phys_mem_specialized_o_i', [zaddr, zwidth], block0)
+""",
+    )
+
+
+def test_loop_bug():
+    zx = Argument("zx", MachineInt())
+    block0 = Block()
+    block1 = Block()
+    block2 = Block()
+    block3 = Block()
+    block4 = Block()
+    block5 = Block()
+    block6 = Block()
+    block7 = Block()
+    block8 = Block()
+    block9 = Block()
+    block10 = Block()
+    i1 = block0.emit(Operation, "int64_to_int", [zx], Int(), None, None)
+    i2 = block0.emit(
+        Operation,
+        "@gteq",
+        [zx, MachineIntConstant(0)],
+        Bool(),
+        "`9 6817:11-6817:17",
+        "zz419",
+    )
+    i3 = block0.emit(
+        Comment,
+        "sail_assert src/v8_base.sail:6817.17-6817.18",
+        [],
+        Unit(),
+        None,
+        None,
+    )
+    block0.next = ConditionalGoto(i2, block1, block10, "`9 6816:23-6829:1")
+    i4 = block1.emit(
+        Operation,
+        "@eq",
+        [zx, MachineIntConstant(0)],
+        Bool(),
+        "`9 6819:7-6819:13",
+        "zz414",
+    )
+    block1.next = ConditionalGoto(i4, block2, block4, "`9 6819:4-6821:5")
+    block2.next = Goto(block3, None)
+    i5 = block3.emit_phi([block2, block8], [IntConstant(0), None], Int())
+    block3.next = Return(i5, None)
+    block4.next = Goto(block5, None)
+    i6 = block5.emit_phi([block4, block6], [IntConstant(1), None], Int())
+    i7 = block5.emit(Operation, "int_to_int64", [i6], MachineInt(), None, None)
+    i8 = block5.emit(
+        Operation, "@pow2_i", [i7], Int(), "`9 6822:15-6822:22", "zz412"
+    )
+    i9 = block5.emit(
+        Operation, "gteq", [i1, i8], Bool(), "`9 6822:10-6822:22", "zz49"
+    )
+    block5.next = ConditionalGoto(i9, block6, block7, "`9 6822:4-6824:5")
+    i10 = block6.emit(
+        Operation,
+        "@add_i_i_wrapped_res",
+        [i7, MachineIntConstant(1)],
+        Int(),
+        "`9 6823:12-6823:17",
+        "zz40",
+    )
+    i6.prevvalues[1] = i10
+    block6.next = Goto(block5, None)
+    i11 = block7.emit(
+        Operation,
+        "@sub_i_i_must_fit",
+        [i7, MachineIntConstant(1)],
+        MachineInt(),
+        "`9 6826:17-6826:22",
+        "zz47",
+    )
+    i12 = block7.emit(
+        Operation, "@pow2_i", [i11], Int(), "`9 6826:12-6826:23", "zz43"
+    )
+    i5.prevvalues[1] = i12
+    i13 = block7.emit(
+        Operation,
+        "gteq",
+        [i12, IntConstant(0)],
+        Bool(),
+        "`9 6827:11-6827:17",
+        "zz44",
+    )
+    i14 = block7.emit(
+        Comment,
+        "sail_assert src/v8_base.sail:6827.17-6827.18",
+        [],
+        Unit(),
+        None,
+        None,
+    )
+    block7.next = ConditionalGoto(i13, block8, block9, "`9 6827:4-6828:13")
+    block8.next = Goto(block3, None)
+    block9.next = Raise(
+        StringConstant("src/v8_base.sail:6827.17-6827.18"), None
+    )
+    block10.next = Raise(
+        StringConstant("src/v8_base.sail:6817.17-6817.18"), None
+    )
+    graph = Graph("zFloorPow2_specialized_i", [zx], block0, True)
+    values = analyze(graph, fakecodegen)
+    assert values[block3][i5].contains_range(Range(0, None))

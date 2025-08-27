@@ -1,10 +1,14 @@
 import sys
-from collections import defaultdict
+from typing import Iterable
 
-from pydrofoil import ir, types
+from pydrofoil import ir, makecode, types
 
-MININT = -sys.maxint-1
+MININT = -sys.maxint - 1
 MAXINT = sys.maxint
+
+
+_RECOMPUTE_LIMIT = 100
+
 
 def int_c_div(x, y):
     r = x // y
@@ -12,11 +16,12 @@ def int_c_div(x, y):
         r += 1
     return r
 
+
 class Range(object):
     def __init__(self, low=None, high=None):
         # both can be None
-        self.low = low
-        self.high = high
+        self.low = low  # type: int | None
+        self.high = high  # type: int | None
         if low is not None and high is not None:
             assert low <= high
 
@@ -27,6 +32,15 @@ class Range(object):
     def is_bounded(self):
         return self.low is not None and self.high is not None
 
+    def is_bounded_typed(self, typ):
+        # type: (types.Type) -> bool
+        """Considers type range constraints for the definition of 'bounded'."""
+        type_bound = default_for_type(typ)
+
+        intersection = self.intersect(type_bound)
+        assert intersection is not None
+        return intersection != type_bound
+
     def __repr__(self):
         return "Range(%r, %r)" % (self.low, self.high)
 
@@ -36,9 +50,6 @@ class Range(object):
     def __ne__(self, other):
         return not self == other
 
-    def __hash__(self):
-        return hash((self.low, other.low))
-
     def contains(self, number):
         if self.low is not None and not self.low <= number:
             return False
@@ -46,12 +57,25 @@ class Range(object):
             return False
         return True
 
+    def contains_range(self, other):
+        # type: (Range) -> bool
+        if self.low is not None:
+            if other.low is None:
+                return False
+            if other.low < self.low:
+                return False
+        if self.high is not None:
+            if other.high is None:
+                return False
+            if other.high > self.high:
+                return False
+        return True
+
     def isconstant(self):
         return self.low is not None and self.low == self.high
 
     def fits_machineint(self):
-        return (self.is_bounded() and
-                self.low >= MININT and self.high <= MAXINT)
+        return self.is_bounded() and self.low >= MININT and self.high <= MAXINT
 
     def add(self, other):
         low = high = None
@@ -74,10 +98,12 @@ class Range(object):
 
     def mul(self, other):
         if self.is_bounded() and other.is_bounded():
-            values = [self.low * other.low,
-                      self.high * other.low,
-                      self.low * other.high,
-                      self.high * other.high]
+            values = [
+                self.low * other.low,
+                self.high * other.low,
+                self.low * other.high,
+                self.high * other.high,
+            ]
             return Range(min(values), max(values))
         if self.low is not None and other.low is not None:
             if self.low >= 0 and other.low >= 0:
@@ -91,10 +117,12 @@ class Range(object):
         # very minimal for now
         if other.low is not None and other.low >= 1:
             if other.high is not None and self.is_bounded():
-                values = [int_c_div(self.low, other.low),
-                          int_c_div(self.high, other.low),
-                          int_c_div(self.low, other.high),
-                          int_c_div(self.high, other.high)]
+                values = [
+                    int_c_div(self.low, other.low),
+                    int_c_div(self.high, other.low),
+                    int_c_div(self.low, other.high),
+                    int_c_div(self.high, other.high),
+                ]
                 return Range(min(values), max(values))
             # division by positive number cannot change the sign
             if self.low is not None and self.low >= 0:
@@ -112,12 +140,18 @@ class Range(object):
         return UNBOUNDED
 
     def lshift(self, other):
-        if (self.is_bounded() and other.is_bounded() and
-                0 <= other.low and other.high <= 64):
-            values = [self.low << other.low,
-                      self.high << other.low,
-                      self.low << other.high,
-                      self.high << other.high]
+        if (
+            self.is_bounded()
+            and other.is_bounded()
+            and 0 <= other.low
+            and other.high <= 64
+        ):
+            values = [
+                self.low << other.low,
+                self.high << other.low,
+                self.low << other.high,
+                self.high << other.high,
+            ]
             return Range(min(values), max(values))
         if self.low is not None and self.low >= 0 and other.low is not None:
             if 0 <= other.low <= 64:
@@ -126,21 +160,62 @@ class Range(object):
         return UNBOUNDED
 
     def rshift(self, other):
-        if (self.is_bounded() and other.is_bounded() and
-                0 <= other.low and other.high <= sys.maxint):
-            values = [self.low >> other.low,
-                      self.high >> other.low,
-                      self.low >> other.high,
-                      self.high >> other.high]
+        if (
+            self.is_bounded()
+            and other.is_bounded()
+            and 0 <= other.low
+            and other.high <= sys.maxint
+        ):
+            values = [
+                self.low >> other.low,
+                self.high >> other.low,
+                self.low >> other.high,
+                self.high >> other.high,
+            ]
             return Range(min(values), max(values))
         return UNBOUNDED
 
     def union(self, other):
+        # type: (Range) -> Range
         low = high = None
         if self.low is not None and other.low is not None:
             low = min(self.low, other.low)
         if self.high is not None and other.high is not None:
             high = max(self.high, other.high)
+        return Range(low, high)
+
+    @staticmethod
+    def union_many(ranges):
+        # type: (Iterable[Range]) -> Range
+        ranges_iter = iter(ranges)
+        try:
+            res = next(ranges_iter)
+        except StopIteration:
+            raise ValueError("No ranges given")
+        for range in ranges_iter:
+            res = res.union(range)
+        return res
+
+    def intersect(self, other):
+        # type: (Range) -> Range | None
+        low = high = None
+        if self.low is not None and other.low is not None:
+            low = max(self.low, other.low)
+        elif self.low is None:
+            low = other.low
+        elif other.low is None:
+            low = self.low
+
+        if self.high is not None and other.high is not None:
+            high = min(self.high, other.high)
+        elif self.high is None:
+            high = other.high
+        elif other.high is None:
+            high = self.high
+
+        if low is not None and high is not None and low > high:
+            return None
+
         return Range(low, high)
 
     def le(self, other):
@@ -215,6 +290,7 @@ class Range(object):
     def make_gt_const(self, const):
         return self.make_ge_const(const + 1)
 
+
 UNBOUNDED = Range(None, None)
 MACHINEINT = Range(MININT, MAXINT)
 BOOL = Range(0, 1)
@@ -229,19 +305,24 @@ RELEVANT_TYPES = (
 )
 INT_TYPES = (types.MachineInt(), types.Int())
 
+
 def analyze(graph, codegen, view=False):
+    # type: (ir.Graph, makecode.Codegen, bool) -> dict[ir.Block, dict[ir.Value, Range]]
     absinterp = AbstractInterpreter(graph, codegen)
     res = absinterp.analyze()
     if view:
         absinterp.view()
     return res
 
+
 class AbstractInterpreter(object):
     _view = False
+
     def __init__(self, graph, codegen):
+        # type: (ir.Graph, makecode.Codegen) -> None
         self.graph = graph
         self.codegen = codegen
-        self.values = {} # block -> value -> Range
+        self.values = {}  # type: dict[ir.Block, dict[ir.Value, Range]]
 
     def _builtinname(self, name):
         return self.codegen.builtin_names.get(name, name)
@@ -253,7 +334,8 @@ class AbstractInterpreter(object):
         from rpython.translator.tool.make_dot import DotGen
         from dotviewer import graphclient
         import pytest
-        dotgen = DotGen('G')
+
+        dotgen = DotGen("G")
         print_varnames = self.graph._dot(dotgen, self.codegen, None)
         for block in self.graph.iterblocks():
             extrainfoid = "info" + str(id(block))
@@ -262,7 +344,7 @@ class AbstractInterpreter(object):
                     extrainfoid,
                     shape="box",
                     fillcolor="orange",
-                    label="NOT REACHED"
+                    label="NOT REACHED",
                 )
             else:
                 current_values = self.values[block]
@@ -270,7 +352,14 @@ class AbstractInterpreter(object):
                 for op, r in current_values.iteritems():
                     if op in block.operations:
                         continue
-                    if r == UNBOUNDED or (op.resolved_type is types.Bool() and r == BOOL) or (op.resolved_type is types.MachineInt() and r == MACHINEINT):
+                    if (
+                        r == UNBOUNDED
+                        or (op.resolved_type is types.Bool() and r == BOOL)
+                        or (
+                            op.resolved_type is types.MachineInt()
+                            and r == MACHINEINT
+                        )
+                    ):
                         continue
                     res.append("%s: %r" % (op._repr(print_varnames), r))
                 if res:
@@ -279,7 +368,14 @@ class AbstractInterpreter(object):
                     if op not in current_values:
                         continue
                     r = current_values[op]
-                    if r == UNBOUNDED or (op.resolved_type is types.Bool() and r == BOOL) or (op.resolved_type is types.MachineInt() and r == MACHINEINT):
+                    if (
+                        r == UNBOUNDED
+                        or (op.resolved_type is types.Bool() and r == BOOL)
+                        or (
+                            op.resolved_type is types.MachineInt()
+                            and r == MACHINEINT
+                        )
+                    ):
                         continue
                     res.append("%s: %r" % (op._repr(print_varnames), r))
                 if not res:
@@ -292,15 +388,21 @@ class AbstractInterpreter(object):
                     label=label,
                 )
             dotgen.emit_edge(extrainfoid, str(id(block)))
-        ir.GraphPage(dotgen.generate(target=None), print_varnames, self.graph.args).display()
+        ir.GraphPage(
+            dotgen.generate(target=None), print_varnames, self.graph.args
+        ).display()
 
     def analyze(self):
-        startblock_values = {}
-        for arg in self.graph.args:
-            startblock_values[arg] = UNBOUNDED
+        startblock_values = self._init_argument_bounds()
         self.values[self.graph.startblock] = startblock_values
+        if self.graph.has_loop:
+            self.loop_headers = {
+                to for from_, to in ir.find_backedges(self.graph)
+            }
+        else:
+            self.loop_headers = set()
 
-        for block in ir.topo_order(self.graph):
+        for block in ir.topo_order_best_attempt(self.graph):
             self.current_block = block
             if block not in self.values:
                 # unreachable
@@ -309,9 +411,17 @@ class AbstractInterpreter(object):
             self.analyze_block(block)
             self.analyze_link(block)
         if self._view:
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
         return self.values
+
+    def _init_argument_bounds(self):
+        startblock_values = {}
+        for arg in self.graph.args:
+            startblock_values[arg] = UNBOUNDED
+        return startblock_values
 
     def analyze_link(self, block):
         if isinstance(block.next, ir.Goto):
@@ -325,15 +435,22 @@ class AbstractInterpreter(object):
             elif cond is not None and cond == FALSE:
                 self._merge_values(self.current_values, block.next.falsetarget)
                 return
-            truevalues, falsevalues = self.analyze_condition(block.next.booleanvalue)
+            truevalues, falsevalues = self.analyze_condition(
+                block.next.booleanvalue
+            )
             truevalues[block.next.booleanvalue] = TRUE
             falsevalues[block.next.booleanvalue] = FALSE
             self._merge_values(truevalues, block.next.truetarget)
             self._merge_values(falsevalues, block.next.falsetarget)
-        elif isinstance(block.next, (ir.Return, ir.Raise, ir.JustStop)):
+        elif isinstance(block.next, ir.Return):
+            self._analyze_return(block.next)
+        elif isinstance(block.next, (ir.Raise, ir.JustStop)):
             pass
         else:
             assert 0, "unreachable"
+
+    def _analyze_return(self, next):
+        pass
 
     def _merge_values(self, values, nextblock):
         if nextblock not in self.values:
@@ -347,12 +464,29 @@ class AbstractInterpreter(object):
                     nextblock_values[op] = rop
 
     def analyze_block(self, block):
-        for op in block.operations:
+        index = 0
+        if block in self.loop_headers:
+            index = self._init_loop_header(block)
+        for index in range(index, len(block.operations)):
+            op = block.operations[index]
+            meth = getattr(
+                self, "analyze_" + op.__class__.__name__, self.analyze_default
+            )
+            res = meth(op)
             if op.resolved_type in RELEVANT_TYPES:
-                meth = getattr(self, "analyze_" + op.__class__.__name__, self.analyze_default)
-                res = meth(op)
                 assert res is not None
                 self.current_values[op] = res
+            else:
+                assert res is None
+
+    def _init_loop_header(self, block):
+        for index, op in enumerate(block.operations):
+            if not isinstance(op, ir.Phi):
+                return index
+            if op.resolved_type not in RELEVANT_TYPES:
+                continue
+            self.current_values[op] = default_for_type(op.resolved_type)
+        return index + 1
 
     def analyze_default(self, op):
         if op.resolved_type is types.Bool():
@@ -377,6 +511,12 @@ class AbstractInterpreter(object):
         res = None
         for prevblock, value in zip(op.prevblocks, op.prevvalues):
             b = self._bounds(value, must_exist=False, block=prevblock)
+            # if b is None and the graph does not have a loop, it means that
+            # prevblock is unreachable
+            if b is None and self.graph.has_loop:
+                # The previous nodes might not have been visited yet
+                b = default_for_type(value.resolved_type)
+
             if res is None:
                 res = b
             elif b is not None:
@@ -386,10 +526,12 @@ class AbstractInterpreter(object):
     def analyze_RangeCheck(self, op):
         # type: (ir.RangeCheck) -> None
         oldbound, low, high, _ = self._argbounds(op)
-        assert low is not None
-        assert high is not None
         assert oldbound is not None
-        newbound = oldbound.make_ge(low).make_le(high)
+        newbound = oldbound
+        if low is not None:
+            newbound = newbound.make_ge(low)
+        if high is not None:
+            newbound = newbound.make_le(high)
         self.current_values[op.args[0]] = newbound
         return None
 
@@ -452,6 +594,7 @@ class AbstractInterpreter(object):
     def analyze_add(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.add(arg1)
+
     analyze_add_int = analyze_add
     analyze_add_i_i_must_fit = analyze_add
     analyze_add_i_i_wrapped_res = analyze_add
@@ -460,6 +603,7 @@ class AbstractInterpreter(object):
     def analyze_sub(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.sub(arg1)
+
     analyze_sub_int = analyze_sub
     analyze_sub_i_i_must_fit = analyze_sub
     analyze_sub_i_i_wrapped_res = analyze_sub
@@ -487,13 +631,13 @@ class AbstractInterpreter(object):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():
             return
-        return Range(0, 2**arg1.low - 1)
+        return Range(0, 2 ** arg1.low - 1)
 
     def analyze_unsigned_bv_wrapped_res(self, op):
         _, arg1 = self._argbounds(op)
         if not arg1.isconstant():
             return
-        return Range(0, 2**arg1.low - 1)
+        return Range(0, 2 ** arg1.low - 1)
 
     def analyze_signed_bv(self, op):
         _, arg1 = self._argbounds(op)
@@ -505,38 +649,43 @@ class AbstractInterpreter(object):
     def analyze_mult_int(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.mul(arg1)
+
     analyze_mult_i_i_wrapped_res = analyze_mult_int
     analyze_mult_i_i_must_fit = analyze_mult_int
 
     def analyze_tdiv_int(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.tdiv(arg1)
+
     analyze_tdiv_int_i_i = analyze_tdiv_int
 
     def analyze_ediv_int(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.ediv(arg1)
+
     analyze_ediv_int_i_ipos = analyze_ediv_int
 
     def analyze_lshift(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.lshift(arg1)
+
     analyze_shl_mach_int = analyze_lshift
     analyze_shl_int_o_i = analyze_lshift
     analyze_shl_int_i_i_wrapped_res = analyze_lshift
     analyze_shl_int_i_i_must_fit = analyze_lshift
 
     def analyze_pow2_i(self, op):
-        arg0, = self._argbounds(op)
+        (arg0,) = self._argbounds(op)
         return Range(1, 1).lshift(arg0)
 
     def analyze_rshift(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.rshift(arg1)
+
     analyze_shr_mach_int = analyze_rshift
     analyze_shr_int_o_i = analyze_rshift
 
-    def analyze_assert_in_range(self, op): # tests only for now
+    def analyze_assert_in_range(self, op):  # tests only for now
         arg0, arg1, arg2 = self._argbounds(op)
         assert arg1.isconstant() and arg2.isconstant()
         res = self.current_values[op.args[0]] = Range(arg1.low, arg2.high)
@@ -546,6 +695,10 @@ class AbstractInterpreter(object):
         return Range(0, None)
 
     def analyze_pack_machineint(self, op):
+        (arg,) = self._argbounds(op)
+        return arg
+
+    def analyze_packed_field_int_to_int64(self, op):
         (arg,) = self._argbounds(op)
         return arg
 
@@ -577,14 +730,19 @@ class AbstractInterpreter(object):
                 truevalues[args[1]] = arg1.make_gt(arg0)
                 falsevalues[args[0]] = arg0.make_ge(arg1)
                 falsevalues[args[1]] = arg1.make_le(arg0)
-            elif name in ("eq", "eq_int", "eq_int_o_i", "eq_int_i_i") and args[0].resolved_type in INT_TYPES:
+            elif (
+                name in ("eq", "eq_int", "eq_int_o_i", "eq_int_i_i")
+                and args[0].resolved_type in INT_TYPES
+            ):
                 arg0, arg1 = self._argbounds(args)
                 if arg0.isconstant():
                     truevalues[args[1]] = arg0
                 if arg1.isconstant():
                     truevalues[args[0]] = arg1
             else:
-                if name != op.name and any(arg.resolved_type in INT_TYPES for arg in op.args):
+                if name != op.name and any(
+                    arg.resolved_type in INT_TYPES for arg in op.args
+                ):
                     self.codegen.print_debug_msg("UNKNOWN CONDITION", name, op)
         return truevalues, falsevalues
 
@@ -605,7 +763,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
         return ir.LocalOptimizer._should_fit_machine_int(self, op)
 
     def optimize_block(self, block):
-        if block not in self.values: # dead
+        if block not in self.values:  # dead
             self.current_values = None
             return
         self.current_values = self.values[block]
@@ -626,17 +784,26 @@ class IntOpOptimizer(ir.LocalOptimizer):
             return ir.BooleanConstant.FALSE
 
     def _optimize_op(self, block, index, op):
+        def can_remove(op):
+            from pydrofoil import supportcode
+
+            if not op.can_have_side_effects:
+                return True
+            name = op.name.lstrip("@$")
+            name = self.codegen.builtin_names.get(name, name)
+            return name in supportcode.purefunctions
+
         if op.resolved_type is types.Bool():
             res = self._known_boolean_value(op)
-            if res is not None:
+            if res is not None and can_remove(op):
                 return res
         elif op.resolved_type is types.Int():
             b = self.current_values.get(op, None)
-            if b and b.isconstant():
+            if b and b.isconstant() and can_remove(op):
                 return ir.IntConstant(b.low)
         elif op.resolved_type is types.MachineInt():
             b = self.current_values.get(op, None)
-            if b and b.isconstant():
+            if b and b.isconstant() and can_remove(op):
                 return ir.MachineIntConstant(b.low)
         return ir.LocalOptimizer._optimize_op(self, block, index, op)
 
@@ -648,7 +815,11 @@ class IntOpOptimizer(ir.LocalOptimizer):
             if targetblock is self.graph.startblock:
                 break
             prevblock = self.idom[targetblock]
-            if not self.values.get(prevblock, {}).get(arg, UNBOUNDED).fits_machineint():
+            if (
+                not self.values.get(prevblock, {})
+                .get(arg, UNBOUNDED)
+                .fits_machineint()
+            ):
                 break
             targetblock = prevblock
         self._need_dead_code_removal = True
@@ -662,8 +833,27 @@ class IntOpOptimizer(ir.LocalOptimizer):
         if arg.resolved_type is types.Int():
             value = self.current_values.get(arg, None)
             if value is not None and value.fits_machineint():
-                return self._insert_int_to_int64_into_right_block(arg, self.current_block)
-        return ir.LocalOptimizer._extract_machineint(self, arg, *args, **kwargs)
+                return self._insert_int_to_int64_into_right_block(
+                    arg, self.current_block
+                )
+        return ir.LocalOptimizer._extract_machineint(
+            self, arg, *args, **kwargs
+        )
+
+    def _extract_unsigned_bv64(self, arg):
+        if (
+            not isinstance(arg, ir.Constant)
+            and arg.resolved_type is types.MachineInt()
+        ):
+            value = self.current_values.get(arg, None)
+            if value is not None and value.low is not None and value.low >= 0:
+                res = self.newop(
+                    "@get_slice_int_i_i_i",
+                    [ir.MachineIntConstant(64), arg, ir.MachineIntConstant(0)],
+                    types.SmallFixedBitVector(64),
+                )
+                return res
+        return ir.LocalOptimizer._extract_unsigned_bv64(self, arg)
 
     def _optimize_Phi(self, op, block, index):
         if op.resolved_type is types.Int():
@@ -673,15 +863,14 @@ class IntOpOptimizer(ir.LocalOptimizer):
             for prevblock, arg in zip(op.prevblocks, op.prevvalues):
                 value = self.values.get(prevblock, {}).get(arg, None)
                 if value is not None and value.fits_machineint():
-                    arg = self._insert_int_to_int64_into_right_block(arg, prevblock)
+                    arg = self._insert_int_to_int64_into_right_block(
+                        arg, prevblock
+                    )
                 else:
                     return None
                 machineints.append(arg)
             return self._make_int64_to_int(
-                self.newphi(
-                    op.prevblocks,
-                    machineints,
-                    types.MachineInt())
+                self.newphi(op.prevblocks, machineints, types.MachineInt())
             )
         return ir.LocalOptimizer._optimize_Phi(self, op, block, index)
 
@@ -701,8 +890,26 @@ class IntOpOptimizer(ir.LocalOptimizer):
                     )
                 )
 
+    def _optimize_RangeCheck(self, op, block, index):
+        arg0, arg1, arg2, arg3 = self._args(op)
+        if isinstance(
+            arg0, (ir.IntConstant, ir.MachineIntConstant, ir.BooleanConstant)
+        ):
+            return ir.REMOVE
+        if (
+            arg0.resolved_type is types.Int()
+            and isinstance(arg1, ir.IntConstant)
+            and isinstance(arg2, ir.IntConstant)
+            and arg1.number >= MININT
+            and arg2.number <= MAXINT
+        ):
+            arg0 = self._extract_machineint(arg0)
+            op.args[0] = arg0
+        return None  # leave it alone
+
+
 def optimize_with_range_info(graph, codegen):
-    if graph.has_loop:
+    if graph.has_loop:  # TODO: this limitation can now be removed
         return False
     if graph.has_more_than_n_blocks(1000):
         return False
@@ -710,3 +917,394 @@ def optimize_with_range_info(graph, codegen):
     absinterp.analyze()
     opt = IntOpOptimizer(graph, codegen, absinterp)
     return opt.optimize()
+
+
+def default_for_type(typ):
+    # type: (types.Type) -> Range
+    if typ is types.Bool():
+        return BOOL
+    elif typ is types.MachineInt():
+        return MACHINEINT
+    else:
+        return UNBOUNDED
+
+
+def apply_interprocedural_optimizations(codegen):
+    # type: (makecode.Codegen) -> None
+    location_manager = compute_all_ranges(codegen)
+    changed_graphs = rewrite_global_ranges_into_checks(
+        location_manager, codegen.all_graph_by_name
+    )
+    for graph in changed_graphs:
+        ir.light_simplify(graph, codegen)
+
+
+def compute_all_ranges(codegen):
+    # type: (makecode.Codegen) -> LocationManager
+    todo_set = set(codegen.all_graph_by_name.values()) - set(
+        codegen.inlinable_functions.values()
+    )
+    location_manager = LocationManager()
+    # Initialize ranges with all functions
+    for graph in todo_set:
+        absinterp = InterproceduralAbstractInterpreter(
+            graph, codegen, location_manager
+        )
+        absinterp.analyze()
+    if codegen.program_entrypoints is not None:
+        for entry_point_name in codegen.program_entrypoints:
+            if entry_point_name in codegen.method_graphs_by_name:
+                entry_points = codegen.method_graphs_by_name[
+                    entry_point_name
+                ].values()
+            else:
+                entry_points = [codegen.all_graph_by_name[entry_point_name]]
+
+            for entry_point in entry_points:
+                for arg in entry_point.args:
+                    if not arg.resolved_type in RELEVANT_TYPES:
+                        continue
+                    location = location_manager.get_location_for_argument(
+                        entry_point, arg
+                    )
+                    location.write(
+                        default_for_type(arg.resolved_type),
+                        entry_point,
+                        "entrypoint",
+                    )
+
+    # run to fixpoint
+    while todo_set:
+        graph = todo_set.pop()
+        absinterp = InterproceduralAbstractInterpreter(
+            graph, codegen, location_manager
+        )
+        absinterp.analyze()
+        for mod_location in location_manager.find_modified():
+            todo_set.update(mod_location.readers)
+    return location_manager
+
+
+def rewrite_global_ranges_into_checks(location_manager, graphs):
+    # type: (LocationManager, dict[str, ir.Graph]) -> list[ir.Graph]
+    changed_graphs = []
+    for graph in graphs.values():
+        was_rewritten = _rewrite_graph(location_manager, graph, graphs)
+        if was_rewritten:
+            changed_graphs.append(graph)
+    return changed_graphs
+
+
+def _rewrite_graph(location_manager, graph, graphs):
+    # type: (LocationManager, ir.Graph, dict[str, ir.Graph]) -> bool
+    has_changed = False
+
+    # Add checks for argument
+    for argument in graph.args:
+        if argument.resolved_type not in RELEVANT_TYPES:
+            continue
+        location = location_manager.get_location_for_argument(graph, argument)
+
+        block = graph.startblock
+        assert not block.operations or not isinstance(
+            block.operations[0], ir.Phi
+        )
+        has_changed = _make_check(
+            location,
+            argument,
+            block,
+            0,
+            has_changed,
+        )
+
+    # Add checks based on operation
+    for block in graph.iterblocks():
+        # Iterate in reversed order to preserve indices when inserting
+        for i, instruction in reversed(list(enumerate(block.operations))):
+            if (
+                type(instruction) is ir.Operation
+                and instruction.name in graphs
+            ):
+                callee = graphs[instruction.name]
+                location = location_manager.get_location_for_result(
+                    callee, instruction.resolved_type
+                )
+            elif type(instruction) is ir.FieldAccess:
+                arg = instruction.args[0]
+                struct_type = arg.resolved_type  # type: types.Struct
+                field_name = instruction.name
+                location = location_manager.get_location_for_field(
+                    struct_type, field_name
+                )
+            elif type(instruction) is ir.UnionCast:
+                arg = instruction.args[0]
+                union_type = arg.resolved_type  # type: types.Union
+                variant_name = instruction.name
+                location = location_manager.get_location_for_union(
+                    union_type, variant_name
+                )
+            else:
+                continue
+            has_changed = _make_check(
+                location, instruction, block, i + 1, has_changed
+            )
+    return has_changed
+
+
+def _make_check(location, value, block, index, has_changed_before):
+    # type: (Location, ir.Value, ir.Block, int, bool) -> bool
+    bound = location.bound
+    if not bound.is_bounded_typed(value.resolved_type):
+        return has_changed_before
+
+    new_instruction = ir.RangeCheck(
+        value,
+        bound.low,
+        bound.high,
+        location.message,
+    )
+    block.operations.insert(index, new_instruction)
+    return True
+
+
+class LocationManager(object):
+    def __init__(self):
+        self._all_locations = []  # type: list[Location]
+        self._argument_locations = (
+            {}
+        )  # type: dict[tuple[ir.Graph, ir.Argument], Location]
+        self._result_locations = {}  # type: dict[ir.Graph, Location]
+        self._field_locations = (
+            {}
+        )  # type: dict[tuple[types.Struct, str], Location]
+        self._union_locations = (
+            {}
+        )  # type: dict[tuple[types.Union, str], Location]
+
+    def new_location(self, typ, message):
+        # type: (types.Type, str) -> Location
+        loc = Location(self, typ, message)
+        self._all_locations.append(loc)
+        return loc
+
+    def find_modified(self):
+        # type: () -> frozenset[Location]
+        modified = set()
+        for location in self._all_locations:
+            if location._recompute():
+                modified.add(location)
+        return frozenset(modified)
+
+    def get_location_for_argument(self, graph, arg):
+        # type: (ir.Graph, ir.Argument) -> Location
+        key = (graph, arg)
+        loc = self._argument_locations.get(key)
+        if loc is None:
+            loc = self._argument_locations[key] = self.new_location(
+                arg.resolved_type,
+                "Argument %s of function %s"
+                % (repr(arg.name), repr(graph.name)),
+            )
+        return loc
+
+    def get_location_for_result(self, graph, typ):
+        # type: (ir.Graph, types.Type) -> Location
+        loc = self._result_locations.get(graph)
+        if loc is None:
+            loc = self._result_locations[graph] = self.new_location(
+                typ, "Result of function %r" % graph.name
+            )
+        return loc
+
+    def get_location_for_field(self, typ, field_name):
+        # type: (types.Struct, str) -> Location
+        key = (typ, field_name)
+        loc = self._field_locations.get(key)
+        if loc is None:
+            loc = self._field_locations[key] = self.new_location(
+                typ.fieldtyps[field_name],
+                "Access to field %r of struct %r" % (field_name, typ.name),
+            )
+        return loc
+
+    def get_location_for_union(self, typ, variant_name):
+        # type: (types.Union, str) -> Location
+        key = (typ, variant_name)
+        loc = self._union_locations.get(key)
+        if loc is None:
+            loc = self._union_locations[key] = self.new_location(
+                typ.variants[variant_name],
+                "Variant %r of union %r" % (variant_name, typ.name),
+            )
+        return loc
+
+
+class Location(object):
+    """
+    A location is a point in the code where multiple sources for bounds come
+    together (or are consumed by several consumers).
+
+    Examples:
+    - The arguments of a function are locations
+    - The return value of a function
+    - The values of a specific field of a struct type
+
+    The write and read locations are keyed by a graph.
+    TODO do we need more precision for the key?
+    """
+
+    def __init__(self, manager, typ, message):
+        # type: (LocationManager, types.Type, str) -> None
+        self._manager = manager
+        self._typ = typ
+        self.bound = default_for_type(typ)
+        self.writes = (
+            {}
+        )  # type: dict[tuple[ir.Graph, ir.Return | ir.Operation | str | None], Range]
+        self.readers = set()  # type: set[ir.Graph]
+        self._recompute_counter = 0
+        self.message = message
+
+    def __repr__(self):
+        return "<Location %r %s %s>" % (self.message, self.bound, self._typ)
+
+    def write(self, new_bound, graph, graph_position=None):
+        # type: (Range, ir.Graph, ir.Return | ir.Operation | str | None) -> None
+        """Give a new value for the bound from source graph."""
+        default = default_for_type(self._typ)
+        new_bound = new_bound.make_ge(default).make_le(default)
+        self.writes[graph, graph_position] = new_bound
+        assert self.bound.contains_range(new_bound)
+
+    def read(self, graph):
+        self.readers.add(graph)
+        return self.bound
+
+    def _recompute(self):
+        # type: () -> bool
+        if not self.writes or self._recompute_counter > _RECOMPUTE_LIMIT:
+            return False
+        old = self.bound
+        new = Range.union_many(self.writes.values())
+        assert old.contains_range(new)
+        if new != old:
+            print self.message, old, new, self._recompute_counter
+            self._recompute_counter += 1
+            self.bound = new
+            return True
+        return False
+
+
+class InterproceduralAbstractInterpreter(AbstractInterpreter):
+    def __init__(self, graph, codegen, location_manager):
+        # type: (ir.Graph, makecode.Codegen, LocationManager) -> None
+        super(InterproceduralAbstractInterpreter, self).__init__(
+            graph, codegen
+        )
+        self._location_manager = location_manager
+
+    def analyze_Operation(self, op):
+        # type: (ir.Operation) -> Range | None
+        if op.is_union_creation():
+            return self.analyze_UnionCreation(op)
+        if op.name in self.codegen.all_graph_by_name:
+            func_graphs = [self.codegen.all_graph_by_name[op.name]]
+        elif op.name in self.codegen.method_graphs_by_name:
+            func_graphs = self.codegen.method_graphs_by_name[op.name].values()
+        else:
+            return super(
+                InterproceduralAbstractInterpreter, self
+            ).analyze_Operation(op)
+        for func_graph in func_graphs:
+            arg_bounds = self._argbounds(op)
+            # write argument bounds
+            for func_arg, bound in zip(func_graph.args, arg_bounds):
+                if func_arg.resolved_type not in RELEVANT_TYPES:
+                    continue
+                arg_location = (
+                    self._location_manager.get_location_for_argument(
+                        func_graph, func_arg
+                    )
+                )
+                arg_location.write(bound, self.graph, op)
+            if op.resolved_type not in RELEVANT_TYPES:
+                return None
+            # read result bounds
+            result_location = self._location_manager.get_location_for_result(
+                func_graph, op.resolved_type
+            )
+            return result_location.read(self.graph)
+
+    def analyze_FieldAccess(self, op):
+        if op.resolved_type not in RELEVANT_TYPES:
+            return None
+        location = self._location_manager.get_location_for_field(
+            op.args[0].resolved_type, op.name
+        )
+        return location.read(self.graph)
+
+    def analyze_FieldWrite(self, op):
+        # type: (ir.FieldWrite) -> None
+        if op.args[1].resolved_type not in RELEVANT_TYPES:
+            return None
+        location = self._location_manager.get_location_for_field(
+            op.args[0].resolved_type, op.name
+        )
+        new_bound = self._bounds(op.args[1])
+        location.write(new_bound, self.graph, op)
+        return None
+
+    def analyze_StructConstruction(self, op):
+        # type: (ir.StructConstruction) -> None
+        struct_type = op.resolved_type  # type: types.Struct
+        for field_value, field_name in zip(op.args, struct_type.names):
+            field_type = field_value.resolved_type
+            if field_type not in RELEVANT_TYPES:
+                continue
+            location = self._location_manager.get_location_for_field(
+                struct_type, field_name
+            )
+            new_bound = self._bounds(field_value)
+            location.write(new_bound, self.graph, op)
+        return None
+
+    def analyze_UnionCast(self, op):
+        # type: (ir.UnionCast) -> Range | None
+        if op.resolved_type not in RELEVANT_TYPES:
+            return None
+        location = self._location_manager.get_location_for_union(
+            op.args[0].resolved_type, op.name
+        )
+        return location.read(self.graph)
+
+    def analyze_UnionCreation(self, op):
+        # type: (ir.Operation) -> None
+        if op.args[0].resolved_type not in RELEVANT_TYPES:
+            return None
+        location = self._location_manager.get_location_for_union(
+            op.resolved_type, op.name
+        )
+        (bound,) = self._argbounds(op)
+        location.write(bound, self.graph, op)
+
+    def _init_argument_bounds(self):
+        startblock_values = {}
+        for arg in self.graph.args:
+            if arg.resolved_type not in RELEVANT_TYPES:
+                continue
+            arg_location = self._location_manager.get_location_for_argument(
+                self.graph, arg
+            )
+            startblock_values[arg] = arg_location.read(self.graph)
+        return startblock_values
+
+    def _analyze_return(self, next):
+        # type: (ir.Return) -> None
+        if next.value.resolved_type not in RELEVANT_TYPES:
+            return
+        result_location = self._location_manager.get_location_for_result(
+            self.graph, next.value.resolved_type
+        )
+        bound = self._bounds(next.value)
+        assert bound is not None
+        result_location.write(bound, self.graph, next)

@@ -290,10 +290,8 @@ class Interpreter(object):
             w_cond = self.convert(block_next.booleanvalue)
 
             interp1 = self.fork(self.path_condition + [w_cond])# TODO: handle the conditions better
-            interp1.environment[block_next.booleanvalue] = BooleanConstant(True)
 
             interp2 = self.fork(self.path_condition + [w_cond.not_()])
-            interp2.environment[block_next.booleanvalue] = BooleanConstant(False)
 
             ### we need to now in merge if the current block is actually reachable ###
             self.child_cond_map = {block_next.truetarget: w_cond, block_next.falsetarget: w_cond.not_()}
@@ -412,6 +410,9 @@ class Interpreter(object):
     
     def read_register(self, register):
         """ read from register, (registers must be all created on class init) """
+        if "misa" in register or "mstatus" in register: 
+            self._debug_print("acc reg: %s" % str(register))
+            #self.graph.view()
         return self.registers[register]
     
     def write_register(self, register, value):
@@ -799,7 +800,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
             return BooleanConstant(arg0.value == arg1.value)
         else:
-            return Z3BoolValue(arg0.value == arg1.value)
+            return Z3BoolValue(arg0.toz3() == arg1.toz3())
     
     def exec_gt(self, op):
         arg0, arg1 = self.getargs(op)
@@ -991,17 +992,6 @@ class Interpreter(object):
         else:
             ## arg0 is always >= 0
             return Z3Value(arg0.toz3() / arg1.toz3())
-        
-    """ s = z3.Solver()
-        >>>> y = z3.BitVec("y", 64)
-        >>>> x = z3.BitVec("x", 64)
-        >>>> z = z3.BitVec("z", 64)
-        >>>> s.add(y == z3.Int2BV(2**z3.BV2Int(z, is_signed=False),64))
-        >>>> s.add(z >= 0,  z<= (2**64)-1)
-        >>>> s.check(x/y != x >>  z)
-            unsat
-    """
-
 
 
     def exec_vector_subrange_fixed_bv_i_i(self, op):
@@ -1197,6 +1187,7 @@ class NandInterpreter(Interpreter):
 
     def exec_my_read_mem(self, op):
         """ read from memory """
+        # res type = SmallFixedBitVector(16)
         addr,  = self.getargs(op)
         return Z3Value(self.read_memory(addr))
     
@@ -1215,8 +1206,15 @@ class RiscvInterpreter(Interpreter):
 
     ### RISCV specific Operations ###
 
+    def exec_read_mem_o_o_o_i(self, op):
+        arg0, arg1, arg2, arg3 = self.getargs(op) # layout, addr_size, addr, n_bytes
+        import pdb; pdb.set_trace()
+        # TODO: refactor Memory design to:
+        # a. use bytewise addressing (memory is array[BitVecSort(arch.width)]:BitVecSort(8))
+        # b. be slicable by abstract boundaries 
+
     def exec_zsys_enable_zzfinx(self, op):
-        return BooleanConstant(True)
+        return BooleanConstant(False) 
 
     def exec_zsys_enable_svinval(self, op):
         return BooleanConstant(True)
@@ -1234,6 +1232,9 @@ class RiscvInterpreter(Interpreter):
         return BooleanConstant(False)
     
     def exec_zget_config_print_platform(self, op):
+        return BooleanConstant(False)
+    
+    def exec_zplat_mtval_has_illegal_inst_bits(self, op):
         return BooleanConstant(False)
     
     def exec_zsys_pmp_count(self, op):

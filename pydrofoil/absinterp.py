@@ -541,7 +541,26 @@ class AbstractInterpreter(object):
         name = op.name.lstrip("@$")
         name = self._builtinname(name)
         meth = getattr(self, "analyze_" + name, self.analyze_default)
-        return meth(op)
+        res = meth(op)
+
+        if (
+            # Types
+            all(arg.resolved_type in RELEVANT_TYPES for arg in op.args)
+            and op.resolved_type in RELEVANT_TYPES
+            # Builtin
+            and ("@" in op.name or "$" in op.name)
+            # Args are not TOP
+            and all(
+                not bound.contains_range(default_for_type(arg.resolved_type))
+                for arg, bound in zip(op.args, self._argbounds(op))
+            )
+            # Result is TOP
+            and (res is None or res.contains_range(op.resolved_type))
+        ):
+            import pdb
+
+            pdb.set_trace()
+        return res
 
     def analyze_Phi(self, op):
         if op.resolved_type not in RELEVANT_TYPES:
@@ -1329,7 +1348,6 @@ class Location(object):
         new = Range.union_many(self.writes.values())
         assert old.contains_range(new)
         if new != old:
-            print self.message, old, new, self._recompute_counter
             self._recompute_counter += 1
             self.bound = new
             return True

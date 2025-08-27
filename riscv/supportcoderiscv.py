@@ -435,7 +435,7 @@ def init_sail_reset_vector(machine, entry):
     rom_end = r_uint((addr + align - 1) / align * align)
     for i in range(intmask(addr), rom_end):
         #write_mem(machine, addr, 0)
-        machine.g.mem.write(addr, 1, 0)
+        machine.g.mem.write(addr, 1, r_uint(0))
         addr += 1
 
     # set rom size

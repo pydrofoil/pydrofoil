@@ -739,7 +739,7 @@ class Interpreter(object):
         if isinstance(from_type, types.SmallFixedBitVector): # from
             if isinstance(to_type, types.GenericBitVector): # to
                 if isinstance(arg0, ConstantSmallBitVector):
-                    return ConstantGenericBitVector(arg0.value)
+                    return ConstantGenericBitVector(arg0.value, arg0.width)
                 else:
                     return Z3Value(z3.BV2Int(arg0.value, is_signed=False))
                 
@@ -988,7 +988,7 @@ class Interpreter(object):
         arg0, arg1 = self.getargs(op)
         assert not isinstance(arg0, ConstantSmallBitVector), "?"
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
-             return ConstantGenericBitVector(arg0.value >> arg1.value)
+             return ConstantGenericBitVector(arg0.value >> arg1.value, arg0.width)
         else:
             ## arg0 is always >= 0
             return Z3Value(arg0.toz3() / arg1.toz3())
@@ -1007,11 +1007,9 @@ class Interpreter(object):
         arg0, arg1, arg2 = self.getargs(op)
         assert not isinstance(arg0, ConstantSmallBitVector), "?"
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
-            mask_low = 2 ** (arg2.value + 1) - 1
             mask_high = 2 ** (arg1.value + 1) - 1
-            mask = mask_high - mask_low
             # supportcode cant handle more than 64 bits #
-            return ConstantGenericBitVector(arg0.value & mask)
+            return ConstantGenericBitVector((arg0.value & mask_high) >> arg2.value, arg1.value - arg2.value)
         else:
             # bv must at least be as large as the extract range
             return Z3Value(z3.Extract(arg1.value, arg2.value, z3.Int2BV(arg0.toz3(), arg1.value + 1)))
@@ -1096,9 +1094,8 @@ class Interpreter(object):
         arg0, arg1 = self.getargs(op)
         ### Generic BVs are storedas  z3 or py int, thus a sign extension does not do anything
         if isinstance(arg0, ConstantGenericBitVector):
-            return ConstantGenericBitVector(arg0.value)
+            return ConstantGenericBitVector(arg0.value, arg0.width)
         else:
-            # this assumes arg1 is larger than arg0's size
             return Z3Value(arg0.toz3())
 
     def exec_unsigned_bv(self, op):
@@ -1132,7 +1129,7 @@ class Interpreter(object):
         else:
             if arg0.toz3().sort() == z3.IntSort():
                 # We dont know the Generic BVs true size here  
-                arg0 = Z3Value(z3.Int2BV(arg0.toz3(), 64)) # TODO: this fails for Generic VS using more than  64 bits
+                arg0 = Z3Value(z3.Int2BV(arg0.toz3(), 64)) # TODO: this fails for Generic BVS using more than  64 bits
             if not arg0.toz3().sort().size(): return StringConstant("") 
             zero, one = z3.StringVal("0"), z3.StringVal("1") 
             res = z3.If(z3.Extract(0,0,arg0.toz3()) == 0, zero, one)# index read from right

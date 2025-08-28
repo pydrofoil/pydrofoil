@@ -7,6 +7,9 @@ class Value(object):
         # TODO: Resolved_Type
         self.value = None
     
+    def toz3(self):
+        pass
+    
     def __str__(self):
         return str(self.value)
     
@@ -116,11 +119,18 @@ class ConstantSmallBitVector(AbstractConstant):
         return (self.value == other.value)
     
 class ConstantGenericBitVector(AbstractConstant):
-    def __init__(self, val):
+    def __init__(self, val, width):
         self.value = val
+        assert isinstance(width, int)
+        self.width = width
 
     def toz3(self):
         return z3.IntVal(self.value)
+    
+    def toz3bv(self, width):
+        """ extract the value as fixed size bv 
+            needed for register comparison"""
+        return z3.BitVecVal(self.value, width)
     
     def same_value(self, other):
         if not isinstance(other, ConstantGenericBitVector) or not isinstance(other, ConstantSmallBitVector):

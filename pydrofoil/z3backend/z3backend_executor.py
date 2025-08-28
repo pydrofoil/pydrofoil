@@ -1,5 +1,8 @@
 import z3
-from pydrofoil.z3backend.z3btypes import ConstantSmallBitVector, UnionConstant
+from pydrofoil import types
+from pydrofoil.types import *
+from pydrofoil.z3backend.z3btypes import ConstantSmallBitVector, UnionConstant, StructConstant
+from pydrofoil.z3backend import z3btypes
 
 ## registers used for comparison between angr and z3backend
 
@@ -15,6 +18,12 @@ def patch_name(name):
     # nextPC is uppercase to, but does not exist in angr
     return "z" + name
 
+def unpatch_name(name):
+    """ remove a 'z' from the name """
+    if name == "zPC": return "pc" # for some reason pc is uppercase in sail
+    assert name[0] == "z"
+    return name[1:]
+
 def prepare_interpreter(interp, registers_w, memory_w):
     """ set registers and memory """
     for regname, w_val in registers_w.iteritems():
@@ -25,17 +34,43 @@ def prepare_interpreter(interp, registers_w, memory_w):
         mem = z3.Store(mem, addr, val)
     interp.memory = mem
 
-def execute_machine_code(code, code_bits, interp_class, shared_State, decode_graph, execute_graph, ismthd, init_regs_w, init_mem_w):
-    decoder = interp_class(decode_graph, [ConstantSmallBitVector(code[0], code_bits)], shared_State.copy()) #  must init correctly
+def get_rv64_usermode_misa_w_value(riscvsharedstate):
+    misa = types.Struct('zMisa', ('zbits',), (types.SmallFixedBitVector(64),))
+    misa_z3type = riscvsharedstate.get_z3_struct_type(misa)
+    value = 0b1000000000000000000000000000000000000000001101000001000100101111 # 0x800000000034112F
+    # xlen  0b10 = 2 => 64 bit
+    # reserved? 000000000000000000000000000000000000
+    # extensions                                    00001101000001000100101111
+    return StructConstant([ConstantSmallBitVector(value, 64)], misa, misa_z3type)
+
+def get_rv64_usermode_mstatus_w_value(riscvsharedstate):
+    mstatus = types.Struct('zMstatus', ('zbits',), (types.SmallFixedBitVector(64),))
+    mstatus_z3type = riscvsharedstate.get_z3_struct_type(mstatus)
+    value = 0x0000000A00000000
+    return StructConstant([ConstantSmallBitVector(value, 64)], mstatus, mstatus_z3type)
+
+
+def get_rv64_usermode_cur_privilege_w_value(riscvsharedstate):
+    riscvsharedstate.register_enum('zPrivilege', ('zUser', 'zSupervisor', 'zMachine'))
+    return riscvsharedstate.get_w_enum("zPrivilege", "zUser")
+
+
+def execute_machine_code(code, code_bits, interp_class, shared_state, decode_graph, execute_graph, ismthd, init_regs_w, init_mem_w):
+    decoder = interp_class(decode_graph, [ConstantSmallBitVector(code[0], code_bits)], shared_state.copy()) #  must init correctly
+    prepare_interpreter(decoder, init_regs_w, init_mem_w)
     ast = decoder.run()
     ### executor must only be used via _method_call or _func_call ###
-    executor = interp_class(decode_graph, [ast], shared_State.copy()) # must init with 'normal graph'
+    executor = interp_class(decode_graph, [ast], shared_state.copy()) # must init with 'normal graph'
     prepare_interpreter(executor, init_regs_w, init_mem_w)
     ### actual decode-execute  loop ###
     for instr in code:
         print "###  decoding: %s " % str(hex(instr))
-        decoder = interp_class(decode_graph, [ConstantSmallBitVector(instr, code_bits)], shared_State.copy())
+        decoder = interp_class(decode_graph, [ConstantSmallBitVector(instr, code_bits)], shared_state.copy())
+        prepare_interpreter(decoder, init_regs_w, init_mem_w)
         ast = decoder.run()
+
+        if not isinstance(ast, UnionConstant):
+            import pdb; pdb.set_trace()
 
         executor._reset_env()
         print "###  executing: %s " % str(ast)
@@ -52,11 +87,15 @@ def execute_machine_code(code, code_bits, interp_class, shared_State, decode_gra
     # return executing interpreter to access its registers and memory
     return executor
 
-def extract_regs_smtlib2(interp):
+def extract_regs_smtlib2(interp, registers_size):
     """ returns mapping register_name: smtlib2_expression_for_register """
     smt_regs = {}
     for regname, value in interp.registers.iteritems():
-        smt_regs[regname] = value.toz3().sexpr()
+        if isinstance(value, z3btypes.ConstantGenericBitVector):
+            size = registers_size[unpatch_name(regname)] * 8
+            smt_regs[regname] = value.toz3bv(size).sexpr()
+        else:
+            smt_regs[regname] = value.toz3().sexpr()
     return smt_regs
 
 def extract_mem_smtlib2(interp):

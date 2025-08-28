@@ -2,7 +2,7 @@ import pytest
 import os
 import z3
 from pydrofoil import graphalgorithms
-from pydrofoil import ir
+from pydrofoil import ir, types
 from pydrofoil.z3backend import z3backend, z3btypes
 from pydrofoil.z3backend import z3backend_executor, readpy3angr
 from rpython.rlib.rarithmetic import r_uint 
@@ -142,10 +142,15 @@ def test_complete(riscvsharedstate):
         w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
         code  = readpy3angr.get_code_from_execution(execution)
 
+        w_regs["misa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+        w_regs["mstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+        w_regs["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
+
         interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
                                                           riscvsharedstate, graph_decode, graph_execute, mthd, w_regs, {})
         
-        z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+        registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+        z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
         angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
 
         z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
@@ -165,16 +170,22 @@ def test_gen_code_run_angr_and_compare(riscvsharedstate):
     graph_decode = riscvsharedstate.funcs['zencdec_backwards']
     graph_execute = riscvsharedstate.mthds["zexecute"]
 
-    mthd = True # True
+    mthd = True
 
     for execution in executions:
         w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
+
+        w_regs["misa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+        w_regs["mstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+        w_regs["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
+
         code = readpy3angr.get_code_from_execution(execution)
 
         interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
                                                           riscvsharedstate, graph_decode, graph_execute, mthd, w_regs, {})
         
-        z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+        registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+        z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
         angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
 
         z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
@@ -186,8 +197,8 @@ def test_gen_code_run_angr_and_compare(riscvsharedstate):
         z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbose=True)
 
 
-def test_run_angr_failed(riscvsharedstate):
-    opcode = 0xd4158413 # addi x8 x11 -703
+def test_run_angr_illegal(riscvsharedstate):
+    opcode = 0x003120b3# 0x00002033 #0x0010a0b3 # slt x1 x1 x1
 
     executions =  readpy3angr.run_angr_opcodes(opcodes=[opcode])
     execution = executions[0]
@@ -198,10 +209,16 @@ def test_run_angr_failed(riscvsharedstate):
     w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
     code = readpy3angr.get_code_from_execution(execution)
 
+    w_regs["misa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+    w_regs["mstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+    w_regs["cur_privilege"] = z3backend_executor.get_rv64_usermode_cur_privilege_w_value(riscvsharedstate)
+    w_regs["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
+
     interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
                                                         riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
     
-    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
     angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
 
     z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
@@ -225,10 +242,15 @@ def test_run_angr_reg50_error(riscvsharedstate):
     w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
     code = readpy3angr.get_code_from_execution(execution)
 
+    w_regs["misa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+    w_regs["mstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+    w_regs["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
+
     interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
                                                         riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
     
-    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
     angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
 
     z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
@@ -252,10 +274,16 @@ def test_run_angr_reference_error(riscvsharedstate):
     w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
     code = readpy3angr.get_code_from_execution(execution)
 
+    w_regs["misa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+    w_regs["mstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+    w_regs["cur_privilege"] = z3backend_executor.get_rv64_usermode_cur_privilege_w_value(riscvsharedstate)
+    w_regs["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
+
     interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
                                                         riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
     
-    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
     angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
 
     z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
@@ -278,10 +306,15 @@ def test_run_angr_missing_pc_reg(riscvsharedstate):
     w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
     code = readpy3angr.get_code_from_execution(execution)
 
+    w_regs["misa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+    w_regs["mstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+    w_regs["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
+
     interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
                                                         riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
     
-    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
     angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
 
     z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
@@ -305,10 +338,46 @@ def test_run_angr_rtype_mul(riscvsharedstate):
     w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
     code = readpy3angr.get_code_from_execution(execution)
 
+    w_regs["misa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+    w_regs["mstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+    w_regs["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
+
     interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
                                                         riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
     
-    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp)
+    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
+    angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+
+    z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)
+
+    reg_init_reg_name_mapping = readpy3angr.get_init_reg_names_from_execution(execution)
+
+    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, reg_init_reg_name_mapping,  init_reg_name_to_z3_mapping)
+
+    z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbose=True)
+
+def test_run_sra_generic_bv_error(riscvsharedstate):
+    opcode = 0x400050b3 # sra x0, x0, x1
+
+    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode])
+    execution = executions[0]
+
+    graph_decode = riscvsharedstate.funcs['zencdec_backwards']
+    graph_execute = riscvsharedstate.mthds["zexecute"]
+
+    w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
+    code = readpy3angr.get_code_from_execution(execution)
+
+    w_regs["misa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+    w_regs["mstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+    w_regs["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
+
+    interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
+                                                        riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
+    
+    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
     angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
 
     z3b_regs_smtlib, angr_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib, angr_regs_smtlib)

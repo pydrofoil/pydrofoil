@@ -991,8 +991,8 @@ class Interpreter(object):
              return ConstantGenericBitVector(arg0.value >> arg1.value, arg0.width)
         else:
             ## arg0 is always >= 0
+            if isinstance(arg1,  ConstantInt) and  arg1.value == 0: return arg0
             return Z3Value(arg0.toz3() / arg1.toz3())
-
 
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
@@ -1178,7 +1178,7 @@ class NandInterpreter(Interpreter):
 
     def __init__(self, graph, args, shared_state=None, entrymap=None):
         super(NandInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
-        self.memory = z3.Array('memory', z3.BitVecSort(16), z3.BitVecSort(16))
+        self.memory = z3.Array('memory', z3.BitVecSort(16), z3.BitVecSort(16)) # nand memory cells are 16 bit each
     
     ### Nand2Tetris specific Operations ###
 
@@ -1199,7 +1199,7 @@ class RiscvInterpreter(Interpreter):
 
     def __init__(self, graph, args, shared_state=None, entrymap=None):
         super(RiscvInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
-        self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(64))
+        self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(8))
 
     ### RISCV specific Operations ###
 

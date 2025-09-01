@@ -56,11 +56,11 @@ def gen_code_run_angr(num_ops=128, arch="rv64"):
 
 def run_angr_opcodes(opcodes=[], arch="rv64", verbose=False):
     """ simulate opcodes with angr and load the execution objects """
-    #assert "CPY3ANGR" in os.environ, "cant find cpy3 with angr in environment " 
+    assert "CPY3ANGR" in os.environ, "cant find cpy3 with angr in environment " 
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
     opcodes = [str(opc) for opc in opcodes]
     file = tempfile.NamedTemporaryFile(suffix=".py")
-    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", file.name]
+    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-angrcpy", "-file", file.name]
     if verbose:
         cmd.append("-verbose")
     cmd.append("-opcodes")

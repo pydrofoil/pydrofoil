@@ -525,6 +525,7 @@ def test_dont_do_reset_vector_without_elf():
     assert cpu.read_register("pc") == _pydrofoil.bitvector(64, ram_base + 4)
     assert cpu.read_register("x11") == _pydrofoil.bitvector(64, 0x20)
     assert len(mem) == 1
+    assert cpu.memory_info() == [(ram_base, ram_base + 7)]
 
 
 def test_step_monitor_mem_with_callbacks():

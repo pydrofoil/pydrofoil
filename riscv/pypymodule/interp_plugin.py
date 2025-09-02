@@ -468,7 +468,7 @@ class MachineAbstractBase(object):
             write_reset_vector = True
         else:
             entry = self.machine.g.rv_ram_base
-            write_reset_vector = False
+            write_reset_vector = dtb # don't write reset vector, unless we want a dtb
         self.reset_pc = init_sail(space, self.machine, entry, write_reset_vector)
         self.machine.set_pc(self.reset_pc)
         self.machine.g._init_ranges()

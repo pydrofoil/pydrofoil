@@ -465,9 +465,11 @@ class MachineAbstractBase(object):
             observer.wrapped = mem
         if elf is not None:
             entry = load_sail(space, self.machine, elf)
+            write_reset_vector = True
         else:
             entry = self.machine.g.rv_ram_base
-        self.reset_pc = init_sail(space, self.machine, entry)
+            write_reset_vector = False
+        self.reset_pc = init_sail(space, self.machine, entry, write_reset_vector)
         self.machine.set_pc(self.reset_pc)
         self.machine.g._init_ranges()
 

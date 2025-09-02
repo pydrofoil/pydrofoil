@@ -528,6 +528,25 @@ def test_dont_do_reset_vector_without_elf():
     assert cpu.memory_info() == [(ram_base, ram_base + 7)]
 
 
+def test_set_sail_memory_bounds():
+    mem = {}
+    def read(addr):
+        return mem.get(addr, _pydrofoil.bitvector(64, 0))
+    def write(addr, value):
+        mem[addr] = value
+
+    callbacks = _pydrofoil.Callbacks(mem_read8_intercept=read, mem_write8_intercept=write)
+    cpu = _pydrofoil.RISCV64(callbacks=callbacks)
+    ram_base = 0x8000000000 # outside of default mem bounds
+    cpu._set_sail_memory_bounds(ram_base, 0x100000)
+    cpu.write_memory(ram_base, _pydrofoil.bitvector(64, 0x02028593)) # addi a1, t0, 0x20
+    cpu.write_register("pc", ram_base)
+    cpu.step()
+    assert cpu.read_register("pc") == _pydrofoil.bitvector(64, ram_base + 4)
+    assert cpu.read_register("x11") == _pydrofoil.bitvector(64, 0x20)
+    assert len(mem) == 1
+
+
 def test_step_monitor_mem_with_callbacks():
     mem = {}
     def read(addr):

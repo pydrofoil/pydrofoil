@@ -611,6 +611,14 @@ class MachineAbstractBase(object):
     def descr_get_lowlevel(self, space):
         return self.W_Lowlevel(space, self)
 
+    @unwrap_spec(start=r_uint, size=r_uint)
+    def descr_set_sail_memory_bounds(self, space, start, size):
+        if start + size < start:
+            raise oefmt(space.w_ValueError, "end point of memory bounds outside of 64-bit")
+        self.machine.g.rv_ram_base = start
+        self.machine.g.rv_ram_size = size
+
+
 
 class MemoryObserver(mem_mod.MemBase):
     _immutable_fields_ = ['wrapped']
@@ -728,6 +736,7 @@ W_RISCV64.typedef = TypeDef("_pydrofoil.RISCV64",
     disassemble_last_instruction = interp2app(W_RISCV64.disassemble_last_instruction),
     types = GetSetProperty(W_RISCV64.descr_get_types),
     lowlevel = GetSetProperty(W_RISCV64.descr_get_lowlevel),
+    _set_sail_memory_bounds = interp2app(W_RISCV64.descr_set_sail_memory_bounds),
 )
 
 
@@ -764,6 +773,7 @@ W_RISCV32.typedef = TypeDef("_pydrofoil.RISCV32",
     disassemble_last_instruction = interp2app(W_RISCV32.disassemble_last_instruction),
     types = GetSetProperty(W_RISCV32.descr_get_types),
     lowlevel = GetSetProperty(W_RISCV32.descr_get_lowlevel),
+    _set_sail_memory_bounds = interp2app(W_RISCV32.descr_set_sail_memory_bounds),
 )
 
 # bitvector support

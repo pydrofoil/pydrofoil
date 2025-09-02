@@ -390,9 +390,12 @@ def instr_announce(machine, _):
 # sim stuff
 
 @specialize.argtype(0)
-def init_sail(machine, elf_entry):
+def init_sail(machine, elf_entry, write_reset_vector=True):
     machine.init_model()
-    return init_sail_reset_vector(machine, elf_entry)
+    if write_reset_vector:
+        return init_sail_reset_vector(machine, elf_entry)
+    else:
+        return elf_entry
 
 @specialize.argtype(0)
 def is_32bit_model(machine):

@@ -1,4 +1,5 @@
 import os
+import sys
 
 from typing import Any
 
@@ -1108,6 +1109,17 @@ def shr_mach_int(machine, i, shift):
 @purefunction
 def abs_int(machine, i):
     return i.abs()
+
+
+@purefunction
+def abs_i_wrapped_res(machine, i):
+    return Integer.fromint(i).abs()  # TODO: faster implementation
+
+
+@purefunction
+def abs_i_must_fit(machine, i):
+    assert i != -sys.maxint - 1
+    return abs(i)
 
 
 def pow_int(machine, i, j):

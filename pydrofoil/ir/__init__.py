@@ -3932,6 +3932,30 @@ class LocalOptimizer(BaseOptimizer):
             op.varname_hint,
         )
 
+    def optimize_abs_int(self, op):
+        (arg0,) = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        return self.newop(
+            "@abs_i_wrapped_res",
+            [arg0],
+            op.resolved_type,
+            op.sourcepos,
+            op.varname_hint,
+        )
+
+    def optimize_abs_i_wrapped_res(self, op):
+        (arg0,) = self._args(op)
+        if self._should_fit_machine_int(op):
+            return self._make_int64_to_int(
+                self.newop(
+                    "@abs_i_must_fit",
+                    op.args,
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            )
+
     @symmetric
     def optimize_mult_int(self, op, arg0, arg1):
         arg1 = self._extract_machineint(arg1)

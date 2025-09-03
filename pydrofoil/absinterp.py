@@ -755,6 +755,9 @@ class AbstractInterpreter(object):
         assert arg0 is not None
         return arg0.abs()
 
+    analyze_abs_i_wrapped_res = analyze_abs
+    analyze_abs_i_must_fit = analyze_abs
+
     def analyze_int_to_int64(self, op):
         # this is a weird op, it raises if the argument doesn't fit in a
         # machine int. that means afterwards know we that the *argument*
@@ -1021,6 +1024,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
         self.idom = graph.immediate_dominators()
 
     def _should_fit_machine_int(self, op):
+
         if self.current_values:
             value = self.current_values.get(op, None)
             if value is not None and value.fits_machineint():

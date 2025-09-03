@@ -625,9 +625,10 @@ class AbstractInterpreter(object):
                 "eq_int_o_i",
             )
         ):
-            import pdb
+            # import pdb
 
-            pdb.set_trace()
+            # pdb.set_trace()
+            pass
         return res
 
     def analyze_Phi(self, op):

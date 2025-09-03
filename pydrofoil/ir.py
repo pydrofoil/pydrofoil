@@ -629,7 +629,7 @@ class Block(object):
             res.append(newop)
         return res
 
-    def _dot(self, dotgen, seen, print_varnames, codegen, backedges):
+    def _dot(self, dotgen, seen, print_varnames, codegen, backedges, highlight_blocks):
         if codegen is None:
             builtin_names = {}
         else:
@@ -659,7 +659,9 @@ class Block(object):
         label = "\\l".join(res)
         nextblocks = self.next.next_blocks()
         fillcolor = "white"
-        if len(nextblocks) == 0:
+        if self in highlight_blocks: 
+            fillcolor = "green"
+        elif len(nextblocks) == 0:
             fillcolor = "yellow"
         dotgen.emit_node(
             str(id(self)),
@@ -668,7 +670,7 @@ class Block(object):
             fillcolor=fillcolor,
         )
         for index, nextblock in enumerate(nextblocks):
-            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges)
+            nextid = nextblock._dot(dotgen, seen, print_varnames, codegen, backedges, highlight_blocks)
             label = ''
             if len(nextblocks) > 1:
                 label = str(bool(index))
@@ -708,13 +710,13 @@ class Graph(object):
         assert isinstance(node, Block)
         return node.next.next_blocks()
 
-    def view(self, codegen=None, maxblocks=None):
+    def view(self, codegen=None, maxblocks=None, highlight_blocks=set()):
         from rpython.translator.tool.make_dot import DotGen
         from dotviewer import graphclient
         import pytest
         import os
         dotgen = DotGen('G')
-        print_varnames = self._dot(dotgen, codegen, maxblocks)
+        print_varnames = self._dot(dotgen, codegen, maxblocks, highlight_blocks)
         if self.has_more_than_n_blocks(200) and maxblocks is None:
             p = pytest.ensuretemp("pyparser").join("temp.dot")
             p.write(dotgen.generate(target=None))
@@ -726,7 +728,7 @@ class Graph(object):
         else:
             GraphPage(dotgen.generate(target=None), print_varnames, self.args).display()
 
-    def _dot(self, dotgen, codegen, maxblocks):
+    def _dot(self, dotgen, codegen, maxblocks, highlight_blocks):
         name = "graph" + self.name
         dotgen.emit_node(
             name,
@@ -745,7 +747,7 @@ class Graph(object):
             blocks = list(self.iterblocks_breadth_first())[:maxblocks]
             for block in blocks:
                 seen.remove(block)
-        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges)
+        firstid = self.startblock._dot(dotgen, seen, print_varnames, codegen, backedges, highlight_blocks)
         dotgen.emit_edge(name, firstid)
         return print_varnames
 

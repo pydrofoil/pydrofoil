@@ -102,7 +102,7 @@ class SharedState(object):
         elif isinstance(typ, types.BigFixedBitVector):
             return z3.BitVecSort(typ.width)
         elif isinstance(typ, types.GenericBitVector):
-            return z3.IntSort()
+            return z3.IntSort()# TODO: replace this with a z3 (int, int) tuple for val, width
         elif isinstance(typ, types.Int):
             return z3.IntSort()
         elif isinstance(typ, types.MachineInt):
@@ -410,9 +410,6 @@ class Interpreter(object):
     
     def read_register(self, register):
         """ read from register, (registers must be all created on class init) """
-        if "misa" in register or "mstatus" in register: 
-            self._debug_print("acc reg: %s" % str(register))
-            #self.graph.view()
         return self.registers[register]
     
     def write_register(self, register, value):
@@ -443,9 +440,9 @@ class Interpreter(object):
             pass
         else:
             rtype = op.resolved_type
-            ztype = self.sharedstate.convert_type_to_z3_type(rtype)
-            z_instance = self.sharedstate.get_abstract_const_of_ztype(ztype, "unreachable_const_of_" + str(ztype))
-            w_class = self.sharedstate.get_w_class_for_ztype(ztype)
+            z3type = self.sharedstate.convert_type_to_z3_type(rtype)
+            z_instance = self.sharedstate.get_abstract_const_of_ztype(z3type, "unreachable_const_of_" + str(z3type))
+            w_class = self.sharedstate.get_w_class_for_ztype(z3type)
             self.environment[op] = w_class(z_instance)
     
     def execute_op(self, op):
@@ -518,7 +515,7 @@ class Interpreter(object):
         w_res, memory, registers = self._func_call(graph, func_args)
         self.memory = memory
         self.registers = registers 
-        self._debug_print("return from " + op.name) #+ " -> " + str(w_res))
+        self._debug_print("return from " + op.name)# + " " + str((w_res.toz3().sort(), op.resolved_type))) #+ " -> " + str(w_res))
         return w_res
     
     def _func_call(self, graph, func_args):
@@ -557,7 +554,7 @@ class Interpreter(object):
             w_res = self._abstract_method_call(graphs, mthd_args, op.args[0].resolved_type)
         else:
             assert 0, "illegal method argument type: %s" % str(mthd_args[0].__class__)
-        self._debug_print("return from " + op.name)
+        self._debug_print("return from " + op.name)# + " " + str((w_res.toz3().sort(), op.resolved_type)))
         return w_res
     
     def _concrete_method_call(self, graphs, mthd_args):
@@ -741,16 +738,20 @@ class Interpreter(object):
                 if isinstance(arg0, ConstantSmallBitVector):
                     return ConstantGenericBitVector(arg0.value, arg0.width)
                 else:
-                    return Z3Value(z3.BV2Int(arg0.value, is_signed=False))
+                    return Z3GenericBitVector(arg0.value, from_type.width)
                 
         elif isinstance(from_type, types.GenericBitVector): # from
             if isinstance(to_type, types.SmallFixedBitVector): # to
                 if isinstance(arg0, ConstantGenericBitVector):
                     return ConstantSmallBitVector(arg0.value, to_type.width)
-                else: 
-                    return Z3Value(z3.Int2BV(arg0.value, to_type.width))
+                elif isinstance(arg0, Z3GenericBitVector):
+                    return Z3Value(arg0.value)
+                elif isinstance(arg0, Z3Value): # Z3Value & sort == int
+                    return Z3Value(z3.Int2BV(arg0.toz3(), to_type.width))
+                else:
+                    assert 0, "type %s for generic bv not allowed" % str(arg0.__class__)
 
-        elif isinstance(from_type,  types.FVec):
+        elif isinstance(from_type, types.FVec):
             if isinstance(to_type, types.Vec):
                 return Vec(arg0)# Vec takes a w arg
 
@@ -985,14 +986,18 @@ class Interpreter(object):
     def exec_shiftr_o_i(self, op):
         """ shift generic bv to the right """
         ## Assume that this is meant to be an logical shift ##
+        # problem: solver.check(x != z3.Int2BV(z3.BV2Int(z3.Int2BV(z3.BV2Int(x, False), 65), False), 64)) runs forever
+        # converting bv to int to bigger_bv to int to bv becomes unsolvable fast
         arg0, arg1 = self.getargs(op)
-        assert not isinstance(arg0, ConstantSmallBitVector), "?"
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
              return ConstantGenericBitVector(arg0.value >> arg1.value, arg0.width)
-        else:
+        elif isinstance(arg0, Z3GenericBitVector):
             ## arg0 is always >= 0
-            if isinstance(arg1,  ConstantInt) and  arg1.value == 0: return arg0
-            return Z3Value(arg0.toz3() / arg1.toz3())
+            return Z3GenericBitVector(arg0.value >> z3.Int2BV(arg1.toz3(), arg0.width), arg0.width)# Z3GenericBitVector.value is bv, but toz3() is int
+        elif isinstance(arg0, Z3Value):
+            import pdb; pdb.set_trace()
+        else:
+            assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
 
     def exec_vector_subrange_fixed_bv_i_i(self, op):
         """ slice bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
@@ -1005,15 +1010,39 @@ class Interpreter(object):
     def exec_vector_subrange_o_i_i_unwrapped_res(self, op):
         """ slice generic bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
-        assert not isinstance(arg0, ConstantSmallBitVector), "?"
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
             mask_high = 2 ** (arg1.value + 1) - 1
             # supportcode cant handle more than 64 bits #
-            return ConstantGenericBitVector((arg0.value & mask_high) >> arg2.value, arg1.value - arg2.value)
-        else:
+            return ConstantSmallBitVector((arg0.value & mask_high) >> arg2.value, 1 + arg1.value - arg2.value)
+        elif isinstance(arg0, Z3GenericBitVector):
+            return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.value))
+        elif isinstance(arg0, Z3Value):
+            val = z3.Int2BV(arg0.toz3(), arg1.value + 1)
             # bv must at least be as large as the extract range
-            return Z3Value(z3.Extract(arg1.value, arg2.value, z3.Int2BV(arg0.toz3(), arg1.value + 1)))
+            return Z3Value(z3.Extract(arg1.value, arg2.value, val))
+        else:
+            assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
                 
+    def exec_get_slice_int_i_o_i(self, op):
+        """ returns int2bv(arg1)[arg0: arg2] (read from right)
+            arg0 = len, arg1 = value, arg2 = start"""
+        arg0, arg1, arg2 = self.getargs(op)
+        if ((isinstance(arg0, ConstantInt) or isinstance(arg0, ConstantGenericInt)) 
+            and (isinstance(arg1, ConstantInt) or isinstance(arg1, ConstantGenericInt))
+            and (isinstance(arg2, ConstantInt) or isinstance(arg2, ConstantGenericInt))):
+            return ConstantGenericBitVector((arg1.value >> arg2.value) & ((1 << arg0.value) - 1), arg0.value + 1)
+        elif isinstance(arg1, Z3GenericBitVector):
+            import pdb; pdb.set_trace()
+        elif isinstance(arg1, Z3Value):
+            # z3 shift and logic and only allowed on bvs
+            val = z3.Int2BV(arg1.toz3(), arg0.value)
+            # is this supposed to return a bv of size arg0 or arg0-arg2
+            #val = z3.Extract(arg0.value, arg2.value, val)
+            val = val >> arg2.value # this returns a bv of size arg0
+            return Z3GenericBitVector(val, arg0.value)
+        else:
+            assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
+
     def exec_vector_update_subrange_fixed_bv_i_i_bv(self, op):
         arg0, arg1, arg2, arg3 = self.getargs(op)#  bv high low new_val 
         if isinstance(arg0, ConstantSmallBitVector):
@@ -1094,9 +1123,13 @@ class Interpreter(object):
         arg0, arg1 = self.getargs(op)
         ### Generic BVs are storedas  z3 or py int, thus a sign extension does not do anything
         if isinstance(arg0, ConstantGenericBitVector):
-            return ConstantGenericBitVector(arg0.value, arg0.width)
+            return ConstantGenericBitVector(arg0.value, arg1.value)
+        elif isinstance(arg0, Z3GenericBitVector):
+            return Z3GenericBitVector(z3.SignExt(arg1.value - arg0.width, arg0.value), arg1.value)
+        elif isinstance(arg0, Z3Value):
+            import pdb; pdb.set_trace()
         else:
-            return Z3Value(arg0.toz3())
+            assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
 
     def exec_unsigned_bv(self, op):
         """ arg is a bv , result is that bv cast to MachineInt """

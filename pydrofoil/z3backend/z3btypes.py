@@ -320,16 +320,15 @@ class Z3StringValue(Z3Value):
 class Z3GenericBitVector(Z3Value):
     
     def __init__(self, val, width):
-        self.value = val
         assert isinstance(width, int)
+        self.value = val
         self.width = width
 
     def toz3(self):
-        assert 0, ""
-        return self.value
+        return z3.BV2Int(self.value, is_signed=False)
     
     def same_value(self, other):
-        assert 0, ""
+        assert 0, "Z3GenericBitVector"
         if self.value.eq(other.toz3()): # syntactical equality
             return True
         return False

@@ -284,3 +284,6 @@ def test_undefined_bitvector_i():
         (types.Int(), Range(-1, 100)),
     )
     assert new_range == Range(0, 100)
+
+
+# TODO replicate_bits_o_i

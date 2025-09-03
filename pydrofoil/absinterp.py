@@ -95,6 +95,35 @@ class Range(object):
             low = -self.high
         return Range(low, high)
 
+    def abs(self):
+        if self.low is None:
+            if self.high is None:
+                # ------ 0 -------
+                return Range(0, None)
+            if self.high < 0:
+                # ---]   0
+                return Range(-self.high, None)
+            else:
+                # ------ 0 --]
+                return Range(0, None)
+        elif self.high is None:
+            if self.low < 0:
+                #    [-- 0 -------
+                return Range(0, None)
+            else:
+                #        0   [----
+                return self
+        else:
+            if self.high < 0:
+                # [---]  0
+                return Range(-self.high, -self.low)
+            if self.low >= 0:
+                #        0   [----]
+                # ------ 0 -------
+                return self
+            #       [--- 0 ------]
+            return Range(0, max(-self.low, self.high))
+
     def sub(self, other):
         return self.add(other.neg())
 
@@ -141,6 +170,15 @@ class Range(object):
                 return Range(0, self.high)
         return UNBOUNDED
 
+    def emod(self, other):
+        # type: (Range) -> Range
+        other = other.abs()
+        if other.high == 0:
+            return Range(None, None)
+        high = (other.high - 1) if other.high is not None else None
+        low = 0
+        return Range(low, high)
+
     def lshift(self, other):
         if (
             self.is_bounded()
@@ -176,6 +214,19 @@ class Range(object):
             ]
             return Range(min(values), max(values))
         return UNBOUNDED
+
+    def max(self, other):
+        if self.low is None:
+            low = other.low
+        elif other.low is None:
+            low = self.low
+        else:
+            low = max(self.low, other.low)
+        if self.high is None or other.high is None:
+            high = None
+        else:
+            high = max(self.high, other.high)
+        return Range(low, high)
 
     def union(self, other):
         # type: (Range) -> Range
@@ -555,8 +606,24 @@ class AbstractInterpreter(object):
                 for arg, bound in zip(op.args, self._argbounds(op))
             )
             # Result is TOP
-            and (res is None or res.contains_range(default_for_type(op.resolved_type)))
-            and name not in ('lt', 'eq', 'gt', 'gteq', 'lteq', 'ones_i', 'zeros_i', 'undefined_bitvector_i', 'mult_o_i_wrapped_res', 'iadd', 'eq_int_o_i')
+            and (
+                res is None
+                or res.contains_range(default_for_type(op.resolved_type))
+            )
+            and name
+            not in (
+                "lt",
+                "eq",
+                "gt",
+                "gteq",
+                "lteq",
+                "ones_i",
+                "zeros_i",
+                "undefined_bitvector_i",
+                "mult_o_i_wrapped_res",
+                "iadd",
+                "eq_int_o_i",
+            )
         ):
             import pdb
 
@@ -660,6 +727,14 @@ class AbstractInterpreter(object):
     analyze_add_i_i_wrapped_res = analyze_add
     analyze_add_o_i_wrapped_res = analyze_add
 
+    def analyze_iadd(self, op):
+        arg0, arg1 = self._argbounds(op)
+        sum_range = arg0.add(arg1)
+        # Consider overflow
+        if MACHINEINT.contains_range(sum_range):
+            return sum_range
+        return MACHINEINT
+
     def analyze_sub(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.sub(arg1)
@@ -669,6 +744,16 @@ class AbstractInterpreter(object):
     analyze_sub_i_i_wrapped_res = analyze_sub
     analyze_sub_o_i_wrapped_res = analyze_sub
     analyze_sub_i_o_wrapped_res = analyze_sub
+
+    def analyze_neg(self, op):
+        (arg0,) = self._argbounds(op)
+        assert arg0 is not None
+        return arg0.neg()
+
+    def analyze_abs(self, op):
+        (arg0,) = self._argbounds(op)
+        assert arg0 is not None
+        return arg0.abs()
 
     def analyze_int_to_int64(self, op):
         # this is a weird op, it raises if the argument doesn't fit in a
@@ -712,6 +797,7 @@ class AbstractInterpreter(object):
 
     analyze_mult_i_i_wrapped_res = analyze_mult_int
     analyze_mult_i_i_must_fit = analyze_mult_int
+    analyze_mult_o_i_wrapped_res = analyze_mult_int
 
     def analyze_tdiv_int(self, op):
         arg0, arg1 = self._argbounds(op)
@@ -724,6 +810,12 @@ class AbstractInterpreter(object):
         return arg0.ediv(arg1)
 
     analyze_ediv_int_i_ipos = analyze_ediv_int
+
+    def analyze_emod_int(self, op):
+        arg0, arg1 = self._argbounds(op)
+        assert arg0 is not None
+        assert arg1 is not None
+        return arg0.emod(arg1)
 
     def analyze_lshift(self, op):
         arg0, arg1 = self._argbounds(op)
@@ -744,6 +836,12 @@ class AbstractInterpreter(object):
 
     analyze_shr_mach_int = analyze_rshift
     analyze_shr_int_o_i = analyze_rshift
+
+    def analyze_max_int(self, op):
+        arg_0, arg_1 = self._argbounds(op)
+        assert arg_0 is not None
+        assert arg_1 is not None
+        return arg_0.max(arg_1)
 
     def analyze_assert_in_range(self, op):  # tests only for now
         arg0, arg1, arg2 = self._argbounds(op)
@@ -833,16 +931,6 @@ class AbstractInterpreter(object):
     analyze_add_bits = analyze_bv_bit_op
     analyze_sub_bits = analyze_bv_bit_op
 
-    def analyze_read_mem(self, op):
-        # Result is a bitvector with n bytes
-        (_, _, _, bound_n) = self._argbounds(op)
-        assert bound_n is not None
-        return bound_n.mul(Range(8, 8)).intersect(BIT_VECTOR)
-
-    analyze_read_mem_exclusive_o_o_o_i = analyze_read_mem
-    analyze_read_mem_ifetch_o_o_o_i = analyze_read_mem
-    analyze_read_mem_o_o_o_i = analyze_read_mem
-
     def analyze_slice_o_i_i(self, op):
         (bound_bv, _, bound_length) = self._argbounds(op)
         assert bound_bv is not None
@@ -860,6 +948,24 @@ class AbstractInterpreter(object):
         assert bound_width is not None
         assert bound_nzeros is not None
         return bound_width.add(bound_nzeros)
+
+    def analyze_replicate_bits_o_i(self, op):
+        arg_0, arg_1 = self._argbounds(op)
+        assert arg_0 is not None
+        assert arg_1 is not None
+        return arg_0.mul(arg_1).intersect(BIT_VECTOR)
+
+    # mem
+
+    def analyze_read_mem(self, op):
+        # Result is a bitvector with n bytes
+        (_, _, _, bound_n) = self._argbounds(op)
+        assert bound_n is not None
+        return bound_n.mul(Range(8, 8)).intersect(BIT_VECTOR)
+
+    analyze_read_mem_exclusive_o_o_o_i = analyze_read_mem
+    analyze_read_mem_ifetch_o_o_o_i = analyze_read_mem
+    analyze_read_mem_o_o_o_i = analyze_read_mem
 
     # conditions
 

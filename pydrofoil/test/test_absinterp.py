@@ -1734,7 +1734,7 @@ def test_length():
     block1.next = Return(i1)
     g = Graph("g", [v], block1)
     values = analyze(g, fakecodegen)
-    assert values[block1][i1] == Range(0, None)
+    assert values[block1][i1] == Range(0, MAXINT)
 
 
 def test_pow2_i():
@@ -2239,3 +2239,7 @@ def test_loop_bug():
     graph = Graph("zFloorPow2_specialized_i", [zx], block0, True)
     values = analyze(graph, fakecodegen)
     assert values[block3][i5].contains_range(Range(0, None))
+
+
+# TODO test iadd
+# TODO test mult_o_i_wrapped_res

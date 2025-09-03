@@ -2239,7 +2239,3 @@ def test_loop_bug():
     graph = Graph("zFloorPow2_specialized_i", [zx], block0, True)
     values = analyze(graph, fakecodegen)
     assert values[block3][i5].contains_range(Range(0, None))
-
-
-# TODO test iadd
-# TODO test mult_o_i_wrapped_res

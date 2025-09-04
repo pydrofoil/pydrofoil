@@ -8,19 +8,24 @@ from pydrofoil.z3backend.z3btypes import *
 class SharedState(object):
 
     def __init__(self, functions={}, registers={}, methods={}):
-        self.funcs = functions
-        self.mthds = methods
+        self.funcs = functions # rpython graphs for sail functions
+        self.mthds = methods # rpython graphs for sail methods
         self.registers = registers # type: dict[str, types.Type]
         self.enums = {}
         self.type_cache = {}
         self.union_field_cache = {} # (union_name,union_field):z3_type
         self.struct_z3_field_map = {}# z3type:(fields, resolved_type)
-        self.struct_unit_fields = set()
+        self.struct_unit_fields = set() # (structtype, fieldname) # to remember which fields are unit 
+        self.fork_counter = 0
+        # z3 unit type
         unit = z3.Datatype("____unit____")
         unit.declare("UNIT")
         self._z3_unit_type = unit.create()
         self._z3_unit = self._z3_unit_type.UNIT
-        self.fork_counter = 0
+        # z3 generic bv type
+        genericbvz3type = z3.Datatype("__generic_bv_val_width_tuple__")
+        genericbvz3type.declare("a", ("value", z3.IntSort()), ("width", z3.IntSort()))
+        self._genericbvz3type = genericbvz3type.create()
 
     def get_z3_struct_type(self, resolved_type):
         if resolved_type in self.type_cache:
@@ -33,6 +38,8 @@ class SharedState(object):
             if isinstance(typ, types.Unit):
                 self.struct_unit_fields.add((struct, fieldname))
                 fields.append((fieldname, self._z3_unit_type))
+            elif isinstance(typ, types.GenericBitVector):
+                fields.append((fieldname, self._genericbvz3type))
             else:
                 fields.append((fieldname, self.convert_type_to_z3_type(typ)))
         # TODO: give the constructor a real name that contains the struct name, calling it 'a' makes results very hard to read
@@ -52,6 +59,10 @@ class SharedState(object):
             if typ is types.Unit():
                 union.declare(variant)
                 self.union_field_cache[(uname, variant)] = None # TODO: is this ok? this could go horribly wrong
+            elif isinstance(typ, types.GenericBitVector):
+                z3typ = self._genericbvz3type
+                self.union_field_cache[(uname, variant)] = z3typ
+                union.declare(variant, ("acc_" + variant, z3typ))
             else:
                 z3typ = self.convert_type_to_z3_type(typ)
                 self.union_field_cache[(uname, variant)] = z3typ
@@ -102,7 +113,7 @@ class SharedState(object):
         elif isinstance(typ, types.BigFixedBitVector):
             return z3.BitVecSort(typ.width)
         elif isinstance(typ, types.GenericBitVector):
-            return z3.IntSort()# TODO: replace this with a z3 (int, int) tuple for val, width
+            return self._genericbvz3type# TODO: replace this with a z3 (int, int) tuple for val, width
         elif isinstance(typ, types.Int):
             return z3.IntSort()
         elif isinstance(typ, types.MachineInt):
@@ -279,7 +290,6 @@ class Interpreter(object):
         else:    
             for op in block.operations[index:]:
                 self.execute_op(op)
-
     
     def _schedule_next(self, block_next, schedule):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
@@ -617,6 +627,7 @@ class Interpreter(object):
             fields, _ = self.sharedstate.struct_z3_field_map[z3type]
             vals_w = []
             for field, typ in fields:
+                # Generic Bv type is created as abstract constant, no need to do something here
                 if typ is not self.sharedstate._z3_unit_type:
                     val = self.sharedstate.get_abstract_const_of_ztype(typ, "alloc_uninit_%s_" % field)
                     vals_w.append(self.sharedstate.get_w_class_for_ztype(typ)(val))
@@ -628,11 +639,28 @@ class Interpreter(object):
     
     def exec_struct_construction(self, op):
         """ Execute a Lazy Struct creation """
-        return self._struct_construction(self.getargs(op), op.resolved_type)
+        return self._struct_construction(self.getargs(op), op.args, op.resolved_type)
     
-    def _struct_construction(self, args, resolved_type):
+    def _w_generic_bv_struct(self, w_generic_bv):
+        if isinstance(w_generic_bv, ConstantGenericBitVector):
+            return Z3GenericBitVectorInt(w_generic_bv.value, w_generic_bv.width, self.sharedstate._genericbvz3type, True)
+        elif isinstance(w_generic_bv, Z3GenericBitVector):
+            return Z3GenericBitVectorInt(w_generic_bv.value, w_generic_bv.width, self.sharedstate._genericbvz3type)
+        elif isinstance(w_generic_bv, Z3DeferedIntGenericBitVector):
+            return w_generic_bv
+        elif isinstance(w_generic_bv, Z3GenericBitVectorInt):
+            assert 0, "this Int repr shall not have escaped the z3 level"
+        elif isinstance(w_generic_bv, Z3Value):
+            assert 0, "should not happen anymore"
+        else:
+            assert 0, "class %s not allowed for generic bitvector" % str(w_generic_bv.__class__)
+
+    def _struct_construction(self, wargs, args, resolved_type):
+        for i in range(len(wargs)):
+            if args[i].resolved_type is types.GenericBitVector:
+                wargs[i] = self._w_generic_bv_struct(wargs[i])
         z3type = self.sharedstate.get_z3_struct_type(resolved_type)
-        return StructConstant(args, resolved_type, z3type)
+        return StructConstant(wargs, resolved_type, z3type)
     
     def exec_struct_copy(self, op):
         """ TODO: is this a shallow or deep copy? """
@@ -656,10 +684,31 @@ class Interpreter(object):
             return UnitConstant(self.sharedstate._z3_unit)
         if isinstance(struct, StructConstant):
             index = struct.resolved_type.names.index(field)
-            return struct.vals_w[index]
+            w_val = struct.vals_w[index]
+            if isinstance(w_val, Z3GenericBitVectorInt):
+                if w_val.constant:
+                    return ConstantGenericBitVector(w_val.value, w_val.width)
+                return Z3GenericBitVector(w_val.value, w_val.width)
+            return w_val
         res = getattr(struct_type_z3, field)(struct.toz3())# get accessor from slot with getattr
         if res.sort() == z3.BoolSort():
             return Z3BoolValue(res)
+        elif res.sort() == self.sharedstate._genericbvz3type:
+            value = getattr(self.sharedstate._genericbvz3type, "value")(res)
+            width = getattr(self.sharedstate._genericbvz3type, "width")(res)
+            # Big Problem: width  is a z3 expression and not a python int
+            # int2bv must be called with a python int width
+            # we must simplify :(
+            self._debug_print("simplifying generic bv width now")
+            const_width = z3.simplify(width)
+            self._debug_print("finish simplifying")
+            assert isinstance(const_width, z3.z3.IntNumRef), "cant cast int 2 bv without constant width"
+            if isinstance(const_width, z3.z3.IntNumRef):
+                long_width = const_width.as_long()
+                return Z3GenericBitVector(z3.Int2BV(value, long_width), long_width)
+            else:
+                self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(op))
+                return Z3DeferedIntGenericBitVector(value, res)
         # TODO: check for Unit
         return Z3Value(res)
 
@@ -678,10 +727,15 @@ class Interpreter(object):
         struct_type_z3 = self.sharedstate.get_z3_struct_type(struct_type)
         fields, resolved_type = self.sharedstate.struct_z3_field_map[struct_type_z3]
         new_args  = []
-        for fieldname, _ in fields:
+        if isinstance(new_value, Packed): new_value = new_value.w_value # it seems fieldwrites unpack  implicitly
+        for fieldname, fieldtype in fields:
             if fieldname == field_to_replace:
-                new_args.append(new_value)
+                if fieldtype == self.sharedstate._genericbvz3type:
+                    new_args.append(self._w_generic_bv_struct(new_value))
+                else:
+                    new_args.append(new_value)
             else:
+                # nothing todo here for generic bvs,we are getting the other vals from the z3 struct already
                 res = getattr(struct_type_z3, fieldname)(struct.toz3())# TODO get from vals_w
                 if res.sort() == z3.BoolSort():
                     new_args.append(Z3BoolValue(res))
@@ -716,18 +770,43 @@ class Interpreter(object):
         instance, = self.getargs(op)
         if isinstance(instance, Z3Value):
             z3_cast_instance = self.sharedstate.ir_union_variant_to_z3_type(instance, union_type, to_specialized_variant, res_type)
-            # TODO: do we need to check for BoolSort here too?
+            # TODO: do we need to check for BoolSort here too? we could but we dont have to
+            if z3_cast_instance.sort() == self.sharedstate._genericbvz3type: 
+                value = getattr(self.sharedstate._genericbvz3type, "value")(z3_cast_instance)
+                width = getattr(self.sharedstate._genericbvz3type, "width")(z3_cast_instance)
+                # Big Problem: width  is a z3 expression and not a python int
+                # int2bv m8ust be called with a python int width
+                # we must simplify :(
+                self._debug_print("simplifying generic bv width now")
+                const_width = z3.simplify(width)
+                self._debug_print("finish simplifying")
+                if isinstance(const_width, z3.z3.IntNumRef):
+                    long_width = const_width.as_long()
+                    return Z3GenericBitVector(z3.Int2BV(value, long_width), long_width)
+                else:
+                    self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(op))
+                    return Z3DeferedIntGenericBitVector(value, z3_cast_instance)
             return Z3Value(z3_cast_instance)
         elif isinstance(instance, UnionConstant):
             assert op.name == instance.variant_name
-            return instance.w_val
+            w_val = instance.w_val
+            if isinstance(w_val, Z3GenericBitVectorInt):
+                if w_val.constant:
+                    return ConstantGenericBitVector(w_val.value, w_val.width)
+                return Z3GenericBitVector(w_val.value, w_val.width)
+            return w_val
         else:
             assert 0 , "%s is not allowed in unioncast" % str(union_type) 
 
     def exec_union_creation(self, op):
         """ Execute union creation"""
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
-        return UnionConstant(op.name, self.getargs(op)[0], op.resolved_type, z3type)
+        w_arg = self.getargs(op)[0]
+        #if "generic" in str(op.args[0].resolved_type) or "Generic" in str(op.args[0].resolved_type):
+        #    import pdb; pdb.set_trace()
+        if isinstance(op.args[0].resolved_type, types.GenericBitVector):
+            w_arg = self._w_generic_bv_struct(w_arg)
+        return UnionConstant(op.name, w_arg, op.resolved_type, z3type)
     
     def exec_cast(self, op):
         arg0, = self.getargs(op)
@@ -747,6 +826,7 @@ class Interpreter(object):
                 elif isinstance(arg0, Z3GenericBitVector):
                     return Z3Value(arg0.value)
                 elif isinstance(arg0, Z3Value): # Z3Value & sort == int
+                    assert 0
                     return Z3Value(z3.Int2BV(arg0.toz3(), to_type.width))
                 else:
                     assert 0, "type %s for generic bv not allowed" % str(arg0.__class__)
@@ -823,8 +903,7 @@ class Interpreter(object):
             return BooleanConstant(arg0.value >= arg1.value)
         else:
             return Z3BoolValue(arg0.toz3() >= arg1.toz3())
-
-            
+  
     def exec_lt(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
@@ -980,8 +1059,8 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             return ConstantSmallBitVector(arg0.value >> arg2.value, arg1.value) 
         else:
-            arg2_z3 = arg2.toz3() if not isinstance(arg2.toz3(), int) else z3.Int(arg2.toz3())
-            return Z3Value(arg0.toz3() >> z3.Int2BV(arg2_z3, arg0.toz3().sort().size()))
+            arg2_z3 = arg2.toz3() if not isinstance(arg2.toz3(), int) else z3.IntVal(arg2.toz3())
+            return Z3Value(z3.LShR(arg0.toz3(), z3.Int2BV(arg2_z3, arg0.toz3().sort().size())))
     
     def exec_shiftr_o_i(self, op):
         """ shift generic bv to the right """
@@ -992,10 +1071,9 @@ class Interpreter(object):
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
              return ConstantGenericBitVector(arg0.value >> arg1.value, arg0.width)
         elif isinstance(arg0, Z3GenericBitVector):
-            ## arg0 is always >= 0
-            return Z3GenericBitVector(arg0.value >> z3.Int2BV(arg1.toz3(), arg0.width), arg0.width)# Z3GenericBitVector.value is bv, but toz3() is int
+            return Z3GenericBitVector(z3.LShR(arg0.value, z3.Int2BV(arg1.toz3(), arg0.width)), arg0.width)# Z3GenericBitVector.value is bv, but toz3() is int
         elif isinstance(arg0, Z3Value):
-            import pdb; pdb.set_trace()
+            assert 0
         else:
             assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
 
@@ -1017,6 +1095,7 @@ class Interpreter(object):
         elif isinstance(arg0, Z3GenericBitVector):
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.value))
         elif isinstance(arg0, Z3Value):
+            assert 0
             val = z3.Int2BV(arg0.toz3(), arg1.value + 1)
             # bv must at least be as large as the extract range
             return Z3Value(z3.Extract(arg1.value, arg2.value, val))
@@ -1026,6 +1105,7 @@ class Interpreter(object):
     def exec_get_slice_int_i_o_i(self, op):
         """ returns int2bv(arg1)[arg0: arg2] (read from right)
             arg0 = len, arg1 = value, arg2 = start"""
+        # o = generic int in this case
         arg0, arg1, arg2 = self.getargs(op)
         if ((isinstance(arg0, ConstantInt) or isinstance(arg0, ConstantGenericInt)) 
             and (isinstance(arg1, ConstantInt) or isinstance(arg1, ConstantGenericInt))
@@ -1078,11 +1158,11 @@ class Interpreter(object):
     def exec_pack_smallfixedbitvector(self, op):
         """ convert smallfixedbitvector into GenericBitVector and pack into a Packed Wrapper object 
             DONT omit this, there are 'unpack' operations """
-        _, arg1 = self.getargs(op) #arg0 = bits? ,arg1 = SmallFixedBV
+        arg0, arg1 = self.getargs(op) #arg0 = bits? ,arg1 = SmallFixedBV
         if isinstance(arg1, ConstantSmallBitVector):
-            return Packed(ConstantGenericInt(arg1.value))
+            return Packed(ConstantGenericBitVector(arg1.value, arg0.value))
         else:
-            return Packed(Z3Value(z3.BV2Int(arg1.toz3(), is_signed=False)))
+            return Packed(Z3GenericBitVector(arg1.toz3(), arg0.value))
     
     def exec_pack_machineint(self, op):
         """ pack a MachineInt into a Packed Wrapper object """
@@ -1127,7 +1207,7 @@ class Interpreter(object):
         elif isinstance(arg0, Z3GenericBitVector):
             return Z3GenericBitVector(z3.SignExt(arg1.value - arg0.width, arg0.value), arg1.value)
         elif isinstance(arg0, Z3Value):
-            import pdb; pdb.set_trace()
+            assert 0
         else:
             assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
 

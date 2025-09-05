@@ -3,26 +3,33 @@ import z3
 import os, subprocess, tempfile
 import shutil
 
+RV64_REGISTER_ABI_NAMES = ["zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0",
+                           "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6",  "a7",
+                           "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10",
+                           "s11", "t3", "t4", "t5", "t6"]
+
 
 def load_executions(filename):
     """ load angr simulated 'executions' from file """
     d = {}
-    #eval("from %s import executions" % filename, d)
     eval(compile("from %s import executions" % filename, "<string>", 'exec'), d)
     return d["executions"]
 
 def load_code(filename):
     """ load generated instructions from file """
     d = {}
-    #eval("from %s import executions" % filename, d)
     eval(compile("from %s import code" % filename, "<string>", 'exec'), d)
     return d["code"]
 
-def gen_code_run_angr_single(num_ops=128, arch="rv64", verbose=False):
+def gen_code_run_angr_single(num_ops=128, arch="rv64", verbose=False, pcode=False):
     """ Generate random instructions, simulate each with angr in single subprocess and load the execution objects """
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
     file = tempfile.NamedTemporaryFile(suffix=".py")
     cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", file.name, "-numops", str(num_ops), "-generate"]
+    if verbose:
+        cmd.append("-verbose")
+    if pcode:
+        cmd.append("-pypcode")
     subprocess.check_call(" ".join(cmd),shell=True, env=os.environ)
     copy_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), str(file.name)[1:])
     shutil.copy(file.name, copy_path)
@@ -33,19 +40,23 @@ def gen_code_run_angr_single(num_ops=128, arch="rv64", verbose=False):
         os.remove(copy_path + "c") 
     executions = []
     while code:
-        instrs = [code.pop() for _ in range(min(4, len(code)))] 
+        instrs = [code.pop() for _ in range(min(128, len(code)))] # TODO: remove this and just run all at once
         excs = run_angr_opcodes(instrs, arch, verbose)
         while excs is None: excs = run_angr_opcodes(instrs, arch, verbose)
         executions.extend(excs)
     file.close()
     return executions
 
-def gen_code_run_angr(num_ops=128, arch="rv64"):
+def gen_code_run_angr(num_ops=128, arch="rv64", verbose=False, pcode=False):
     """ Generate random instructions, simulate with angr and load the execution objects """
     #assert "CPY3ANGR" in os.environ, "cant find cpy3 with angr in environment " 
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
     outfile_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp.py")
     cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", outfile_path, "-numops", str(num_ops)]
+    if verbose:
+        cmd.append("-verbose")
+    if pcode:
+        cmd.append("-pypcode")
     subprocess.check_call(" ".join(cmd),shell=True, env=os.environ)
     executions = load_executions("pydrofoil.z3backend.temp")
     if os.path.exists(outfile_path):
@@ -54,15 +65,17 @@ def gen_code_run_angr(num_ops=128, arch="rv64"):
         os.remove(outfile_path + "c") 
     return executions
 
-def run_angr_opcodes(opcodes=[], arch="rv64", verbose=False):
+def run_angr_opcodes(opcodes=[], arch="rv64", verbose=False, pcode=False):
     """ simulate opcodes with angr and load the execution objects """
     assert "CPY3ANGR" in os.environ, "cant find cpy3 with angr in environment " 
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
     opcodes = [str(opc) for opc in opcodes]
     file = tempfile.NamedTemporaryFile(suffix=".py")
-    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-angrcpy", "-file", file.name]
+    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", file.name]
     if verbose:
         cmd.append("-verbose")
+    if pcode:
+        cmd.append("-pypcode")
     cmd.append("-opcodes")
     cmd.append(str(" ".join(opcodes)))
     try:
@@ -135,6 +148,17 @@ def create_wrapped_init_register_values_rv64(execution):
     init_rv64_zero_reg(w_regs, init_name_z3_mapping, get_init_reg_names_from_execution(execution))
     return w_regs, init_name_z3_mapping
 
+def rename_w_registers_xn_pcode_rv64(registers):
+    """ when using pypcode in angr, regs are not refered to as x0, x1, ... but as zero, ra, ...
+        creates mappings for the xnames by copying the abi entries e.g. mapping["x1"] = mapping["ra"], ..."""
+    # x8 has two aliases: s0, fp
+    if "s0" in registers:
+        registers["fp"] = registers["s0"]
+    else:
+        registers["s0"] = registers["fp"]
+
+    for i in range(32):
+        registers["x%d" % i] = registers[RV64_REGISTER_ABI_NAMES[i]]
 
 def create_wrapped_memory_values(execution):
     """ TODO """

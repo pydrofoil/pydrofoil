@@ -235,7 +235,7 @@ def test_struct_construction(interp):
     test_struct = types.Struct("test",  ("a", "b"), (types.SmallFixedBitVector(64), types.Unit()))
 
     args = [z3btypes.ConstantSmallBitVector(1337, 64), z3btypes.UnitConstant(interp.sharedstate._z3_unit)]
-    struct_instance = interp._struct_construction(args, test_struct)
+    struct_instance = interp._struct_construction(args, [types.SmallFixedBitVector(64), types.Unit()], test_struct)
 
     assert isinstance(struct_instance, z3btypes.StructConstant)
 
@@ -263,6 +263,7 @@ def test_struct_copy(interp):
     assert isinstance(copied_struct_instance.vals_w[1], z3btypes.UnitConstant)
 
 @given(interpreter, strategies.integers(0,1), small_bitvectors)
+@settings(deadline=None)
 def test_field_access(interp, const, bv):
     test_struct = types.Struct("test",  ("a", "b", "c"), (types.SmallFixedBitVector(bv.resolved_type.width), types.Unit(), types.Bool()))
 

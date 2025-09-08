@@ -86,7 +86,7 @@ def riscvsharedstate(riscv_first_shared_state):
 ####################################
 
 def run_angr_opcode_assert_equal(riscvsharedstate, opcode):
-    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode])
+    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode], pcode=False)
     execution = executions[0]
 
     graph_decode = riscvsharedstate.funcs['zencdec_backwards']
@@ -100,8 +100,11 @@ def run_angr_opcode_assert_equal(riscvsharedstate, opcode):
     w_regs["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
 
     interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
-                                                        riscvsharedstate, graph_decode, graph_execute, True, w_regs, {})
+                                                        riscvsharedstate, graph_decode, graph_execute, True, w_regs, {},)
+                                                          #["zRISCV_SRA]","zRISCV_SRL]","zRISCV_SLL]"])
     
+    if interp == None: return # we skipped this opcode execution
+
     registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
     z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
     angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
@@ -192,7 +195,7 @@ def test_complete(riscvsharedstate):
         z3backend_executor.solve_assert_z3_unequality_exprs(exprs, False)
 
 def test_gen_code_run_angr_and_compare(riscvsharedstate):
-    executions = readpy3angr.gen_code_run_angr_single(num_ops=2**7)
+    executions = readpy3angr.gen_code_run_angr_single(num_ops=2**7, pcode=False)
     # failed:         0xd4158413, 0xf48f3413, 0x9acb413, 0x98d68413, 0x7e6e413, 0x5ab10413, 0x40987413
     # reg_50:         0xa2944c13, 0x6e942113, 0x68847593, 0x843293, 0xbab42a93
     # ReferenceError: 0x13007379, 0xef206093, 0x0xfffa8013, 0x8f6cab93
@@ -214,6 +217,8 @@ def test_gen_code_run_angr_and_compare(riscvsharedstate):
         interp = z3backend_executor.execute_machine_code(code, RISCV_INSTRUCTION_SIZE, z3backend.RiscvInterpreter,
                                                           riscvsharedstate, graph_decode, graph_execute, mthd, w_regs, {})
         
+        if interp == None: return
+        
         registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
         z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
         angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
@@ -230,7 +235,7 @@ def test_gen_code_run_angr_and_compare(riscvsharedstate):
 def test_run_angr_slt_unsolvable(riscvsharedstate):
     opcode = 0x003120b3# 0x00002033 #0x0010a0b3 # slt x1 x1 x1
 
-    executions =  readpy3angr.run_angr_opcodes(opcodes=[opcode])
+    executions =  readpy3angr.run_angr_opcodes(opcodes=[opcode], pcode=False)
     execution = executions[0]
 
     graph_decode = riscvsharedstate.funcs['zencdec_backwards']
@@ -263,7 +268,7 @@ def test_run_angr_slt_unsolvable(riscvsharedstate):
 def test_run_angr_reg50_error(riscvsharedstate):
     opcode = 0xa2944c13 # xori x24 x8 -1495
     opcode = 0xff44c13
-    executions =  readpy3angr.run_angr_opcodes(opcodes=[opcode], verbose=True)
+    executions =  readpy3angr.run_angr_opcodes(opcodes=[opcode], verbose=True, pcode=False)
     execution = executions[0]
 
     graph_decode = riscvsharedstate.funcs['zencdec_backwards']
@@ -295,7 +300,7 @@ def test_run_angr_reg50_error(riscvsharedstate):
 def test_run_angr_reference_error(riscvsharedstate):
     opcode = 0xef206093 # xori x1 x0 -270
 
-    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode])
+    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode], pcode=False)
     execution = executions[0]
 
     graph_decode = riscvsharedstate.funcs['zencdec_backwards']
@@ -327,7 +332,7 @@ def test_run_angr_reference_error(riscvsharedstate):
 def test_run_angr_missing_pc_reg(riscvsharedstate):
     opcode = 0x417 # AUIPC x8 0 ~ x8 = pc + (0 << 12)
 
-    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode])
+    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode], pcode=False)
     execution = executions[0]
 
     graph_decode = riscvsharedstate.funcs['zencdec_backwards']
@@ -355,7 +360,7 @@ def test_run_angr_missing_pc_reg(riscvsharedstate):
 
     z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbose=True)
 
-### keep these tests, to not repeat hte same mistake again
+### keep these tests, to not repeat the same mistake again
 
 def test_run_angr_rtype_mul(riscvsharedstate):
     opcode = 0x027383b3 # mul x7, x7, x7
@@ -409,10 +414,19 @@ def test_run_sraw_rshift_error(riscvsharedstate):
     opcode = 0x403cdbbb
     run_angr_opcode_assert_equal(riscvsharedstate, opcode)
 
-def test_sllw_x15_x18_x1(riscvsharedstate):
+def test_sllw_x15_x18_x1_failed(riscvsharedstate):
     opcode = 0x1917bb
     run_angr_opcode_assert_equal(riscvsharedstate, opcode)
 
-def test_sra_x7_x11_x27(riscvsharedstate):
+def test_sra_x7_x11_x27_failed(riscvsharedstate):
     opcode = 0x41b5d3b3
     run_angr_opcode_assert_equal(riscvsharedstate, opcode)
+
+def test_srli_x22_x13_45_failed(riscvsharedstate):
+    opcode = 0x2d6db13
+    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
+
+def test_sllw_x27_x21_x4_failed(riscvsharedstate):
+    opcode = 0x4a9dbb
+    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
+

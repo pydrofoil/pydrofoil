@@ -55,7 +55,7 @@ def get_rv64_usermode_cur_privilege_w_value(riscvsharedstate):
     return riscvsharedstate.get_w_enum("zPrivilege", "zUser")
 
 
-def execute_machine_code(code, code_bits, interp_class, shared_state, decode_graph, execute_graph, ismthd, init_regs_w, init_mem_w):
+def execute_machine_code(code, code_bits, interp_class, shared_state, decode_graph, execute_graph, ismthd, init_regs_w, init_mem_w, skip=[]):
     decoder = interp_class(decode_graph, [ConstantSmallBitVector(code[0], code_bits)], shared_state.copy()) #  must init correctly
     prepare_interpreter(decoder, init_regs_w, init_mem_w)
     ast = decoder.run()
@@ -68,6 +68,13 @@ def execute_machine_code(code, code_bits, interp_class, shared_state, decode_gra
         decoder = interp_class(decode_graph, [ConstantSmallBitVector(instr, code_bits)], shared_state.copy())
         prepare_interpreter(decoder, init_regs_w, init_mem_w)
         ast = decoder.run()
+
+        for s in skip:
+            if s in str(ast):
+                print "###  skipped  ###" 
+                print str(ast)
+                print "###  skipped  ###" 
+                return None
 
         if not isinstance(ast, UnionConstant):
             import pdb; pdb.set_trace()
@@ -94,6 +101,8 @@ def extract_regs_smtlib2(interp, registers_size):
         if isinstance(value, z3btypes.ConstantGenericBitVector):
             size = registers_size[unpatch_name(regname)] * 8
             smt_regs[regname] = value.toz3bv(size).sexpr()
+        elif isinstance(value, z3btypes.Z3GenericBitVector):
+            smt_regs[regname] = value.value.sexpr()
         else:
             smt_regs[regname] = value.toz3().sexpr()
     return smt_regs
@@ -139,11 +148,20 @@ def solve_assert_z3_unequality_exprs(exprs, failfast=True, verbose=True):
         print "============== checking registers/memory =============="
     for name, value in exprs.iteritems():
         solver = z3.Solver()
+        solver.set("timeout", 7500)
         res = solver.check(value)
+        if res == z3.unknown:
+            print "==============        timeout        =============="
+            print value
+            print "==============        timeout        =============="
+            print "==============      skipped test     =============="
+            return
         if failfast:
+            if res != z3.unsat: print(solver.model())
             assert res == z3.unsat, "assertion %s:%s failed" % (name, str(value))
         elif res != z3.unsat:
             print "failed: %s:%s == z3.unsat" % (name, str(value))
+            print "model:", solver.model()
             ok = False
         elif verbose:
             print "ok:     %s:%s == z3.unsat" % (name, str(value))

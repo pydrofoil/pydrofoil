@@ -212,6 +212,7 @@ class Interpreter(object):
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
         self.forknum = self.sharedstate.fork_counter
         self.sharedstate.fork_counter += 1
+        # TODO: implement and use `get_w_class_for_rtype` here instead of using Z3Value
         self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
         self._init_non_isa_registers()
         self.w_raises = BooleanConstant(False)
@@ -219,11 +220,14 @@ class Interpreter(object):
         self.path_condition = []
         self.bits = struct.calcsize("P") * 8
         self._allow_ir_print = False
+        self._verbosity = 1
+
+    def set_verbosity(self, newverbosity):
+        self._verbosity = newverbosity
 
     def _init_non_isa_registers(self):
-        """ init registers that are not declared in the isa, e.g., for pydrofoil exception handling??? """
-        pass
-        #self.registers["have_exception"] = Z3BoolValue(self.sharedstate.convert_type_or_instance_to_z3_instance(types.Bool, "init_have_exception"))
+        """ init registers that are not declared in the isa, e.g., for sail exception handling """
+        self.registers["have_exception"] = Z3BoolValue(self.sharedstate.convert_type_or_instance_to_z3_instance(types.Bool, "init_have_exception"))
 
     def _reset_env(self):
         """ only for z3backend_executor.
@@ -258,7 +262,6 @@ class Interpreter(object):
                     schedule(current, interp)
                     continue
                 ### TODO: think of a better solution for this ###
-            #interp._debug_print("run block %s" % str(current.next))
             interp._run_block(current, index)
             interp._schedule_next(current.next, schedule)
             if not self is interp:
@@ -370,6 +373,7 @@ class Interpreter(object):
         f_interp.memory = self.memory # z3 array is immutable
         f_interp.path_condition = self.path_condition if path_condition is None else path_condition
         f_interp.w_raises = self.w_raises # if self raises, the fork must also raise
+        f_interp._verbosity = self._verbosity
         return f_interp
     
     def call_fork(self, graph, args, extra_w_cond=None):
@@ -380,13 +384,15 @@ class Interpreter(object):
         f_interp.memory = self.memory # z3 array is immutable
         f_interp.w_raises = self.w_raises
         f_interp.path_condition = self.path_condition if extra_w_cond == None else (self.path_condition + [extra_w_cond])
+        f_interp._verbosity = self._verbosity
         return f_interp
     
     def _create_z3_if(self, cond, true, false):
         return z3.If(cond, true, false)
     
-    def _debug_print(self, msg=""):
-        print "interp_%s: " % self.forknum, msg
+    def _debug_print(self, msg="", force=False):
+        if (self._verbosity > 0) or force:
+            print "interp_%s: " % self.forknum, msg
 
     def convert(self, arg):
         """ wrap an argument or load wrapped arg from env """
@@ -408,12 +414,12 @@ class Interpreter(object):
             elif isinstance(arg, ir.StringConstant):
                 w_arg = StringConstant(arg.string)
             elif isinstance(arg, ir.DefaultValue):
-                assert 0, "DefaultValue"
-                #val = self.sharedstate.convert_type_or_instance_to_z3_instance(arg.resolved_type, "DefaultValue(%s)" % str(arg.resolved_type))
-                #if arg.resolved_type == types.Bool:
-                #    w_arg = Z3BoolValue(val)
-                #else:
-                #    w_arg = Z3Value(val)
+                #assert 0, "convert DefaultValue"
+                val = self.sharedstate.convert_type_or_instance_to_z3_instance(arg.resolved_type, "DefaultValue(%s)" % str(arg.resolved_type))
+                if arg.resolved_type == types.Bool:
+                    w_arg = Z3BoolValue(val)
+                else:
+                    w_arg = Z3Value(val)
             else:
                 assert 0, "Some ir Constant " + str(arg) 
         elif isinstance(arg, types.Packed):
@@ -712,15 +718,15 @@ class Interpreter(object):
             # Big Problem: width  is a z3 expression and not a python int
             # int2bv must be called with a python int width
             # we must simplify :(
-            self._debug_print("simplifying generic bv width now")
+            self._debug_print("simplifying generic bv width now", True)
             const_width = z3.simplify(width)
-            self._debug_print("finish simplifying")
+            self._debug_print("finish simplifying", True)
             assert isinstance(const_width, z3.z3.IntNumRef), "cant cast int 2 bv without constant width"
             if isinstance(const_width, z3.z3.IntNumRef):
                 long_width = const_width.as_long()
                 return Z3GenericBitVector(z3.Int2BV(value, long_width), long_width)
             else:
-                self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(op))
+                self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(res), True)
                 return Z3DeferedIntGenericBitVector(value, res)
         # TODO: check for Unit
         return Z3Value(res)
@@ -790,14 +796,14 @@ class Interpreter(object):
                 # Big Problem: width  is a z3 expression and not a python int
                 # int2bv m8ust be called with a python int width
                 # we must simplify :(
-                self._debug_print("simplifying generic bv width now")
+                self._debug_print("simplifying generic bv width now", True)
                 const_width = z3.simplify(width)
-                self._debug_print("finish simplifying")
+                self._debug_print("finish simplifying", True)
                 if isinstance(const_width, z3.z3.IntNumRef):
                     long_width = const_width.as_long()
                     return Z3GenericBitVector(z3.Int2BV(value, long_width), long_width)
                 else:
-                    self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(op))
+                    self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(op), True)
                     return Z3DeferedIntGenericBitVector(value, z3_cast_instance)
             return Z3Value(z3_cast_instance)
         elif isinstance(instance, UnionConstant):
@@ -1050,7 +1056,7 @@ class Interpreter(object):
             return Z3Value(arg0.toz3() * arg1.toz3())
         
     def _adapt_bv_width(self, z3bv, targetwidth):
-        z3bvsize =  z3bv.sort().size()
+        z3bvsize = z3bv.sort().size()
         if z3bvsize < targetwidth:
             return z3.ZeroExt(targetwidth - z3bvsize, z3bv)
         elif z3bvsize > targetwidth:
@@ -1065,7 +1071,7 @@ class Interpreter(object):
             return ConstantSmallBitVector(arg0.value << arg2.value, arg1.value) 
         else:
             if isinstance(arg2, Z3Value) and arg2.is_casted() and isinstance(arg2.precasttype, types.SmallFixedBitVector):
-                arg2_z3 = self._adapt_bv_width(arg2.precastvalue, arg0.width)
+                arg2_z3 = self._adapt_bv_width(arg2.precastvalue, arg0.toz3().sort().size())
                 return Z3Value(arg0.toz3() << arg2_z3)
             else:
                 arg2_z3 = arg2.toz3() if not isinstance(arg2.toz3(), int) else z3.Int(arg2.toz3())

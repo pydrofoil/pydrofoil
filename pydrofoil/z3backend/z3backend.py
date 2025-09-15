@@ -527,18 +527,17 @@ class Interpreter(object):
     def _eq_anything(self, arg0, arg1):
         if isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value):
             return Z3BoolValue(arg0.toz3() == arg1.toz3())
-        elif isinstance(arg0, UnionConstant) and isinstance(arg1, UnionConstant):
-            same = arg0.same_value(arg1)# TODO: change this, so it does not return three different values (True, False, z3Val)
+        else :
+            same = arg0.same_value(arg1)
             if same == True:
                 return BooleanConstant(True)
             elif same == False:
                 return BooleanConstant(False)
             return Z3BoolValue(same)
-        else:
-            import pdb; pdb.set_trace()
 
     def exec_func_call(self, op, graph):
         """ execute a sail function call"""
+        # TODO: make either method call set the call registers itself or change that here
         self._debug_print("graph " + self.graph.name + " func call " + op.name)
         func_args = self.getargs(op)
         w_res, memory, registers = self._func_call(graph, func_args)
@@ -721,7 +720,7 @@ class Interpreter(object):
             self._debug_print("simplifying generic bv width now", True)
             const_width = z3.simplify(width)
             self._debug_print("finish simplifying", True)
-            assert isinstance(const_width, z3.z3.IntNumRef), "cant cast int 2 bv without constant width"
+            #assert isinstance(const_width, z3.z3.IntNumRef), "cant cast int 2 bv without constant width"
             if isinstance(const_width, z3.z3.IntNumRef):
                 long_width = const_width.as_long()
                 return Z3GenericBitVector(z3.Int2BV(value, long_width), long_width)
@@ -799,6 +798,7 @@ class Interpreter(object):
                 self._debug_print("simplifying generic bv width now", True)
                 const_width = z3.simplify(width)
                 self._debug_print("finish simplifying", True)
+                #assert isinstance(const_width, z3.z3.IntNumRef), "cant cast int 2 bv without constant width"
                 if isinstance(const_width, z3.z3.IntNumRef):
                     long_width = const_width.as_long()
                     return Z3GenericBitVector(z3.Int2BV(value, long_width), long_width)
@@ -844,6 +844,10 @@ class Interpreter(object):
                     return ConstantSmallBitVector(arg0.value, to_type.width)
                 elif isinstance(arg0, Z3GenericBitVector):
                     return Z3Value(arg0.value)
+                elif isinstance(arg0, Z3DeferedIntGenericBitVector):
+                    # we can cast because we know the width at this point
+                    intval = getattr(self.sharedstate._genericbvz3type, "value")(arg0.toz3())
+                    return Z3Value(z3.Int2BV(intval, to_type.width))
                 elif isinstance(arg0, Z3Value): # Z3Value & sort == int
                     assert 0
                     return Z3Value(z3.Int2BV(arg0.toz3(), to_type.width))
@@ -1355,6 +1359,7 @@ class RiscvInterpreter(Interpreter):
 
     def exec_read_mem_o_o_o_i(self, op):
         arg0, arg1, arg2, arg3 = self.getargs(op) # layout, addr_size, addr, n_bytes
+        
         import pdb; pdb.set_trace()
         # TODO: refactor Memory design to:
         # a. use bytewise addressing (memory is array[BitVecSort(arch.width)]:BitVecSort(8))

@@ -114,9 +114,9 @@ class ConstantSmallBitVector(AbstractConstant):
         return z3.BitVecVal(self.value, self.width)
     
     def same_value(self, other):
-        if not isinstance(other, ConstantSmallBitVector) or not isinstance(other, ConstantGenericBitVector):
-            return False
-        return (self.value == other.value)
+        if isinstance(other,ConstantSmallBitVector) or isinstance(other, ConstantGenericBitVector):
+            return self.value == other.value
+        return False
     
 class ConstantGenericBitVector(AbstractConstant):
     def __init__(self, val, width):
@@ -408,6 +408,7 @@ class Z3BoolValue(Z3Value):
     def _create_w_z3_if(self, w_true, w_false):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
         if w_true.same_value(w_false): return w_true
+        if isinstance(w_true, StructConstant): import pdb; pdb.set_trace()
         if isinstance(w_true, ConstantInt) or isinstance(w_true, ConstantGenericInt):
             ## Handle this explicitly ## 
             cls = Z3Value

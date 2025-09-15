@@ -283,6 +283,7 @@ class StructConstant(AbstractConstant):
 class Z3Value(Value):
     
     def __init__(self, val):
+        if "_generic_bv_val_width_tup" in  str(val.sort()): import pdb; pdb.set_trace()
         self.value = val
         # problem: often pydrofoil does this:
         # get bv from register, slice, extend, cast to int
@@ -336,6 +337,7 @@ class Z3StringValue(Z3Value):
         return self.value == other.value
 
 class Z3GenericBitVector(Z3Value):
+    """ Z3 level Generic BV,value is a z3 fixedsize bv """
     
     def __init__(self, val, width):
         assert isinstance(width, int)
@@ -343,6 +345,7 @@ class Z3GenericBitVector(Z3Value):
         self.width = width
 
     def toz3(self):
+        assert 0, "this cannot return int: rethink this"
         return z3.BV2Int(self.value, is_signed=False)
     
     def same_value(self, other):
@@ -374,17 +377,18 @@ class Z3GenericBitVectorInt(Z3Value):
     
 
 class Z3DeferedIntGenericBitVector(Z3Value):
-    def __init__(self, val, z3_bv_tuple):
+    def __init__(self, z3_bv_tuple):
         """ Idea: create this class instead of crashing on failing to get a width for a generic bv from z3
             and hope this class dies somewhere without being directly used """
-        self.value = val
         self.z3_bv_tuple = z3_bv_tuple
       
     def toz3(self):
         """ returns the z3 generic bitvec val width struct instance """
-        print "toz3() called on Z3DeferedIntGenericBitVector"
         return self.z3_bv_tuple
-
+    
+    def __str__(self):
+        return "Z3DeferedIntGenericBitVector(%s)" % str(self.z3_bv_tuple)
+    
     def same_value(self, other):
         assert 0
     

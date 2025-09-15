@@ -1235,6 +1235,10 @@ class Interpreter(object):
         arg, = self.getargs(op)
         return Packed(arg)
     
+    def exec_unpack(self, op):
+        arg, = self.getargs(op)
+        return arg.w_value
+      
     def exec_ones_zero_extended_unwrapped_res(self, op):
         """ create a bv of arg0 many ones and  a leading 0 ???"""
         arg0, arg1 = self.getargs(op)
@@ -1386,17 +1390,25 @@ class RiscvInterpreter(Interpreter):
     ### RISCV specific Operations ###
 
     def exec_read_mem_o_o_o_i(self, op):
-        arg0, arg1, arg2, arg3 = self.getargs(op) # layout, addr_size, addr, n_bytes
-        import os
-        file = os.path.join("/home/christophj/Dokumente/Uni/Projektarbeit/angr-z3-converter/", "smtmem.txt")
-        with open(file, "w") as ofile:
-            ofile.write(arg3.toz3().sexpr())
-            ofile.write("\n#######################################\n")
-            ofile.write(z3.simplify(arg3.toz3()).sexpr())
-        import pdb; pdb.set_trace()
-        # TODO: refactor Memory design to:
-        # a. use bytewise addressing (memory is array[BitVecSort(arch.width)]:BitVecSort(8))
-        # b. be slicable by abstract boundaries 
+        """ return mem[arg2:arg2+arg3] as generic bv """
+        arg0, _, arg2, arg3 = self.getargs(op) # layout, addr_size, addr, n_bytes
+        #TODO: what todo with the layout
+        assert isinstance(arg3, ConstantInt), "abstract width memory access impossible"
+        if isinstance(arg2, ConstantSmallBitVector) or isinstance(arg2, ConstantGenericBitVector):
+            addr = z3.BitVecVal(arg2.value, 64) # mem access only via 64 bit bvs
+        elif isinstance(arg2, Z3GenericBitVector):
+            addr = self._adapt_bv_width(arg2.value, 64) # mem access only via 64 bit bvs
+        elif isinstance(arg2, Z3DeferedIntGenericBitVector):
+            intval = getattr(self.sharedstate._genericbvz3type, "value")(arg2.toz3())
+            addr = z3.Int2BV(intval, 64) # mem access only via 64 bit bvs
+        else:
+            assert 0, "class %s for generic bv not allowed" % str(arg2.__class__)
+
+        val = self.memory[addr]
+        for i in range(arg3.value - 1):
+            val = z3.Concat(val, self.memory[addr + i])
+        
+        return Z3GenericBitVector(val, arg3.value * 8)
 
     def exec_zsys_enable_zzfinx(self, op):
         return BooleanConstant(False) 

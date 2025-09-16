@@ -344,7 +344,7 @@ class Interpreter(object):
                 w_cond = w_cond._create_w_z3_and(previnterp.child_cond_map[block])
             scheduleinterp.path_condition = [scheduleinterp.w_path_condition()._create_w_z3_or(w_cond)]
             scheduleinterp.registers = {reg:w_cond._create_w_z3_if(previnterp.registers[reg], scheduleinterp.registers[reg]) for reg in self.registers}
-            scheduleinterp.memory = self._create_z3_if(w_cond.toz3(), previnterp.memory, scheduleinterp.memory)
+            scheduleinterp.memory = self._create_z3_if(w_cond, previnterp.memory, scheduleinterp.memory)
         for index, op in enumerate(block.operations):
             if isinstance(op, ir.Phi):
                 w_value = None
@@ -363,7 +363,8 @@ class Interpreter(object):
         
     def w_path_condition(self):
         # TODO: think of a better way to handle this
-        return BooleanConstant(True)._create_w_z3_and(*self.path_condition)
+        wpc = BooleanConstant(True)._create_w_z3_and(*self.path_condition)
+        return wpc
     
     def fork(self, path_condition=None):
         """ create a copy of the interpreter, for evaluating non constant branches """
@@ -388,8 +389,19 @@ class Interpreter(object):
         f_interp._verbosity = self._verbosity
         return f_interp
     
-    def _create_z3_if(self, cond, true, false):
-        return z3.If(cond, true, false)
+    def _create_z3_if(self, wcond, true, false):
+        # dont create if on BooleanConst or Z3Bool, memory merging is special case
+        # this is only used for memory merging
+        if isinstance(wcond, BooleanConstant):
+            if wcond.value == True: return true
+            return false
+        elif wcond.toz3().eq(z3.BoolVal(True)):
+            return true
+        elif wcond.toz3().eq(z3.BoolVal(False)):
+            return false
+        else:
+            return z3.If(wcond.toz3(), true, false)
+
     
     def _debug_print(self, msg="", force=False):
         if (self._verbosity > 0) or force:
@@ -713,7 +725,7 @@ class Interpreter(object):
                 if w_val.constant:
                     w_val = ConstantGenericBitVector(w_val.value, w_val.width)
                 else:
-                    w_val = Z3GenericBitVector(w_val.value, w_val.width)
+                    w_val = Z3GenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
             return Packed(w_val) if packed else w_val
         res = getattr(struct_type_z3, field)(struct.toz3())# get accessor from slot with getattr
         if res.sort() == z3.BoolSort():
@@ -730,7 +742,7 @@ class Interpreter(object):
             #assert isinstance(const_width, z3.z3.IntNumRef), "cant cast int 2 bv without constant width"
             if isinstance(const_width, z3.z3.IntNumRef):
                 long_width = const_width.as_long()
-                w_val = Z3GenericBitVector(z3.Int2BV(value, long_width), long_width)
+                w_val = Z3GenericBitVector(z3.Int2BV(value, long_width), long_width, self.sharedstate._genericbvz3type)
             else:
                 self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(res), True)
                 w_val = Z3DeferedIntGenericBitVector(res)
@@ -810,7 +822,7 @@ class Interpreter(object):
                 #assert isinstance(const_width, z3.z3.IntNumRef), "cant cast int 2 bv without constant width"
                 if isinstance(const_width, z3.z3.IntNumRef):
                     long_width = const_width.as_long()
-                    return Z3GenericBitVector(z3.Int2BV(value, long_width), long_width)
+                    return Z3GenericBitVector(z3.Int2BV(value, long_width), long_width, self.sharedstate._genericbvz3type)
                 else:
                     self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(op), True)
                     return Z3DeferedIntGenericBitVector(z3_cast_instance)
@@ -821,7 +833,7 @@ class Interpreter(object):
             if isinstance(w_val, Z3GenericBitVectorInt):
                 if w_val.constant:
                     return ConstantGenericBitVector(w_val.value, w_val.width)
-                return Z3GenericBitVector(w_val.value, w_val.width)
+                return Z3GenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
             return w_val
         else:
             assert 0 , "%s is not allowed in unioncast" % str(union_type) 
@@ -845,7 +857,7 @@ class Interpreter(object):
                 if isinstance(arg0, ConstantSmallBitVector):
                     return ConstantGenericBitVector(arg0.value, arg0.width)
                 else:
-                    return Z3GenericBitVector(arg0.value, from_type.width)
+                    return Z3GenericBitVector(arg0.value, from_type.width, self.sharedstate._genericbvz3type)
                 
         elif isinstance(from_type, types.GenericBitVector): # from
             if isinstance(to_type, types.SmallFixedBitVector): # to
@@ -1097,6 +1109,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return ConstantInt(arg0.value << arg1.value) 
         else:
+            assert 0, "special case second argument"
             # z3 does not support int shifts, thus we convert to bvs with host machine size
             return Z3Value(z3.BV2Int(z3.Int2BV(arg0.toz3(), self.bits) << z3.Int2BV(arg1.toz3(), self.bits), is_signed=True))
         
@@ -1125,7 +1138,7 @@ class Interpreter(object):
             else:
                 arg1z3 = z3.Int2BV(arg1.toz3(), arg0.width)
             if isinstance(arg0, Z3GenericBitVector):
-                return Z3GenericBitVector(arg0.value >> arg1z3, arg0.width)# Z3GenericBitVector.value is bv, but toz3() is int
+                return Z3GenericBitVector(arg0.value >> arg1z3, arg0.width, self.sharedstate._genericbvz3type)# Z3GenericBitVector.value is bv,t
             else:
                 assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
 
@@ -1166,7 +1179,7 @@ class Interpreter(object):
             # is this supposed to return a bv of size arg0 or arg0-arg2
             #val = z3.Extract(arg0.value, arg2.value, val)
             val = val >> arg2.value # this returns a bv of size arg0
-            return Z3GenericBitVector(val, arg0.value)
+            return Z3GenericBitVector(val, arg0.value, self.sharedstate._genericbvz3type)
         else:
             assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
 
@@ -1188,6 +1201,15 @@ class Interpreter(object):
     def exec_vector_access_bv_i(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector):
+            if arg0.value == 0:
+                # very usefull if arg1 is abstract
+                # happens on rv64 mem access: load could throw an exception
+                # medeleg is arg0 then, but type of exception is unknown (depending on addr of load)
+                # type of exception is index into medeleg (arg1 here)
+                # bv[arg1] with an abstract arg1 is not allowed
+                # if bv is constant 0 anyways, we can just return 0 
+                # TODO: think if this kind of workaround would be usefull elsewhere too
+                return ConstantSmallBitVector(0, op.resolved_type.width)
             return ConstantSmallBitVector(supportcode.vector_access_bv_i(None, arg0.value, arg1.value), op.resolved_type.width)
         else:
             return Z3Value(z3.Extract(arg1.value, arg1.value, arg0.toz3()))
@@ -1223,7 +1245,7 @@ class Interpreter(object):
         if isinstance(arg1, ConstantSmallBitVector):
             return Packed(ConstantGenericBitVector(arg1.value, arg0.value))
         else:
-            return Packed(Z3GenericBitVector(arg1.toz3(), arg0.value))
+            return Packed(Z3GenericBitVector(arg1.toz3(), arg0.value, self.sharedstate._genericbvz3type))
     
     def exec_pack_machineint(self, op):
         """ pack a MachineInt into a Packed Wrapper object """
@@ -1270,7 +1292,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantGenericBitVector):
             return ConstantGenericBitVector(arg0.value, arg1.value)
         elif isinstance(arg0, Z3GenericBitVector):
-            return Z3GenericBitVector(z3.SignExt(arg1.value - arg0.width, arg0.value), arg1.value)
+            return Z3GenericBitVector(z3.SignExt(arg1.value - arg0.width, arg0.value), arg1.value, self.sharedstate._genericbvz3type)
         elif isinstance(arg0, Z3Value):
             assert 0
         else:
@@ -1306,6 +1328,7 @@ class Interpreter(object):
     def exec_zbits_str(self, op):
         """ convert bits of bv to string repr e.g. bv: 01010 -> str: '01010' """
         arg0, = self.getargs(op)
+        if isinstance(arg0, Packed): arg0 = arg0.w_value
         if isinstance(arg0, ConstantSmallBitVector) or isinstance(arg0, ConstantGenericBitVector):
             return StringConstant(bin(arg0.value))
         elif isinstance(arg0, Z3GenericBitVector):
@@ -1408,7 +1431,7 @@ class RiscvInterpreter(Interpreter):
         for i in range(arg3.value - 1):
             val = z3.Concat(val, self.memory[addr + i])
         
-        return Z3GenericBitVector(val, arg3.value * 8)
+        return Z3GenericBitVector(val, arg3.value * 8, self.sharedstate._genericbvz3type)
 
     def exec_zsys_enable_zzfinx(self, op):
         return BooleanConstant(False) 
@@ -1433,6 +1456,9 @@ class RiscvInterpreter(Interpreter):
     
     def exec_zget_config_print_platform(self, op):
         return BooleanConstant(False)
+    
+    def exec_zget_config_print_mem(self, op):
+        return BooleanConstant(True)
     
     def exec_zplat_mtval_has_illegal_inst_bits(self, op):
         return BooleanConstant(False)
@@ -1469,4 +1495,8 @@ class RiscvInterpreter(Interpreter):
 
     def exec_zprint_platform(self, op):
         if self.exec_zget_config_print_platform(None).value and self._allow_ir_print:
+            print str(self.getargs(op)[0])
+
+    def exec_zprint_mem(self, op):
+        if self.exec_zget_config_print_mem(None).value and self._allow_ir_print:
             print str(self.getargs(op)[0])

@@ -339,18 +339,17 @@ class Z3StringValue(Z3Value):
 class Z3GenericBitVector(Z3Value):
     """ Z3 level Generic BV,value is a z3 fixedsize bv """
     
-    def __init__(self, val, width):
+    def __init__(self, val, width, z3type):
         assert isinstance(width, int)
         self.value = val
         self.width = width
+        self.z3type = z3type
 
     def toz3(self):
-        assert 0, "this cannot return int: rethink this"
-        return z3.BV2Int(self.value, is_signed=False)
+        return self.z3type.constructor(0)(z3.BV2Int(self.value, False), self.width)
     
     def same_value(self, other):
-        assert 0, "Z3GenericBitVector"
-        if self.value.eq(other.toz3()): # syntactical equality
+        if self.toz3().eq(other.toz3()): # syntactical equality
             return True
         return False
     
@@ -412,7 +411,7 @@ class Z3BoolValue(Z3Value):
     def _create_w_z3_if(self, w_true, w_false):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
         if w_true.same_value(w_false): return w_true
-        if isinstance(w_true, StructConstant): import pdb; pdb.set_trace()
+        if self.value.eq(z3.BoolVal(True)) or self.value.eq(z3.BoolVal(False)): import pdb; pdb.set_trace()
         if isinstance(w_true, ConstantInt) or isinstance(w_true, ConstantGenericInt):
             ## Handle this explicitly ## 
             cls = Z3Value
@@ -441,7 +440,10 @@ class Z3BoolValue(Z3Value):
         if args_w in ((), []):
             return self
         n_args_w = [self]
+        if self.toz3().eq(z3.BoolVal(True)) or self.toz3().eq(z3.BoolVal(False)): import pdb; pdb.set_trace()
         for w_arg in args_w:
+            if isinstance(w_arg, Z3BoolValue) or isinstance(w_arg, Z3BoolNotValue):
+                if w_arg.toz3().eq(z3.BoolVal(True)) or w_arg.toz3().eq(z3.BoolVal(False)): import pdb; pdb.set_trace()
             if isinstance(w_arg, BooleanConstant):
                 # Return  false if encountering a single False
                 if not w_arg.value: return BooleanConstant(False)

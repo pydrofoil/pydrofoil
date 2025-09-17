@@ -153,3 +153,65 @@ block0.next = Return(i2, None)
 graph = Graph('f', [zlen], block0)
 """,
     )
+
+
+def test_optimize_max_int():
+    arg_a = ir.Argument("arg_a", types.MachineInt())
+    arg_b = ir.Argument("arg_b", types.MachineInt())
+    block0 = ir.Block()
+    i1 = block0.emit(
+        ir.Operation, "int64_to_int", [arg_a], types.Int(), None, None
+    )
+    i2 = block0.emit(
+        ir.Operation, "int64_to_int", [arg_b], types.Int(), None, None
+    )
+    i4 = block0.emit(
+        ir.Operation, "max_int", [i1, i2], types.Int(), None, None
+    )
+    i5 = block0.emit(
+        ir.Operation, "int_to_int64", [i4], types.MachineInt(), None, None
+    )
+    block0.next = ir.Return(i5, None)
+    graph = ir.Graph("f", [arg_a, arg_b], block0)
+    check_optimize(
+        graph,
+        """
+arg_a = Argument('arg_a', MachineInt())
+arg_b = Argument('arg_b', MachineInt())
+block0 = Block()
+i2 = block0.emit(Operation, '@max_i_i_must_fit', [arg_a, arg_b], MachineInt(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('f', [arg_a, arg_b], block0)
+""",
+    )
+
+
+def test_optimize_min_int():
+    arg_a = ir.Argument("arg_a", types.MachineInt())
+    arg_b = ir.Argument("arg_b", types.MachineInt())
+    block0 = ir.Block()
+    i1 = block0.emit(
+        ir.Operation, "int64_to_int", [arg_a], types.Int(), None, None
+    )
+    i2 = block0.emit(
+        ir.Operation, "int64_to_int", [arg_b], types.Int(), None, None
+    )
+    i4 = block0.emit(
+        ir.Operation, "min_int", [i1, i2], types.Int(), None, None
+    )
+    i5 = block0.emit(
+        ir.Operation, "int_to_int64", [i4], types.MachineInt(), None, None
+    )
+    block0.next = ir.Return(i5, None)
+    graph = ir.Graph("f", [arg_a, arg_b], block0)
+    check_optimize(
+        graph,
+        """
+arg_a = Argument('arg_a', MachineInt())
+arg_b = Argument('arg_b', MachineInt())
+block0 = Block()
+i2 = block0.emit(Operation, '@min_i_i_must_fit', [arg_a, arg_b], MachineInt(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('f', [arg_a, arg_b], block0)
+""",
+    )

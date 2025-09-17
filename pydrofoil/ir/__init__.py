@@ -4163,6 +4163,34 @@ class LocalOptimizer(BaseOptimizer):
                 )
             )
 
+    def optimize_max_int(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
+        return self._make_int64_to_int(
+            self.newop(
+                "@max_i_i_must_fit",
+                [arg0, arg1],
+                types.MachineInt(),
+                op.sourcepos,
+                op.varname_hint,
+            )
+        )
+
+    def optimize_min_int(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        arg1 = self._extract_machineint(arg1)
+        return self._make_int64_to_int(
+            self.newop(
+                "@min_i_i_must_fit",
+                [arg0, arg1],
+                types.MachineInt(),
+                op.sourcepos,
+                op.varname_hint,
+            )
+        )
+
     def optimize_get_slice_int_i_o_i(self, op):
         arg0, arg1, arg2 = self._args(op)
         arg0 = self._extract_number(arg0)

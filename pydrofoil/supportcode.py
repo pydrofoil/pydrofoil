@@ -959,11 +959,21 @@ def max_int(machine, ia, ib):
 
 
 @purefunction
+def max_i_i_must_fit(machine, ia, ib):
+    return max(ia, ib)
+
+
+@purefunction
 @objectmodel.specialize.argtype(1)
 def min_int(machine, ia, ib):
     if ia.lt(ib):
         return ia
     return ib
+
+
+@purefunction
+def min_i_i_must_fit(machine, ia, ib):
+    return min(ia, ib)
 
 
 @unwrap("i o i")

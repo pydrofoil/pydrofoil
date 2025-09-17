@@ -228,6 +228,19 @@ class Range(object):
             high = max(self.high, other.high)
         return Range(low, high)
 
+    def min(self, other):
+        if self.low is None or other.low is None:
+            low = None
+        else:
+            low = min(self.low, other.low)
+        if self.high is None:
+            high = other.high
+        elif other.high is None:
+            high = self.high
+        else:
+            high = min(self.high, other.high)
+        return Range(low, high)
+
     def union(self, other):
         # type: (Range) -> Range
         low = high = None
@@ -846,6 +859,16 @@ class AbstractInterpreter(object):
         assert arg_0 is not None
         assert arg_1 is not None
         return arg_0.max(arg_1)
+
+    analyze_max_i_i_must_fit = analyze_max_int
+
+    def analyze_min_int(self, op):
+        arg_0, arg_1 = self._argbounds(op)
+        assert arg_0 is not None
+        assert arg_1 is not None
+        return arg_0.min(arg_1)
+
+    analyze_min_i_i_must_fit = analyze_min_int
 
     def analyze_assert_in_range(self, op):  # tests only for now
         arg0, arg1, arg2 = self._argbounds(op)

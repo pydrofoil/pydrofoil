@@ -404,6 +404,29 @@ def test_max_hypothesis(ta, tb):
     assert r.contains(max(a, b))
 
 
+def test_min():
+    examples = [
+        (Range(None, None), Range(None, None), Range(None, None)),
+        (Range(-10, 10), Range(-15, 5), Range(-15, 5)),
+        (Range(-10, 10), Range(-15, 20), Range(-15, 10)),
+        (Range(None, 10), Range(-15, 20), Range(None, 10)),
+        (Range(-10, 10), Range(None, 20), Range(None, 10)),
+        (Range(-10, 10), Range(-15, None), Range(-15, 10)),
+    ]
+    for arg0, arg1, res in examples:
+        assert arg0.min(arg1) == res
+
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_min_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.min(rb)
+    r2 = ra.min(rb)
+    assert r == r2
+    assert r.contains(min(a, b))
+
+
 def test_lshift_example():
     assert Range(8, 8).lshift(Range(0, 3)) == Range(8, 64)
     assert Range(8, 16).lshift(Range(0, 3)) == Range(8, 128)

@@ -95,6 +95,7 @@ def test_recompute_limit_many_graph_locations():
     assert mod == {loc}
     assert loc.bound == Range(0, 200)
 
+
 def test_recompute_limit_not_increased_if_there_is_no_change():
     m = LocationManager()
     typ = types.Int()
@@ -582,9 +583,13 @@ def _get_graphs_interprocedural_range_method():
 
     block_c1 = ir.Block()
     u1 = block_c1.emit(ir.Operation, "first", [ir.IntConstant(5)], u)
-    block_c1.emit(ir.Operation, "execute", [u1, ir.IntConstant(23)], types.Int())
+    block_c1.emit(
+        ir.Operation, "execute", [u1, ir.IntConstant(23)], types.Int()
+    )
     u2 = block_c1.emit(ir.Operation, "second", [ir.IntConstant(10)], u)
-    block_c1.emit(ir.Operation, "execute", [u2, ir.IntConstant(42)], types.Int())
+    block_c1.emit(
+        ir.Operation, "execute", [u2, ir.IntConstant(42)], types.Int()
+    )
     block_c1.next = ir.Return(ir.UnitConstant.UNIT)
     graph_c1 = ir.Graph("c1", [], block_c1)
 
@@ -603,5 +608,56 @@ def test_method():
         "execute_second": graphs["execute_second"],
     }
     locmanager = compute_all_ranges(c)
-    loc = locmanager.get_location_for_result(graphs["execute_first"], types.Int())
+    loc = locmanager.get_location_for_result(
+        graphs["execute_first"], types.Int()
+    )
     assert loc.bound == Range(28, 47)
+
+
+def test_multiple_locations_for_tuples():
+    tupletyp = types.TupleStruct("S", ("x", "y"), (types.Int(), types.Int()))
+    graphs = _example_graphs_tuple_struct()
+    codegen = MockCodegen(graphs, ["h"])
+    locmanager = compute_all_ranges(codegen)
+    locf = locmanager.get_location_for_result(graphs["f"], tupletyp)
+    locg = locmanager.get_location_for_result(graphs["g"], tupletyp)
+    assert locf is not locg
+
+
+def _example_graphs_tuple_struct():
+    tupletyp = types.TupleStruct("S", ("x", "y"), (types.Int(), types.Int()))
+
+    block_f = ir.Block()
+    f1 = block_f.emit(
+        ir.StructConstruction,
+        "S",
+        [ir.IntConstant(42), ir.IntConstant(101)],
+        tupletyp,
+    )
+    block_f.next = ir.Return(f1)
+    graph_f = ir.Graph("f", [], block_f)
+
+    block_g = ir.Block()
+    g1 = block_g.emit(
+        ir.StructConstruction,
+        "S",
+        [ir.IntConstant(9), ir.IntConstant(100)],
+        tupletyp,
+    )
+    block_g.next = ir.Return(g1)
+    graph_g = ir.Graph("g", [], block_g)
+
+    block_h = ir.Block()
+    t1 = block_h.emit(ir.Operation, "f", [], tupletyp, None, None)
+    t2 = block_h.emit(ir.Operation, "g", [], tupletyp, None, None)
+    i1 = block_h.emit(ir.FieldAccess, "x", [t1], types.Int(), None, None)
+    i2 = block_h.emit(ir.FieldAccess, "y", [t1], types.Int(), None, None)
+    i3 = block_h.emit(ir.FieldAccess, "x", [t2], types.Int(), None, None)
+    i4 = block_h.emit(ir.FieldAccess, "y", [t2], types.Int(), None, None)
+    i5 = block_h.emit(ir.Operation, "add_int", [i1, i2], types.Int)
+    i6 = block_h.emit(ir.Operation, "add_int", [i5, i3], types.Int)
+    i7 = block_h.emit(ir.Operation, "add_int", [i6, i4], types.Int)
+    block_h.next = ir.Return(i7)
+    graph_h = ir.Graph("h", [], block_h)
+
+    return {"f": graph_f, "g": graph_g, "h": graph_h}

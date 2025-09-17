@@ -285,24 +285,6 @@ class Z3Value(Value):
     def __init__(self, val):
         if "_generic_bv_val_width_tup" in  str(val.sort()): import pdb; pdb.set_trace()
         self.value = val
-        # problem: often pydrofoil does this:
-        # get bv from register, slice, extend, cast to int
-        # then the int is used in an abstract operation e.g. some_bv >> some_int
-        # but z3 does not allow shifting bvs with an integer shift amount; thus we must cast the int to a bv again
-        # this results in formulas like `x >> int2bv(bv2int(zero_ext(y[5:0])))`
-        # this can sometimes be avoided by saving the non casted value on casting `zero_ext(y[5:0])` into a int with bv2int
-        # If the int really is needed as int we can just call to_z3() as usual
-        # but if we need the non casted bv value we can use it without using `int2bv`
-        # Problems: Maybe the width of the bv value is not the width needed for use => then we must extend or slice
-        self.precastvalue = None
-        self.precasttype = None
-
-    def is_casted(self):
-        return self.precastvalue != None and self.precasttype != None
-    
-    def append_previous_value(self, val, typ):
-        self.precastvalue = val
-        self.precasttype = typ
 
     def toz3(self):
         return self.value
@@ -317,7 +299,39 @@ class Z3Value(Value):
 
     def not_(self):
         assert 0,  "ilegal"
-        return Z3BoolNotValue(self.value)
+    
+class Z3CastedValue(Z3Value):
+    
+    def __init__(self, val, cast_func, cast_params):
+        if "_generic_bv_val_width_tup" in  str(val.sort()): import pdb; pdb.set_trace()
+        self.value = val
+        # problem: often pydrofoil does this:
+        # get bv from register, slice, extend, cast to int
+        # then the int is used in an abstract operation e.g. some_bv >> some_int
+        # but z3 does not allow shifting bvs with an integer shift amount; thus we must cast the int to a bv again
+        # this results in formulas like `x >> int2bv(bv2int(zero_ext(y[5:0])))`
+        # this can sometimes be avoided by saving the non casted value on casting `zero_ext(y[5:0])` into a int with bv2int
+        # If the int really is needed as int we can just call to_z3() as usual
+        # but if we need the non casted bv value we can use it without using `int2bv`
+        # Problems: Maybe the width of the bv value is not the width needed for use => then we must extend or slice
+        self.cast_func = cast_func
+        self.cast_params = cast_params
+    
+    def toz3(self):
+        params = [self.value]
+        params.extend(self.cast_params)
+        return self.cast_func(*params)
+    
+    def same_value(self, other):
+        if self.value.eq(other.toz3()): # syntactical equality
+            return True
+        return False
+    
+    def copy(self):
+        return Z3CastedValue(self.value ,self.cast_func, self.cast_params)
+
+    def not_(self):
+        assert 0,  "ilegal"
     
 class Z3StringValue(Z3Value): 
     

@@ -842,8 +842,6 @@ class Interpreter(object):
         """ Execute union creation"""
         z3type = self.sharedstate.get_z3_union_type(op.resolved_type)
         w_arg = self.getargs(op)[0]
-        #if "generic" in str(op.args[0].resolved_type) or "Generic" in str(op.args[0].resolved_type):
-        #    import pdb; pdb.set_trace()
         if isinstance(op.args[0].resolved_type, types.GenericBitVector):
             w_arg = self._w_generic_bv_struct(w_arg)
         return UnionConstant(op.name, w_arg, op.resolved_type, z3type)
@@ -1095,8 +1093,8 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             return ConstantSmallBitVector(arg0.value << arg2.value, arg1.value) 
         else:
-            if isinstance(arg2, Z3Value) and arg2.is_casted() and isinstance(arg2.precasttype, types.SmallFixedBitVector):
-                arg2_z3 = self._adapt_bv_width(arg2.precastvalue, arg0.toz3().sort().size())
+            if isinstance(arg2, Z3CastedValue) and isinstance(arg2.value, types.SmallFixedBitVector):
+                arg2_z3 = self._adapt_bv_width(arg2.value, arg0.toz3().sort().size())
                 return Z3Value(arg0.toz3() << arg2_z3)
             else:
                 arg2_z3 = arg2.toz3() if not isinstance(arg2.toz3(), int) else z3.Int(arg2.toz3())
@@ -1104,10 +1102,10 @@ class Interpreter(object):
         
     def exec_shl_int_i_i_must_fit(self, op):
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg1, Z3Value) and arg1.is_casted():
-            assert 0, "implement me"    
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return ConstantInt(arg0.value << arg1.value) 
+        elif isinstance(arg1, Z3CastedValue) and isinstance(arg1.value, types.SmallFixedBitVector):
+            assert 0, "implement me"    
         else:
             assert 0, "special case second argument"
             # z3 does not support int shifts, thus we convert to bvs with host machine size
@@ -1119,8 +1117,8 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             return ConstantSmallBitVector(arg0.value >> arg2.value, arg1.value) 
         else:
-            if isinstance(arg2, Z3Value) and arg2.is_casted() and isinstance(arg2.precasttype, types.SmallFixedBitVector):
-                arg2_z3 = self._adapt_bv_width(arg2.precastvalue, arg0.toz3().sort().size())
+            if isinstance(arg2, Z3CastedValue) and isinstance(arg2.value, types.SmallFixedBitVector):
+                arg2_z3 = self._adapt_bv_width(arg2.value, arg0.toz3().sort().size())
                 return Z3Value(z3.LShR(arg0.toz3(), arg2_z3))
             else:
                 arg2_z3 = arg2.toz3() if not isinstance(arg2.toz3(), int) else z3.IntVal(arg2.toz3())
@@ -1133,8 +1131,8 @@ class Interpreter(object):
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
              return ConstantGenericBitVector(arg0.value >> arg1.value, arg0.width)
         else:
-            if isinstance(arg1, Z3Value) and arg1.is_casted() and isinstance(arg1.precasttype, types.SmallFixedBitVector): 
-                arg1z3 = self._adapt_bv_width(arg1.precastvalue, arg0.width)
+            if isinstance(arg1, Z3CastedValue) and isinstance(arg1.value, types.SmallFixedBitVector): 
+                arg1z3 = self._adapt_bv_width(arg1.value, arg0.width)
             else:
                 arg1z3 = z3.Int2BV(arg1.toz3(), arg0.width)
             if isinstance(arg0, Z3GenericBitVector):
@@ -1305,10 +1303,7 @@ class Interpreter(object):
             return ConstantInt(supportcode.unsigned_bv(None, arg0.value, arg1.value))
         else:
             val = z3.ZeroExt(64 - arg1.value, arg0.toz3())
-            wval =  Z3Value(z3.BV2Int(val))
-            # this is kept to avoid `int2bv(bv2int(...` casts
-            wval.append_previous_value(val, op.args[0].resolved_type)
-            return wval
+            return Z3CastedValue(val, z3.BV2Int, [False])
         
     def exec_unsigned_bv_wrapped_res(self, op):
         """ arg is a bv , result is that bv cast to generic int """

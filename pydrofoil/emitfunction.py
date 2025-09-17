@@ -384,6 +384,7 @@ class CodeEmitter(object):
                         arg3,
                     )
                 )
+            return
         elif op.args[0].resolved_type == types.MachineInt():
             self.codegen.emit(
                 "if not (%s <= %s <= %s): raise supportcode.SailError(%s)"
@@ -394,13 +395,14 @@ class CodeEmitter(object):
                     arg3,
                 )
             )
-        elif op.args[0].resolved_type == types.Int():
-            low_optional = op.args[1]
-            high_optional = op.args[2]
-            low_is_unit = isinstance(low_optional, ir.UnitConstant)
-            high_is_unit = isinstance(high_optional, ir.UnitConstant)
-            if low_is_unit and high_is_unit:
-                return
+            return
+        low_optional = op.args[1]
+        high_optional = op.args[2]
+        low_is_unit = isinstance(low_optional, ir.UnitConstant)
+        high_is_unit = isinstance(high_optional, ir.UnitConstant)
+        if low_is_unit and high_is_unit:
+            return
+        if op.args[0].resolved_type == types.Int():
             self.codegen.emit(
                 "if not (%s%s%s): raise supportcode.SailError(%s)"
                 % (
@@ -415,14 +417,8 @@ class CodeEmitter(object):
                 )
             )
         elif op.args[0].resolved_type == types.Packed(types.Int()):
-            low_optional = op.args[1]
-            high_optional = op.args[2]
-            low_is_unit = isinstance(low_optional, ir.UnitConstant)
-            high_is_unit = isinstance(high_optional, ir.UnitConstant)
-            if low_is_unit and high_is_unit:
-                return
             self.codegen.emit(
-                    "if not (%s%s%s): raise supportcode.SailError(%s)"
+                "if not (%s%s%s): raise supportcode.SailError(%s)"
                 % (
                     ""
                     if low_is_unit
@@ -436,6 +432,36 @@ class CodeEmitter(object):
                     arg3,
                 )
             )
+        elif op.args[0].resolved_type == types.GenericBitVector():
+            if op.args[2].number <= 64:
+                self.codegen.emit(
+                    (
+                        "if not isinstance(%s, bitvector.SmallBitVector): "
+                        "raise supportcode.SailError(%s)"
+                    )
+                    % (arg0, arg3)
+                )
+            assert not low_is_unit and not high_is_unit
+            self.codegen.emit(
+                (
+                    "if not (%s <= %s.size() <= %s): "
+                    "raise supportcode.SailError(%s)"
+                )
+                % (op.args[1].number, arg0, op.args[2].number, arg3)
+            )
+        elif op.args[0].resolved_type == types.Packed(
+            types.GenericBitVector()
+        ):
+            if op.args[2].number <= 64:
+                self.codegen.emit(
+                    "if %s[2] is not None: raise supportcode.SailError(%s)"
+                    % (arg0, arg3)
+                )
+            self.codegen.emit(
+                "if not (%s <= %s[0] <= %s): raise supportcode.SailError(%s)"
+                % (op.args[1].number, arg0, op.args[2].number, arg3)
+            )
+            pass
         else:
             assert 0, "unknown type in RangeCheck"
 

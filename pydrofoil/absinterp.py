@@ -6,6 +6,8 @@ from pydrofoil import ir, makecode, types
 MININT = -sys.maxint - 1
 MAXINT = sys.maxint
 
+MAX_CONSIDERED_NUMBER_OF_BITS = 128
+
 
 _RECOMPUTE_LIMIT = 100
 
@@ -93,6 +95,35 @@ class Range(object):
             low = -self.high
         return Range(low, high)
 
+    def abs(self):
+        if self.low is None:
+            if self.high is None:
+                # ------ 0 -------
+                return Range(0, None)
+            if self.high < 0:
+                # ---]   0
+                return Range(-self.high, None)
+            else:
+                # ------ 0 --]
+                return Range(0, None)
+        elif self.high is None:
+            if self.low < 0:
+                #    [-- 0 -------
+                return Range(0, None)
+            else:
+                #        0   [----
+                return self
+        else:
+            if self.high < 0:
+                # [---]  0
+                return Range(-self.high, -self.low)
+            if self.low >= 0:
+                #        0   [----]
+                # ------ 0 -------
+                return self
+            #       [--- 0 ------]
+            return Range(0, max(-self.low, self.high))
+
     def sub(self, other):
         return self.add(other.neg())
 
@@ -139,6 +170,15 @@ class Range(object):
                 return Range(0, self.high)
         return UNBOUNDED
 
+    def emod(self, other):
+        # type: (Range) -> Range
+        other = other.abs()
+        if other.high == 0:
+            return Range(None, None)
+        high = (other.high - 1) if other.high is not None else None
+        low = 0
+        return Range(low, high)
+
     def lshift(self, other):
         if (
             self.is_bounded()
@@ -174,6 +214,32 @@ class Range(object):
             ]
             return Range(min(values), max(values))
         return UNBOUNDED
+
+    def max(self, other):
+        if self.low is None:
+            low = other.low
+        elif other.low is None:
+            low = self.low
+        else:
+            low = max(self.low, other.low)
+        if self.high is None or other.high is None:
+            high = None
+        else:
+            high = max(self.high, other.high)
+        return Range(low, high)
+
+    def min(self, other):
+        if self.low is None or other.low is None:
+            low = None
+        else:
+            low = min(self.low, other.low)
+        if self.high is None:
+            high = other.high
+        elif other.high is None:
+            high = self.high
+        else:
+            high = min(self.high, other.high)
+        return Range(low, high)
 
     def union(self, other):
         # type: (Range) -> Range
@@ -217,6 +283,16 @@ class Range(object):
             return None
 
         return Range(low, high)
+
+    def eq(self, other):
+        # type: (Range) -> Range
+        intersection = self.intersect(other)
+        if intersection is None:
+            return FALSE
+        if self.isconstant() and other.isconstant():
+            assert self.low == other.low
+            return TRUE
+        return BOOL
 
     def le(self, other):
         if self.high is not None and other.low is not None:
@@ -290,18 +366,42 @@ class Range(object):
     def make_gt_const(self, const):
         return self.make_ge_const(const + 1)
 
+    @classmethod
+    def for_int_with_bits(cls, number_of_bits, is_signed):
+        # type: (int, bool) -> Range
+        assert number_of_bits > 0
+        if is_signed:
+            # For high numbers of bits, calculating the power of 2 is too
+            # costly, so we just use None
+            if number_of_bits > MAX_CONSIDERED_NUMBER_OF_BITS:
+                low, high = None, None
+            else:
+                power = 2 ** (number_of_bits - 1)
+                low = -power
+                high = power - 1
+        else:
+            low = 0
+            if number_of_bits > MAX_CONSIDERED_NUMBER_OF_BITS:
+                high = None
+            else:
+                high = 2 ** (number_of_bits) - 1
+        return cls(low, high)
+
 
 UNBOUNDED = Range(None, None)
 MACHINEINT = Range(MININT, MAXINT)
 BOOL = Range(0, 1)
 TRUE = Range(1, 1)
 FALSE = Range(0, 0)
+BIT_VECTOR = Range(0, MAXINT)
 
 RELEVANT_TYPES = (
     types.MachineInt(),
     types.Int(),
     types.Bool(),
     types.Packed(types.Int()),
+    types.GenericBitVector(),
+    types.Packed(types.GenericBitVector()),
 )
 INT_TYPES = (types.MachineInt(), types.Int())
 
@@ -474,9 +574,17 @@ class AbstractInterpreter(object):
             )
             res = meth(op)
             if op.resolved_type in RELEVANT_TYPES:
+                if res is None:
+                    import pdb
+
+                    pdb.set_trace()
                 assert res is not None
                 self.current_values[op] = res
             else:
+                if res is not None:
+                    import pdb
+
+                    pdb.set_trace()
                 assert res is None
 
     def _init_loop_header(self, block):
@@ -497,13 +605,54 @@ class AbstractInterpreter(object):
             return UNBOUNDED
         if op.resolved_type is types.Int():
             return UNBOUNDED
+        if op.resolved_type is types.GenericBitVector():
+            return BIT_VECTOR
+        if op.resolved_type is types.Packed(types.GenericBitVector()):
+            return BIT_VECTOR
         return None
 
     def analyze_Operation(self, op):
         name = op.name.lstrip("@$")
         name = self._builtinname(name)
         meth = getattr(self, "analyze_" + name, self.analyze_default)
-        return meth(op)
+        res = meth(op)
+
+        if (
+            # Types
+            all(arg.resolved_type in RELEVANT_TYPES for arg in op.args)
+            and op.resolved_type in RELEVANT_TYPES
+            # Builtin
+            and ("@" in op.name or "$" in op.name)
+            # Args are not TOP
+            and all(
+                not bound.contains_range(default_for_type(arg.resolved_type))
+                for arg, bound in zip(op.args, self._argbounds(op))
+            )
+            # Result is TOP
+            and (
+                res is None
+                or res.contains_range(default_for_type(op.resolved_type))
+            )
+            and name
+            not in (
+                "lt",
+                "eq",
+                "gt",
+                "gteq",
+                "lteq",
+                "ones_i",
+                "zeros_i",
+                "undefined_bitvector_i",
+                "mult_o_i_wrapped_res",
+                "iadd",
+                "eq_int_o_i",
+            )
+        ):
+            # import pdb
+
+            # pdb.set_trace()
+            pass
+        return res
 
     def analyze_Phi(self, op):
         if op.resolved_type not in RELEVANT_TYPES:
@@ -552,6 +701,8 @@ class AbstractInterpreter(object):
             return FALSE
         if isinstance(op, (ir.MachineIntConstant, ir.IntConstant)):
             return Range.fromconst(op.number)
+        if isinstance(op, ir.GenericBitVectorConstant):
+            return Range.fromconst(op.value.size())
         if op.resolved_type not in RELEVANT_TYPES:
             return None
         if isinstance(op, ir.DefaultValue):
@@ -574,6 +725,15 @@ class AbstractInterpreter(object):
             assert isinstance(op, list)
             l = op
         return [self._bounds(arg) for arg in l]
+
+    def analyze_eq_int(self, op):
+        arg0, arg1 = self._argbounds(op)
+        assert arg0 is not None
+        assert arg1 is not None
+        return arg0.eq(arg1)
+
+    analyze_eq_int_i_i = analyze_eq_int
+    analyze_eq_int_o_i = analyze_eq_int
 
     def analyze_lteq(self, op):
         arg0, arg1 = self._argbounds(op)
@@ -600,6 +760,14 @@ class AbstractInterpreter(object):
     analyze_add_i_i_wrapped_res = analyze_add
     analyze_add_o_i_wrapped_res = analyze_add
 
+    def analyze_iadd(self, op):
+        arg0, arg1 = self._argbounds(op)
+        sum_range = arg0.add(arg1)
+        # Consider overflow
+        if MACHINEINT.contains_range(sum_range):
+            return sum_range
+        return MACHINEINT
+
     def analyze_sub(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.sub(arg1)
@@ -609,6 +777,19 @@ class AbstractInterpreter(object):
     analyze_sub_i_i_wrapped_res = analyze_sub
     analyze_sub_o_i_wrapped_res = analyze_sub
     analyze_sub_i_o_wrapped_res = analyze_sub
+
+    def analyze_neg(self, op):
+        (arg0,) = self._argbounds(op)
+        assert arg0 is not None
+        return arg0.neg()
+
+    def analyze_abs(self, op):
+        (arg0,) = self._argbounds(op)
+        assert arg0 is not None
+        return arg0.abs()
+
+    analyze_abs_i_wrapped_res = analyze_abs
+    analyze_abs_i_must_fit = analyze_abs
 
     def analyze_int_to_int64(self, op):
         # this is a weird op, it raises if the argument doesn't fit in a
@@ -652,6 +833,7 @@ class AbstractInterpreter(object):
 
     analyze_mult_i_i_wrapped_res = analyze_mult_int
     analyze_mult_i_i_must_fit = analyze_mult_int
+    analyze_mult_o_i_wrapped_res = analyze_mult_int
 
     def analyze_tdiv_int(self, op):
         arg0, arg1 = self._argbounds(op)
@@ -664,6 +846,12 @@ class AbstractInterpreter(object):
         return arg0.ediv(arg1)
 
     analyze_ediv_int_i_ipos = analyze_ediv_int
+
+    def analyze_emod_int(self, op):
+        arg0, arg1 = self._argbounds(op)
+        assert arg0 is not None
+        assert arg1 is not None
+        return arg0.emod(arg1)
 
     def analyze_lshift(self, op):
         arg0, arg1 = self._argbounds(op)
@@ -685,14 +873,27 @@ class AbstractInterpreter(object):
     analyze_shr_mach_int = analyze_rshift
     analyze_shr_int_o_i = analyze_rshift
 
+    def analyze_max_int(self, op):
+        arg_0, arg_1 = self._argbounds(op)
+        assert arg_0 is not None
+        assert arg_1 is not None
+        return arg_0.max(arg_1)
+
+    analyze_max_i_i_must_fit = analyze_max_int
+
+    def analyze_min_int(self, op):
+        arg_0, arg_1 = self._argbounds(op)
+        assert arg_0 is not None
+        assert arg_1 is not None
+        return arg_0.min(arg_1)
+
+    analyze_min_i_i_must_fit = analyze_min_int
+
     def analyze_assert_in_range(self, op):  # tests only for now
         arg0, arg1, arg2 = self._argbounds(op)
         assert arg1.isconstant() and arg2.isconstant()
         res = self.current_values[op.args[0]] = Range(arg1.low, arg2.high)
         return res
-
-    def analyze_length_unwrapped_res(self, op):
-        return Range(0, None)
 
     def analyze_pack_machineint(self, op):
         (arg,) = self._argbounds(op)
@@ -701,6 +902,121 @@ class AbstractInterpreter(object):
     def analyze_packed_field_int_to_int64(self, op):
         (arg,) = self._argbounds(op)
         return arg
+
+    # bitvector
+
+    def analyze_zeros_i(self, op):
+        # type: (ir.Operation) -> Range
+        (arg,) = self._argbounds(op)
+        assert arg is not None
+        new_range = arg.intersect(BIT_VECTOR)
+        assert new_range is not None
+        return new_range
+
+    analyze_ones_i = analyze_zeros_i
+
+    def _analyze_gbv_identity(self, op):
+        args = self._argbounds(op)
+        assert args[0] is not None
+        return BIT_VECTOR.intersect(args[0])
+
+    analyze_not_bits = _analyze_gbv_identity
+    analyze_add_bits_int = _analyze_gbv_identity
+    analyze_length_unwrapped_res = _analyze_gbv_identity
+    analyze_shiftr_o_i = _analyze_gbv_identity
+    analyze_shiftl_o_i = _analyze_gbv_identity
+    analyze_or_bits = _analyze_gbv_identity
+    analyze_vector_update_subrange_o_i_i_o = _analyze_gbv_identity
+    analyze_xor_bits = _analyze_gbv_identity
+    analyze_and_bits = _analyze_gbv_identity
+    analyze_undefined_bitvector_i = _analyze_gbv_identity
+
+    def analyze_eq_bits(self, op):
+        return BOOL
+
+    def _analyze_extend(arg_index):
+        """For bitvector operations that create a new bitvector with the size given by an argument."""
+
+        def analyze(self, op):
+            bound = self._argbounds(op)[arg_index]
+            assert bound is not None
+            return BIT_VECTOR.intersect(bound)
+
+        return analyze
+
+    analyze_sign_extend_o_i = _analyze_extend(1)
+    analyze_zero_extend_o_i = _analyze_extend(1)
+    analyze_get_slice_int_i_o_i = _analyze_extend(0)
+
+    def analyze_sail_unsigned(self, op):
+        (bound,) = self._argbounds(op)
+        if bound is None or bound.high is None:
+            return Range(0, None)
+        return Range.for_int_with_bits(bound.high, False)
+
+    def analyze_sail_signed(self, op):
+        (bound,) = self._argbounds(op)
+        if bound is None or bound.high is None:
+            return UNBOUNDED
+        return Range.for_int_with_bits(bound.high, True)
+
+    def analyze_vector_subrange_o_i_i(self, op):
+        (bv_bound, n_bound, m_bound) = self._argbounds(op)
+        assert bv_bound is not None
+        assert n_bound is not None
+        assert m_bound is not None
+        # The width of the resulting vector is n - m + 1
+        return (
+            n_bound.sub(m_bound)
+            .add(Range(1, 1))
+            .make_le(bv_bound)
+            .intersect(BIT_VECTOR)
+        )
+
+    def analyze_bv_bit_op(self, op):
+        (bound_a, bound_b) = self._argbounds(op)
+        assert bound_a is not None
+        assert bound_b is not None
+        return bound_a.intersect(bound_b)
+
+    analyze_add_bits = analyze_bv_bit_op
+    analyze_sub_bits = analyze_bv_bit_op
+
+    def analyze_slice_o_i_i(self, op):
+        (bound_bv, _, bound_length) = self._argbounds(op)
+        assert bound_bv is not None
+        assert bound_length is not None
+        return bound_length.make_le(bound_bv).intersect(BIT_VECTOR)
+
+    def analyze_bitvector_concat_bv_gbv_wrapped_res(self, op):
+        (_, bound_width, bound_gbv) = self._argbounds(op)
+        assert bound_width is not None
+        assert bound_gbv is not None
+        return bound_gbv.add(bound_width)
+
+    def analyze_bitvector_concat_bv_n_zeros_wrapped_res(self, op):
+        (_, bound_width, bound_nzeros) = self._argbounds(op)
+        assert bound_width is not None
+        assert bound_nzeros is not None
+        return bound_width.add(bound_nzeros)
+
+    def analyze_replicate_bits_o_i(self, op):
+        arg_0, arg_1 = self._argbounds(op)
+        assert arg_0 is not None
+        assert arg_1 is not None
+        return arg_0.mul(arg_1).intersect(BIT_VECTOR)
+
+    # mem
+
+    def analyze_read_mem(self, op):
+        # Result is a bitvector with n bytes
+        (_, _, _, bound_n) = self._argbounds(op)
+        assert bound_n is not None
+        return bound_n.mul(Range(8, 8)).intersect(BIT_VECTOR)
+
+    analyze_read_mem_exclusive_o_o_o_i = analyze_read_mem
+    analyze_read_mem_ifetch_o_o_o_i = analyze_read_mem
+    analyze_read_mem_o_o_o_i = analyze_read_mem
 
     # conditions
 
@@ -756,6 +1072,7 @@ class IntOpOptimizer(ir.LocalOptimizer):
         self.idom = graph.immediate_dominators()
 
     def _should_fit_machine_int(self, op):
+
         if self.current_values:
             value = self.current_values.get(op, None)
             if value is not None and value.fits_machineint():
@@ -925,6 +1242,8 @@ def default_for_type(typ):
         return BOOL
     elif typ is types.MachineInt():
         return MACHINEINT
+    elif typ is types.GenericBitVector():
+        return BIT_VECTOR
     else:
         return UNBOUNDED
 
@@ -1188,7 +1507,6 @@ class Location(object):
         new = Range.union_many(self.writes.values())
         assert old.contains_range(new)
         if new != old:
-            print self.message, old, new, self._recompute_counter
             self._recompute_counter += 1
             self.bound = new
             return True

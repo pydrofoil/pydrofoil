@@ -1734,7 +1734,7 @@ def test_length():
     block1.next = Return(i1)
     g = Graph("g", [v], block1)
     values = analyze(g, fakecodegen)
-    assert values[block1][i1] == Range(0, None)
+    assert values[block1][i1] == Range(0, MAXINT)
 
 
 def test_pow2_i():

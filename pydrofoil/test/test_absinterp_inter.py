@@ -13,6 +13,7 @@ from pydrofoil.absinterp import (
     MAXINT,
 )
 from pydrofoil.test.test_ir import compare
+from pydrofoil.test.util import MockCodegen
 import pytest
 
 
@@ -95,6 +96,7 @@ def test_recompute_limit_many_graph_locations():
     assert mod == {loc}
     assert loc.bound == Range(0, 200)
 
+
 def test_recompute_limit_not_increased_if_there_is_no_change():
     m = LocationManager()
     typ = types.Int()
@@ -137,26 +139,6 @@ def _get_graphs_interprocedural_range():
     graph_c2 = ir.Graph("c2", [], block_c2)
 
     return {"f": graph_f, "c1": graph_c1, "c2": graph_c2}
-
-
-class MockCodegen(object):
-    builtin_names = {
-        "zz5izDzKz5i64": "int_to_int64",
-        "zz5i64zDzKz5i": "int64_to_int",
-    }
-
-    def __init__(self, graphs, entry_points=None):
-        self.all_graph_by_name = graphs
-        self.inlinable_functions = {}
-        self.inline_dependencies = collections.defaultdict(set)
-        self.method_graphs_by_name = {}
-        self.program_entrypoints = entry_points
-
-    def get_effects(self, _):
-        pass
-
-    def print_debug_msg(self, _):
-        pass
 
 
 def test_interprocedural_range():
@@ -582,9 +564,13 @@ def _get_graphs_interprocedural_range_method():
 
     block_c1 = ir.Block()
     u1 = block_c1.emit(ir.Operation, "first", [ir.IntConstant(5)], u)
-    block_c1.emit(ir.Operation, "execute", [u1, ir.IntConstant(23)], types.Int())
+    block_c1.emit(
+        ir.Operation, "execute", [u1, ir.IntConstant(23)], types.Int()
+    )
     u2 = block_c1.emit(ir.Operation, "second", [ir.IntConstant(10)], u)
-    block_c1.emit(ir.Operation, "execute", [u2, ir.IntConstant(42)], types.Int())
+    block_c1.emit(
+        ir.Operation, "execute", [u2, ir.IntConstant(42)], types.Int()
+    )
     block_c1.next = ir.Return(ir.UnitConstant.UNIT)
     graph_c1 = ir.Graph("c1", [], block_c1)
 
@@ -603,5 +589,7 @@ def test_method():
         "execute_second": graphs["execute_second"],
     }
     locmanager = compute_all_ranges(c)
-    loc = locmanager.get_location_for_result(graphs["execute_first"], types.Int())
+    loc = locmanager.get_location_for_result(
+        graphs["execute_first"], types.Int()
+    )
     assert loc.bound == Range(28, 47)

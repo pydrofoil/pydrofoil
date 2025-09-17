@@ -284,6 +284,16 @@ class Range(object):
 
         return Range(low, high)
 
+    def eq(self, other):
+        # type: (Range) -> Range
+        intersection = self.intersect(other)
+        if intersection is None:
+            return FALSE
+        if self.isconstant() and other.isconstant():
+            assert self.low == other.low
+            return TRUE
+        return BOOL
+
     def le(self, other):
         if self.high is not None and other.low is not None:
             if self.high <= other.low:
@@ -715,6 +725,15 @@ class AbstractInterpreter(object):
             assert isinstance(op, list)
             l = op
         return [self._bounds(arg) for arg in l]
+
+    def analyze_eq_int(self, op):
+        arg0, arg1 = self._argbounds(op)
+        assert arg0 is not None
+        assert arg1 is not None
+        return arg0.eq(arg1)
+
+    analyze_eq_int_i_i = analyze_eq_int
+    analyze_eq_int_o_i = analyze_eq_int
 
     def analyze_lteq(self, op):
         arg0, arg1 = self._argbounds(op)

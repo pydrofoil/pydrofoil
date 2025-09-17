@@ -313,6 +313,29 @@ def test_lt_hypothesis_enum(ra, rb):
             assert r.contains(a < b)
 
 
+def test_eq_example():
+    assert Range(None, None).eq(Range(None, None)) == BOOL
+    assert Range(None, None).eq(Range(1, None)) == BOOL
+    assert Range(5, None).eq(Range(None, 0)) == FALSE
+    assert Range(5, 5).eq(Range(5, 5)) == TRUE
+
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_eq_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.eq(rb)
+    assert r.contains(a == b)
+
+
+@given(smallbounds, smallbounds)
+def test_eq_hypothesis_enum(ra, rb):
+    r = ra.eq(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            assert r.contains(a == b)
+
+
 @given(bound_with_contained_number, bound_with_contained_number)
 def test_gt_hypothesis(ta, tb):
     ra, a = ta

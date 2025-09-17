@@ -621,8 +621,8 @@ class Interpreter(object):
             w_cond = BooleanConstant(True)._create_w_z3_and(*(self.path_condition + [w_checker]))
             if w_res == None:
                 w_res = temp_w_res
-                self.memory =  memory
-                self.registers =  registers
+                self.memory = memory
+                self.registers = registers
             else:
                 w_res = w_cond._create_w_z3_if(temp_w_res, w_res)
                 self.memory = z3.If(w_cond.toz3(), memory, self.memory)
@@ -1093,7 +1093,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             return ConstantSmallBitVector(arg0.value << arg2.value, arg1.value) 
         else:
-            if isinstance(arg2, Z3CastedValue) and isinstance(arg2.value, types.SmallFixedBitVector):
+            if isinstance(arg2, Z3CastedValue) and isinstance(arg2.value, z3.z3.BitVecRef):
                 arg2_z3 = self._adapt_bv_width(arg2.value, arg0.toz3().sort().size())
                 return Z3Value(arg0.toz3() << arg2_z3)
             else:
@@ -1104,7 +1104,7 @@ class Interpreter(object):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return ConstantInt(arg0.value << arg1.value) 
-        elif isinstance(arg1, Z3CastedValue) and isinstance(arg1.value, types.SmallFixedBitVector):
+        elif isinstance(arg1, Z3CastedValue):
             assert 0, "implement me"    
         else:
             assert 0, "special case second argument"
@@ -1117,7 +1117,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             return ConstantSmallBitVector(arg0.value >> arg2.value, arg1.value) 
         else:
-            if isinstance(arg2, Z3CastedValue) and isinstance(arg2.value, types.SmallFixedBitVector):
+            if isinstance(arg2, Z3CastedValue) and isinstance(arg2.value, z3.z3.BitVecRef):
                 arg2_z3 = self._adapt_bv_width(arg2.value, arg0.toz3().sort().size())
                 return Z3Value(z3.LShR(arg0.toz3(), arg2_z3))
             else:
@@ -1131,7 +1131,7 @@ class Interpreter(object):
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
              return ConstantGenericBitVector(arg0.value >> arg1.value, arg0.width)
         else:
-            if isinstance(arg1, Z3CastedValue) and isinstance(arg1.value, types.SmallFixedBitVector): 
+            if isinstance(arg1, Z3CastedValue) and isinstance(arg1.value, z3.z3.BitVecRef): 
                 arg1z3 = self._adapt_bv_width(arg1.value, arg0.width)
             else:
                 arg1z3 = z3.Int2BV(arg1.toz3(), arg0.width)

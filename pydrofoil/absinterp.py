@@ -966,7 +966,12 @@ class AbstractInterpreter(object):
         assert n_bound is not None
         assert m_bound is not None
         # The width of the resulting vector is n - m + 1
-        return n_bound.sub(m_bound).add(Range(1, 1)).intersect(bv_bound)
+        return (
+            n_bound.sub(m_bound)
+            .add(Range(1, 1))
+            .make_le(bv_bound)
+            .intersect(BIT_VECTOR)
+        )
 
     def analyze_bv_bit_op(self, op):
         (bound_a, bound_b) = self._argbounds(op)
@@ -981,7 +986,7 @@ class AbstractInterpreter(object):
         (bound_bv, _, bound_length) = self._argbounds(op)
         assert bound_bv is not None
         assert bound_length is not None
-        return bound_length.intersect(bound_bv)
+        return bound_length.make_le(bound_bv).intersect(BIT_VECTOR)
 
     def analyze_bitvector_concat_bv_gbv_wrapped_res(self, op):
         (_, bound_width, bound_gbv) = self._argbounds(op)

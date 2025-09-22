@@ -1,21 +1,24 @@
 import z3
+import time
 from pydrofoil import types
 from pydrofoil.types import *
-from pydrofoil.z3backend.z3btypes import ConstantSmallBitVector, UnionConstant, StructConstant
+from pydrofoil.z3backend.z3btypes import ConstantSmallBitVector, UnionConstant, StructConstant, Z3Value
 from pydrofoil.z3backend import z3btypes
 
 ## registers used for comparison between angr and z3backend
 
 # rv64: x0 is not allowed (hardwired 0?)
 RV64REGISTERS = {"x1","x2","x3","x4","x5","x6","x7","x8","x9","x10","x11","x12","x13","x14","x15",
-                 "x16","x17","x18","x19","x20","x21","x22","x23","x24","x25","x26","x27","x28","x29","x30","x31"}
+                 "x16","x17","x18","x19","x20","x21","x22","x23","x24","x25","x26","x27","x28","x29",
+                 "x30","x31",}
 ARM9_4REGISTERS = {}
 
 
 def patch_name(name):
     """ append a 'z' to the name """
     if name == "pc": return "zPC" # for some reason pc is uppercase in sail
-    # nextPC is uppercase to, but does not exist in angr
+    if name == "nextpc": return "znextPC"
+    if name == "have_exception": return name
     return "z" + name
 
 def unpatch_name(name):
@@ -34,6 +37,10 @@ def prepare_interpreter(interp, registers_w, memory_w):
         mem = z3.Store(mem, addr, val)
     interp.memory = mem
 
+#######################################################
+# rv64 init register values
+# TODO: move into a seperate file
+
 def get_rv64_usermode_misa_w_value(riscvsharedstate):
     misa = types.Struct('zMisa', ('zbits',), (types.SmallFixedBitVector(64),))
     misa_z3type = riscvsharedstate.get_z3_struct_type(misa)
@@ -49,35 +56,101 @@ def get_rv64_usermode_mstatus_w_value(riscvsharedstate):
     value = 0x0000000A00000000
     return StructConstant([ConstantSmallBitVector(value, 64)], mstatus, mstatus_z3type)
 
-
 def get_rv64_usermode_cur_privilege_w_value(riscvsharedstate):
     riscvsharedstate.register_enum('zPrivilege', ('zUser', 'zSupervisor', 'zMachine'))
     return riscvsharedstate.get_w_enum("zPrivilege", "zUser")
 
+def get_rv64_medeleg_0_w_value(riscvsharedstate):
+    medeleg = types.Struct('zMedeleg', ('zbits',), (SmallFixedBitVector(64),))
+    medeleg_z3type = riscvsharedstate.get_z3_struct_type(medeleg)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], medeleg, medeleg_z3type)
 
-def execute_machine_code(code, code_bits, interp_class, shared_state, decode_graph, execute_graph, ismthd, init_regs_w, init_mem_w, skip=[]):
-    decoder = interp_class(decode_graph, [ConstantSmallBitVector(code[0], code_bits)], shared_state.copy()) #  must init correctly
-    prepare_interpreter(decoder, init_regs_w, init_mem_w)
-    ast = decoder.run()
+def get_rv64_mideleg_0_w_value(riscvsharedstate):
+    minterupts = Struct('zMinterrupts', ('zbits',), (SmallFixedBitVector(64),)) # struct for mideleg
+    minterupts_z3type = riscvsharedstate.get_z3_struct_type(minterupts)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], minterupts, minterupts_z3type)
+
+def get_rv64_mie_0_w_value(riscvsharedstate):
+    mie = Struct('zMinterrupts', ('zbits',), (SmallFixedBitVector(64),))
+    mie_z3type = riscvsharedstate.get_z3_struct_type(mie)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], mie, mie_z3type)
+
+def get_rv64_mip_0_w_value(riscvsharedstate):
+    mip = Struct('zMinterrupts', ('zbits',), (SmallFixedBitVector(64),))
+    mip_z3type = riscvsharedstate.get_z3_struct_type(mip)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], mip, mip_z3type)
+
+def get_rv64_mtime_0_value(riscvsharedstate):
+    return ConstantSmallBitVector(0x0, 64)
+
+def get_rv64_mtimecmp_0_value(riscvsharedstate):
+    return ConstantSmallBitVector(0x0, 64)
+
+#######################################################
+
+class DummyGraph(object):
+    def __init__(self):
+        self.has_loop = False
+        self.args = []
+
+def _rv64_ends_bb(code):
+    """ check wheter an rv64 instruction is a jump/branch """
+    ends = False
+    ends |= ((code & 0b1100011) == 0b1100011) & ((code &0b111000000000000) != 0b010) # btype
+    ends |= (code & 0b1101111) == 0b1101111 # jal
+    ends |= (code & 0b1100111) == 0b1100111 # jalr
+    #if not ends: print "%s seems to not end the bb" % str(code)
+    return ends
+
+def _rv64_patch_pc_for_angr_jump(interp, branch_size, code):
+    # if a branch/jump was executed, bb ended and we dont need to do anything
+    for c in code:
+        if _rv64_ends_bb(c): return
+    # otherwise angr executes a jump that is not a part of the executed code to end the bb
+    # as the condition of the jump is always false, the pc is just incremented by the jump isntructions size
+    if isinstance(interp.registers["zPC"], z3btypes.ConstantSmallBitVector):
+        pc_val = interp.registers["zPC"].value
+        interp.registers["znextPC"] = z3btypes.ConstantSmallBitVector(pc_val + branch_size, 64)
+    else:
+        pc_val = interp.registers["zPC"].toz3()
+        interp.registers["znextPC"] = z3btypes.Z3Value(pc_val + z3.BitVecVal(branch_size, pc_val.sort().size()))
+
+def execute_machine_code_rv64(code, code_bits, interp_class, shared_state, decode_graph, decode_compressed_graph, tick_pc_graph,
+                          execute_graph, ismthd, init_regs_w, init_mem_w, verbosity=0):
     ### executor must only be used via _method_call or _func_call ###
-    executor = interp_class(decode_graph, [ast], shared_state.copy()) # must init with 'normal graph'
+    executor = interp_class(DummyGraph(), [], shared_state.copy(), {}) # init with dummy graph => do NOT call run() on this interpreter
     prepare_interpreter(executor, init_regs_w, init_mem_w)
-    ### actual decode-execute  loop ###
+    executor.set_verbosity(verbosity)
+    ### actual decode-execute loop ###
     for instr in code:
-        print "###  decoding: %s " % str(hex(instr))
-        decoder = interp_class(decode_graph, [ConstantSmallBitVector(instr, code_bits)], shared_state.copy())
-        prepare_interpreter(decoder, init_regs_w, init_mem_w)
-        ast = decoder.run()
+        if instr & 0b11 == 0b11:
+            print "###  decoding: %s " % str(hex(instr))
+            decoder = interp_class(decode_graph, [ConstantSmallBitVector(instr, code_bits)], shared_state.copy())
+            decoder.set_verbosity(verbosity)
+            prepare_interpreter(decoder, init_regs_w, init_mem_w)
+            ast = decoder.run()
+            opcode_size = 0x4 
+        else:
+            print "###  decoding compressed: %s " % str(hex(instr))
+            decoder = interp_class(decode_compressed_graph, [ConstantSmallBitVector(instr, code_bits)], shared_state.copy())
+            decoder.set_verbosity(verbosity)
+            prepare_interpreter(decoder, init_regs_w, init_mem_w)
+            ast = decoder.run()
+            opcode_size = 0x2
 
-        for s in skip:
-            if s in str(ast):
-                print "###  skipped  ###" 
-                print str(ast)
-                print "###  skipped  ###" 
-                return None
+        if "ILLEGAL" in str(ast):
+            assert 0, "Illegal Instruction %s" % str(instr)
 
         if not isinstance(ast, UnionConstant):
             import pdb; pdb.set_trace()
+
+        # increment nextPC by opcode size
+        if isinstance(executor.registers["zPC"], ConstantSmallBitVector):
+            pc_val = executor.registers["zPC"].value
+            executor.registers["znextPC"] = ConstantSmallBitVector(pc_val + opcode_size, 64)
+        else:
+            pc_val = executor.registers["zPC"].toz3()
+            executor.registers["znextPC"] = Z3Value(pc_val + z3.BitVecVal(opcode_size, pc_val.sort().size()))
 
         executor._reset_env()
         print "###  executing: %s " % str(ast)
@@ -90,6 +163,14 @@ def execute_machine_code(code, code_bits, interp_class, shared_state, decode_gra
             _, call_mem, call_regs = executor._func_call(execute_graph, [ast])
             executor.memory = call_mem
             executor.registers = call_regs
+
+        # TODO: pass sharedstate into execute_machine_code and pass the correct value into constructor
+        _, call_mem, call_regs = executor._func_call(tick_pc_graph, [z3btypes.UnitConstant(None)]) # this would fail if toz3() is called (but it wont be)
+        executor.memory = call_mem
+        executor.registers = call_regs
+
+        #print "PC %s" % str(executor.registers["zPC"].value)
+        #print "nextPC %s" % str(executor.registers["znextPC"].value)
 
     # return executing interpreter to access its registers and memory
     return executor
@@ -105,6 +186,9 @@ def extract_regs_smtlib2(interp, registers_size):
             smt_regs[regname] = value.value.sexpr()
         else:
             smt_regs[regname] = value.toz3().sexpr()
+    # handle sail registers manually
+    smt_regs["have_exception"] = interp.registers["have_exception"].toz3().sexpr()
+    #
     return smt_regs
 
 def extract_mem_smtlib2(interp):
@@ -140,22 +224,22 @@ def build_assertions_mem(smt_mem0, smt_mem1, init_mem_to_z3var):
     return exprs
 
 
-def solve_assert_z3_unequality_exprs(exprs, failfast=True, verbose=True):
+def solve_assert_z3_unequality_exprs(exprs, failfast=True, verbosity=0):
     """ gets dict of exprs e.g. {'x1': x1_a != x1_b, ...} and checks for unsat.
-        unsat meaning x1_a and x1_b are equal """
+        unsat means that x1_a and x1_b are equal """
     ok = True
-    if verbose: 
-        print "============== checking registers/memory =============="
+    print "============== checking registers/memory =============="
+    start = time.time()
     for name, value in exprs.iteritems():
         solver = z3.Solver()
-        solver.set("timeout", 7500)
+        solver.set("timeout", 777)
         res = solver.check(value)
         if res == z3.unknown:
             print "==============        timeout        =============="
             print value
             print "==============        timeout        =============="
             print "==============      skipped test     =============="
-            return
+            return time.time() - start
         if failfast:
             if res != z3.unsat: print(solver.model())
             assert res == z3.unsat, "assertion %s:%s failed" % (name, str(value))
@@ -163,9 +247,11 @@ def solve_assert_z3_unequality_exprs(exprs, failfast=True, verbose=True):
             print "failed: %s:%s == z3.unsat" % (name, str(value))
             print "model:", solver.model()
             ok = False
-        elif verbose:
+        elif verbosity > 0:
             print "ok:     %s:%s == z3.unsat" % (name, str(value))
-    if ok and verbose: 
+    if ok: 
         print "==============    registers/memory ok    =============="
     print ""
     assert ok
+    return time.time() - start
+

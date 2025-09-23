@@ -371,7 +371,7 @@ class Z3GenericBitVector(Z3Value):
         return Z3GenericBitVector(self.value, self.width)
 
 class Z3GenericBitVectorInt(Z3Value):
-    # TODO: this class and Z3DeferedIntGenericBitVector can be merged into one, but must rethink  this
+    # TODO: this class and Z3DeferredIntGenericBitVector can be merged into one, but must rethink  this
     def __init__(self, val, width, z3type, constant=False):
         assert isinstance(width, int)
         self.value = val
@@ -389,7 +389,7 @@ class Z3GenericBitVectorInt(Z3Value):
         #return StructConstant([w_val, self.width], self.resolved_type, self.z3type).toz3()
     
 
-class Z3DeferedIntGenericBitVector(Z3Value):
+class Z3DeferredIntGenericBitVector(Z3Value):
     def __init__(self, z3_bv_tuple):
         """ Idea: create this class instead of crashing on failing to get a width for a generic bv from z3
             and hope this class dies somewhere without being directly used """
@@ -400,7 +400,7 @@ class Z3DeferedIntGenericBitVector(Z3Value):
         return self.z3_bv_tuple
     
     def __str__(self):
-        return "Z3DeferedIntGenericBitVector(%s)" % str(self.z3_bv_tuple)
+        return "Z3DeferredIntGenericBitVector(%s)" % str(self.z3_bv_tuple)
     
     def same_value(self, other):
         assert 0

@@ -144,7 +144,7 @@ class SharedState(object):
         # TODO: think of how to get more specialised types
         if ztype == z3.BoolSort(): return Z3BoolValue 
         if ztype == z3.StringSort(): return Z3StringValue
-        if ztype == self._genericbvz3type: return Z3DeferedIntGenericBitVector
+        if ztype == self._genericbvz3type: return Z3DeferredIntGenericBitVector
         # TODO. maybe this must check for the shared_state unit constant?
         return Z3Value
 
@@ -677,7 +677,7 @@ class Interpreter(object):
             return Z3GenericBitVectorInt(w_generic_bv.value, w_generic_bv.width, self.sharedstate._genericbvz3type, True)
         elif isinstance(w_generic_bv, Z3GenericBitVector):
             return Z3GenericBitVectorInt(w_generic_bv.value, w_generic_bv.width, self.sharedstate._genericbvz3type)
-        elif isinstance(w_generic_bv, Z3DeferedIntGenericBitVector):
+        elif isinstance(w_generic_bv, Z3DeferredIntGenericBitVector):
             return w_generic_bv
         elif isinstance(w_generic_bv, Z3GenericBitVectorInt):
             assert 0, "this Int repr shall not have escaped the z3 level"
@@ -745,7 +745,7 @@ class Interpreter(object):
                 w_val = Z3GenericBitVector(z3.Int2BV(value, long_width), long_width, self.sharedstate._genericbvz3type)
             else:
                 self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(res), True)
-                w_val = Z3DeferedIntGenericBitVector(res)
+                w_val = Z3DeferredIntGenericBitVector(res)
             return Packed(w_val) if packed else w_val
         # TODO: check for Unit
         return Packed(Z3Value(res)) if packed else Z3Value(res)
@@ -777,7 +777,7 @@ class Interpreter(object):
                 if res.sort() == z3.BoolSort():
                     new_args.append(Z3BoolValue(res))
                 elif res.sort() == self.sharedstate._genericbvz3type:
-                    new_args.append(Z3DeferedIntGenericBitVector(res))
+                    new_args.append(Z3DeferredIntGenericBitVector(res))
                 else:
                     new_args.append(Z3Value(res))  
         return StructConstant(new_args, resolved_type, struct_type_z3)
@@ -825,7 +825,7 @@ class Interpreter(object):
                     return Z3GenericBitVector(z3.Int2BV(value, long_width), long_width, self.sharedstate._genericbvz3type)
                 else:
                     self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(op), True)
-                    return Z3DeferedIntGenericBitVector(z3_cast_instance)
+                    return Z3DeferredIntGenericBitVector(z3_cast_instance)
             return Z3Value(z3_cast_instance)
         elif isinstance(instance, UnionConstant):
             assert op.name == instance.variant_name
@@ -863,7 +863,7 @@ class Interpreter(object):
                     return ConstantSmallBitVector(arg0.value, to_type.width)
                 elif isinstance(arg0, Z3GenericBitVector):
                     return Z3Value(arg0.value)
-                elif isinstance(arg0, Z3DeferedIntGenericBitVector):
+                elif isinstance(arg0, Z3DeferredIntGenericBitVector):
                     # we can cast because we know the width at this point
                     intval = getattr(self.sharedstate._genericbvz3type, "value")(arg0.toz3())
                     return Z3Value(z3.Int2BV(intval, to_type.width))
@@ -916,6 +916,15 @@ class Interpreter(object):
             return BooleanConstant(arg0 == arg1)
         else:
             assert isinstance(arg0, Z3Value) or isinstance(arg1, Z3Value)
+            return Z3BoolValue(arg0.toz3() == arg1.toz3())
+        
+    def exec_eq_int_o_i(self, op):
+        """ compare GenericInt and MachineInt """
+        arg0, arg1 = self.getargs(op)
+        if ((isinstance(arg0, ConstantGenericInt) or isinstance(arg0, ConstantInt)) and 
+            (isinstance(arg1, ConstantGenericInt) or isinstance(arg1, ConstantInt))):
+            return BooleanConstant(arg0.value == arg1.value)
+        else:
             return Z3BoolValue(arg0.toz3() == arg1.toz3())
         
     def exec_zeq_bit(self, op):
@@ -1078,10 +1087,20 @@ class Interpreter(object):
         else:
             return Z3Value(arg0.toz3() * arg1.toz3())
         
-    def _adapt_bv_width(self, z3bv, targetwidth):
+    def exec_zemod_int(self, op):
+        arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return ConstantInt(arg0.value % arg1.value)
+        else:
+            return Z3Value(arg0.toz3() % arg1.toz3())
+        
+    def _adapt_bv_width(self, z3bv, targetwidth, sign_ext=False):
         z3bvsize = z3bv.sort().size()
         if z3bvsize < targetwidth:
-            return z3.ZeroExt(targetwidth - z3bvsize, z3bv)
+            if sign_ext:
+                return z3.SignExt(targetwidth - z3bvsize, z3bv)
+            else:
+                return z3.ZeroExt(targetwidth - z3bvsize, z3bv)
         elif z3bvsize > targetwidth:
             return z3.Extract(targetwidth-1, 0, z3bv)
         else:
@@ -1107,9 +1126,12 @@ class Interpreter(object):
         elif isinstance(arg1, Z3CastedValue):
             assert 0, "implement me"    
         else:
-            assert 0, "special case second argument"
+            if isinstance(arg1, ConstantInt):
+                arg1z3 = z3.BitVecVal(arg1.value, self.bits)
+            else:
+                arg1z3 = z3.Int2BV(arg1.toz3(), self.bits)
             # z3 does not support int shifts, thus we convert to bvs with host machine size
-            return Z3Value(z3.BV2Int(z3.Int2BV(arg0.toz3(), self.bits) << z3.Int2BV(arg1.toz3(), self.bits), is_signed=True))
+            return Z3Value(z3.BV2Int(z3.Int2BV(arg0.toz3(), self.bits) << arg1z3, is_signed=True))
         
     def exec_shiftr_bv_i(self, op):
         #shiftr_bv_i is used when executing a rv64 logical right shit instruction => this is a logical shift
@@ -1230,7 +1252,7 @@ class Interpreter(object):
             return ConstantSmallBitVector(unpackedarg1.value, arg0.value)
         elif isinstance(unpackedarg1, Z3GenericBitVector):
             return Z3Value(unpackedarg1.value)
-        elif isinstance(unpackedarg1, Z3DeferedIntGenericBitVector):
+        elif isinstance(unpackedarg1, Z3DeferredIntGenericBitVector):
             intval = getattr(self.sharedstate._genericbvz3type, "value")(unpackedarg1.toz3())
             return Z3Value(z3.Int2BV(intval, arg0.value))
         else:
@@ -1295,6 +1317,22 @@ class Interpreter(object):
             assert 0
         else:
             assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
+    
+    def exec_sign_extend_o_i_unwrapped_res(self, op):
+        arg0, arg1 = self.getargs(op)
+        if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
+             return ConstantSmallBitVector(arg0.value, op.resolved_ype.width)
+        elif isinstance(arg0, Z3GenericBitVector):
+           targetwidth = op.resolved_type.width
+           Z3Value(z3.SignExt(targetwidth - arg0.value.sort().size(), arg0.value))
+        elif isinstance(arg0, Z3DeferredIntGenericBitVector):
+            # nice case: here we dont know the size of the former bv to turn the int
+            # but int2bv(arg0.toz3(), arg1.value) is exactly the sign ext
+            #TODO: move the getattr everywhere into a separate private function
+            intval = getattr(self.sharedstate._genericbvz3type, "value")(arg0.toz3())
+            return Z3Value(z3.Int2BV(intval, arg1.value))
+        else: 
+            assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
 
     def exec_unsigned_bv(self, op):
         """ arg is a bv , result is that bv cast to MachineInt """
@@ -1328,7 +1366,7 @@ class Interpreter(object):
             return StringConstant(bin(arg0.value))
         elif isinstance(arg0, Z3GenericBitVector):
             bvval = arg0.value
-        elif isinstance(arg0, Z3DeferedIntGenericBitVector):
+        elif isinstance(arg0, Z3DeferredIntGenericBitVector):
             intval = getattr(self.sharedstate._genericbvz3type, "value")(arg0.toz3())
             bvval = z3.Int2BV(intval, 64) # if we dont know the generic bvs size here, just assume 64
             self._debug_print("zbits_str: generic bv with unkown size", True)
@@ -1416,7 +1454,7 @@ class RiscvInterpreter(Interpreter):
             addr = z3.BitVecVal(arg2.value, 64) # mem access only via 64 bit bvs
         elif isinstance(arg2, Z3GenericBitVector):
             addr = self._adapt_bv_width(arg2.value, 64) # mem access only via 64 bit bvs
-        elif isinstance(arg2, Z3DeferedIntGenericBitVector):
+        elif isinstance(arg2, Z3DeferredIntGenericBitVector):
             intval = getattr(self.sharedstate._genericbvz3type, "value")(arg2.toz3())
             addr = z3.Int2BV(intval, 64) # mem access only via 64 bit bvs
         else:
@@ -1427,6 +1465,10 @@ class RiscvInterpreter(Interpreter):
             val = z3.Concat(val, self.memory[addr + i])
         
         return Z3GenericBitVector(val, arg3.value * 8, self.sharedstate._genericbvz3type)
+    
+    def exec_read_mem_exclusive_o_o_o_i(self, op):
+        # TODO: refactor to just call the inner func
+        return self.exec_read_mem_o_o_o_i(op)
 
     def exec_zsys_enable_zzfinx(self, op):
         return BooleanConstant(False) 

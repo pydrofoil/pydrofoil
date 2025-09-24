@@ -4090,7 +4090,7 @@ class LocalOptimizer(BaseOptimizer):
         arg1 = self._extract_number(arg1)
         # a % 1 = 0
         if arg1.number == 1:
-            return MachineIntConstant(0)
+            return IntConstant(0)
         # Constant folding
         try:
             arg0 = self._extract_number(arg0)

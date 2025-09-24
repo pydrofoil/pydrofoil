@@ -249,7 +249,10 @@ class Codegen(specialize.FixpointSpecializer):
                 pyname, demangle(graph.name).replace('speciali\x8cd', 'specialized'), pyname, argument_converters, result_converter, repr(functyp)))
         self.add_graph(graph, emit_extra)
 
-    def add_graph(self, graph, emit_function, *args, **kwargs):
+    def add_graph(self, graph, emit_function=None, *args, **kwargs):
+        if emit_function is None:
+            emit_function = self.emit_regular_function
+            args = (graph.name, )
         self.schedule_graph_specialization(graph)
         self._all_graphs.append((graph, emit_function, args, kwargs))
 

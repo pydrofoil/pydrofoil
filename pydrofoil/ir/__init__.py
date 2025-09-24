@@ -1125,6 +1125,12 @@ class Graph(object):
     def replace_op(self, oldop, newop):
         return self.replace_ops({oldop: newop})
 
+    def find_return_type(self):
+        for block in self.iterblocks():
+            if isinstance(block.next, Return):
+                return block.next.value.resolved_type
+        assert 0, "no return statement found"
+
 
 # values
 

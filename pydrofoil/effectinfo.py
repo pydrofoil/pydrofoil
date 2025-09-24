@@ -1,5 +1,12 @@
 from collections import defaultdict
-from pydrofoil.ir import FieldWrite, GlobalRead, Graph, GlobalWrite, Operation, FieldAccess
+from pydrofoil.ir import (
+    FieldWrite,
+    GlobalRead,
+    Graph,
+    GlobalWrite,
+    Operation,
+    FieldAccess,
+)
 from pydrofoil.types import Struct
 
 
@@ -14,18 +21,24 @@ class EffectInfo(object):
         self.register_reads = register_reads  # type: frozenset[str]
         self.register_writes = register_writes  # type: frozenset[str]
         self.struct_reads = struct_reads  # type: frozenset[tuple[Struct, str]]
-        self.struct_writes = struct_writes  # type: frozenset[tuple[Struct, str]]
+        self.struct_writes = (
+            struct_writes
+        )  # type: frozenset[tuple[Struct, str]]
 
     # Will be set after the class
-    BOTTOM = None # type: EffectInfo
+    BOTTOM = None  # type: EffectInfo
 
     def add_register_write(self, register_name):
         # type: (str) -> EffectInfo
-        return self.extend(EffectInfo(register_writes=frozenset({register_name})))
+        return self.extend(
+            EffectInfo(register_writes=frozenset({register_name}))
+        )
 
     def add_register_read(self, register_name):
         # type: (str) -> EffectInfo
-        return self.extend(EffectInfo(register_reads=frozenset({register_name})))
+        return self.extend(
+            EffectInfo(register_reads=frozenset({register_name}))
+        )
 
     def add_struct_write(self, struct_type, field_name):
         # type: (Struct, str) -> EffectInfo
@@ -82,7 +95,9 @@ EffectInfo.BOTTOM = EffectInfo()
 class _EffectComputationState(object):
     def __init__(self, graph_map, methods):
         # type: (dict[str, Graph], dict[str, dict[str, Graph]]) -> None
-        self.effect_map = defaultdict(EffectInfo)  # type: dict[str, EffectInfo]
+        self.effect_map = defaultdict(
+            EffectInfo
+        )  # type: dict[str, EffectInfo]
         self.caller_map = defaultdict(set)  # type: dict[str, set[str]]
         self.todo_set = set()  # type: set[str]
         self.graph_map = graph_map
@@ -115,13 +130,18 @@ class _EffectComputationState(object):
                 if type(op) is not Operation:
                     continue
                 if op.name in self.methods:
-                    callees = [called_graph.name for called_graph in self.methods[op.name].itervalues()]
+                    callees = [
+                        called_graph.name
+                        for called_graph in self.methods[op.name].itervalues()
+                    ]
                 elif op.name in self.graph_map:
                     callees = [op.name]
                 else:
                     continue
                 for callee_name in callees:
-                    effect_info = effect_info.extend(self.effect_map[callee_name])
+                    effect_info = effect_info.extend(
+                        self.effect_map[callee_name]
+                    )
                     self.caller_map[callee_name].add(graph.name)
 
         return effect_info
@@ -137,9 +157,13 @@ def local_effects(graph):
             elif isinstance(op, GlobalRead):
                 result = result.add_register_read(op.name)
             elif isinstance(op, FieldWrite):
-                result = result.add_struct_write(op.args[0].resolved_type, op.name)
+                result = result.add_struct_write(
+                    op.args[0].resolved_type, op.name
+                )
             elif isinstance(op, FieldAccess):
-                result = result.add_struct_read(op.args[0].resolved_type, op.name)
+                result = result.add_struct_read(
+                    op.args[0].resolved_type, op.name
+                )
 
     return result
 

@@ -4085,6 +4085,33 @@ class LocalOptimizer(BaseOptimizer):
                 )
             )
 
+    def optimize_emod_int(self, op):
+        arg0, arg1 = self._args(op)
+        arg1 = self._extract_number(arg1)
+        # a % 1 = 0
+        if arg1.number == 1:
+            return IntConstant(0)
+        # Constant folding
+        try:
+            arg0 = self._extract_number(arg0)
+        except NoMatchException:
+            pass
+        else:
+            if arg0.number >= 0 and arg1.number > 0:
+                return IntConstant(arg0.number % arg1.number)
+        # Optimize for positive arg1
+        if arg1.number > 1 and isinstance(arg1.number, int):
+            arg0 = self._extract_machineint(arg0)
+            return self._make_int64_to_int(
+                self.newop(
+                    "@emod_int_i_ipos",
+                    [arg0, MachineIntConstant(arg1.number)],
+                    types.MachineInt(),
+                    op.sourcepos,
+                    op.varname_hint,
+                )
+            )
+
     def optimize_shl_int_o_i(self, op):
         arg0, arg1 = self._args(op)
         arg0 = self._extract_machineint(arg0)

@@ -173,7 +173,7 @@ class Range(object):
     def emod(self, other):
         # type: (Range) -> Range
         other = other.abs()
-        if other.high == 0:
+        if other.high is not None and other.high <= 0:
             return Range(None, None)
         high = (other.high - 1) if other.high is not None else None
         low = 0
@@ -853,6 +853,8 @@ class AbstractInterpreter(object):
         assert arg1 is not None
         return arg0.emod(arg1)
 
+    analyze_emod_int_i_ipos = analyze_emod_int
+
     def analyze_lshift(self, op):
         arg0, arg1 = self._argbounds(op)
         return arg0.lshift(arg1)
@@ -1200,6 +1202,38 @@ class IntOpOptimizer(ir.LocalOptimizer):
                 return self._make_int64_to_int(
                     self.newop(
                         "@tdiv_int_i_i",
+                        [arg0, self._make_int_to_int64(arg1)],
+                        types.MachineInt(),
+                        op.sourcepos,
+                        op.varname_hint,
+                    )
+                )
+
+    def optimize_ediv_int(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        if self.current_values:
+            value = self.current_values.get(arg1, UNBOUNDED)
+            if value.fits_machineint() and value.low >= 1:
+                return self._make_int64_to_int(
+                    self.newop(
+                        "@ediv_int_i_ipos",
+                        [arg0, self._make_int_to_int64(arg1)],
+                        types.MachineInt(),
+                        op.sourcepos,
+                        op.varname_hint,
+                    )
+                )
+
+    def optimize_emod_int(self, op):
+        arg0, arg1 = self._args(op)
+        arg0 = self._extract_machineint(arg0)
+        if self.current_values:
+            value = self.current_values.get(arg1, UNBOUNDED)
+            if value.fits_machineint() and value.low >= 1:
+                return self._make_int64_to_int(
+                    self.newop(
+                        "@emod_int_i_ipos",
                         [arg0, self._make_int_to_int64(arg1)],
                         types.MachineInt(),
                         op.sourcepos,

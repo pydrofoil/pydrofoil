@@ -939,7 +939,7 @@ def ediv_int(machine, a, b):
 
 @purefunction
 def ediv_int_i_ipos(machine, a, b):
-    assert b >= 2
+    assert b >= 1
     return a // b
 
 
@@ -948,6 +948,13 @@ def ediv_int_i_ipos(machine, a, b):
 def emod_int(machine, a, b):
     # type: (Any, bitvector.Integer, bitvector.Integer) -> bitvector.Integer
     return a.emod(b)
+
+
+@purefunction
+def emod_int_i_ipos(machine, a, b):
+    # type: (Any, int, int) -> int
+    # Equivalent to euclidian mod when b is positive.
+    return a % b
 
 
 @purefunction

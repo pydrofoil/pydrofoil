@@ -215,3 +215,144 @@ block0.next = Return(i2, None)
 graph = Graph('f', [arg_a, arg_b], block0)
 """,
     )
+
+
+def test_emod_int_i_ipos_const():
+    a = ir.Argument("a", types.MachineInt())
+    block0 = ir.Block()
+    i1 = block0.emit(
+        ir.Operation,
+        "zz5i64zDzKz5i",
+        [a],
+        types.Int(),
+        "`7 11525:11-11525:20",
+        "zz4199",
+    )
+    i2 = block0.emit(
+        ir.Operation,
+        "emod_int",
+        [i1, ir.IntConstant(2)],
+        types.Int(),
+        "`7 11526:20-11526:32",
+        "zz4179",
+    )
+    i3 = block0.emit(
+        ir.Operation,
+        "zz5izDzKz5i64",
+        [i2],
+        types.MachineInt(),
+        "`7 11526:20-11526:32",
+        "zz43",
+    )
+    block0.next = ir.Return(i3, None)
+    graph = ir.Graph("f", [a], block0)
+    check_optimize(
+        graph,
+        """
+a = Argument('a', MachineInt())
+block0 = Block()
+i1 = block0.emit(Operation, '@emod_int_i_ipos', [a, MachineIntConstant(2)], MachineInt(), '`7 11526:20-11526:32', 'zz4179')
+block0.next = Return(i1, None)
+graph = Graph('f', [a], block0)
+""",
+    )
+
+
+def test_emod_int_i_ipos_range():
+    a = ir.Argument("a", types.MachineInt())
+    b = ir.Argument("b", types.Int())
+    block0 = ir.Block()
+    i0 = block0.emit(
+        ir.RangeCheck,
+        "$rangecheck",
+        [
+            b,
+            ir.IntConstant(5),
+            ir.IntConstant(15),
+            ir.StringConstant("Argument 'b' of function 'f'"),
+        ],
+        types.Unit(),
+    )
+    i2 = block0.emit(
+        ir.Operation,
+        "zz5i64zDzKz5i",
+        [a],
+        types.Int(),
+    )
+    i3 = block0.emit(
+        ir.Operation,
+        "emod_int",
+        [i2, b],
+        types.Int(),
+    )
+    i4 = block0.emit(
+        ir.Operation,
+        "zz5izDzKz5i64",
+        [i3],
+        types.MachineInt(),
+    )
+    block0.next = ir.Return(i4, None)
+    graph = ir.Graph("f", [a, b], block0)
+    check_optimize(
+        graph,
+        """
+a = Argument('a', MachineInt())
+b = Argument('b', Int())
+block0 = Block()
+i2 = block0.emit(Operation, 'zz5izDzKz5i64', [b], MachineInt(), None, None)
+i3 = block0.emit(RangeCheck, '$rangecheck', [i2, IntConstant(5), IntConstant(15), StringConstant("Argument 'b' of function 'f'")], Unit(), None, None)
+i4 = block0.emit(Operation, '@emod_int_i_ipos', [a, i2], MachineInt(), None, None)
+block0.next = Return(i4, None)
+graph = Graph('f', [a, b], block0)
+""",
+    )
+
+
+def test_ediv_int_i_ipos_range():
+    a = ir.Argument("a", types.MachineInt())
+    b = ir.Argument("b", types.Int())
+    block0 = ir.Block()
+    i0 = block0.emit(
+        ir.RangeCheck,
+        "$rangecheck",
+        [
+            b,
+            ir.IntConstant(5),
+            ir.IntConstant(15),
+            ir.StringConstant("Argument 'b' of function 'f'"),
+        ],
+        types.Unit(),
+    )
+    i2 = block0.emit(
+        ir.Operation,
+        "zz5i64zDzKz5i",
+        [a],
+        types.Int(),
+    )
+    i3 = block0.emit(
+        ir.Operation,
+        "ediv_int",
+        [i2, b],
+        types.Int(),
+    )
+    i4 = block0.emit(
+        ir.Operation,
+        "zz5izDzKz5i64",
+        [i3],
+        types.MachineInt(),
+    )
+    block0.next = ir.Return(i4, None)
+    graph = ir.Graph("f", [a, b], block0)
+    check_optimize(
+        graph,
+        """
+a = Argument('a', MachineInt())
+b = Argument('b', Int())
+block0 = Block()
+i2 = block0.emit(Operation, 'zz5izDzKz5i64', [b], MachineInt(), None, None)
+i3 = block0.emit(RangeCheck, '$rangecheck', [i2, IntConstant(5), IntConstant(15), StringConstant("Argument 'b' of function 'f'")], Unit(), None, None)
+i4 = block0.emit(Operation, '@ediv_int_i_ipos', [a, i2], MachineInt(), None, None)
+block0.next = Return(i4, None)
+graph = Graph('f', [a, b], block0)
+""",
+    )

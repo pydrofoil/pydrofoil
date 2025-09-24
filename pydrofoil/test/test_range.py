@@ -2,6 +2,7 @@ import sys
 
 from pydrofoil.absinterp import Range, UNBOUNDED, TRUE, FALSE, BOOL, int_c_div
 
+from pydrofoil.bitvector import Integer
 from rpython.rlib.rarithmetic import LONG_BIT
 
 from hypothesis import given, strategies, assume
@@ -113,6 +114,27 @@ def test_neg_hypothesis_enum(ra):
         assert r.contains(-a)
     assert not r.contains(-(ra.low - 1))
     assert not r.contains(-(ra.high + 1))
+
+
+def test_abs_example():
+    assert Range(None, None).abs() == Range(0, None)
+    assert Range(None, -5).abs() == Range(5, None)
+    assert Range(None, 5).abs() == Range(0, None)
+
+    assert Range(5, None).abs() == Range(5, None)
+    assert Range(-10, None).abs() == Range(0, None)
+
+    assert Range(-10, -5).abs() == Range(5, 10)
+    assert Range(-10, 5).abs() == Range(0, 10)
+    assert Range(-2, 10).abs() == Range(0, 10)
+    assert Range(2, 20).abs() == Range(2, 20)
+
+
+@given(bound_with_contained_number)
+def test_abs_hypothesis(ta):
+    ra, a = ta
+    r = ra.abs()
+    assert r.contains(abs(a))
 
 
 def test_sub_example():
@@ -291,6 +313,29 @@ def test_lt_hypothesis_enum(ra, rb):
             assert r.contains(a < b)
 
 
+def test_eq_example():
+    assert Range(None, None).eq(Range(None, None)) == BOOL
+    assert Range(None, None).eq(Range(1, None)) == BOOL
+    assert Range(5, None).eq(Range(None, 0)) == FALSE
+    assert Range(5, 5).eq(Range(5, 5)) == TRUE
+
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_eq_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.eq(rb)
+    assert r.contains(a == b)
+
+
+@given(smallbounds, smallbounds)
+def test_eq_hypothesis_enum(ra, rb):
+    r = ra.eq(rb)
+    for a in range(ra.low, ra.high + 1):
+        for b in range(rb.low, rb.high + 1):
+            assert r.contains(a == b)
+
+
 @given(bound_with_contained_number, bound_with_contained_number)
 def test_gt_hypothesis(ta, tb):
     ra, a = ta
@@ -333,6 +378,76 @@ def test_tdiv_hypothesis_enum(ra, rb):
             if b == 0:
                 continue
             assert r.contains(int_c_div(a, b))
+
+
+def test_emod():
+    examples = [
+        (Range(None, None), Range(0, None)),
+        (Range(0, 10), Range(0, 9)),
+        (Range(-11, 10), Range(0, 10)),
+        (Range(-11, None), Range(0, None)),
+        (Range(None, 10), Range(0, None)),
+        (Range(1, 1), Range(0, 0)),
+        (Range(0, 0), Range(None, None)),
+    ]
+    for arg1, res in examples:
+        assert Range(None, None).emod(arg1) == res
+
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_emod_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.emod(rb)
+    if b:
+        res = Integer.fromlong(a).emod(Integer.fromlong(b)).tolong()
+        assert r.contains(res)
+
+
+def test_max():
+    examples = [
+        (Range(None, None), Range(None, None), Range(None, None)),
+        (Range(-10, 10), Range(-15, 5), Range(-10, 10)),
+        (Range(-10, 10), Range(-15, 20), Range(-10, 20)),
+        (Range(None, 10), Range(-15, 20), Range(-15, 20)),
+        (Range(-10, 10), Range(None, 20), Range(-10, 20)),
+        (Range(-10, 10), Range(-15, None), Range(-10, None)),
+    ]
+    for arg0, arg1, res in examples:
+        assert arg0.max(arg1) == res
+
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_max_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.max(rb)
+    r2 = ra.max(rb)
+    assert r == r2
+    assert r.contains(max(a, b))
+
+
+def test_min():
+    examples = [
+        (Range(None, None), Range(None, None), Range(None, None)),
+        (Range(-10, 10), Range(-15, 5), Range(-15, 5)),
+        (Range(-10, 10), Range(-15, 20), Range(-15, 10)),
+        (Range(None, 10), Range(-15, 20), Range(None, 10)),
+        (Range(-10, 10), Range(None, 20), Range(None, 10)),
+        (Range(-10, 10), Range(-15, None), Range(-15, 10)),
+    ]
+    for arg0, arg1, res in examples:
+        assert arg0.min(arg1) == res
+
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_min_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.min(rb)
+    r2 = ra.min(rb)
+    assert r == r2
+    assert r.contains(min(a, b))
 
 
 def test_lshift_example():

@@ -72,9 +72,15 @@ class Codegen(specialize.FixpointSpecializer):
         self.add_global("@sub_i_o_wrapped_res", "supportcode.sub_i_o_wrapped_res")
         self.add_global("@mult_i_i_wrapped_res", "supportcode.mult_i_i_wrapped_res")
         self.add_global("@mult_i_i_must_fit", "supportcode.mult_i_i_must_fit")
-        self.add_global("@mult_o_i_wrapped_res", "supportcode.mult_o_i_wrapped_res")
+        self.add_global(
+            "@mult_o_i_wrapped_res", "supportcode.mult_o_i_wrapped_res"
+        )
+        self.add_global("@abs_i_wrapped_res", "supportcode.abs_i_wrapped_res")
+        self.add_global("@abs_i_must_fit", "supportcode.abs_i_must_fit")
         self.add_global("@ediv_int_i_ipos", "supportcode.ediv_int_i_ipos")
         self.add_global("@tdiv_int_i_i", "supportcode.tdiv_int_i_i")
+        self.add_global("@max_i_i_must_fit", "supportcode.max_i_i_must_fit")
+        self.add_global("@min_i_i_must_fit", "supportcode.min_i_i_must_fit")
         self.add_global("@unsigned_bv64_rshift_int_result", "supportcode.unsigned_bv64_rshift_int_result")
         self.add_global("@shl_int_i_i_wrapped_res", "supportcode.shl_int_i_i_wrapped_res")
         self.add_global("@shl_int_i_i_must_fit", "supportcode.shl_int_i_i_must_fit")

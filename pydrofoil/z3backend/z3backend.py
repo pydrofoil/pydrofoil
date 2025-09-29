@@ -26,6 +26,25 @@ class SharedState(object):
         genericbvz3type = z3.Datatype("__generic_bv_val_width_tuple__")
         genericbvz3type.declare("a", ("value", z3.IntSort()), ("width", z3.IntSort()))
         self._genericbvz3type = genericbvz3type.create()
+        self._unreachable_error_constants = {} # save unreachable_const_of_... and error_in_typecast_... const, as they are needed in parse_smt2_string
+
+    def _build_type_dict(self):
+        """ typenames: z3type dict for smtlib expressions """
+        # TODO: remove the prefixes, re-adding them here is weird
+        z3types = {} 
+        for resolved_type, z3type in self.type_cache.iteritems():
+            if isinstance(resolved_type, types.Struct):
+                name = "struct_%s" % resolved_type.name
+            elif isinstance(resolved_type, types.Enum):
+                name = "enum_%s" % resolved_type.name
+            elif isinstance(resolved_type, types.Union):
+                name = "union_%s" % resolved_type.name
+            else:
+                assert 0
+            z3types[name] = z3type
+        z3types["____unit____"] = self._z3_unit_type
+        z3types["__generic_bv_val_width_tuple__"] = self._genericbvz3type
+        return z3types
 
     def get_z3_struct_type(self, resolved_type):
         if resolved_type in self.type_cache:
@@ -83,6 +102,7 @@ class SharedState(object):
             accessor = getattr(union_type_z3, "acc_" + field)
             ### dont call accessor here, wont work ### 
             default_value = z3.FreshConst(ftype, "error_in_typecast")
+            self._unreachable_error_constants[str(default_value)] = default_value # needed for smtlib expressions
             ### call accessor only in z3 if ###
             return z3.If(typechecker(instance.toz3()), accessor(instance.toz3()), default_value)
         else:
@@ -166,6 +186,7 @@ class SharedState(object):
         """ copy state for tests """
         copystate = SharedState(self.funcs.copy(), self.registers.copy(), self.mthds.copy())
         copystate.enums = self.enums.copy()
+        # type cache?
         return copystate
     
     ## TODO: Replace usage of those funcs with get_abstract_const_of_ztype and convert_type_to_z3_type
@@ -484,6 +505,7 @@ class Interpreter(object):
             rtype = op.resolved_type
             z3type = self.sharedstate.convert_type_to_z3_type(rtype)
             z_instance = self.sharedstate.get_abstract_const_of_ztype(z3type, "unreachable_const_of_" + str(z3type))
+            self.sharedstate._unreachable_error_constants[str(z_instance)] = z_instance # needed for smtlib expressions
             w_class = self.sharedstate.get_w_class_for_ztype(z3type)
             self.environment[op] = w_class(z_instance)
     
@@ -661,6 +683,7 @@ class Interpreter(object):
                 # Generic Bv type is created as abstract constant, no need to do something here
                 if typ is not self.sharedstate._z3_unit_type:
                     val = self.sharedstate.get_abstract_const_of_ztype(typ, "alloc_uninit_%s_" % field)
+                    self.sharedstate._unreachable_error_constants[str(val)] = val # needed for smtlib expressions
                     vals_w.append(self.sharedstate.get_w_class_for_ztype(typ)(val))
                 else:
                     #val = self.sharedstate._z3_unit
@@ -1173,12 +1196,23 @@ class Interpreter(object):
     def exec_vector_subrange_o_i_i_unwrapped_res(self, op):
         """ slice generic bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
-        if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
+        assert isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt), "abstract slicing not allowed"
+        if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             mask_high = 2 ** (arg1.value + 1) - 1
-            # supportcode cant handle more than 64 bits #
             return ConstantSmallBitVector((arg0.value & mask_high) >> arg2.value, 1 + arg1.value - arg2.value)
         elif isinstance(arg0, Z3GenericBitVector):
             return Z3Value(z3.Extract(arg1.value, arg2.value, arg0.value))
+        else:
+            assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
+
+    def exec_vector_subrange_o_i_i(self, op):
+        arg0, arg1, arg2 = self.getargs(op)
+        assert isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt), "abstract slicing not allowed"
+        if isinstance(arg0, ConstantGenericBitVector):
+            mask_high = 2 ** (arg1.value + 1) - 1
+            return ConstantGenericBitVector((arg0.value & mask_high) >> arg2.value, 1 + arg1.value - arg2.value)
+        elif isinstance(arg0, Z3GenericBitVector):
+            return Z3GenericBitVector(z3.Extract(arg1.value, arg2.value, arg0.value), 1 + arg1.value - arg2.value, self.sharedstate._genericbvz3type)
         else:
             assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
                 
@@ -1238,8 +1272,14 @@ class Interpreter(object):
         """ Is this function supposed to access a vector  e.g. vec = [a,b,c], vector_access_o_i(vec,1) = b
             Or is it supposed to return one bit of a bv e.g. bv = 010100..., vector_access_o_i(bv,2) = 0?"""
         arg0, arg1 = self.getargs(op)
-        if isinstance(arg0, Vec):
-            return Z3Value(arg0.toz3()[arg1.toz3()])
+        if isinstance(arg0, ConstantGenericBitVector):
+            if arg1.value == 0: return ConstantGenericBitVector(1 & arg1.value)
+            return ConstantSmallBitVector(1 & (arg0.value >> arg1.value), op.resolved_type.width)
+        elif isinstance(arg0, Z3GenericBitVector):
+            if arg1.value < arg0.width:
+                return Z3Value(z3.Extract(arg1.value, arg1.value, arg0.value))
+            else:
+                import pdb; pdb.set_trace()
         else:
             import pdb; pdb.set_trace()
 
@@ -1412,6 +1452,9 @@ class Interpreter(object):
             return StringConstant("".join([arg0.value, arg1.value]))
         else:
             return Z3StringValue(z3.Concat(arg0.toz3(), arg1.toz3()))
+        
+    def exec_zsail_barrier(self, op):
+        assert 0, "TODO"
 
     ### Arch specific Operations in subclass ###
 
@@ -1443,6 +1486,12 @@ class RiscvInterpreter(Interpreter):
         super(RiscvInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
         self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(8))
 
+    def _init_mem(self):
+        """ initial memory def is needed for smtlib expressions """
+        self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(8))
+        return self.memory
+
+
     ### RISCV specific Operations ###
 
     def exec_read_mem_o_o_o_i(self, op):
@@ -1460,10 +1509,11 @@ class RiscvInterpreter(Interpreter):
         else:
             assert 0, "class %s for generic bv not allowed" % str(arg2.__class__)
 
+        # TODO: use read_memory(addr) instead
         val = self.memory[addr]
         for i in range(arg3.value - 1):
             val = z3.Concat(val, self.memory[addr + i])
-        
+
         return Z3GenericBitVector(val, arg3.value * 8, self.sharedstate._genericbvz3type)
     
     def exec_read_mem_exclusive_o_o_o_i(self, op):

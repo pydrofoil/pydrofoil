@@ -1,6 +1,6 @@
 import time
 from collections import defaultdict
-from typing import Generator
+from typing import TYPE_CHECKING, Generator
 
 from pydrofoil import (
     parse,
@@ -54,6 +54,9 @@ from rpython.tool.udir import udir
 from rpython.rlib.rarithmetic import r_uint
 
 from dotviewer.graphpage import GraphPage as BaseGraphPage
+
+if TYPE_CHECKING:
+    import makecode
 
 
 # TODOS:
@@ -1461,9 +1464,7 @@ def remove_dead(graph, codegen):
             return True
         if op.is_union_creation():
             return True
-        name = op.name.lstrip("@$")
-        name = codegen.builtin_names.get(name, name)
-        return type(op) is Operation and name in supportcode.purefunctions
+        return type(op) is Operation and builtin_is_pure(op.name, codegen)
 
     changed = False
     needed = set()
@@ -2155,9 +2156,7 @@ class BaseOptimizer(object):
             return True
         if op.name == "@not":
             return True
-        name = self.codegen.builtin_names.get(op.name, op.name)
-        name = name.lstrip("@")
-        return type(op) is Operation and name in supportcode.purefunctions
+        return type(op) is Operation and builtin_is_pure(op.name, self.codegen)
 
     def _cse_comparison_tuple(self, valuelist):
         return tuple(
@@ -2472,7 +2471,7 @@ class LocalOptimizer(BaseOptimizer):
         if op.resolved_type is types.Real():
             return  # later
         args = self._args(op)
-        if name not in supportcode.purefunctions:
+        if not builtin_is_pure(op.name, self.codegen):
             return
         if "undefined" in name:
             return
@@ -4996,7 +4995,7 @@ def cse_global_reads(graph, codegen):
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
         if type(op) is Operation:
-            if name in supportcode.purefunctions:
+            if builtin_is_pure(op.name, codegen):
                 return BOTTOM
             return codegen.get_effects(op.name)
         return None
@@ -5232,9 +5231,7 @@ def cse_field_reads(graph, codegen):
             return BOTTOM
         if op.name == "@eq":
             return BOTTOM
-        name = op.name.lstrip("@$")
-        name = codegen.builtin_names.get(name, name)
-        if type(op) is Operation and name in supportcode.purefunctions:
+        if type(op) is Operation and builtin_is_pure(op.name, codegen):
             return BOTTOM
         return codegen.get_effects(op.name)
 
@@ -5398,3 +5395,10 @@ def propagate_equality(graph, codegen):
                 assert res
             changed = True
     return changed
+
+
+def builtin_is_pure(name, codegen):
+    # type: (str, makecode.Codegen) -> bool
+    name = name.lstrip("@$")
+    name = codegen.builtin_names.get(name, name)
+    return name in supportcode.purefunctions

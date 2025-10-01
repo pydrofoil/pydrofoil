@@ -105,9 +105,9 @@ class CodeEmitter(object):
             return True
         if op.name == "@not":
             return True
-        name = self.codegen.builtin_names.get(op.name, op.name)
-        name = name.lstrip("@")
-        return type(op) is ir.Operation and name in supportcode.purefunctions
+        return type(op) is ir.Operation and ir.builtin_is_pure(
+            op.name, self.codegen
+        )
 
     def _get_arg(self, value):
         if isinstance(value, (ir.Phi, ir.Operation)):

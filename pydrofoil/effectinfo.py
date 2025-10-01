@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import TYPE_CHECKING
 from pydrofoil.ir import (
     FieldWrite,
     GlobalRead,
@@ -8,6 +9,9 @@ from pydrofoil.ir import (
     FieldAccess,
 )
 from pydrofoil.types import Struct
+
+if TYPE_CHECKING:
+    from pydrofoil import makecode
 
 
 class EffectInfo(object):
@@ -180,5 +184,14 @@ def local_effects(graph):
 
 def compute_all_effects(graph_map, methods={}):
     # type: (dict[str, Graph], dict[str, dict[str, Graph]]) -> dict[str, EffectInfo]
+    # TODO just pass codegen as arg
     state = _EffectComputationState(graph_map, methods)
     return state.analyze_all()
+
+
+def compute_all_effects_and_call_graph(codegen):
+    # type: (makecode.Codegen) -> tuple[dict[str, EffectInfo], dict[str, set[str]]]
+    state = _EffectComputationState(
+        codegen.all_graph_by_name, codegen.method_graphs_by_name
+    )
+    return state.analyze_all(), state.caller_map

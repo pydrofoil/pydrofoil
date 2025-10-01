@@ -81,9 +81,34 @@ Total time (s): 0.000361
 Perf: 844.397835 Kips
 ```
 
-## Build Pydrofoil with Nix
+## Building Pydrofoil with Nix
 
-See [rpypkgs](https://github.com/rpypkgs/rpypkgs) for details.
+Make sure you have already install [Nix](https://nixos.org/install).
+Nix with experiment features `nix-command flakes` is required.
+
+- In-tree build
+
+NOTE: this method requires Nix with version at least 2.28 (otherwise Nix may fail to initalize Git submodules).
+
+After cloning and entering the repo, run the following command to build pydrofoil-riscv:
+
+```bash
+nix build .#pydrofoil-riscv
+```
+
+Or build pydrofoil plugin (for PyPy3):
+
+```bash
+nix build .#pydrofoil-riscv-plugin
+```
+
+Pass `-Lv` to `nix build` if you would like to see verbose build log.
+
+Pass `--out-link <directory>` to specify the target output directory.
+
+- Out-of-tree build
+
+You may also refer to [rpypkgs](https://github.com/rpypkgs/rpypkgs). Note that till now rpypkgs provide only `pydrofoil-riscv` target.
 
 Example usage:
 

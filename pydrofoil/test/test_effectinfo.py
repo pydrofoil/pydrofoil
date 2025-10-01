@@ -1,4 +1,7 @@
 from pydrofoil.effectinfo import compute_all_effects, local_effects, EffectInfo
+from pydrofoil import (
+    operations,
+)  # Need to import this for __extend__ definitions
 from pydrofoil.test.test_ir import compare
 from pydrofoil.test.examples import *
 
@@ -22,9 +25,9 @@ def test_all_effects():
     all_effects = compute_all_effects(d)
     assert set(all_effects.keys()) == set(d.keys())
     assert all_effects["zcompute_value"] == local_effects(d["zcompute_value"])
-    assert all_effects["zexecute_zCINST"] == local_effects(d["zexecute_zCINST"]).extend(
-        local_effects(d["zcompute_value"])
-    )
+    assert all_effects["zexecute_zCINST"] == local_effects(
+        d["zexecute_zCINST"]
+    ).extend(local_effects(d["zcompute_value"]))
 
 
 def _get_example_cse_global_with_effect_info():
@@ -174,15 +177,16 @@ block0.next = Return(UnitConstant.UNIT, None)
 graph = Graph('f', [s, t], block0)""",
     )
 
+
 def test_effectinfo_methods():
     graphs = get_method_example()
     methods = {
-        'execute':
-               {"execute_first": graphs["execute_first"],
-                "execute_second": graphs["execute_second"]}
+        "execute": {
+            "execute_first": graphs["execute_first"],
+            "execute_second": graphs["execute_second"],
+        }
     }
     effect_info = compute_all_effects(graphs, methods)
-    assert effect_info['c1'] == EffectInfo(
-        register_writes=frozenset(['zx1', 'zx2'])
+    assert effect_info["c1"] == EffectInfo(
+        register_writes=frozenset(["zx1", "zx2"])
     )
-

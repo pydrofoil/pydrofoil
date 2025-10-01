@@ -17,16 +17,14 @@ class EffectInfo(object):
         register_writes=frozenset(),
         struct_reads=frozenset(),
         struct_writes=frozenset(),
+        called_builtins=frozenset(),
     ):
-        self.register_reads = register_reads  # type: frozenset[str]
-        self.register_writes = register_writes  # type: frozenset[str]
-        self.struct_reads = struct_reads  # type: frozenset[tuple[Struct, str]]
-        self.struct_writes = (
-            struct_writes
-        )  # type: frozenset[tuple[Struct, str]]
-
-    # Will be set after the class
-    BOTTOM = None  # type: EffectInfo
+        # type: (frozenset[str], frozenset[str], frozenset[tuple[Struct, str]], frozenset[tuple[Struct, str]], frozenset[str]) -> None
+        self.register_reads = register_reads
+        self.register_writes = register_writes
+        self.struct_reads = struct_reads
+        self.struct_writes = struct_writes
+        self.called_builtins = called_builtins
 
     def add_register_write(self, register_name):
         # type: (str) -> EffectInfo
@@ -52,6 +50,12 @@ class EffectInfo(object):
             EffectInfo(struct_reads=frozenset({(struct_type, field_name)}))
         )
 
+    def add_called_builtin(self, builtin_name):
+        # type: (str) -> EffectInfo
+        return self.extend(
+            EffectInfo(called_builtins=frozenset({builtin_name}))
+        )
+
     def extend(self, other):
         # type: (EffectInfo) -> EffectInfo
         """Create a new EffectInfo with all effects from 'other' added."""
@@ -60,6 +64,7 @@ class EffectInfo(object):
             self.register_writes | other.register_writes,
             self.struct_reads | other.struct_reads,
             self.struct_writes | other.struct_writes,
+            self.called_builtins | other.called_builtins,
         )
 
     def __repr__(self):
@@ -68,12 +73,14 @@ class EffectInfo(object):
             "register_reads=%s, "
             "register_writes=%s, "
             "struct_reads=%s, "
-            "struct_writes=%s)"
+            "struct_writes=%s, "
+            "called_builtins=%s)"
         ) % (
             self.register_reads,
             self.register_writes,
             self.struct_reads,
             self.struct_writes,
+            self.called_builtins,
         )
 
     def __eq__(self, other):
@@ -83,13 +90,14 @@ class EffectInfo(object):
             and self.register_writes == other.register_writes
             and self.struct_reads == other.struct_reads
             and self.struct_writes == other.struct_writes
+            and self.called_builtins == other.called_builtins
         )
 
     def __ne__(self, other):
         return not self == other
 
 
-EffectInfo.BOTTOM = EffectInfo()
+BOTTOM = EffectInfo()
 
 
 class _EffectComputationState(object):
@@ -164,6 +172,8 @@ def local_effects(graph):
                 result = result.add_struct_read(
                     op.args[0].resolved_type, op.name
                 )
+            elif isinstance(op, Operation) and op.name[0] in ("@", "$"):
+                result = result.add_called_builtin(op.name)
 
     return result
 

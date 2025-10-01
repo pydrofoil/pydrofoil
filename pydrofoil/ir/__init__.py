@@ -4980,24 +4980,24 @@ def find_anticipated_casts(graph):
 
 @repeat
 def cse_global_reads(graph, codegen):
-    from pydrofoil.effectinfo import EffectInfo
+    from pydrofoil.effectinfo import EffectInfo, BOTTOM
 
     # very simple forward load-after-load pass
     def get_effect(op):
         # type: (Operation) -> EffectInfo | None
         if not op.can_have_side_effects:
-            return EffectInfo.BOTTOM
+            return BOTTOM
         if isinstance(op, Comment):
-            return EffectInfo.BOTTOM
+            return BOTTOM
         if op.name == "@not":
-            return EffectInfo.BOTTOM
+            return BOTTOM
         if op.name == "@eq":
-            return EffectInfo.BOTTOM
+            return BOTTOM
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
         if type(op) is Operation:
             if name in supportcode.purefunctions:
-                return EffectInfo.BOTTOM
+                return BOTTOM
             return codegen.get_effects(op.name)
         return None
 
@@ -5219,23 +5219,23 @@ def partial_allocation_removal(graph, codegen):
 
 @repeat
 def cse_field_reads(graph, codegen):
-    from pydrofoil.effectinfo import EffectInfo
+    from pydrofoil.effectinfo import EffectInfo, BOTTOM
 
     # very simple forward load-after-load and load-after-store pass for struct fields
     def get_effects(op):
         # type: (Operation) -> EffectInfo | None
         if not op.can_have_side_effects:
-            return EffectInfo.BOTTOM
+            return BOTTOM
         if isinstance(op, Comment):
-            return EffectInfo.BOTTOM
+            return BOTTOM
         if op.name == "@not":
-            return EffectInfo.BOTTOM
+            return BOTTOM
         if op.name == "@eq":
-            return EffectInfo.BOTTOM
+            return BOTTOM
         name = op.name.lstrip("@$")
         name = codegen.builtin_names.get(name, name)
         if type(op) is Operation and name in supportcode.purefunctions:
-            return EffectInfo.BOTTOM
+            return BOTTOM
         return codegen.get_effects(op.name)
 
     replacements = {}

@@ -20,6 +20,12 @@ def test_local_effects_read():
     assert effects.register_reads == {"zx%s" % i for i in range(1, 32)}
 
 
+def test_local_effects_builtins():
+    graph = get_example_builtins()
+    effects = local_effects(graph)
+    assert effects.called_builtins == {"@ones_i", "@zeros_i"}
+
+
 def test_all_effects():
     d = get_example_nand()
     all_effects = compute_all_effects(d)
@@ -79,6 +85,7 @@ def test_cse_global():
     assert effect_info["f"] == EffectInfo(
         register_writes=frozenset({"reg_b"}),
         register_reads=frozenset({"reg_a", "reg_b"}),
+        called_builtins=frozenset({"@dummy"}),
     )
 
     codegen = MockCodegen(graphs)
@@ -153,6 +160,7 @@ def test_cse_field():
     assert effect_info["f"] == EffectInfo(
         struct_writes=frozenset({(s, "x"), (t, "y"), (u, "x")}),
         struct_reads=frozenset({(s, "x"), (s, "y"), (t, "x"), (t, "y")}),
+        called_builtins=frozenset({"@dummy"}),
     )
 
     codegen = MockCodegen(graphs)

@@ -1285,7 +1285,7 @@ DEBUG_REPEAT = False
 
 def repeat(func):
     def repeated(graph, codegen, *args, **kwargs):
-        t1_proper = time.time()
+        t1_proper = time.clock()
         STACK_START_TIMES.append(t1_proper)
         ever_changed = False
         for i in range(1000):
@@ -1370,7 +1370,7 @@ def repeat(func):
                 finally:
                     if added_debug_list:
                         repeat.debug_list = None
-        t2 = time.time()
+        t2 = time.clock()
         t1 = STACK_START_TIMES.pop()
         assert t2 - t1 >= 0
         TIMINGS[func.func_name] += t2 - t1

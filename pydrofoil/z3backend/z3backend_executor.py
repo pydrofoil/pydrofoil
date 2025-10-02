@@ -4,6 +4,7 @@ from pydrofoil import types
 from pydrofoil.types import *
 from pydrofoil.z3backend.z3btypes import ConstantSmallBitVector, UnionConstant, StructConstant, Z3Value
 from pydrofoil.z3backend import z3btypes
+from pydrofoil.z3backend.z3backend import RiscvInterpreter
 
 ## registers used for comparison between angr and z3backend
 
@@ -12,6 +13,8 @@ RV64REGISTERS = {"x1","x2","x3","x4","x5","x6","x7","x8","x9","x10","x11","x12",
                  "x16","x17","x18","x19","x20","x21","x22","x23","x24","x25","x26","x27","x28","x29",
                  "x30","x31", "pc"}
 ARM9_4REGISTERS = {}
+
+RISCV_INSTRUCTION_SIZE = 32
 
 
 def patch_name(name):
@@ -117,10 +120,15 @@ def _rv64_patch_pc_for_angr_jump(interp, branch_size, code):
         pc_val = interp.registers["zPC"].toz3()
         interp.registers["zPC"] = z3btypes.Z3Value(pc_val + z3.BitVecVal(branch_size, pc_val.sort().size()))
 
-def execute_machine_code_rv64(code, code_bits, interp_class, shared_state, decode_graph, decode_compressed_graph, tick_pc_graph,
-                          execute_graph, ismthd, init_regs_w, init_mem_w, verbosity=0):
+def execute_machine_code_rv64(code, rv64sharedstate, ismthd, init_regs_w, init_mem_w, verbosity=0):
     ### executor must only be used via _method_call or _func_call ###
-    executor = interp_class(DummyGraph(), [], shared_state.copy(), {}) # init with dummy graph => do NOT call run() on this interpreter
+
+    decode_graph = rv64sharedstate.funcs['zencdec_backwards']
+    decode_compressed_graph = rv64sharedstate.funcs['zencdec_compressed_backwards']
+    execute_graph = rv64sharedstate.mthds["zexecute"]
+    tick_pc_graph = rv64sharedstate.funcs["ztick_pc"]
+    
+    executor = RiscvInterpreter(DummyGraph(), [], rv64sharedstate.copy(), {}) # init with dummy graph => do NOT call run() on this interpreter
     init_mem = prepare_interpreter(executor, init_regs_w, init_mem_w)
     # TODO: decoder and executor MUST use the same z3 array as init memory, and decoder mem must be passed on to executor and so on
     #  
@@ -129,11 +137,11 @@ def execute_machine_code_rv64(code, code_bits, interp_class, shared_state, decod
     for instr in code:
         if instr & 0b11 == 0b11:
             print "###  decoding: %s " % str(hex(instr))
-            decoder = interp_class(decode_graph, [ConstantSmallBitVector(instr, code_bits)], shared_state.copy())
+            decoder = RiscvInterpreter(decode_graph, [ConstantSmallBitVector(instr, RISCV_INSTRUCTION_SIZE)], rv64sharedstate.copy())
             opcode_size = 0x4 
         else:
             print "###  decoding compressed: %s " % str(hex(instr))
-            decoder = interp_class(decode_compressed_graph, [ConstantSmallBitVector(instr, code_bits)], shared_state.copy())
+            decoder = RiscvInterpreter(decode_compressed_graph, [ConstantSmallBitVector(instr, RISCV_INSTRUCTION_SIZE)], rv64sharedstate.copy())
             opcode_size = 0x2
 
         decoder.set_verbosity(verbosity)
@@ -168,7 +176,7 @@ def execute_machine_code_rv64(code, code_bits, interp_class, shared_state, decod
             executor.memory = call_mem
             executor.registers = call_regs
 
-        _, call_mem, call_regs = executor._func_call(tick_pc_graph, [z3btypes.UnitConstant(shared_state._z3_unit)])
+        _, call_mem, call_regs = executor._func_call(tick_pc_graph, [z3btypes.UnitConstant(rv64sharedstate._z3_unit)])
         executor.memory = call_mem
         executor.registers = call_regs
 
@@ -188,7 +196,7 @@ def extract_regs_smtlib2(interp, registers_size):
             smt_regs[regname] = value.toz3().sexpr()
     # handle sail registers manually
     smt_regs["have_exception"] = interp.registers["have_exception"].toz3().sexpr()
-    #
+    # TODO: htif reg?
     return smt_regs
 
 def extract_mem_smtlib2(interp):
@@ -198,12 +206,11 @@ def extract_mem_smtlib2(interp):
     assert 0, "implement memory"
     return smt_mem
 
-def filter_unpatch_rv64_registers(pydrofoil_smt_regs, other_smt_regs):
-    f_pydrofoil_regs, f_other_regs = {}, {} 
+def filter_unpatch_rv64_registers(pydrofoil_smt_regs):
+    f_pydrofoil_regs = {}
     for reg in RV64REGISTERS:
         f_pydrofoil_regs[reg] = pydrofoil_smt_regs[patch_name(reg)]
-        #f_other_regs[reg] = other_smt_regs[reg]
-    return f_pydrofoil_regs, other_smt_regs
+    return f_pydrofoil_regs
 
 def build_assertions_regs(pydrofoil_smt_regs, other_smt_regs, init_reg_name_to_z3, other_z3_decls, z3types):
     """ returns z3 expressions for register inequality e.g. x12_smt_regs0 != x12_smt_regs1

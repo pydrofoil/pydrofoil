@@ -1,7 +1,8 @@
-from pydrofoil.z3backend.z3btypes import Z3Value, ConstantSmallBitVector
+from pydrofoil.z3backend.z3btypes import Z3Value, ConstantSmallBitVector, Z3BoolValue, BooleanConstant
 import z3
 import os, subprocess, tempfile
 import shutil
+import time
 
 RV64_REGISTER_ABI_NAMES = ["zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0",
                            "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6",  "a7",
@@ -21,15 +22,19 @@ def load_code(filename):
     eval(compile("from %s import code" % filename, "<string>", 'exec'), d)
     return d["code"]
 
-def gen_code_run_angr_single(num_ops=128, arch="rv64", verbose=False, pcode=False):
+def gen_code_run_angr_single(num_ops=128, arch="rv64", verbosity=0, pcode=False, instr_types=None):
     """ Generate random instructions, simulate each with angr in single subprocess and load the execution objects """
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
+    start = time.time()
     file = tempfile.NamedTemporaryFile(suffix=".py")
-    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", file.name, "-numops", str(num_ops), "-generate"]
-    if verbose:
+    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "", "-arch", arch, "-file", file.name, "-numops", str(num_ops), "-generate"]
+    if verbosity > 0:
         cmd.append("-verbose")
-    if pcode:
-        cmd.append("-pypcode")
+    #if pcode:
+    #    cmd.append("-pypcode") # tell angrsmtdump to use pypcode (ghidra) to lift instead of pyvex (valgrind)
+    if instr_types: # tell angrsmtdump to generate only instructions  of certain types, instead of the ones currently allowed in angrsmtdump
+        cmd.append("-types")
+        cmd.extend(instr_types)
     subprocess.check_call(" ".join(cmd),shell=True, env=os.environ)
     copy_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), str(file.name)[1:])
     shutil.copy(file.name, copy_path)
@@ -38,22 +43,17 @@ def gen_code_run_angr_single(num_ops=128, arch="rv64", verbose=False, pcode=Fals
         os.remove(copy_path)
     if os.path.exists(copy_path + "c"):
         os.remove(copy_path + "c") 
-    executions = []
-    while code:
-        instrs = [code.pop() for _ in range(min(128, len(code)))] # TODO: remove this and just run all at once
-        excs = run_angr_opcodes(instrs, arch, verbose)
-        while excs is None: excs = run_angr_opcodes(instrs, arch, verbose)
-        executions.extend(excs)
+    executions = run_angr_opcodes(code, arch, verbosity, pcode=pcode)
+    if executions == None: assert 0, "run_angr_opcodes error"
     file.close()
-    return executions
+    return executions, (time.time() - start)
 
-def gen_code_run_angr(num_ops=128, arch="rv64", verbose=False, pcode=False):
+def gen_code_run_angr(num_ops=128, arch="rv64", verbosity=0, pcode=False):
     """ Generate random instructions, simulate with angr and load the execution objects """
-    #assert "CPY3ANGR" in os.environ, "cant find cpy3 with angr in environment " 
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
     outfile_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp.py")
-    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", outfile_path, "-numops", str(num_ops)]
-    if verbose:
+    cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "","-arch", arch, "-file", outfile_path, "-numops", str(num_ops)]
+    if verbosity > 0:
         cmd.append("-verbose")
     if pcode:
         cmd.append("-pypcode")
@@ -65,16 +65,15 @@ def gen_code_run_angr(num_ops=128, arch="rv64", verbose=False, pcode=False):
         os.remove(outfile_path + "c") 
     return executions
 
-def run_angr_opcodes(opcodes=[], arch="rv64", verbose=False, pcode=False):
+def run_angr_opcodes(opcodes=[], arch="rv64", verbosity=0, pcode=False):
     """ simulate opcodes with angr and load the execution objects """
-    assert "CPY3ANGR" in os.environ, "cant find cpy3 with angr in environment " 
     assert "PYDROFOILANGR" in os.environ, "cant find py3 with pydrofoil and angr in environment"
     opcodes = [str(opc) for opc in opcodes]
     file = tempfile.NamedTemporaryFile(suffix=".py")
     cmd = [os.environ["PYDROFOILANGR"], "-m", "angrsmtdump", "-arch", arch, "-file", file.name]
-    if verbose:
+    if verbosity > 0:
         cmd.append("-verbose")
-    if pcode:
+    if pcode: # tell angrsmtdump to use pypcode (ghidra) to lift instead of pyvex (valgrind)
         cmd.append("-pypcode")
     cmd.append("-opcodes")
     cmd.append(str(" ".join(opcodes)))
@@ -100,18 +99,18 @@ def run_angr_opcodes(opcodes=[], arch="rv64", verbose=False, pcode=False):
 
 #############################
 
-def create_wrapped_init_register_values(execution, pc_ip_reg_size=None): # TODO: move this intoz3backend_executor.py
+def create_wrapped_init_register_values(execution, pc_ip_reg_size=None): # TODO: move this into z3backend_executor.py
     """ create z3 Bitvecs for registers and wrap them in z3Backend wrapper classes """
     arch = get_arch_from_execution(execution)
     init_regs = get_init_reg_names_from_execution(execution)
     w_regs = {}
     init_name_z3_mapping = {}
 
-    all_regs = set(arch.registers_size.keys())
+    #all_regs = set(arch.registers_size.keys()) # cant do the al_regs check because of pcode # TODO: adapt this to work with pcode register  handling
 
     for registername, aliaslist in arch.register_aliases.iteritems():
-        if not registername in all_regs: continue
-
+        #if not registername in all_regs: continue
+            
         rval = z3.BitVec(init_regs[registername], 8 * arch.registers_size[registername]) # registers_size is in bytes, z3 in bits
         init_name_z3_mapping[init_regs[registername]] = rval
         w_regs[registername] = Z3Value(rval)
@@ -119,11 +118,11 @@ def create_wrapped_init_register_values(execution, pc_ip_reg_size=None): # TODO:
         for alias in aliaslist:
             init_name_z3_mapping[init_regs[alias]] = rval
             w_regs[alias] = Z3Value(rval)
-            all_regs.remove(alias)
+            #all_regs.remove(alias)
 
-        all_regs.remove(registername)
+        #all_regs.remove(registername)
 
-    assert len(all_regs) == 0
+    #assert len(all_regs) == 0
 
     if pc_ip_reg_size != None:
         regname, regsize = pc_ip_reg_size
@@ -140,17 +139,39 @@ def init_rv64_zero_reg(w_regs, init_name_z3_mapping, init_regs):
     w_regs["zero"] = ConstantSmallBitVector(0, 64)
     w_regs["x0"] = w_regs["zero"] 
     init_name_z3_mapping[init_regs["zero"]] = w_regs["zero"].toz3()
-    init_name_z3_mapping[init_regs["x0"]] = w_regs["x0"].toz3()
+    if "x0" in init_regs: # not present on angr executions with pypcode
+        init_name_z3_mapping[init_regs["x0"]] = w_regs["x0"].toz3()
 
+def init_sail_registers(w_regs, init_name_z3_mapping):
+    """ init sail registers like `have_exception` """
+    # have_exceptions z3backend register name must  be `have_exception` and NOT `zhave_exception`
+    w_regs["have_exception"] = BooleanConstant(False) # Z3BoolValue(z3.Bool("init_have_exception"))
+    # also its init name is just the name of the z3Bool created here as its not present in angr
+    init_name_z3_mapping[str(w_regs["have_exception"].toz3())] = w_regs["have_exception"].toz3()
+    # copied htif_tohost from supportcodriscv
+    w_regs["htif_tohost"] = ConstantSmallBitVector(0x80001000, 64) 
+
+def init_sail_rv64_registers(w_regs, init_name_z3_mapping):
+    """ init sail registers like `have_exception` """
+    # nextPC is a sail registers, but only? for r64
+    w_regs["nextpc"] = ConstantSmallBitVector(w_regs["pc"].value, 64)
+
+    
 def create_wrapped_init_register_values_rv64(execution):
     """ create z3 Bitvecs for registers and wrap them in z3Backend wrapper classes for rv64 """
     w_regs, init_name_z3_mapping = create_wrapped_init_register_values(execution, ("pc", 8 * 8))
     init_rv64_zero_reg(w_regs, init_name_z3_mapping, get_init_reg_names_from_execution(execution))
+    init_sail_rv64_registers(w_regs, init_name_z3_mapping)
+    init_sail_registers(w_regs, init_name_z3_mapping)
     return w_regs, init_name_z3_mapping
 
-def rename_w_registers_xn_pcode_rv64(registers):
-    """ when using pypcode in angr, regs are not refered to as x0, x1, ... but as zero, ra, ...
-        creates mappings for the xnames by copying the abi entries e.g. mapping["x1"] = mapping["ra"], ..."""
+def rename_execution_registers_xn_pcode_rv64(execution):
+    rename_w_registers_xn_pcode_rv64(execution.init_registers, execution.arch.register_aliases)
+    rename_w_registers_xn_pcode_rv64(execution.result_reg_values, execution.arch.register_aliases)
+
+def rename_w_registers_xn_pcode_rv64(registers, aliases):
+    """ when using pypcode in angr, regs are not refered to as x0, x1, ... but as zero, ra, ... .
+        Thiu function creates mappings for the xnames by copying the abi entries e.g. mapping["x1"] = mapping["ra"], ..."""
     # x8 has two aliases: s0, fp
     if "s0" in registers:
         registers["fp"] = registers["s0"]
@@ -158,7 +179,13 @@ def rename_w_registers_xn_pcode_rv64(registers):
         registers["s0"] = registers["fp"]
 
     for i in range(32):
-        registers["x%d" % i] = registers[RV64_REGISTER_ABI_NAMES[i]]
+        xname = "x%d" % i
+        registers[xname] = registers[RV64_REGISTER_ABI_NAMES[i]]
+        if not xname in aliases[RV64_REGISTER_ABI_NAMES[i]]:
+            aliases[RV64_REGISTER_ABI_NAMES[i]].append(xname)
+        if not RV64_REGISTER_ABI_NAMES[i] in aliases: continue
+        for alias in aliases[RV64_REGISTER_ABI_NAMES[i]]:
+            registers[alias] = registers[RV64_REGISTER_ABI_NAMES[i]]
 
 def create_wrapped_memory_values(execution):
     """ TODO """
@@ -179,6 +206,10 @@ def get_code_from_execution(execution):
 def get_arch_from_execution(execution):
     """ returns correpsonding isa class """
     return execution.arch
+
+def get_branch_size_from_execution(execution):
+    """ returns the size of the opcode that end the bb in bytes"""
+    return execution.branch_size
 
 def get_init_reg_names_from_execution(execution):
     """ returns mapping register_name:init_register_bitvec_name e.g. 'x12': 'bitvec_x12_1233245' """

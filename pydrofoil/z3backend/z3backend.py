@@ -228,7 +228,9 @@ class Interpreter(object):
         self.sharedstate = shared_state if shared_state != None else SharedState()
         self.graph = graph
         self.entrymap = entrymap if entrymap != None else graph.make_entrymap()
+        # LOOP-TODO: remove this
         assert not graph.has_loop
+        # LOOP-TODO: add the set of all loopheaders and a map of all backedges as argument
         self.args = args
         assert len(args) == len(graph.args)
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
@@ -236,6 +238,9 @@ class Interpreter(object):
         self.sharedstate.fork_counter += 1
         # TODO: implement and use `get_w_class_for_rtype` here instead of using Z3Value
         self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
+        # TODO: Make this optional: only execute _init_non_isa_registers if they are not present already
+        # These registers should be set from the outside, e.g., in z3backend_executor
+        # Add htif_... register to  _init_non_isa_registers
         self._init_non_isa_registers()
         self.w_raises = BooleanConstant(False)
         self.w_result = None
@@ -273,6 +278,9 @@ class Interpreter(object):
             assert block_to_interp[current] is None
             block_to_interp[current] = interp
             if len(self.entrymap[current]) > 1:
+                # LOOP-TODO: check if current is a loop header
+                # whether it is or not: first check if 'normal' merge possible and do the 'normal' merge
+                # then if it is a loop header check if loop merge possible and loop merge
                 ### BFS order does NOT guarantee that all block preceeding a phi are executed before encountering the phi, see Nand2Tetris decode_compute_backwards ###
                 if self._check_if_merge_possible(self.entrymap[current], block_to_interp):
                     interp, index = self._compute_merge(current, interp, block_to_interp)
@@ -325,13 +333,27 @@ class Interpreter(object):
     def _schedule_next(self, block_next, schedule):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
         if isinstance(block_next, ir.Goto):
+            # LOOP-TODO: nothing i guess??
             schedule(block_next.target, self.fork(self.path_condition))
             return
         elif isinstance(block_next, ir.ConditionalGoto):
+            # LOOP-TODO: check if this is a loop header
+            # if so, check whether block_next.booleanvalue is abstract
+            # if its constant true or false: we can just continue as usual
+            # if its a Z3Value: raise some error # We cannot unroll a loop for an abstract loop condition
             w_cond = self.convert(block_next.booleanvalue)
 
+            # LOOP-TODO. it is crucial that _is_unreachable is false for the loop path that we DONT go in this iteration
+            # because usually we execute both paths and merge, 
+            # unreachable paths may not not executed normaly but are just set to dummy values
+            # however, to be able to always merge correclty, even unreachable paths are scheduled
+            # this would result in an endless loop
+            # The solution could be to NOT schedule the loop path that is not taken
+            # e.g.
+            # if is_loop and w_cond.value == True: 
             interp1 = self.fork(self.path_condition + [w_cond])# TODO: handle the conditions better
-
+            # and
+            # if is_loop and w_cond.value == False: 
             interp2 = self.fork(self.path_condition + [w_cond.not_()])
 
             ### we need to now in merge if the current block is actually reachable ###
@@ -349,14 +371,24 @@ class Interpreter(object):
         return 
     
     def _check_if_merge_possible(self, prevblocks, block_to_interp):
+        # LOOP-TODO: split this function into a 'normal  check if merge possible'
+        # that only checks for 'normal' prevblocks (i.e. blocks that arent back edges)
+        # and a check_if_merge_possible_loopheader function
         for prevblock in prevblocks:
             if block_to_interp.get(prevblock) is None: return False
         return True
+    
+    def _compute_loop_header_merge(self, block, scheduleinterp, block_to_interp):
+        pass
 
     def _compute_merge(self, block, scheduleinterp, block_to_interp):
+        """ Merge the results of the predecessor blocks of block into and its interpreter (scheduleinterp)"""
+        # LOOP-TODO: rename this function into 'normal' merge for merges of 'normal' (non backedge) predecessors
+        # and introduce another for loop merges
         prevblocks = self.entrymap[block]
         assert len(prevblocks) > 1
         for prevblock in prevblocks:
+            # LOOP-TODO: skip prevblocks that have backedges to 'block' here
             previnterp = block_to_interp[prevblock]
             if previnterp is scheduleinterp: continue
             w_cond = previnterp.w_path_condition()
@@ -370,6 +402,7 @@ class Interpreter(object):
             if isinstance(op, ir.Phi):
                 w_value = None
                 for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
+                    # LOOP-TODO: skip prevblocks that have backedges to 'block' here
                     previnterp = block_to_interp[prevblock]
                     w_prevvalue = previnterp.convert(prevvalue)
                     w_cond = previnterp.w_path_condition()
@@ -697,7 +730,7 @@ class Interpreter(object):
     
     def _w_generic_bv_struct(self, w_generic_bv):
         if isinstance(w_generic_bv, ConstantGenericBitVector):
-            return Z3GenericBitVectorInt(w_generic_bv.value, w_generic_bv.width, self.sharedstate._genericbvz3type, True)
+            return w_generic_bv# Z3GenericBitVectorInt(w_generic_bv.value, w_generic_bv.width, self.sharedstate._genericbvz3type, True)
         elif isinstance(w_generic_bv, Z3GenericBitVector):
             return Z3GenericBitVectorInt(w_generic_bv.value, w_generic_bv.width, self.sharedstate._genericbvz3type)
         elif isinstance(w_generic_bv, Z3DeferredIntGenericBitVector):
@@ -746,7 +779,7 @@ class Interpreter(object):
             w_val = struct.vals_w[index]
             if isinstance(w_val, Z3GenericBitVectorInt):
                 if w_val.constant:
-                    w_val = ConstantGenericBitVector(w_val.value, w_val.width)
+                    w_val = ConstantGenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
                 else:
                     w_val = Z3GenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
             return Packed(w_val) if packed else w_val
@@ -855,7 +888,7 @@ class Interpreter(object):
             w_val = instance.w_val
             if isinstance(w_val, Z3GenericBitVectorInt):
                 if w_val.constant:
-                    return ConstantGenericBitVector(w_val.value, w_val.width)
+                    return ConstantGenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
                 return Z3GenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
             return w_val
         else:
@@ -876,7 +909,7 @@ class Interpreter(object):
         if isinstance(from_type, types.SmallFixedBitVector): # from
             if isinstance(to_type, types.GenericBitVector): # to
                 if isinstance(arg0, ConstantSmallBitVector):
-                    return ConstantGenericBitVector(arg0.value, arg0.width)
+                    return ConstantGenericBitVector(arg0.value, arg0.width, self.sharedstate._genericbvz3type)
                 else:
                     return Z3GenericBitVector(arg0.value, from_type.width, self.sharedstate._genericbvz3type)
                 
@@ -1174,7 +1207,7 @@ class Interpreter(object):
         # This shift is used when executing a rv64 arithmetic right shit instruction => this is an arithmetic shift
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt):
-             return ConstantGenericBitVector(arg0.value >> arg1.value, arg0.width)
+             return ConstantGenericBitVector(arg0.value >> arg1.value, arg0.width, self.sharedstate._genericbvz3type)
         else:
             if isinstance(arg1, Z3CastedValue) and isinstance(arg1.value, z3.z3.BitVecRef): 
                 arg1z3 = self._adapt_bv_width(arg1.value, arg0.width)
@@ -1210,7 +1243,7 @@ class Interpreter(object):
         assert isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt), "abstract slicing not allowed"
         if isinstance(arg0, ConstantGenericBitVector):
             mask_high = 2 ** (arg1.value + 1) - 1
-            return ConstantGenericBitVector((arg0.value & mask_high) >> arg2.value, 1 + arg1.value - arg2.value)
+            return ConstantGenericBitVector((arg0.value & mask_high) >> arg2.value, 1 + arg1.value - arg2.value, self.sharedstate._genericbvz3type)
         elif isinstance(arg0, Z3GenericBitVector):
             return Z3GenericBitVector(z3.Extract(arg1.value, arg2.value, arg0.value), 1 + arg1.value - arg2.value, self.sharedstate._genericbvz3type)
         else:
@@ -1224,7 +1257,7 @@ class Interpreter(object):
         if ((isinstance(arg0, ConstantInt) or isinstance(arg0, ConstantGenericInt)) 
             and (isinstance(arg1, ConstantInt) or isinstance(arg1, ConstantGenericInt))
             and (isinstance(arg2, ConstantInt) or isinstance(arg2, ConstantGenericInt))):
-            return ConstantGenericBitVector((arg1.value >> arg2.value) & ((1 << arg0.value) - 1), arg0.value + 1)
+            return ConstantGenericBitVector((arg1.value >> arg2.value) & ((1 << arg0.value) - 1), arg0.value + 1, self.sharedstate._genericbvz3type)
         elif isinstance(arg1, Z3GenericBitVector):
             import pdb; pdb.set_trace()
         elif isinstance(arg1, Z3Value):
@@ -1273,7 +1306,7 @@ class Interpreter(object):
             Or is it supposed to return one bit of a bv e.g. bv = 010100..., vector_access_o_i(bv,2) = 0?"""
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantGenericBitVector):
-            if arg1.value == 0: return ConstantGenericBitVector(1 & arg1.value)
+            if arg1.value == 0: return ConstantGenericBitVector(1 & arg1.value, op.resolved_type.width, self.sharedstate._genericbvz3type)
             return ConstantSmallBitVector(1 & (arg0.value >> arg1.value), op.resolved_type.width)
         elif isinstance(arg0, Z3GenericBitVector):
             if arg1.value < arg0.width:
@@ -1303,7 +1336,7 @@ class Interpreter(object):
             DONT omit this, there are 'unpack' operations """
         arg0, arg1 = self.getargs(op) #arg0 = bits? ,arg1 = SmallFixedBV
         if isinstance(arg1, ConstantSmallBitVector):
-            return Packed(ConstantGenericBitVector(arg1.value, arg0.value))
+            return Packed(ConstantGenericBitVector(arg1.value, arg0.value, self.sharedstate._genericbvz3type))
         else:
             return Packed(Z3GenericBitVector(arg1.toz3(), arg0.value, self.sharedstate._genericbvz3type))
     
@@ -1350,7 +1383,7 @@ class Interpreter(object):
         arg0, arg1 = self.getargs(op)
         ### Generic BVs are storedas  z3 or py int, thus a sign extension does not do anything
         if isinstance(arg0, ConstantGenericBitVector):
-            return ConstantGenericBitVector(arg0.value, arg1.value)
+            return ConstantGenericBitVector(arg0.value, arg1.value, self.sharedstate._genericbvz3type)
         elif isinstance(arg0, Z3GenericBitVector):
             return Z3GenericBitVector(z3.SignExt(arg1.value - arg0.width, arg0.value), arg1.value, self.sharedstate._genericbvz3type)
         elif isinstance(arg0, Z3Value):
@@ -1517,7 +1550,6 @@ class RiscvInterpreter(Interpreter):
         return Z3GenericBitVector(val, arg3.value * 8, self.sharedstate._genericbvz3type)
     
     def exec_read_mem_exclusive_o_o_o_i(self, op):
-        # TODO: refactor to just call the inner func
         return self.exec_read_mem_o_o_o_i(op)
 
     def exec_zsys_enable_zzfinx(self, op):

@@ -119,13 +119,14 @@ class ConstantSmallBitVector(AbstractConstant):
         return False
     
 class ConstantGenericBitVector(AbstractConstant):
-    def __init__(self, val, width):
+    def __init__(self, val, width, z3type):
         self.value = val
         assert isinstance(width, int)
         self.width = width
+        self.z3type = z3type
 
     def toz3(self):
-        return z3.IntVal(self.value)
+        return self.z3type.constructor(0)(z3.IntVal(self.value), self.width)
     
     def toz3bv(self, width):
         """ extract the value as fixed size bv 
@@ -328,7 +329,7 @@ class Z3CastedValue(Z3Value):
         return False
     
     def copy(self):
-        return Z3CastedValue(self.value ,self.cast_func, self.cast_params)
+        return Z3CastedValue(self.value, self.cast_func, self.cast_params)
 
     def not_(self):
         assert 0,  "ilegal"
@@ -371,10 +372,11 @@ class Z3GenericBitVector(Z3Value):
         return Z3GenericBitVector(self.value, self.width)
 
 class Z3GenericBitVectorInt(Z3Value):
-    # TODO: this class and Z3DeferredIntGenericBitVector can be merged into one, but must rethink  this
+    # TODO: this class and Z3DeferredIntGenericBitVector can be merged into one, but must rethink this
     def __init__(self, val, width, z3type, constant=False):
         assert isinstance(width, int)
         self.value = val
+        assert isinstance(val, z3.z3.BitVecRef)
         self.width = width   
         self.resolved_type = types.GenericBitVector
         self.z3type = z3type

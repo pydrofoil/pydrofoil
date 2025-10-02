@@ -1,10 +1,20 @@
 from pydrofoil import bitvector, ir, types
 from pydrofoil.z3backend import z3backend, z3btypes
-from hypothesis import given, strategies, assume, example, settings
+from hypothesis import given, strategies, assume, example, settings, HealthCheck
 import z3
 
 from rpython.rlib.rarithmetic import r_uint
 from rpython.rlib.rbigint import rbigint
+
+#####################################
+
+settings.register_profile(
+    "test_operations_large",
+    max_examples=100,
+    deadline=5000, 
+    suppress_health_check=[HealthCheck.too_slow],
+)
+
 
 ## copied from test_supportcode.py ##
 
@@ -263,7 +273,9 @@ def test_struct_copy(interp):
     assert isinstance(copied_struct_instance.vals_w[1], z3btypes.UnitConstant)
 
 @given(interpreter, strategies.integers(0,1), small_bitvectors)
-@settings(deadline=None)
+# for some reason hypothesis says this test takes to long to generate test data
+# maybe my pc is just slow :(
+@settings(settings.load_profile("test_operations_large"))
 def test_field_access(interp, const, bv):
     test_struct = types.Struct("test",  ("a", "b", "c"), (types.SmallFixedBitVector(bv.resolved_type.width), types.Unit(), types.Bool()))
 
@@ -274,9 +286,9 @@ def test_field_access(interp, const, bv):
         z3type = interp.sharedstate.get_z3_struct_type(test_struct)
         struct_instance = z3btypes.Z3Value(interp.sharedstate.get_abstract_const_of_ztype(z3type, "test"))
 
-    field_a = interp._field_access("a", struct_instance, test_struct)
-    field_b = interp._field_access("b", struct_instance, test_struct)
-    field_c = interp._field_access("c", struct_instance, test_struct)
+    field_a = interp._field_access("a", struct_instance, test_struct, False)
+    field_b = interp._field_access("b", struct_instance, test_struct, False)
+    field_c = interp._field_access("c", struct_instance, test_struct, False)
 
     if const: 
         assert isinstance(field_a, z3btypes.ConstantSmallBitVector)
@@ -317,9 +329,9 @@ def test_field_write(interp, bv):
     assert struct_new_field_c is not struct_instance
 
 
-    struct_na_a = interp._field_access("a", struct_new_field_a, test_struct)
-    struct_na_b = interp._field_access("b", struct_new_field_a, test_struct)
-    struct_na_c = interp._field_access("c", struct_new_field_a, test_struct)
+    struct_na_a = interp._field_access("a", struct_new_field_a, test_struct, False)
+    struct_na_b = interp._field_access("b", struct_new_field_a, test_struct, False)
+    struct_na_c = interp._field_access("c", struct_new_field_a, test_struct, False)
 
     assert isinstance(struct_na_a, z3btypes.ConstantSmallBitVector)
     assert struct_na_a.value == bv.value
@@ -327,18 +339,18 @@ def test_field_write(interp, bv):
     assert isinstance(struct_na_c, z3btypes.Z3BoolValue)
 
 
-    struct_nb_a = interp._field_access("a", struct_new_field_b, test_struct)
-    struct_nb_b = interp._field_access("b", struct_new_field_b, test_struct)
-    struct_nb_c = interp._field_access("c", struct_new_field_b, test_struct)
+    struct_nb_a = interp._field_access("a", struct_new_field_b, test_struct, False)
+    struct_nb_b = interp._field_access("b", struct_new_field_b, test_struct, False)
+    struct_nb_c = interp._field_access("c", struct_new_field_b, test_struct, False)
 
     assert isinstance(struct_nb_a, z3btypes.Z3Value)
     assert isinstance(struct_nb_b, z3btypes.UnitConstant) 
     assert isinstance(struct_nb_c, z3btypes.Z3BoolValue)
 
 
-    struct_nc_a = interp._field_access("a", struct_new_field_c, test_struct)
-    struct_nc_b = interp._field_access("b", struct_new_field_c, test_struct)
-    struct_nc_c = interp._field_access("c", struct_new_field_c, test_struct)
+    struct_nc_a = interp._field_access("a", struct_new_field_c, test_struct, False)
+    struct_nc_b = interp._field_access("b", struct_new_field_c, test_struct, False)
+    struct_nc_c = interp._field_access("c", struct_new_field_c, test_struct, False)
 
     assert isinstance(struct_nc_a, z3btypes.Z3Value)
     assert isinstance(struct_nc_b, z3btypes.Z3Value) 

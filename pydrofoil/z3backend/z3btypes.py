@@ -369,27 +369,7 @@ class Z3GenericBitVector(Z3Value):
         return False
     
     def copy(self):
-        return Z3GenericBitVector(self.value, self.width)
-
-class Z3GenericBitVectorInt(Z3Value):
-    # TODO: this class and Z3DeferredIntGenericBitVector can be merged into one, but must rethink this
-    def __init__(self, val, width, z3type, constant=False):
-        assert isinstance(width, int)
-        self.value = val
-        assert isinstance(val, z3.z3.BitVecRef)
-        self.width = width   
-        self.resolved_type = types.GenericBitVector
-        self.z3type = z3type
-        self.constant = constant
-    
-    def toz3(self):
-        if self.constant:
-            val = z3.IntVal(self.value)
-        else:
-            val = z3.BV2Int(self.value, is_signed=False)
-        return self.z3type.constructor(0)(val, self.width)
-        #return StructConstant([w_val, self.width], self.resolved_type, self.z3type).toz3()
-    
+        return Z3GenericBitVector(self.value, self.width) 
 
 class Z3DeferredIntGenericBitVector(Z3Value):
     def __init__(self, z3_bv_tuple):
@@ -462,8 +442,10 @@ class Z3BoolValue(Z3Value):
                 if w_arg.toz3().eq(z3.BoolVal(True)) or w_arg.toz3().eq(z3.BoolVal(False)): import pdb; pdb.set_trace()
             if isinstance(w_arg, BooleanConstant):
                 # Return  false if encountering a single False
+                # TODO: check for z3 False here
                 if not w_arg.value: return BooleanConstant(False)
             else:
+                # TODO: check for z3 True here
                 # Skip True, because True in and is unnecessary
                 n_args_w.append(w_arg)
         if len(n_args_w) == 1: return self
@@ -485,7 +467,7 @@ class Z3BoolNotValue(Z3BoolValue):
             ### This elimates cases like 'a or not(a)' which eval to True
             if self.toz3().eq(w_other.not_().toz3()): 
                 return BooleanConstant(True)
-        return Z3BoolValue(z3.Or(self.toz3(), w_other.toz3())) # use self.toz3() here as this method is inherited to Z3BoolNotValue
+        return Z3BoolValue(z3.Or(self.toz3(), w_other.toz3()))
 
     def not_(self):
         return Z3BoolValue(self.value)

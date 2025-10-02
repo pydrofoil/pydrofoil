@@ -729,14 +729,13 @@ class Interpreter(object):
         return self._struct_construction(self.getargs(op), [arg.resolved_type for arg in op.args], op.resolved_type)
     
     def _w_generic_bv_struct(self, w_generic_bv):
+        # TODO: remove this function
         if isinstance(w_generic_bv, ConstantGenericBitVector):
-            return w_generic_bv# Z3GenericBitVectorInt(w_generic_bv.value, w_generic_bv.width, self.sharedstate._genericbvz3type, True)
+            return w_generic_bv
         elif isinstance(w_generic_bv, Z3GenericBitVector):
-            return Z3GenericBitVectorInt(w_generic_bv.value, w_generic_bv.width, self.sharedstate._genericbvz3type)
+            return w_generic_bv#
         elif isinstance(w_generic_bv, Z3DeferredIntGenericBitVector):
             return w_generic_bv
-        elif isinstance(w_generic_bv, Z3GenericBitVectorInt):
-            assert 0, "this Int repr shall not have escaped the z3 level"
         elif isinstance(w_generic_bv, Z3Value):
             assert 0, "should not happen anymore"
         else:
@@ -777,11 +776,6 @@ class Interpreter(object):
         if isinstance(struct, StructConstant):
             index = struct.resolved_type.names.index(field)
             w_val = struct.vals_w[index]
-            if isinstance(w_val, Z3GenericBitVectorInt):
-                if w_val.constant:
-                    w_val = ConstantGenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
-                else:
-                    w_val = Z3GenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
             return Packed(w_val) if packed else w_val
         res = getattr(struct_type_z3, field)(struct.toz3())# get accessor from slot with getattr
         if res.sort() == z3.BoolSort():
@@ -886,10 +880,6 @@ class Interpreter(object):
         elif isinstance(instance, UnionConstant):
             assert op.name == instance.variant_name
             w_val = instance.w_val
-            if isinstance(w_val, Z3GenericBitVectorInt):
-                if w_val.constant:
-                    return ConstantGenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
-                return Z3GenericBitVector(w_val.value, w_val.width, self.sharedstate._genericbvz3type)
             return w_val
         else:
             assert 0 , "%s is not allowed in unioncast" % str(union_type) 
@@ -1496,7 +1486,7 @@ class NandInterpreter(Interpreter):
 
     def __init__(self, graph, args, shared_state=None, entrymap=None):
         super(NandInterpreter, self).__init__(graph, args, shared_state, entrymap)# py2 super 
-        self.memory = z3.Array('memory', z3.BitVecSort(16), z3.BitVecSort(16)) # nand memory cells are 16 bit each
+        self.memory = z3.Array('memory', z3.BitVecSort(16), z3.BitVecSort(16)) # nand2tetris memory cells are 16 bit each
     
     ### Nand2Tetris specific Operations ###
 
@@ -1523,7 +1513,6 @@ class RiscvInterpreter(Interpreter):
         """ initial memory def is needed for smtlib expressions """
         self.memory = z3.Array('memory', z3.BitVecSort(64), z3.BitVecSort(8))
         return self.memory
-
 
     ### RISCV specific Operations ###
 

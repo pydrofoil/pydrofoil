@@ -10,6 +10,7 @@ class SharedState(object):
     def __init__(self, functions={}, registers={}, methods={}):
         self.funcs = functions # rpython graphs for sail functions
         self.mthds = methods # rpython graphs for sail methods
+        self.backedges = {} # graph:{block: backedges_to_block}
         self.registers = registers # type: dict[str, types.Type]
         self.enums = {}
         self.type_cache = {}
@@ -27,6 +28,7 @@ class SharedState(object):
         genericbvz3type.declare("a", ("value", z3.IntSort()), ("width", z3.IntSort()))
         self._genericbvz3type = genericbvz3type.create()
         self._unreachable_error_constants = {} # save unreachable_const_of_... and error_in_typecast_... const, as they are needed in parse_smt2_string
+        self._reschedule_ctr = 0
 
     def _build_type_dict(self):
         """ typenames: z3type dict for smtlib expressions """
@@ -45,6 +47,10 @@ class SharedState(object):
         z3types["____unit____"] = self._z3_unit_type
         z3types["__generic_bv_val_width_tuple__"] = self._genericbvz3type
         return z3types
+    
+    def get_backedges(self, graph, block):
+        if block not in self.backedges[graph]: return []
+        return self.backedges[graph][block]
 
     def get_z3_struct_type(self, resolved_type):
         if resolved_type in self.type_cache:
@@ -186,6 +192,7 @@ class SharedState(object):
         """ copy state for tests """
         copystate = SharedState(self.funcs.copy(), self.registers.copy(), self.mthds.copy())
         copystate.enums = self.enums.copy()
+        copystate.backedges = self.backedges # i dont think we ever alter backedges
         # type cache?
         return copystate
     
@@ -228,9 +235,7 @@ class Interpreter(object):
         self.sharedstate = shared_state if shared_state != None else SharedState()
         self.graph = graph
         self.entrymap = entrymap if entrymap != None else graph.make_entrymap()
-        # LOOP-TODO: remove this
-        assert not graph.has_loop
-        # LOOP-TODO: add the set of all loopheaders and a map of all backedges as argument
+        #assert not graph.has_loop
         self.args = args
         assert len(args) == len(graph.args)
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
@@ -277,23 +282,35 @@ class Interpreter(object):
             current, interp = todo.popleft()
             assert block_to_interp[current] is None
             block_to_interp[current] = interp
+            is_loop_header = current in self.sharedstate.backedges[interp.graph]
             if len(self.entrymap[current]) > 1:
+                backedges = self.sharedstate.get_backedges(interp.graph, current)
+                assert not (self._check_if_loop_merge_possible(self.entrymap[current], backedges, block_to_interp) and 
+                            self._check_if_normal_merge_possible(self.entrymap[current], backedges, block_to_interp)), "both merge types possible"
                 # LOOP-TODO: check if current is a loop header
-                # whether it is or not: first check if 'normal' merge possible and do the 'normal' merge
-                # then if it is a loop header check if loop merge possible and loop merge
+                if is_loop_header and self._check_if_loop_merge_possible(self.entrymap[current], backedges, block_to_interp):
+                    interp, index = self._compute_loop_merge(current, interp, block_to_interp)
+                    self.registers = interp.registers
+                    self.memory = interp.memory
+                # elif, because loop merge and normal merge cant be done at the same time
+                # if we enter the header for the first time, we come from 'normal' preds and loop merge is impossible
                 ### BFS order does NOT guarantee that all block preceeding a phi are executed before encountering the phi, see Nand2Tetris decode_compute_backwards ###
-                if self._check_if_merge_possible(self.entrymap[current], block_to_interp):
-                    interp, index = self._compute_merge(current, interp, block_to_interp)
+                elif self._check_if_normal_merge_possible(self.entrymap[current], backedges, block_to_interp):
+                    interp, index = self._compute_normal_merge(current, interp, block_to_interp)
                     self.registers = interp.registers
                     self.memory = interp.memory
                 else:
                     ### If we did not execute all preceeding blocks already, reschedule the phi and try again later ###
+                    self.sharedstate._reschedule_ctr += 1
                     block_to_interp.pop(current)
                     schedule(current, interp)
+                    #self._debug_print("rescheduling block %s, cant merge yet" % str(current), True)
+                    #self._debug_print("reschedule no. %d" % self.sharedstate._reschedule_ctr)
+                    #self._debug_reason_for_impossible_merge(self.entrymap[current], backedges, block_to_interp)
                     continue
                 ### TODO: think of a better solution for this ###
             interp._run_block(current, index)
-            interp._schedule_next(current.next, schedule)
+            interp._schedule_next(current.next, is_loop_header, schedule)
             if not self is interp:
                 self.w_raises = self._top_level_raise_merge(interp.w_raises)
 
@@ -330,7 +347,7 @@ class Interpreter(object):
             for op in block.operations[index:]:
                 self.execute_op(op)
     
-    def _schedule_next(self, block_next, schedule):
+    def _schedule_next(self, block_next, is_loop_header, schedule):
         """ get next block to execute, or set ret value and return None, or fork interpreter on non const cond. goto """
         if isinstance(block_next, ir.Goto):
             # LOOP-TODO: nothing i guess??
@@ -342,6 +359,10 @@ class Interpreter(object):
             # if its constant true or false: we can just continue as usual
             # if its a Z3Value: raise some error # We cannot unroll a loop for an abstract loop condition
             w_cond = self.convert(block_next.booleanvalue)
+
+            if is_loop_header:
+                self._debug_print("schedule loop header with cond %s" % str(block_next.booleanvalue), True)
+                assert isinstance(w_cond, BooleanConstant), "cant execute abstract loops"
 
             # LOOP-TODO. it is crucial that _is_unreachable is false for the loop path that we DONT go in this iteration
             # because usually we execute both paths and merge, 
@@ -356,11 +377,20 @@ class Interpreter(object):
             # if is_loop and w_cond.value == False: 
             interp2 = self.fork(self.path_condition + [w_cond.not_()])
 
+            # sanity check
+            if is_loop_header:
+                assert interp1._is_unreachable() == True or interp2._is_unreachable() == True, "one of the forks MUST be unreachable"
+
             ### we need to now in merge if the current block is actually reachable ###
             self.child_cond_map = {block_next.truetarget: w_cond, block_next.falsetarget: w_cond.not_()}
 
-            schedule(block_next.truetarget, interp1)
-            schedule(block_next.falsetarget, interp2)
+            # This is the opposite of what we do usually
+            # usually even if a block is unreachable, it is scheduled
+            # but tot avoid endless looping, we must not schedule the false path of a loop header
+            if not (is_loop_header and interp1._is_unreachable()):
+                schedule(block_next.truetarget, interp1)
+            if not (is_loop_header and interp2._is_unreachable()):
+                schedule(block_next.falsetarget, interp2)
         elif isinstance(block_next, ir.Return):
             if not self._is_unreachable(): # only set result if it is reachable
                 self.w_result = self.convert(block_next.value)
@@ -370,26 +400,98 @@ class Interpreter(object):
             assert 0, "implement %s" %str(block_next)
         return 
     
-    def _check_if_merge_possible(self, prevblocks, block_to_interp):
+    def _check_if_normal_merge_possible(self, prevblocks, backedges, block_to_interp):
+        """ returns True if all 'normal' predecessors were executed and there is at least one normal predecessor """
         # LOOP-TODO: split this function into a 'normal  check if merge possible'
         # that only checks for 'normal' prevblocks (i.e. blocks that arent back edges)
         # and a check_if_merge_possible_loopheader function
+        normal_preds = False
         for prevblock in prevblocks:
-            if block_to_interp.get(prevblock) is None: return False
-        return True
+            # we can merge if all predecessor blocks (that  are not part of a loop) were already executed
+            if block_to_interp.get(prevblock) is None and prevblock not in backedges: return False
+            # check if at least one predecessor is not part of a loop
+            if prevblock not in backedges: normal_preds = True
+        return normal_preds
     
-    def _compute_loop_header_merge(self, block, scheduleinterp, block_to_interp):
-        pass
+    def _check_if_loop_merge_possible(self, prevblocks, backedges, block_to_interp):
+        """ returns True if all 'loop' predecessors were executed and there is at least one loop predecessor """
+        # LOOP-TODO: split this function into a 'normal  check if merge possible'
+        # that only checks for 'normal' prevblocks (i.e. blocks that arent back edges)
+        # and a check_if_merge_possible_loopheader function
+        loop_preds = False
+        for prevblock in prevblocks:
+            # check if at least one predecessor is part of a loop and was executed already
+            # why only check for one block? because we only support concrete loop executions, thus only one path is ever taken
+            if prevblock in backedges and block_to_interp.get(prevblock) is not None:
+                if not loop_preds:
+                    loop_preds = True
+                else:
+                    assert 0, "multiple paths of concrete loop were executed"
+        return loop_preds
+    
+    def _debug_reason_for_impossible_merge(self, prevblocks, backedges, block_to_interp):
+        if len(prevblocks) == 0: self._debug_print("cannot merge because there are not prevblocks")
+        for prevblock in prevblocks:
+            if block_to_interp.get(prevblock) is None and prevblock not in backedges: 
+                self._debug_print("cant normal merge block because of non executed predecessors")
+            if block_to_interp.get(prevblock) is None and prevblock in backedges:           
+                self._debug_print("cant loop merge block because of non executed predecessors")
 
-    def _compute_merge(self, block, scheduleinterp, block_to_interp):
-        """ Merge the results of the predecessor blocks of block into and its interpreter (scheduleinterp)"""
+    
+    def _compute_loop_merge(self, block, scheduleinterp, block_to_interp):
+        """ Merge the results of the loop predecessor blocks (backedges) of block into and its interpreter (scheduleinterp)"""
         # LOOP-TODO: rename this function into 'normal' merge for merges of 'normal' (non backedge) predecessors
         # and introduce another for loop merges
         prevblocks = self.entrymap[block]
-        assert len(prevblocks) > 1
+        backedges = self.sharedstate.get_backedges(scheduleinterp.graph, block)
+        is_loop_header = block in self.sharedstate.backedges[scheduleinterp.graph]
+        assert is_loop_header
         for prevblock in prevblocks:
-            # LOOP-TODO: skip prevblocks that have backedges to 'block' here
+            # LOOP-TODO: if we are a loop header merge backedges here, skip normal predecessors
+            if prevblock not in backedges: continue
+            # as we only support concrete loop executions, only one path through the loop is actually taken
+            # thus some loop predecessors were not executed; skip them
+            if block_to_interp.get(prevblock) is None: continue
             previnterp = block_to_interp[prevblock]
+            # we merge with scheduleinterp; thus skip it
+            if previnterp is scheduleinterp: continue
+            w_cond = previnterp.w_path_condition()
+            if isinstance(prevblock.next, ir.ConditionalGoto):
+                # if prev was a ConditionalGoto we need to add cond to the parents path
+                w_cond = w_cond._create_w_z3_and(previnterp.child_cond_map[block])
+            scheduleinterp.path_condition = [scheduleinterp.w_path_condition()._create_w_z3_or(w_cond)]
+            scheduleinterp.registers = {reg:w_cond._create_w_z3_if(previnterp.registers[reg], scheduleinterp.registers[reg]) for reg in self.registers}
+            scheduleinterp.memory = self._create_z3_if(w_cond, previnterp.memory, scheduleinterp.memory)
+        for index, op in enumerate(block.operations):
+            if isinstance(op, ir.Phi):
+                w_value = None
+                for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
+                    # LOOP-TODO: skip prevblocks that dont have backedges to 'block' here
+                    if prevblock not in backedges: continue
+                    previnterp = block_to_interp[prevblock]
+                    w_prevvalue = previnterp.convert(prevvalue)
+                    w_cond = previnterp.w_path_condition()
+                    if w_value is None:
+                        w_value = w_prevvalue
+                    else:
+                        w_value = w_cond._create_w_z3_if(w_prevvalue, w_value)
+                scheduleinterp.environment[op] = w_value
+            else:
+                return scheduleinterp, index
+        return scheduleinterp, len(block.operations) # only phis in this block
+
+    def _compute_normal_merge(self, block, scheduleinterp, block_to_interp):
+        """ Merge the results of the normal (non-loop) predecessor blocks of block into and its interpreter (scheduleinterp)"""
+        # LOOP-TODO: rename this function into 'normal' merge for merges of 'normal' (non backedge) predecessors
+        # and introduce another for loop merges
+        prevblocks = self.entrymap[block]
+        backedges = self.sharedstate.get_backedges(scheduleinterp.graph, block)
+        is_loop_header = block in self.sharedstate.backedges[scheduleinterp.graph]
+        for prevblock in prevblocks:
+            # LOOP-TODO: if we are a loop header dont merge backedges here
+            if is_loop_header and prevblock in backedges: continue
+            previnterp = block_to_interp[prevblock]
+            # we merge with scheduleinterp; thus skip it
             if previnterp is scheduleinterp: continue
             w_cond = previnterp.w_path_condition()
             if isinstance(prevblock.next, ir.ConditionalGoto):
@@ -403,6 +505,7 @@ class Interpreter(object):
                 w_value = None
                 for prevblock, prevvalue in zip(op.prevblocks, op.prevvalues):
                     # LOOP-TODO: skip prevblocks that have backedges to 'block' here
+                    if prevblock in backedges: continue
                     previnterp = block_to_interp[prevblock]
                     w_prevvalue = previnterp.convert(prevvalue)
                     w_cond = previnterp.w_path_condition()
@@ -456,7 +559,6 @@ class Interpreter(object):
         else:
             return z3.If(wcond.toz3(), true, false)
 
-    
     def _debug_print(self, msg="", force=False):
         if (self._verbosity > 0) or force:
             print "interp_%s: " % self.forknum, msg
@@ -474,6 +576,8 @@ class Interpreter(object):
         elif isinstance(arg, ir.Constant):
             if isinstance(arg, ir.MachineIntConstant):
                 w_arg = ConstantInt(arg.number)
+            elif isinstance(arg, ir.IntConstant):
+                w_arg = ConstantGenericInt(arg.number)# TODO: maybe just use ConstantInt here
             elif isinstance(arg, ir.BooleanConstant):
                 w_arg = BooleanConstant(arg.value)
             elif isinstance(arg, ir.UnitConstant):
@@ -481,7 +585,6 @@ class Interpreter(object):
             elif isinstance(arg, ir.StringConstant):
                 w_arg = StringConstant(arg.string)
             elif isinstance(arg, ir.DefaultValue):
-                #assert 0, "convert DefaultValue"
                 val = self.sharedstate.convert_type_or_instance_to_z3_instance(arg.resolved_type, "DefaultValue(%s)" % str(arg.resolved_type))
                 if arg.resolved_type == types.Bool:
                     w_arg = Z3BoolValue(val)

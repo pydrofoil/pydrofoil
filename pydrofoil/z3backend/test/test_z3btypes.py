@@ -240,3 +240,7 @@ def test_z3boolnotvalue_and():
     solver = z3.Solver()
     res = solver.check(z3.Not(w_and_res.toz3() == z3.And(z3.Not(x), a, z3.Not(b))))
     assert res == z3.unsat
+
+
+# TODO: test the toz3() method on every type
+# bugs in toz3() are really annoying to find 

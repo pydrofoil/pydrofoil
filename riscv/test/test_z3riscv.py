@@ -3,7 +3,7 @@ import os
 import z3
 from pydrofoil import graphalgorithms
 from pydrofoil import ir
-from pydrofoil.z3backend import z3backend, z3btypes
+from pydrofoil.z3backend import z3backend, z3btypes, z3backend_executor
 from rpython.rlib.rarithmetic import r_uint 
 
 @pytest.fixture(scope='session')
@@ -31,9 +31,13 @@ def riscv_first_shared_state():
     ### We assume that every graph only has one return; thus we must compute every singe return graph here ### 
     for name, graph in riscvsharedstate.funcs.iteritems():
         riscvsharedstate.funcs[name] = graphalgorithms.compute_single_return_graph(graph)
+        _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+        riscvsharedstate.backedges[graph] = backedges
     for name, graphs in riscvsharedstate.mthds.iteritems():
         for mname, graph in graphs.iteritems():
             riscvsharedstate.mthds[name][mname] = graphalgorithms.compute_single_return_graph(graph)
+            _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+            riscvsharedstate.backedges[graph] = backedges
     t2 = time.time()
     print "loaded in %ss" % round(t2 - t1, 2)
     return riscvsharedstate
@@ -78,6 +82,31 @@ def dump_graphs_and_registers(c):
 def riscvsharedstate(riscv_first_shared_state):
     return riscv_first_shared_state.copy()
 
+
+###
+
+def _set_init_registers(riscvsharedstate, interp):
+    misa = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+    mstatus = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+    satp = z3btypes.ConstantSmallBitVector(0, 64)
+    cur_privilege = z3backend_executor.get_rv64_usermode_cur_privilege_w_value(riscvsharedstate)
+    mie = z3backend_executor.get_rv64_mie_0_w_value(riscvsharedstate)
+    mip = z3backend_executor.get_rv64_mip_0_w_value(riscvsharedstate)
+    mtime = z3backend_executor.get_rv64_mtime_0_value(riscvsharedstate)
+    mtimecmp = z3backend_executor.get_rv64_mtimecmp_0_value(riscvsharedstate)
+    medeleg = z3backend_executor.get_rv64_medeleg_0_w_value(riscvsharedstate)
+
+    interp.registers["zmisa"] = misa
+    interp.registers["zmstatus"] = mstatus
+    interp.registers["zsatp"] = satp
+    interp.registers["zcur_privilege"] = cur_privilege
+    interp.registers["zmie"] = mie
+    interp.registers["zmip"] = mip
+    interp.registers["zmtime"] = mtime
+    interp.registers["zmtimecmp"] = mtimecmp
+    interp.registers["zmedeleg"] = medeleg
+
+###
 
 def test_decode_and_execute_addi(riscvsharedstate):
     #assert "zeq_anythingzIEArchitecturez5zK" in riscvsharedstate.funcs
@@ -155,10 +184,7 @@ def test_decode_execute_itype(riscvsharedstate):# func_zstep
     assert str(interp.registers["zx30"]).startswith("init_zx30!")
     assert str(interp.registers["zx30"]).endswith("+ 18446744073709551584") #  18446744073709551584L = -32 
 
-
-def test_decode_execute_all_abstract(riscvsharedstate):
-    """ run all execute_xxx funcs with abstract argument """
-
+def test_execute_jal(riscvsharedstate):
     graph = riscvsharedstate.funcs['zencdec_backwards']
     print("start executing", graph)
     interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3Value(z3.BitVec("z3mergez3var", 32))], riscvsharedstate.copy())
@@ -166,10 +192,34 @@ def test_decode_execute_all_abstract(riscvsharedstate):
 
     assert isinstance(instr_ast, z3btypes.Z3Value)
 
+    interp = z3backend.RiscvInterpreter(riscvsharedstate.funcs["zexecute_zRISCV_JAL"], [instr_ast], riscvsharedstate.copy())
+    
+    _set_init_registers(riscvsharedstate, interp)
+    
+    res = interp.run()
+
+    assert isinstance(res, z3btypes.Enum) or isinstance(res, z3btypes.Z3Value)
+
+def test_decode_execute_all_abstract(riscvsharedstate):
+    """ run all execute_xxx funcs with abstract argument """
+
+    graph = riscvsharedstate.funcs['zencdec_backwards']
+    print("start executing", graph)
+    interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3Value(z3.BitVec("z3mergez3var", 32))], riscvsharedstate.copy())
+    _set_init_registers(riscvsharedstate, interp)
+    instr_ast = interp.run()
+
+    assert isinstance(instr_ast, z3btypes.Z3Value)
+
     for name, func in riscvsharedstate.funcs.iteritems():
         #if not "zexecute_zSHIFTIOP" == name: continue
         if not "zexecute_" in name: continue
+        if "zLOAD" in name or "zSTORE" in name: continue # abstract load & store cannot work 
+        # because that involves reading and  writing memory of unkown width
+        if "zFENCE" in name or "zAMO" in name: continue # barrier for fence and AMO not supported atm
+        
         interp = z3backend.RiscvInterpreter(func, [instr_ast], riscvsharedstate.copy())
+        _set_init_registers(riscvsharedstate, interp)
         res = interp.run()
         assert isinstance(res, z3btypes.Enum) or isinstance(res, z3btypes.Z3Value)
 

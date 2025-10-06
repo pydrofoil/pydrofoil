@@ -1,5 +1,6 @@
 from pydrofoil.types import *
 from pydrofoil.ir import *
+from pydrofoil import graphalgorithms
 from pydrofoil.z3backend import z3backend, z3btypes
 import z3
 
@@ -152,6 +153,8 @@ def get_decode_compute_backwards_graph():
 def test_nand_decode_compute_backwards():
     graph = get_decode_compute_backwards_graph()
     shared_state = z3backend.SharedState({}, NAND_REGISTERS)
+    _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+    shared_state.backedges[graph] = backedges
     interp = z3backend.NandInterpreter(graph, [z3btypes.ConstantSmallBitVector(r_uint(0b1100), 16)], shared_state.copy())
     res = interp.run()
     assert isinstance(res, z3btypes.Enum)
@@ -238,6 +241,8 @@ def get_zdecode_jump_backwards_graph():
 def test_nand_decode_jump_backwards():
     graph = get_zdecode_jump_backwards_graph()
     shared_state = z3backend.SharedState({}, NAND_REGISTERS)
+    _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+    shared_state.backedges[graph] = backedges
 
     interp = z3backend.NandInterpreter(graph, [z3btypes.ConstantSmallBitVector(r_uint(0b11), 6)], shared_state.copy())
     res = interp.run()
@@ -402,6 +407,8 @@ def test_nand_compute_value():
 
     # state is modified each Interpreter.run, thus we need to deepcopy it or create new state
     sharedstate = z3backend.SharedState({}, NAND_REGISTERS)
+    _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+    sharedstate.backedges[graph] = backedges
     sharedstate.register_enum("zarithmetic_op", ['zC_ZERO', 'zC_ONE', 'zC_MINUSONE', 'zC_D', 'zC_A', 'zC_NOT_D', 'zC_NOT_A', 'zC_NEG_D', 'zC_NEG_A', 'zC_D_ADD_1', 'zC_A_ADD_1', 'zC_D_SUB_1', 'zC_A_SUB_1', 'zC_D_ADD_A', 'zC_D_SUB_A', 'zC_A_SUB_D', 'zC_D_AND_A', 'zC_D_OR_A'])
     
     enum_zC_A = sharedstate.get_w_enum("zarithmetic_op", "zC_A")
@@ -547,6 +554,10 @@ def test_nand_decode():
              'zdecode_compute_backwards':graph_zdecode_compute_backwards}
     
     sharedstate = z3backend.SharedState(funcs, NAND_REGISTERS)
+    
+    for g in (graph, graph_zdecode_compute_backwards, graph_zdecode_destination, graph_zdecode_jump_backwards):
+        _, backedges = graphalgorithms.find_loopheaders_backedges(g)
+        sharedstate.backedges[g] = backedges
 
     merge = z3backend.Z3Value(z3.BitVec("zmergez3var", 16))
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
@@ -598,6 +609,8 @@ def test_nand_zexecute_zainst():
     graph = Graph('zexecute_zAINST', [zmergez3var], block0)
 
     sharedstate = z3backend.SharedState({}, NAND_REGISTERS)
+    _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+    sharedstate.backedges[graph] = backedges
     merge = z3backend.Z3Value(sharedstate.get_abstract_union_const_of_type(zinstr, "zmergez3var"))
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
     res = interp.run()
@@ -734,6 +747,12 @@ def test_nand_zexecute_zcint():
              "zdecode_jump_backwards": get_zdecode_jump_backwards_graph()}
 
     sharedstate = z3backend.SharedState(funcs, NAND_REGISTERS)
+    for g in funcs.values():
+        _, backedges = graphalgorithms.find_loopheaders_backedges(g)
+        sharedstate.backedges[g] = backedges
+    _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+    sharedstate.backedges[graph] = backedges
+
     zinstr = Union('zinstr', ('zAINST', 'zCINST'), (SmallFixedBitVector(16), Struct('ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump', ('ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump0', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump1', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump2', 'ztuplez3z5bv1_z5enumz0zzarithmetic_op_z5structz0zztuplezz3zz5bool_zz5bool_zz5bool_z5enumz0zzjump3'), (SmallFixedBitVector(1), Enum('zarithmetic_op', ('zC_ZERO', 'zC_ONE', 'zC_MINUSONE', 'zC_D', 'zC_A', 'zC_NOT_D', 'zC_NOT_A', 'zC_NEG_D', 'zC_NEG_A', 'zC_D_ADD_1', 'zC_A_ADD_1', 'zC_D_SUB_1', 'zC_A_SUB_1', 'zC_D_ADD_A', 'zC_D_SUB_A', 'zC_A_SUB_D', 'zC_D_AND_A', 'zC_D_OR_A')), Struct('ztuplez3z5bool_z5bool_z5bool', ('ztuplez3z5bool_z5bool_z5bool0', 'ztuplez3z5bool_z5bool_z5bool1', 'ztuplez3z5bool_z5bool_z5bool2'), (Bool(), Bool(), Bool()), True), Enum('zjump', ('zJDONT', 'zJGT', 'zJEQ', 'zJGE', 'zJLT', 'zJNE', 'zJLE', 'zJMP'))), True)))
     merge = z3btypes.Z3Value(sharedstate.get_abstract_union_const_of_type(zinstr, "zmergez3var"))
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
@@ -765,9 +784,17 @@ def test_nand_decode_execute_opcode():
     
     sharedstate = z3backend.SharedState(funcs, NAND_REGISTERS)
 
+    for g in funcs.values():
+        _, backedges = graphalgorithms.find_loopheaders_backedges(g)
+        sharedstate.backedges[g] = backedges
+    _, backedges = graphalgorithms.find_loopheaders_backedges(exec_graph)
+    sharedstate.backedges[exec_graph] = backedges
+
     # build opcode fore D = D + 1
     opcode = 0b1110011111010000
     decode_graph = get_nand_decode_graph()
+    _, backedges = graphalgorithms.find_loopheaders_backedges(decode_graph)
+    sharedstate.backedges[decode_graph] = backedges
     merge = z3btypes.ConstantSmallBitVector(opcode, 16)
     interp_decode = z3backend.NandInterpreter(decode_graph, [merge], sharedstate.copy())
     # this gives us the enum constant for D = D + 1
@@ -836,6 +863,8 @@ def test_merge_abstract():
     bvar = z3btypes.Z3BoolValue(z3.Bool('b'))
 
     sharedstate = z3backend.SharedState(dict(f=graph), NAND_REGISTERS)
+    _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+    sharedstate.backedges[graph] = backedges
     interp = z3backend.NandInterpreter(graph, [avar, bvar], sharedstate.copy())
     res = interp.run()
 
@@ -848,6 +877,8 @@ def test_merge_abstract():
 def test_merge_concrete():
     graph = get_double_diamond_graph()
     sharedstate = z3backend.SharedState(dict(f=graph), NAND_REGISTERS)
+    _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+    sharedstate.backedges[graph] = backedges
     avar = z3btypes.ConstantSmallBitVector(0b1, 1)
     bvar = z3btypes.BooleanConstant(True)
 

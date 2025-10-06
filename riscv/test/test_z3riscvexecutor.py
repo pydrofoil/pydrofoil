@@ -37,9 +37,13 @@ def riscv_first_shared_state():
     ### We assume that every graph only has one return; thus we must compute every singe return graph here ### 
     for name, graph in riscvsharedstate.funcs.iteritems():
         riscvsharedstate.funcs[name] = graphalgorithms.compute_single_return_graph(graph)
+        _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+        riscvsharedstate.backedges[graph] = backedges
     for name, graphs in riscvsharedstate.mthds.iteritems():
         for mname, graph in graphs.iteritems():
             riscvsharedstate.mthds[name][mname] = graphalgorithms.compute_single_return_graph(graph)
+            _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
+            riscvsharedstate.backedges[graph] = backedges
     t2 = time.time()
     print "loaded in %ss" % round(t2 - t1, 2)
     return riscvsharedstate
@@ -426,7 +430,7 @@ def test_run_angr_reference_error(riscvsharedstate):
 
 def test_run_angr_missing_pc_reg(riscvsharedstate):
     opcode = 0x417 # AUIPC x8 0 ~ x8 = pc + (0 << 12)
-    run_angr_opcode_assert_equal(opcode, riscvsharedstate)
+    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
 
 def test_run_angr_clui_vs_lui_x0_7_angr_error(riscvsharedstate):
     opcode_lui_x0 = 0x7037 # LUI x0 7

@@ -210,13 +210,6 @@ def immediate_dominators(G, start, pred):
 
     return idom
 
-def compute_single_return_and_degree_two_phi_graph(G):
-    """ Removes all but one return statement
-        and splits up phi nodes so that any phi node has a in degree of two """
-    G = compute_single_return_graph(G)
-    return compute_max_phi_indeg_two_graph(G)
-
-
 def compute_single_return_graph(G):
     """ Removes all but one return statement 
         by introducing a new phi node """
@@ -252,9 +245,40 @@ def compute_single_return_graph(G):
     return G
 
 
-def compute_max_phi_indeg_two_graph(G):
-    """ Splits up phi nodes so that every phi has a maximum input degree of two """
-    pass
-    #current_block = G.startblock
-    #import pdb; pdb.set_trace()
-    #print(dir(current_block))
+def find_loopheaders_backedges(G):
+    """ find all loop headers and the corresponding backedges.
+        Loops found here may not be a loop by the dragon book definition.
+        Here we want to find loop-like sub graphs for the z3backend """
+    from pydrofoil import ir
+
+    backedges = {}
+    loopheaders = set()
+    stack = []
+    visited = set()
+
+    def check_candidate(node, nxt, visit):
+        if not nxt in visited:
+            visit(nxt)
+        elif nxt in stack:
+            # found loop
+            loopheaders.add(nxt)
+            if not node in backedges: 
+                backedges[nxt] = [node]
+            else:
+                backedges[nxt].append(node) 
+
+    def visit(node):
+        stack.append(node)
+        visited.add(node)
+        if isinstance(node.next, ir.Goto):
+            check_candidate(node, node.next.target, visit)
+        elif isinstance(node.next, ir.ConditionalGoto):
+           check_candidate(node, node.next.truetarget, visit)
+           check_candidate(node, node.next.falsetarget, visit)
+        else:
+            pass
+        stack.pop()
+    
+    visit(G.startblock)
+
+    return loopheaders, backedges

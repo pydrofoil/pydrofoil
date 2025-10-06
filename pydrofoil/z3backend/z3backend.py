@@ -304,11 +304,16 @@ class Interpreter(object):
                     self.sharedstate._reschedule_ctr += 1
                     block_to_interp.pop(current)
                     schedule(current, interp)
-                    #self._debug_print("rescheduling block %s, cant merge yet" % str(current), True)
-                    #self._debug_print("reschedule no. %d" % self.sharedstate._reschedule_ctr)
+                    self._debug_print("rescheduling block %s, cant merge yet" % str(current)[:64], True)
+                    self._debug_print("reschedule no. %d" % self.sharedstate._reschedule_ctr)
+
+                    if self.sharedstate._reschedule_ctr  > 10000: # catch an endless loop
+                        interp.graph.view(highlight_blocks={current})
+                        import pdb; pdb.set_trace()
                     #self._debug_reason_for_impossible_merge(self.entrymap[current], backedges, block_to_interp)
                     continue
                 ### TODO: think of a better solution for this ###
+            interp._clean_up_block_to_interp(current, block_to_interp, self.entrymap[current])
             interp._run_block(current, index)
             interp._schedule_next(current.next, is_loop_header, schedule)
             if not self is interp:
@@ -325,6 +330,28 @@ class Interpreter(object):
         assert not todo     
         return self.w_result
     
+    def _clean_up_block_to_interp(self, block, block_to_interp, prevblocks):
+        """ remove blocks from block_to_interp that are no longer needed.
+            This is done because in loops we schedule blocks that have been executed once already"""
+        for prevblock in prevblocks:
+            if isinstance(prevblock.next, ir.Goto) and prevblock in block_to_interp:
+                # this prevblock has only on successor: block
+                # we merged already; thus remove it
+                self._debug_print("remove block  %s from block_to_interp goto" % str(prevblock)[:64])
+                block_to_interp.pop(prevblock)
+            elif isinstance(prevblock.next, ir.ConditionalGoto) and prevblock in block_to_interp:
+                # this prevblock has two successors: oneof them is block
+                # check if both successors are already done; if so => remove it
+                if block_to_interp.get(prevblock.next.truetarget) is not None and block_to_interp.get(prevblock.next.falsetarget) is not None:
+                    self._debug_print("remove block %s from block_to_interp condgoto %s %s" % (str(prevblock)[:64], block_to_interp[prevblock.next.truetarget], block_to_interp[prevblock.next.falsetarget]))
+                    block_to_interp.pop(prevblock)
+                # or one of the paths is done already, and block is a loop header
+                elif block_to_interp.get(prevblock.next.truetarget) is not None or block_to_interp.get(prevblock.next.falsetarget) is not None:
+                    if prevblock in self.sharedstate.backedges[self.graph]:
+                        # loop header soe not schedule the false path
+                        # thus its no longer of use
+                        block_to_interp.pop(prevblock)
+
     def _top_level_raise_merge(self, w_raises):
         if isinstance(w_raises, BooleanConstant):
             if w_raises.value:
@@ -1181,6 +1208,13 @@ class Interpreter(object):
         
     def exec_sub_i_i_must_fit(self, op):
         arg0, arg1 = self.getargs(op) 
+        if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
+            return ConstantInt(arg0.value - arg1.value)
+        else:
+            return Z3Value(arg0.toz3() - arg1.toz3())
+    
+    def exec_isub(self, op):
+        arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantInt) and isinstance(arg1, ConstantInt):
             return ConstantInt(arg0.value - arg1.value)
         else:

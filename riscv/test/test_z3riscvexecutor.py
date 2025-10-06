@@ -458,8 +458,11 @@ def test_z3backend_clz_x5_x6(riscvsharedstate):
     registers["cur_privilege"] = cur_privilege
     registers["mie"] = mie
     registers["mip"] = mip
+    registers["x5"] = z3btypes.ConstantSmallBitVector(3, 64)
 
     interp, init_mem = z3backend_executor.execute_machine_code_rv64([opcode], riscvsharedstate, True, registers, {}, 1)
+    
+    assert int(str(z3.simplify(interp.registers["zx6"].toz3()))) == 62
 
 
 """def test_load_x17_m120_x17_failed(riscvsharedstate):

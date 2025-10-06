@@ -304,8 +304,8 @@ class Interpreter(object):
                     self.sharedstate._reschedule_ctr += 1
                     block_to_interp.pop(current)
                     schedule(current, interp)
-                    self._debug_print("rescheduling block %s, cant merge yet" % str(current)[:64], True)
-                    self._debug_print("reschedule no. %d" % self.sharedstate._reschedule_ctr)
+                    #self._debug_print("rescheduling block %s, cant merge yet" % str(current)[:64], True)
+                    #self._debug_print("reschedule no. %d" % self.sharedstate._reschedule_ctr)
 
                     if self.sharedstate._reschedule_ctr  > 10000: # catch an endless loop
                         interp.graph.view(highlight_blocks={current})
@@ -337,13 +337,13 @@ class Interpreter(object):
             if isinstance(prevblock.next, ir.Goto) and prevblock in block_to_interp:
                 # this prevblock has only on successor: block
                 # we merged already; thus remove it
-                self._debug_print("remove block  %s from block_to_interp goto" % str(prevblock)[:64])
+                #self._debug_print("remove block  %s from block_to_interp goto" % str(prevblock)[:64])
                 block_to_interp.pop(prevblock)
             elif isinstance(prevblock.next, ir.ConditionalGoto) and prevblock in block_to_interp:
                 # this prevblock has two successors: oneof them is block
                 # check if both successors are already done; if so => remove it
                 if block_to_interp.get(prevblock.next.truetarget) is not None and block_to_interp.get(prevblock.next.falsetarget) is not None:
-                    self._debug_print("remove block %s from block_to_interp condgoto %s %s" % (str(prevblock)[:64], block_to_interp[prevblock.next.truetarget], block_to_interp[prevblock.next.falsetarget]))
+                    #self._debug_print("remove block %s from block_to_interp condgoto %s %s" % (str(prevblock)[:64], block_to_interp[prevblock.next.truetarget], block_to_interp[prevblock.next.falsetarget]))
                     block_to_interp.pop(prevblock)
                 # or one of the paths is done already, and block is a loop header
                 elif block_to_interp.get(prevblock.next.truetarget) is not None or block_to_interp.get(prevblock.next.falsetarget) is not None:
@@ -388,7 +388,7 @@ class Interpreter(object):
             w_cond = self.convert(block_next.booleanvalue)
 
             if is_loop_header:
-                self._debug_print("schedule loop header with cond %s" % str(block_next.booleanvalue), True)
+                #self._debug_print("schedule loop header with cond %s" % str(block_next.booleanvalue), True)
                 assert isinstance(w_cond, BooleanConstant), "cant execute abstract loops"
 
             # LOOP-TODO. it is crucial that _is_unreachable is false for the loop path that we DONT go in this iteration
@@ -1385,8 +1385,6 @@ class Interpreter(object):
             and (isinstance(arg1, ConstantInt) or isinstance(arg1, ConstantGenericInt))
             and (isinstance(arg2, ConstantInt) or isinstance(arg2, ConstantGenericInt))):
             return ConstantGenericBitVector((arg1.value >> arg2.value) & ((1 << arg0.value) - 1), arg0.value + 1, self.sharedstate._genericbvz3type)
-        elif isinstance(arg1, Z3GenericBitVector):
-            import pdb; pdb.set_trace()
         elif isinstance(arg1, Z3Value):
             # z3 shift and logic and only allowed on bvs
             val = z3.Int2BV(arg1.toz3(), arg0.value)
@@ -1395,7 +1393,24 @@ class Interpreter(object):
             val = val >> arg2.value # this returns a bv of size arg0
             return Z3GenericBitVector(val, arg0.value, self.sharedstate._genericbvz3type)
         else:
-            assert 0, "class %s for generic bv not allowed" % str(arg0.__class__)
+            assert 0, "class %s for generic int not allowed" % str(arg0.__class__)
+
+    def exec_get_slice_int_i_o_i_unwrapped_res(self, op):
+        """ returns int2bv(arg1)[arg0: arg2] (read from right)
+            arg0 = len, arg1 = value, arg2 = start"""
+        # o = generic int in this case
+        arg0, arg1, arg2 = self.getargs(op)
+        if ((isinstance(arg0, ConstantInt) or isinstance(arg0, ConstantGenericInt)) 
+            and (isinstance(arg1, ConstantInt) or isinstance(arg1, ConstantGenericInt))
+            and (isinstance(arg2, ConstantInt) or isinstance(arg2, ConstantGenericInt))):
+            return ConstantSmallBitVector((arg1.value >> arg2.value) & ((1 << arg0.value) - 1), op.resolved_type.width)
+        elif isinstance(arg1, Z3Value):
+            # z3 shift and logic and only allowed on bvs
+            val = z3.Int2BV(arg1.toz3(), arg0.value)
+            val = val >> arg2.value # this returns a bv of size arg0
+            return Z3Value(val)
+        else:
+            assert 0, "class %s for generic int not allowed" % str(arg0.__class__)
 
     def exec_vector_update_subrange_fixed_bv_i_i_bv(self, op):
         arg0, arg1, arg2, arg3 = self.getargs(op)#  bv high low new_val 

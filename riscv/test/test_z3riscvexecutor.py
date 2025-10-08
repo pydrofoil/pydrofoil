@@ -5,7 +5,7 @@ import z3
 from pydrofoil import graphalgorithms
 from pydrofoil import ir
 from pydrofoil.z3backend import z3backend, z3btypes
-from pydrofoil.z3backend import z3backend_executor, readpy3angr
+from pydrofoil.z3backend import z3backend_executor, readangr
 from rpython.rlib.rarithmetic import r_uint 
 
 RISCV_INSTRUCTION_SIZE = 32
@@ -103,26 +103,26 @@ def set_default_registers(riscvsharedstate, w_regs):
     # do we need mideleg?
 
 def run_angr_opcode_assert_equal(riscvsharedstate, opcode, pcode=False):
-    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode], pcode=pcode, verbosity=1)
+    executions = readangr.run_angr_opcodes(opcodes=[opcode], pcode=pcode, verbosity=1)
     execution = executions[0]
 
     if pcode:
-        readpy3angr.rename_execution_registers_xn_pcode_rv64(execution)
+        readangr.rename_execution_registers_xn_pcode_rv64(execution)
 
-    w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
-    code = readpy3angr.get_code_from_execution(execution)
+    w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+    code = readangr.get_code_from_execution(execution)
 
 
     set_default_registers(riscvsharedstate, w_regs)
 
     interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
     
-    branch_size = readpy3angr.get_branch_size_from_execution(execution)
+    branch_size = readangr.get_branch_size_from_execution(execution)
     z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
 
-    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    registers_size = readangr.get_arch_from_execution(execution).registers_size
     z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-    angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+    angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
 
     z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
 
@@ -152,11 +152,11 @@ def test_decode_and_execute_addi_li(riscvsharedstate):
     assert str(last_interp.registers["zx12"]) == "115"
 
 def test_load_angr_executions_wrap_regs(riscvsharedstate):
-    executions = readpy3angr.load_executions("riscv.generated.executionsrv64")
+    executions = readangr.load_executions("riscv.generated.executionsrv64")
 
     #assert len(executions) == 7
 
-    w_regs_0, init_name_to_z3_mapping_0 = readpy3angr.create_wrapped_init_register_values_rv64(executions[0])
+    w_regs_0, init_name_to_z3_mapping_0 = readangr.create_wrapped_init_register_values_rv64(executions[0])
 
     assert w_regs_0["x0"].toz3().size() == 64
     assert w_regs_0["pc"].toz3().size() == 64
@@ -166,7 +166,7 @@ def test_load_angr_executions_wrap_regs(riscvsharedstate):
 
     assert w_regs_0["pc"].value == 0
 
-    w_regs_1, init_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(executions[1])
+    w_regs_1, init_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(executions[1])
 
     assert w_regs_1["x0"].toz3().size() == 64
     assert w_regs_1["pc"].toz3().size() == 64
@@ -177,22 +177,22 @@ def test_load_angr_executions_wrap_regs(riscvsharedstate):
     assert w_regs_1["pc"].value == 0
 
 def test_complete(riscvsharedstate):
-    executions = readpy3angr.load_executions("riscv.generated.executionsrv64")
+    executions = readangr.load_executions("riscv.generated.executionsrv64")
 
     for execution in executions:
-        w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
-        code  = readpy3angr.get_code_from_execution(execution)
+        w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+        code  = readangr.get_code_from_execution(execution)
 
         set_default_registers(riscvsharedstate, w_regs)
 
         interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
         
-        branch_size = readpy3angr.get_branch_size_from_execution(execution)
+        branch_size = readangr.get_branch_size_from_execution(execution)
         z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
         
-        registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+        registers_size = readangr.get_arch_from_execution(execution).registers_size
         z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-        angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+        angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
 
         z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
 
@@ -207,26 +207,26 @@ def test_complete(riscvsharedstate):
 
 def test_gen_code_run_angr_vex_all_types(riscvsharedstate):
     start = time.time()
-    executions, gentime = readpy3angr.gen_code_run_angr_single(num_ops=2**7, pcode=False, verbosity=0)
+    executions, gentime = readangr.gen_code_run_angr_single(num_ops=2**7, pcode=False, verbosity=0)
 
     solvertime = 0
 
     for execution in executions:
-        w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
+        w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
 
         set_default_registers(riscvsharedstate, w_regs)
 
-        code = readpy3angr.get_code_from_execution(execution)
+        code = readangr.get_code_from_execution(execution)
 
 
         interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
         
-        branch_size = readpy3angr.get_branch_size_from_execution(execution)
+        branch_size = readangr.get_branch_size_from_execution(execution)
         z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
         
-        registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+        registers_size = readangr.get_arch_from_execution(execution).registers_size
         z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-        angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+        angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
 
         z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
 
@@ -245,31 +245,31 @@ def test_gen_code_run_angr_vex_all_types(riscvsharedstate):
 
 def test_gen_code_run_angr_pypcode_all_types(riscvsharedstate):
     start = time.time()
-    executions, gentime = readpy3angr.gen_code_run_angr_single(num_ops=2**7, pcode=True, verbosity=0)
+    executions, gentime = readangr.gen_code_run_angr_single(num_ops=2**7, pcode=True, verbosity=0)
 
     solvertime = 0
 
     for execution in executions:
-        readpy3angr.rename_execution_registers_xn_pcode_rv64(execution)
-        w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
+        readangr.rename_execution_registers_xn_pcode_rv64(execution)
+        w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
 
         set_default_registers(riscvsharedstate, w_regs)
 
-        code = readpy3angr.get_code_from_execution(execution)
+        code = readangr.get_code_from_execution(execution)
 
 
         interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
         
-        branch_size = readpy3angr.get_branch_size_from_execution(execution)
+        branch_size = readangr.get_branch_size_from_execution(execution)
         z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
         
-        registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+        registers_size = readangr.get_arch_from_execution(execution).registers_size
         z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-        angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+        angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
 
         z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
 
-        reg_init_reg_name_mapping = readpy3angr.get_init_reg_names_from_execution(execution)
+        reg_init_reg_name_mapping = readangr.get_init_reg_names_from_execution(execution)
 
         unreach_error_consts = interp.sharedstate._unreachable_error_constants
         unreach_error_consts["memory"] = init_mem
@@ -290,27 +290,27 @@ def test_gen_code_run_angr_pypcode_bit_manipulation(riscvsharedstate):
     typs = ["RISCV_CLMULH", ] # "ZBA_RTYPE", "ZBA_RTYPEW", "ZBS_RTYPE", "ZBS_IOP", "ZBB_RTYPEW", "ZBB_RTYPE", "RISCV_CLMULR",  "RISCV_CLMUL"
     # not implemented in pypcode: sh3addu.w (zba?)   sbclr (zbs?)    ror(zbb?)     clmulr        clmulh
     #opcodes:                     0x21de6cbb         0x492298b3      0x60cfd2b3    0xb27a6b3     0xad337b3
-    executions, gentime = readpy3angr.gen_code_run_angr_single(num_ops=2**0, pcode=True, verbosity=1, instr_types=typs)
+    executions, gentime = readangr.gen_code_run_angr_single(num_ops=2**0, pcode=True, verbosity=1, instr_types=typs)
 
     solvertime = 0
 
     for execution in executions:
-        readpy3angr.rename_execution_registers_xn_pcode_rv64(execution)
-        w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
+        readangr.rename_execution_registers_xn_pcode_rv64(execution)
+        w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
 
 
         set_default_registers(riscvsharedstate, w_regs)
 
-        code = readpy3angr.get_code_from_execution(execution)
+        code = readangr.get_code_from_execution(execution)
 
         interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
         
-        branch_size = readpy3angr.get_branch_size_from_execution(execution)
+        branch_size = readangr.get_branch_size_from_execution(execution)
         z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
         
-        registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+        registers_size = readangr.get_arch_from_execution(execution).registers_size
         z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-        angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+        angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
 
         z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
 
@@ -334,26 +334,26 @@ def test_srli_x1_x2_0_unsolvable_pypcode(riscvsharedstate):
 def test_run_angr_slt_unsolvable(riscvsharedstate):
     opcode = 0x003120b3# 0x00002033 #0x0010a0b3 # slt x1 x1 x1
 
-    executions =  readpy3angr.run_angr_opcodes(opcodes=[opcode], pcode=False)
+    executions =  readangr.run_angr_opcodes(opcodes=[opcode], pcode=False)
     execution = executions[0]
 
-    w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
-    code = readpy3angr.get_code_from_execution(execution)
+    w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+    code = readangr.get_code_from_execution(execution)
 
     set_default_registers(riscvsharedstate, w_regs)
 
     interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
     
-    branch_size = readpy3angr.get_branch_size_from_execution(execution)
+    branch_size = readangr.get_branch_size_from_execution(execution)
     z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
 
-    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    registers_size = readangr.get_arch_from_execution(execution).registers_size
     z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-    angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+    angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
 
     z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
 
-    reg_init_reg_name_mapping = readpy3angr.get_init_reg_names_from_execution(execution)
+    reg_init_reg_name_mapping = readangr.get_init_reg_names_from_execution(execution)
 
     unreach_error_consts = interp.sharedstate._unreachable_error_constants
     unreach_error_consts["memory"] = init_mem
@@ -368,22 +368,22 @@ def test_run_angr_slt_unsolvable(riscvsharedstate):
 def test_run_angr_reg50_error(riscvsharedstate):
     opcode = 0xa2944c13 # xori x24 x8 -1495
     opcode = 0xff44c13
-    executions =  readpy3angr.run_angr_opcodes(opcodes=[opcode], verbosity=1, pcode=False)
+    executions =  readangr.run_angr_opcodes(opcodes=[opcode], verbosity=1, pcode=False)
     execution = executions[0]
 
-    w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
-    code = readpy3angr.get_code_from_execution(execution)
+    w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+    code = readangr.get_code_from_execution(execution)
 
     set_default_registers(riscvsharedstate, w_regs)
 
     interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
     
-    branch_size = readpy3angr.get_branch_size_from_execution(execution)
+    branch_size = readangr.get_branch_size_from_execution(execution)
     z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
     
-    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    registers_size = readangr.get_arch_from_execution(execution).registers_size
     z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-    angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+    angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
 
     z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
 
@@ -400,22 +400,22 @@ def test_run_angr_reg50_error(riscvsharedstate):
 def test_run_angr_reference_error(riscvsharedstate):
     opcode = 0xef206093 # xori x1 x0 -270
 
-    executions = readpy3angr.run_angr_opcodes(opcodes=[opcode], pcode=False)
+    executions = readangr.run_angr_opcodes(opcodes=[opcode], pcode=False)
     execution = executions[0]
 
-    w_regs, init_reg_name_to_z3_mapping = readpy3angr.create_wrapped_init_register_values_rv64(execution)
-    code = readpy3angr.get_code_from_execution(execution)
+    w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+    code = readangr.get_code_from_execution(execution)
 
     set_default_registers(riscvsharedstate, w_regs)
 
     interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
     
-    branch_size = readpy3angr.get_branch_size_from_execution(execution)
+    branch_size = readangr.get_branch_size_from_execution(execution)
     z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
     
-    registers_size = readpy3angr.get_arch_from_execution(execution).registers_size
+    registers_size = readangr.get_arch_from_execution(execution).registers_size
     z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-    angr_regs_smtlib = readpy3angr.get_result_regs_from_execution(execution)
+    angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
 
     z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
 

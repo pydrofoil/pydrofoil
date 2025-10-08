@@ -9,6 +9,7 @@ RV64_REGISTER_ABI_NAMES = ["zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0
                            "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10",
                            "s11", "t3", "t4", "t5", "t6"]
 
+# TODO: most of this class can be moved into a read_util class to be used both by readangr and readvexingz3
 
 def load_executions(filename):
     """ load angr simulated 'executions' from file """

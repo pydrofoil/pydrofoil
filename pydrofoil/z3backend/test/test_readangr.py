@@ -1,5 +1,5 @@
 import os
-from pydrofoil.z3backend import readpy3angr
+from pydrofoil.z3backend import readangr
 
 
 DATA = """
@@ -53,7 +53,7 @@ def test_load_executions():
     with open(file, "w") as f:
         f.write(DATA)
     
-    execs = readpy3angr.load_executions("pydrofoil.z3backend.test.temp")
+    execs = readangr.load_executions("pydrofoil.z3backend.test.temp")
 
     if os.path.exists(file):
         os.remove(file)
@@ -66,8 +66,16 @@ def test_load_executions():
 
 def test_rename_pcode_registers_rv64():
     regs = {'pc': None, 'ip': None, 'reserve_address': None, 'reserve': None, 'reserve_length': None, 'zero': None, 'ra': None, 'sp': None, 'gp': None, 'tp': None, 't0': None, 't1': None, 't2': None, 's0': None, 's1': None, 'a0': None, 'a1': None, 'a2': None, 'a3': None, 'a4': None, 'a5': None, 'a6': None, 'a7': None, 's2': None, 's3': None, 's4': None, 's5': None, 's6': None, 's7': None, 's8': None, 's9': None, 's10': None, 's11': None, 't3': None, 't4': None, 't5': None, 't6': None, 'ft0': None, 'ft1': None, 'ft2': None, 'ft3': None, 'ft4': None, 'ft5': None, 'ft6': None, 'ft7': None, 'fs0': None, 'fs1': None, 'fa0': None, 'fa1': None, 'fa2': None, 'fa3': None, 'fa4': None, 'fa5': None, 'fa6': None, 'fa7': None, 'fs2': None, 'fs3': None, 'fs4': None, 'fs5': None, 'fs6': None, 'fs7': None, 'fs8': None, 'fs9': None, 'fs10': None, 'fs11': None, 'ft8': None, 'ft9': None, 'ft10': None, 'ft11': None, 'v0': None, 'v1': None, 'v2': None, 'v3': None, 'v4': None, 'v5': None, 'v6': None, 'v7': None, 'v8': None, 'v9': None, 'v10': None, 'v11': None, 'v12': None, 'v13': None, 'v14': None, 'v15': None, 'v16': None, 'v17': None, 'v18': None, 'v19': None, 'v20': None, 'v21': None, 'v22': None, 'v23': None, 'v24': None, 'v25': None, 'v26': None, 'v27': None, 'v28': None, 'v29': None, 'v30': None, 'v31': None, 'ustatus': None, 'fflags': None, 'frm': None, 'uie': None, 'utvec': None, 'vstart': None, 'vxsat': None, 'vxrm': None, 'uscratch': None, 'uepc': None, 'ucause': None, 'utval': None, 'uip': None, 'sstatus': None, 'sedeleg': None, 'sideleg': None, 'sie': None, 'stvec': None, 'scounteren': None, 'sscratch': None, 'sepc': None, 'scause': None, 'stval': None, 'sip': None, 'satp': None, 'vsstatus': None, 'vsie': None, 'vstvec': None, 'vsscratch': None, 'vsepc': None, 'vscause': None, 'vstval': None, 'vsip': None, 'vsatp': None, 'mstatus': None, 'misa': None, 'medeleg': None, 'mideleg': None, 'mie': None, 'mtvec': None, 'mcounteren': None, 'mstatush': None, 'mcountinhibit': None, 'mscratch': None, 'mepc': None, 'mcause': None, 'mtval': None, 'mip': None, 'mtinst': None, 'mtval2': None, 'mbase': None, 'mbound': None, 'mibase': None, 'mibound': None, 'mdbase': None, 'mdbound': None, 'scontext': None, 'hstatus': None, 'hedeleg': None, 'hideleg': None, 'hie': None, 'htimedelta': None, 'hcounteren': None, 'hgeie': None, 'htimedeltah': None, 'htval': None, 'hip': None, 'hvip': None, 'htinst': None, 'hgatp': None, 'hcontext': None, 'tselect': None, 'tdata1': None, 'tdata2': None, 'tdata3': None, 'mcontext': None, 'dpc': None, 'dscratch0': None, 'dscratch1': None, 'mcycle': None, 'minstret': None, 'mcycleh': None, 'minstreth': None, 'cycle': None, 'time': None, 'instret': None, 'vl': None, 'vtype': None, 'vlenb': None, 'cycleh': None, 'timeh': None, 'instreth': None, 'hgeip': None, 'mvendorid': None, 'marchid': None, 'mimpid': None, 'mhartid': None}  
-    aliases = {name: [] for name in readpy3angr.RV64_REGISTER_ABI_NAMES}
-    readpy3angr.rename_w_registers_xn_pcode_rv64(regs, aliases)
+    aliases = {name: [] for name in readangr.RV64_REGISTER_ABI_NAMES}
+    readangr.rename_w_registers_xn_pcode_rv64(regs, aliases)
 
     for i in range(32):
         assert "x%d" % i in regs
+
+def test_calling_angrsmtdump():
+    opcode = 0x027383b3 # mul x7, x7, x7
+    executions = readangr.run_angr_opcodes([opcode])
+
+    assert readangr.get_code_from_execution(executions[0]) == [0x027383b3]
+    assert readangr.get_result_regs_from_execution(executions[0])["x7"].startswith("(bvmul t2_")
+    assert readangr.get_result_regs_from_execution(executions[0])["x7"].count("t2_") == 2

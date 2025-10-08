@@ -27,6 +27,7 @@ def patch_name(name):
 def unpatch_name(name):
     """ remove a 'z' from the name """
     if name == "zPC": return "pc" # for some reason pc is uppercase in sail
+    if name == "znextpc": return "nextPC"
     assert name[0] == "z"
     return name[1:]
 

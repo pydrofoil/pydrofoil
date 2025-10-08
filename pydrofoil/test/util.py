@@ -23,5 +23,8 @@ class MockCodegen(object):
     def print_debug_msg(self, _):
         pass
 
+    def print_highlevel_task(self, *args, **kwargs):
+        pass
+
     def add_graph(self, graph, emit_function=None, *args, **kwargs):
         self.all_graph_by_name[graph.name] = graph

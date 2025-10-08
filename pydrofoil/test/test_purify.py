@@ -134,3 +134,75 @@ def test_inline_in_callers():
         codegen.all_graph_by_name["purifiable_after_inline_pure_core"],
         pure_core_str,
     )
+
+
+def _get_example_with_struct():
+    bvtyp = types.SmallFixedBitVector(64)
+    structtyp = types.Struct("zMisa", ("zbits",), (bvtyp,))
+
+    block1 = ir.Block()
+    block2 = ir.Block()
+    block3 = ir.Block()
+    block4 = ir.Block()
+
+    i2 = block1.emit(ir.GlobalRead, "misa", [], structtyp)
+    i3 = block1.emit(ir.FieldAccess, "zbits", [i2], bvtyp)
+
+    i4 = block1.emit(
+        ir.Operation,
+        "@eq",
+        [
+            i3,
+            ir.SmallBitVectorConstant(0, bvtyp),
+        ],
+        types.Bool(),
+    )
+    block1.next = ir.ConditionalGoto(i4, block2, block3)
+    block2.next = ir.Goto(block4)
+    block3.next = ir.Goto(block4)
+    i3 = block4.emit_phi(
+        [block2, block3],
+        [ir.MachineIntConstant(4), ir.MachineIntConstant(5)],
+        types.MachineInt(),
+    )
+    block4.next = ir.Return(i3)
+    graph = ir.Graph("almost_pure_with_struct", [], block1)
+
+    purified_str = """
+zMisa = Struct('zMisa', ('zbits',), (SmallFixedBitVector(64),))
+block0 = Block()
+i0 = block0.emit(GlobalRead, 'misa', [], zMisa, None, None)
+i1 = block0.emit(FieldAccess, 'zbits', [i0], SmallFixedBitVector(64), None, None)
+i2 = block0.emit(Operation, 'almost_pure_with_struct_pure_core', [i1], MachineInt(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('almost_pure_with_struct', [], block0)"""
+    pure_core_str = """
+zMisa = Struct('zMisa', ('zbits',), (SmallFixedBitVector(64),))
+misa = Argument('misa', SmallFixedBitVector(64))
+block0 = Block()
+block1 = Block()
+block2 = Block()
+block3 = Block()
+i1 = block0.emit(StructConstruction, 'zMisa', [misa], zMisa, None, None)
+i2 = block0.emit(FieldAccess, 'zbits', [i1], SmallFixedBitVector(64), None, None)
+i3 = block0.emit(Operation, '@eq', [i2, SmallBitVectorConstant(0x0, SmallFixedBitVector(64))], Bool(), None, None)
+block0.next = ConditionalGoto(i3, block1, block3, None)
+block1.next = Goto(block2, None)
+i4 = block2.emit_phi([block1, block3], [MachineIntConstant(4), MachineIntConstant(5)], MachineInt())
+block2.next = Return(i4, None)
+block3.next = Goto(block2, None)
+graph = Graph('almost_pure_with_struct_pure_core', [misa], block0)"""
+
+    return graph, purified_str, pure_core_str
+
+
+def test_with_struct():
+    graph, purified_str, pure_core_str = _get_example_with_struct()
+    mockcodegen = MockCodegen({"almost_pure_with_struct": graph})
+    purify_all_graphs(mockcodegen)
+
+    compare(graph, purified_str)
+    compare(
+        mockcodegen.all_graph_by_name["almost_pure_with_struct_pure_core"],
+        pure_core_str,
+    )

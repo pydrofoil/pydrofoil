@@ -1677,6 +1677,11 @@ class Interpreter(object):
     def exec_zsail_barrier(self, op):
         assert 0, "TODO"
 
+    def exec_zprint(self, op):
+        # I dont know if this is riscv specific
+        if self._allow_ir_print:
+            print str(self.getargs(op)[0])
+
     ### Arch specific Operations in subclass ###
 
 class NandInterpreter(Interpreter):
@@ -1800,9 +1805,14 @@ class RiscvInterpreter(Interpreter):
         return ConstantSmallBitVector(0x100, op.resolved_type.width)
 
     def exec_zprint_platform(self, op):
-        if self.exec_zget_config_print_platform(None).value and self._allow_ir_print:
+        if self._allow_ir_print:
             print str(self.getargs(op)[0])
 
     def exec_zprint_mem(self, op):
-        if self.exec_zget_config_print_mem(None).value and self._allow_ir_print:
+        if self._allow_ir_print:
+            print str(self.getargs(op)[0])
+
+    def exec_zplat_term_write(self, op):
+        # seems to be riscv specific
+        if self._allow_ir_print:
             print str(self.getargs(op)[0])

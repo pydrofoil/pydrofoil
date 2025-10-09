@@ -1038,7 +1038,7 @@ class Interpreter(object):
                 if isinstance(arg0, ConstantGenericBitVector):
                     return ConstantSmallBitVector(arg0.value, to_type.width)
                 elif isinstance(arg0, Z3GenericBitVector):
-                    return Z3Value(arg0.value)
+                    return Z3Value(self._adapt_z3bv_width(arg0.value, to_type.width))
                 elif isinstance(arg0, Z3DeferredIntGenericBitVector):
                     # we can cast because we know the width at this point
                     intval = getattr(self.sharedstate._genericbvz3type, "value")(arg0.toz3())
@@ -1427,7 +1427,39 @@ class Interpreter(object):
             if res.sort().size() != op.resolved_type.width: 
                 import pdb;  pdb.set_trace()
             return Z3Value(res)
-     
+
+    def exec_vector_update_subrange_o_i_i_o(self, op):
+        arg0, arg1, arg2, arg3 = self.getargs(op)#  bv high low new_val 
+        # case everything is constant
+        if (isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt)
+             and isinstance(arg2, ConstantInt) and isinstance(arg3, ConstantGenericBitVector)):
+            return ConstantGenericBitVector(supportcode.vector_update_subrange_fixed_bv_i_i_bv(None, arg0.value, arg1.value, arg2.value, arg3.value), op.resolved_type.width)
+        else:
+            # arg0 or arg3 is not constant
+            if isinstance(arg3, ConstantGenericBitVector):
+                res = z3.BitVecVal(arg3.value, arg1.value - arg2.value + 1)
+            elif isinstance(arg3, Z3GenericBitVector):
+                res = arg3.value
+            else:
+                import pdb; pdb.set_trace()
+
+            if isinstance(arg0, ConstantGenericBitVector):
+                arg0value = z3.BitVecVal(arg0.value, arg1.value)
+                bv_size = arg1.value + 1
+            elif isinstance(arg0, Z3DeferredIntGenericBitVector):
+                import pdb; pdb.set_trace()
+            elif isinstance(arg0, Z3GenericBitVector):
+                arg0value = self._adapt_z3bv_width(arg0.value, arg1.value, False)
+                bv_size = arg1.value + 1
+            else:
+                assert 0, "class %s for generic int not allowed" % str(arg0.__class__)
+            if arg1.value != (bv_size - 1):
+                res = z3.Concat(z3.Extract(bv_size - 1, arg1.value + 1, arg0value), res)
+            if arg2.value != 0:
+                res = z3.Concat(res, z3.Extract(arg2.value - 1, 0, arg0value))
+            return Z3GenericBitVector(res, res.sort().size(), self.sharedstate._genericbvz3type)
+
+
     def exec_vector_access_bv_i(self, op):
         arg0, arg1 = self.getargs(op)
         if isinstance(arg0, ConstantSmallBitVector):

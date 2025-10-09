@@ -239,14 +239,14 @@ class Interpreter(object):
         self.args = args
         assert len(args) == len(graph.args)
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
-        self.forknum = self.sharedstate.fork_counter
-        self.sharedstate.fork_counter += 1
         # TODO: implement and use `get_w_class_for_rtype` here instead of using Z3Value
-        self.registers = {key: Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key)) for key, typ in self.sharedstate.registers.iteritems()}
+        self.registers = self._init_isa_registers()
         # TODO: Make this optional: only execute _init_non_isa_registers if they are not present already
         # These registers should be set from the outside, e.g., in z3backend_executor
         # Add htif_... register to  _init_non_isa_registers
         self._init_non_isa_registers()
+        self.forknum = self.sharedstate.fork_counter
+        self.sharedstate.fork_counter += 1
         self.w_raises = BooleanConstant(False)
         self.w_result = None
         self.path_condition = []
@@ -256,6 +256,14 @@ class Interpreter(object):
 
     def set_verbosity(self, newverbosity):
         self._verbosity = newverbosity
+
+    def _init_isa_registers(self):
+        registers = {}
+        for key, typ in self.sharedstate.registers.iteritems():
+            registers[key] = Z3Value(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key))
+            if self.sharedstate.fork_counter == 0: # only do this the first time,else wecreate a very large amount of unneded constants
+                self.sharedstate._unreachable_error_constants[str(registers[key].toz3())] = registers[key].toz3()# TODO: maybe create separate field for registers in sharedstate
+        return registers
 
     def _init_non_isa_registers(self):
         """ init registers that are not declared in the isa, e.g., for sail exception handling """
@@ -1006,6 +1014,8 @@ class Interpreter(object):
                 else:
                     self._debug_print("couldnt find concrete generic bv width for %s,making z3_lazy_int_generic_bv" % str(op), True)
                     return Z3DeferredIntGenericBitVector(z3_cast_instance)
+            elif z3_cast_instance.sort() == z3.BoolSort():
+                return Z3BoolValue(z3_cast_instance)
             return Z3Value(z3_cast_instance)
         elif isinstance(instance, UnionConstant):
             assert op.name == instance.variant_name
@@ -1743,6 +1753,35 @@ class RiscvInterpreter(Interpreter):
     
     def exec_read_mem_exclusive_o_o_o_i(self, op):
         return self.exec_read_mem_o_o_o_i(op)
+    
+    def exec_write_mem_o_o_o_i_o(self, op):
+        _, _, arg2, arg3, arg4 = self.getargs(op) # layout, addr_size, addr, width, data
+        assert isinstance(arg3, ConstantInt), "write with abstract width impossible"
+
+        #check all generic bv classes for addr
+        if isinstance(arg2, ConstantGenericBitVector):
+            addr = z3.BitVecVal(arg2.value, 64) # addr is always 64 bit
+        elif isinstance(arg2, Z3GenericBitVector):
+            addr = self._adapt_z3bv_width(arg2.value, 64, False)
+        elif isinstance(arg2, Z3DeferredIntGenericBitVector):
+            intval = getattr(self.sharedstate._genericbvz3type, "value")(arg2.toz3())
+            addr = z3.Int2BV(intval, 64)
+
+        #check all generic bv classes for data
+        if isinstance(arg4, ConstantGenericBitVector):
+            # TODO: special case for this constant data could make formulas smaller
+            data = z3.BitVecVal(arg4.value, arg3.value * 8)
+        elif isinstance(arg4, Z3GenericBitVector):
+            data = self._adapt_z3bv_width(arg4.value, arg3.value * 8, False)
+        elif isinstance(arg4, Z3DeferredIntGenericBitVector):
+            intval = getattr(self.sharedstate._genericbvz3type, "value")(arg4.toz3())
+            data = z3.Int2BV(intval, arg3.value * 8)
+
+        for i in range(arg3.value):
+            d_byte = z3.Extract(7 + i * 8, i * 8, data)
+            self.write_memory(Z3Value(addr + i * 8), Z3Value(d_byte)) # toz3() is called in write_memory
+        
+        return BooleanConstant(True)
 
     def exec_zsys_enable_zzfinx(self, op):
         return BooleanConstant(False) 

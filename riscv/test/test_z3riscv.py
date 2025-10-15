@@ -1,110 +1,29 @@
 import pytest
-import os
 import z3
-from pydrofoil import graphalgorithms
-from pydrofoil import ir
-from pydrofoil.z3backend import z3backend, z3btypes, z3backend_executor
+from pydrofoil.z3backend import z3backend, z3btypes, z3backend_executor, graph_util
 from rpython.rlib.rarithmetic import r_uint 
 
 @pytest.fixture(scope='session')
 def riscv_first_shared_state():
-    from riscv import targetriscv
-    pf = os.path.join(os.path.dirname(os.path.abspath(targetriscv.__file__)), "generated", "riscvgraphs_functions.py")
-    pm = os.path.join(os.path.dirname(os.path.abspath(targetriscv.__file__)), "generated", "riscvgraphs_methods.py")
-    if not os.path.exists(pf) or not os.path.exists(pm): 
-        print "generating graphs"
-        c = targetriscv.make_codegen()
-        s = dump_graphs_and_registers(c)
-        with open(pf, "w") as f:
-            f.write(s)
-        s = dump_methods(c)
-        with open(pm, "w") as f:
-            f.write(s)
-    import time
-    t1 = time.time()
-    from riscv.generated import riscvgraphs_functions, riscvgraphs_methods
-    riscvsharedstate = z3backend.SharedState(
-        {name: func() for name, func in riscvgraphs_functions.funcs.iteritems()},
-        riscvgraphs_functions.registers,
-        {name: {mname: mthd() for mname, mthd in mthds.iteritems()} for name, mthds in riscvgraphs_methods.mthds.iteritems()},
-    )
-    ### We assume that every graph only has one return; thus we must compute every singe return graph here ### 
-    for name, graph in riscvsharedstate.funcs.iteritems():
-        riscvsharedstate.funcs[name] = graphalgorithms.compute_single_return_graph(graph)
-        _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
-        riscvsharedstate.backedges[graph] = backedges
-    for name, graphs in riscvsharedstate.mthds.iteritems():
-        for mname, graph in graphs.iteritems():
-            riscvsharedstate.mthds[name][mname] = graphalgorithms.compute_single_return_graph(graph)
-            _, backedges = graphalgorithms.find_loopheaders_backedges(graph)
-            riscvsharedstate.backedges[graph] = backedges
-    t2 = time.time()
-    print "loaded in %ss" % round(t2 - t1, 2)
-    return riscvsharedstate
-
-def dump_methods(c):
-    code = ["from pydrofoil.ir import *",
-            "from pydrofoil.types import *",
-            "mthds = {}"]
-    for name, graphs in c.method_graphs_by_name.iteritems():
-        code.append("%s_methods = {}" % name)
-        for m_name, graph in graphs.iteritems():
-            if m_name == None:
-                m_name = "___default___" # TODO: is this naming ok?
-            code.append("def %s():" % m_name)
-            for line in ir.print_graph_construction(graph):
-                code.append("    " + line)
-            code.append("    return graph")
-            code.append("%s_methods[%r] = %s" % (name, m_name, m_name))
-        code.append("mthds[%r] = %s_methods" % (name, name))
-        code.append("")
-    return "\n".join(code)
-
-
-def dump_graphs_and_registers(c):
-    code = ["from pydrofoil.ir import *",
-            "from pydrofoil.types import *",
-            "funcs = {}"]
-    for name, graph in c.all_graph_by_name.iteritems():
-        code.append("def %s():" % name)
-        for line in ir.print_graph_construction(graph):
-            code.append("    " + line)
-        code.append("    return graph")
-        code.append("funcs[%r] = %s" % (name, name))
-        code.append("")
-    registers = {name: c.globalnames[name].typ for name in c.all_registers}
-    code.append("registers = {}")
-    for name, typ in registers.iteritems():
-        code.append("registers[%r] = %s" % (name, typ))
-    return "\n".join(code)
+    return graph_util.generate_shared_state_riscv64()
 
 @pytest.fixture(scope='function')
 def riscvsharedstate(riscv_first_shared_state):
     return riscv_first_shared_state.copy()
 
-
 ###
 
 def _set_init_registers(riscvsharedstate, interp):
-    misa = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
-    mstatus = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
-    satp = z3btypes.ConstantSmallBitVector(0, 64)
-    cur_privilege = z3backend_executor.get_rv64_usermode_cur_privilege_w_value(riscvsharedstate)
-    mie = z3backend_executor.get_rv64_mie_0_w_value(riscvsharedstate)
-    mip = z3backend_executor.get_rv64_mip_0_w_value(riscvsharedstate)
-    mtime = z3backend_executor.get_rv64_mtime_0_value(riscvsharedstate)
-    mtimecmp = z3backend_executor.get_rv64_mtimecmp_0_value(riscvsharedstate)
-    medeleg = z3backend_executor.get_rv64_medeleg_0_w_value(riscvsharedstate)
-
-    interp.registers["zmisa"] = misa
-    interp.registers["zmstatus"] = mstatus
-    interp.registers["zsatp"] = satp
-    interp.registers["zcur_privilege"] = cur_privilege
-    interp.registers["zmie"] = mie
-    interp.registers["zmip"] = mip
-    interp.registers["zmtime"] = mtime
-    interp.registers["zmtimecmp"] = mtimecmp
-    interp.registers["zmedeleg"] = medeleg
+    #TODO: do we need xcause and xtvec here?
+    interp.registers["zmisa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+    interp.registers["zmstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+    interp.registers["zsatp"] = z3btypes.ConstantSmallBitVector(0, 64)
+    interp.registers["zcur_privilege"] = z3backend_executor.get_rv64_usermode_cur_privilege_w_value(riscvsharedstate)
+    interp.registers["zmie"] = z3backend_executor.get_rv64_mie_0_w_value(riscvsharedstate)
+    interp.registers["zmip"] = z3backend_executor.get_rv64_mip_0_w_value(riscvsharedstate)
+    interp.registers["zmtime"] = z3backend_executor.get_rv64_mtime_0_value(riscvsharedstate)
+    interp.registers["zmtimecmp"] =  z3backend_executor.get_rv64_mtimecmp_0_value(riscvsharedstate)
+    interp.registers["zmedeleg"] = z3backend_executor.get_rv64_medeleg_0_w_value(riscvsharedstate)
 
 ###
 

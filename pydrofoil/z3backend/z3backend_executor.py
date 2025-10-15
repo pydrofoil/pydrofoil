@@ -1,5 +1,6 @@
 import z3
 import time
+import os
 from pydrofoil import types
 from pydrofoil.types import *
 from pydrofoil.z3backend.z3btypes import ConstantSmallBitVector, UnionConstant, StructConstant, Z3Value
@@ -11,10 +12,35 @@ from pydrofoil.z3backend.z3backend import RiscvInterpreter
 # rv64: x0 is not allowed (hardwired 0?)
 RV64REGISTERS = {"x1","x2","x3","x4","x5","x6","x7","x8","x9","x10","x11","x12","x13","x14","x15",
                  "x16","x17","x18","x19","x20","x21","x22","x23","x24","x25","x26","x27","x28","x29",
-                 "x30","x31", "pc"}
+                 "x30","x31"}
 ARM9_4REGISTERS = {}
 
 RISCV_INSTRUCTION_SIZE = 32
+
+BENCHMARK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "benchmark_data.txt")
+
+#############################
+# only use this function if you have filelock installed
+# TODO: maybe move into some kind of util file
+def _sync_dump(filename, values0, values1):
+    """ for benchmarking purposes, requires filelock package """
+    # For benchmarking we use multiple processes of pydrofoil
+    from filelock import FileLock
+
+    fl = FileLock(filename + ".lock")
+    while True:
+        try:
+            olock = fl.acquire(0.5,  poll_intervall=0.1)
+            with open(filename, "a") as ofile:
+                ofile.write("############sanity############\n")
+                for i, value in enumerate(values0):
+                    ofile.write("%s;;%s\n"  % (str(values1[i]), str(value)))
+            fl.release(True)
+            return
+        except BaseException as be:
+            import pdb; pdb.set_trace()
+
+#############################
 
 
 def patch_name(name):
@@ -31,17 +57,12 @@ def unpatch_name(name):
     assert name[0] == "z"
     return name[1:]
 
-def prepare_interpreter(interp, registers_w, memory_w):
+def prepare_interpreter(interp, registers_w, memory):
     """ set registers and memory """
     for regname, w_val in registers_w.iteritems():
         pydrofoil_regname = patch_name(regname)
         interp.registers[pydrofoil_regname] = w_val
-    init_mem = interp._init_mem()
-    mem = interp.memory
-    for addr, val in memory_w.iteritems():
-        mem = z3.Store(mem, addr, val)
-    interp.memory = mem
-    return init_mem
+    interp.memory = memory
 
 #######################################################
 # rv64 init register values
@@ -92,6 +113,9 @@ def get_rv64_mtime_0_value(riscvsharedstate):
 def get_rv64_mtimecmp_0_value(riscvsharedstate):
     return ConstantSmallBitVector(0x0, 64)
 
+def create_memory(name, addr_size_bytes, cell_size_bytes):
+    return z3.Array(name,  z3.BitVecSort(addr_size_bytes * 8), z3.BitVecSort(cell_size_bytes * 8))
+
 #######################################################
 
 class DummyGraph(object):
@@ -121,7 +145,7 @@ def _rv64_patch_pc_for_angr_jump(interp, branch_size, code):
         pc_val = interp.registers["zPC"].toz3()
         interp.registers["zPC"] = z3btypes.Z3Value(pc_val + z3.BitVecVal(branch_size, pc_val.sort().size()))
 
-def execute_machine_code_rv64(code, rv64sharedstate, ismthd, init_regs_w, init_mem_w, verbosity=0):
+def execute_machine_code_rv64(code, rv64sharedstate, ismthd, init_regs_w, init_mem, verbosity=0):
     ### executor must only be used via _method_call or _func_call ###
 
     decode_graph = rv64sharedstate.funcs['zencdec_backwards']
@@ -130,9 +154,10 @@ def execute_machine_code_rv64(code, rv64sharedstate, ismthd, init_regs_w, init_m
     tick_pc_graph = rv64sharedstate.funcs["ztick_pc"]
     
     executor = RiscvInterpreter(DummyGraph(), [], rv64sharedstate.copy(), {}) # init with dummy graph => do NOT call run() on this interpreter
-    init_mem = prepare_interpreter(executor, init_regs_w, init_mem_w)
-    # TODO: decoder and executor MUST use the same z3 array as init memory, and decoder mem must be passed on to executor and so on
-    #  
+    prepare_interpreter(executor, init_regs_w, init_mem)
+
+    time_used = 0
+
     executor.set_verbosity(verbosity)
     ### actual decode-execute loop ###
     for instr in code:
@@ -146,8 +171,11 @@ def execute_machine_code_rv64(code, rv64sharedstate, ismthd, init_regs_w, init_m
             opcode_size = 0x2
 
         decoder.set_verbosity(verbosity)
-        prepare_interpreter(decoder, init_regs_w, init_mem_w)
+        prepare_interpreter(decoder, init_regs_w, init_mem)
+        
+        tmp_time_start = time.time()
         ast = decoder.run()
+        time_used += time.time() - tmp_time_start
 
         if "ILLEGAL" in str(ast):
             assert 0, "Illegal Instruction %s" % str(instr)
@@ -167,6 +195,7 @@ def execute_machine_code_rv64(code, rv64sharedstate, ismthd, init_regs_w, init_m
 
         print "###  executing: %s " % str(ast)
 
+        tmp_time_start = time.time()
         if ismthd:
             if isinstance(ast, UnionConstant):
                 _ = executor._concrete_method_call(execute_graph, [ast])
@@ -177,12 +206,14 @@ def execute_machine_code_rv64(code, rv64sharedstate, ismthd, init_regs_w, init_m
             executor.memory = call_mem
             executor.registers = call_regs
 
+        time_used += time.time() - tmp_time_start
+
         _, call_mem, call_regs = executor._func_call(tick_pc_graph, [z3btypes.UnitConstant(rv64sharedstate._z3_unit)])
         executor.memory = call_mem
         executor.registers = call_regs
 
     # return executing interpreter to access its registers and memory
-    return executor, init_mem
+    return executor, time_used
 
 def extract_regs_smtlib2(interp, registers_size):
     """ returns mapping register_name: smtlib2_expression_for_register """
@@ -201,11 +232,8 @@ def extract_regs_smtlib2(interp, registers_size):
     return smt_regs
 
 def extract_mem_smtlib2(interp):
-    """ returns mapping addr: smtlib2_expression_for_memory[addr] """
-    smt_mem = {}
-    # TODO
-    assert 0, "implement memory"
-    return smt_mem
+    """ returns memory as smtlib2 string """
+    return interp.memory.sexpr()
 
 def filter_unpatch_rv64_registers(pydrofoil_smt_regs):
     f_pydrofoil_regs = {}
@@ -227,22 +255,32 @@ def build_assertions_regs(pydrofoil_smt_regs, other_smt_regs, init_reg_name_to_z
         exprs[regname] = z3.parse_smt2_string(smtlib_expr, decls=regs_and_other_decls, sorts=z3types)
     return exprs
 
-def build_assertions_mem(smt_mem0, smt_mem1, init_mem_to_z3var):
-    exprs = {}
-    #TODO
-    assert 0, "implement memory"
-    return exprs
+def build_assertion_mem(pydrofoil_mem_smt, other_mem_smt, init_reg_name_to_z3, other_z3_decls, z3types):
+    regs_and_other_decls = {}
+    regs_and_other_decls.update(init_reg_name_to_z3)
+    regs_and_other_decls.update(other_z3_decls) # containes e.g. error_in_typecast_... or unreachable_const_of_....
+    smtlib_expr = "(assert(distinct %s %s))" % (pydrofoil_mem_smt, other_mem_smt)
+    fp = "/home/christophj/Dokumente/Uni/Projektarbeit/pydrofoil/sail-riscv/pydrofoil/riscv/test/smt.smt"
+    with open(fp, "w") as ofile:
+        ofile.write(str(pydrofoil_mem_smt))
+        ofile.write("\n##################\n")
+        ofile.write(str(other_mem_smt))
+    return z3.parse_smt2_string(smtlib_expr, decls=regs_and_other_decls, sorts=z3types)
 
-
-def solve_assert_z3_unequality_exprs(exprs, failfast=True, verbosity=0):
+def solve_assert_z3_unequality_exprs(exprs, constraints=[], failfast=True, verbosity=0):
     """ gets dict of exprs e.g. {'x1': x1_a != x1_b, ...} and checks for unsat.
         unsat means that x1_a and x1_b are equal """
     ok = True
     print "============== checking registers/memory =============="
+    if verbosity > 0:
+        for constr in constraints:
+            print "adding constraint to solver: %s" % str(constr)
     start = time.time()
     for name, value in exprs.iteritems():
         solver = z3.Solver()
         solver.set("timeout", 777)
+        for constr in constraints:
+            solver.add(constr)
         res = solver.check(value)
         if res == z3.unknown:
             print "==============        timeout        =============="

@@ -5,7 +5,7 @@ import z3
 from pydrofoil import graphalgorithms
 from pydrofoil import ir
 from pydrofoil.z3backend import z3backend, z3btypes
-from pydrofoil.z3backend import z3backend_executor, readangr
+from pydrofoil.z3backend import z3backend_executor, readangr, readvexingz3
 from rpython.rlib.rarithmetic import r_uint 
 
 RISCV_INSTRUCTION_SIZE = 32
@@ -102,6 +102,18 @@ def set_default_registers(riscvsharedstate, w_regs):
     w_regs["medeleg"] = z3backend_executor.get_rv64_medeleg_0_w_value(riscvsharedstate)
     # do we need mideleg?
 
+def get_rv64_mem_base_size():
+    return 0x80000000, 0x4000000
+
+def build_reg_memory_acc_constraints(regs, reg_z3_mapping):
+    constraints = []
+    ram_base, ram_size = get_rv64_mem_base_size()
+    for reg in regs:
+        constraints.append(ram_base <= reg_z3_mapping[reg] )<= (ram_base + ram_size)
+        constraints.append(reg_z3_mapping[reg] <= (ram_base + ram_size))
+        constraints.append(reg_z3_mapping[reg] % 4 == 0)
+    return constraints
+
 def run_angr_opcode_assert_equal(riscvsharedstate, opcode, pcode=False):
     executions = readangr.run_angr_opcodes(opcodes=[opcode], pcode=pcode, verbosity=1)
     execution = executions[0]
@@ -109,13 +121,14 @@ def run_angr_opcode_assert_equal(riscvsharedstate, opcode, pcode=False):
     if pcode:
         readangr.rename_execution_registers_xn_pcode_rv64(execution)
 
-    w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+    w_regs, init_reg_name_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+    init_mem = z3backend_executor.create_memory("memory", 8, 1)
+    #init_mem = readangr.create_init_memory(execution) # angr does not fully support abstract memory
     code = readangr.get_code_from_execution(execution)
-
 
     set_default_registers(riscvsharedstate, w_regs)
 
-    interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
+    interp, _ = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, init_mem, 0)
     
     branch_size = readangr.get_branch_size_from_execution(execution)
     z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
@@ -131,32 +144,69 @@ def run_angr_opcode_assert_equal(riscvsharedstate, opcode, pcode=False):
 
     z3types = interp.sharedstate._build_type_dict()
 
-    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_to_z3_mapping, unreach_error_consts, z3types)
+    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_z3_mapping, unreach_error_consts, z3types)
 
-    solvertime = z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbosity=1)
+    solvertime = z3backend_executor.solve_assert_z3_unequality_exprs(exprs, constraints=[], failfast=False, verbosity=1)
     print "z3solver used %f s for solving" % solvertime
+
+def run_vexingz3_opcode_assert_equal(riscvsharedstate, opcode, regs_mem_constraint=[]):
+    start = time.time()
+    executions = readvexingz3.run_vexingz3_opcodes(opcodes=[opcode], arch="rv64", verbosity=1)
+    execution = executions[0]
+
+    w_regs, init_reg_name_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+    init_mem = readvexingz3.create_init_memory(execution, 8, 1)
+
+
+    set_default_registers(riscvsharedstate, w_regs)
+
+    code = readangr.get_code_from_execution(execution)
+
+    interp, _ = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, init_mem, 0)
+
+    registers_size = readangr.get_arch_from_execution(execution).registers_size
+    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
+    vexingz3_regs_smtlib = readangr.get_result_regs_from_execution(execution)
+
+    z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
+
+    unreach_error_consts = interp.sharedstate._unreachable_error_constants
+    unreach_error_consts["memory"] = init_mem
+
+    z3b_mem_smt = z3backend_executor.extract_mem_smtlib2(interp)
+    vexingz3_mem_smtlib = readangr.get_result_mem_from_execution(execution)
+
+    z3types = interp.sharedstate._build_type_dict()
+
+    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, vexingz3_regs_smtlib, init_reg_name_z3_mapping, unreach_error_consts, z3types)
+    expr_mem = z3backend_executor.build_assertion_mem(z3b_mem_smt, vexingz3_mem_smtlib, init_reg_name_z3_mapping, unreach_error_consts, z3types)
+    exprs["memory"] = expr_mem
+
+    memory_constraints = build_reg_memory_acc_constraints(regs_mem_constraint,init_reg_name_z3_mapping)
+
+    solvertime = z3backend_executor.solve_assert_z3_unequality_exprs(exprs, constraints=memory_constraints, failfast=False, verbosity=1)
+
+    print "z3 solver took %f seconds for checking %d * 32 assertions" % (solvertime, len(executions))
+    print "z3backend took %f seconds of %f" % (time.time() - start - solvertime, time.time() - start)
 
 ####################################
 
 def test_decode_and_execute_addi_li(riscvsharedstate):
 
     code = [
-        0xfe0f0f13,
+        0xfe0f0f13, # addi x30, x30, -32
         0x7300613 # li x12, 115 ~ addi x12 x0 115
     ]
 
-    last_interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, {}, {}, 0)
+    last_interp, _ = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, {}, None, 0)
   
-
     assert "+" in str(last_interp.registers["zx30"])
     assert str(last_interp.registers["zx12"]) == "115"
 
 def test_load_angr_executions_wrap_regs(riscvsharedstate):
     executions = readangr.load_executions("riscv.generated.executionsrv64")
 
-    #assert len(executions) == 7
-
-    w_regs_0, init_name_to_z3_mapping_0 = readangr.create_wrapped_init_register_values_rv64(executions[0])
+    w_regs_0, _ = readangr.create_wrapped_init_register_values_rv64(executions[0])
 
     assert w_regs_0["x0"].toz3().size() == 64
     assert w_regs_0["pc"].toz3().size() == 64
@@ -166,7 +216,7 @@ def test_load_angr_executions_wrap_regs(riscvsharedstate):
 
     assert w_regs_0["pc"].value == 0
 
-    w_regs_1, init_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(executions[1])
+    w_regs_1, _ = readangr.create_wrapped_init_register_values_rv64(executions[1])
 
     assert w_regs_1["x0"].toz3().size() == 64
     assert w_regs_1["pc"].toz3().size() == 64
@@ -176,16 +226,19 @@ def test_load_angr_executions_wrap_regs(riscvsharedstate):
 
     assert w_regs_1["pc"].value == 0
 
-def test_complete(riscvsharedstate):
+def test_complete_pregenerated_executions(riscvsharedstate):
     executions = readangr.load_executions("riscv.generated.executionsrv64")
 
     for execution in executions:
-        w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+        w_regs, init_reg_name_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+        init_mem = z3backend_executor.create_memory("memory", 8, 1)
+        #init_mem = readangr.create_init_memory(execution) # angr does not fully support abstract memory
+
         code  = readangr.get_code_from_execution(execution)
 
         set_default_registers(riscvsharedstate, w_regs)
 
-        interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
+        interp, _ = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, init_mem, 0)
         
         branch_size = readangr.get_branch_size_from_execution(execution)
         z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
@@ -201,9 +254,58 @@ def test_complete(riscvsharedstate):
 
         z3types = interp.sharedstate._build_type_dict()
 
-        exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_to_z3_mapping, unreach_error_consts, z3types)
+        exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_z3_mapping, unreach_error_consts, z3types)
 
-        z3backend_executor.solve_assert_z3_unequality_exprs(exprs, False)
+        z3backend_executor.solve_assert_z3_unequality_exprs(exprs, [], False)
+
+def test_gen_code_run_vexingz3_all_types(riscvsharedstate):
+    
+    start = time.time()
+    executions, gentime = readvexingz3.gen_code_run_vexingz3(num_ops=2**7, arch="rv64", verbosity=0)
+
+    solvertime = 0
+
+    z3backend_times = []
+    opcodes = []
+
+    for execution in executions:
+        w_regs, init_reg_name_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+        init_mem = readvexingz3.create_init_memory(execution, 8, 1)
+
+        set_default_registers(riscvsharedstate, w_regs)
+
+        code = readangr.get_code_from_execution(execution)
+        opcodes.append(code)
+
+        interp, z3backend_time = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, init_mem, 0)
+        z3backend_times.append(z3backend_time)
+
+        registers_size = readangr.get_arch_from_execution(execution).registers_size
+        z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
+        vexingz3_regs_smtlib = readangr.get_result_regs_from_execution(execution)
+
+        z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
+
+        unreach_error_consts = interp.sharedstate._unreachable_error_constants
+        unreach_error_consts["memory"] = init_mem
+
+        z3b_mem_smt = z3backend_executor.extract_mem_smtlib2(interp)
+        vexingz3_mem_smtlib = readangr.get_result_mem_from_execution(execution)
+
+        z3types = interp.sharedstate._build_type_dict()
+
+        exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, vexingz3_regs_smtlib, init_reg_name_z3_mapping, unreach_error_consts, z3types)
+        expr_mem = z3backend_executor.build_assertion_mem(z3b_mem_smt, vexingz3_mem_smtlib, init_reg_name_z3_mapping, unreach_error_consts, z3types)
+        exprs["memory"] = expr_mem
+
+        solvertime += z3backend_executor.solve_assert_z3_unequality_exprs(exprs, constraints=[], failfast=False, verbosity=0)
+
+    # must sync the write, as multiple processes may write
+    #z3backend_executor._sync_dump(z3backend_executor.BENCHMARK_FILE, z3backend_times, opcodes)
+    
+    print "hypothesis & vexingz3 took %f seconds for generating & simulating %d instructions" % (gentime, len(executions))
+    print "z3 solver took %f seconds for checking %d * 32 assertions" % (solvertime, len(executions))
+    print "z3backend took %f seconds of %f" % (time.time() - start - solvertime - gentime, time.time() - start)
 
 def test_gen_code_run_angr_vex_all_types(riscvsharedstate):
     start = time.time()
@@ -212,14 +314,15 @@ def test_gen_code_run_angr_vex_all_types(riscvsharedstate):
     solvertime = 0
 
     for execution in executions:
-        w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+        w_regs, init_reg_name_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+        init_mem = z3backend_executor.create_memory("memory", 8, 1)
+        #init_mem = readangr.create_init_memory(execution) # angr does not fully support abstract memory
 
         set_default_registers(riscvsharedstate, w_regs)
 
         code = readangr.get_code_from_execution(execution)
 
-
-        interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
+        interp, _ = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, init_mem, 0)
         
         branch_size = readangr.get_branch_size_from_execution(execution)
         z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
@@ -235,12 +338,12 @@ def test_gen_code_run_angr_vex_all_types(riscvsharedstate):
 
         z3types = interp.sharedstate._build_type_dict()
 
-        exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_to_z3_mapping, unreach_error_consts, z3types)
+        exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_z3_mapping, unreach_error_consts, z3types)
 
-        solvertime += z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbosity=0)
+        solvertime += z3backend_executor.solve_assert_z3_unequality_exprs(exprs, constraints=[], failfast=False, verbosity=0)
     
     print "hypothesis & angr took %f seconds for generating & simulating %d instructions" % (gentime, len(executions))
-    print "z3 solver took %f seconds for checking %d * 32 assertions" % (solvertime, len(executions))
+    print "z3 solver took %f seconds for checking %d * 31 assertions" % (solvertime, len(executions))
     print "z3backend took approx. %f seconds of %f" % (time.time() - start - solvertime - gentime, time.time() - start)
 
 def test_gen_code_run_angr_pypcode_all_types(riscvsharedstate):
@@ -250,60 +353,17 @@ def test_gen_code_run_angr_pypcode_all_types(riscvsharedstate):
     solvertime = 0
 
     for execution in executions:
-        readangr.rename_execution_registers_xn_pcode_rv64(execution)
-        w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+        readangr.rename_execution_registers_xn_pcode_rv64(execution) # pypcode use abi names e.g. 'zero' instead of 'x0'
+
+        w_regs, init_reg_name_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
+        init_mem = z3backend_executor.create_memory("memory", 8, 1)
+        #init_mem = readangr.create_init_memory(execution) # angr does not fully support abstract memory
 
         set_default_registers(riscvsharedstate, w_regs)
 
         code = readangr.get_code_from_execution(execution)
 
-
-        interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
-        
-        branch_size = readangr.get_branch_size_from_execution(execution)
-        z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
-        
-        registers_size = readangr.get_arch_from_execution(execution).registers_size
-        z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-        angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
-
-        z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
-
-        reg_init_reg_name_mapping = readangr.get_init_reg_names_from_execution(execution)
-
-        unreach_error_consts = interp.sharedstate._unreachable_error_constants
-        unreach_error_consts["memory"] = init_mem
-
-        z3types = interp.sharedstate._build_type_dict()
-
-        exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_to_z3_mapping, unreach_error_consts, z3types)
-
-        solvertime += z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbosity=0)
-    
-    print "hypothesis & angr took %f seconds for generating & simulating %d instructions" % (gentime, len(executions))
-    print "z3 solver took %f seconds for checking %d * 32 assertions" % (solvertime, len(executions))
-    print "z3backend took approx. %f seconds of %f" % (time.time() - start - solvertime - gentime, time.time() - start)
-
-
-def test_gen_code_run_angr_pypcode_bit_manipulation(riscvsharedstate):
-    start = time.time()
-    typs = ["RISCV_CLMULH", ] # "ZBA_RTYPE", "ZBA_RTYPEW", "ZBS_RTYPE", "ZBS_IOP", "ZBB_RTYPEW", "ZBB_RTYPE", "RISCV_CLMULR",  "RISCV_CLMUL"
-    # not implemented in pypcode: sh3addu.w (zba?)   sbclr (zbs?)    ror(zbb?)     clmulr        clmulh
-    #opcodes:                     0x21de6cbb         0x492298b3      0x60cfd2b3    0xb27a6b3     0xad337b3
-    executions, gentime = readangr.gen_code_run_angr_single(num_ops=2**0, pcode=True, verbosity=1, instr_types=typs)
-
-    solvertime = 0
-
-    for execution in executions:
-        readangr.rename_execution_registers_xn_pcode_rv64(execution)
-        w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
-
-
-        set_default_registers(riscvsharedstate, w_regs)
-
-        code = readangr.get_code_from_execution(execution)
-
-        interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
+        interp, _ = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, init_mem, 0)
         
         branch_size = readangr.get_branch_size_from_execution(execution)
         z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
@@ -319,120 +379,16 @@ def test_gen_code_run_angr_pypcode_bit_manipulation(riscvsharedstate):
 
         z3types = interp.sharedstate._build_type_dict()
 
-        exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_to_z3_mapping, unreach_error_consts, z3types)
+        exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_z3_mapping, unreach_error_consts, z3types)
 
-        solvertime += z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbosity=1)
+        solvertime += z3backend_executor.solve_assert_z3_unequality_exprs(exprs, constraints=[], failfast=False, verbosity=0)
     
     print "hypothesis & angr took %f seconds for generating & simulating %d instructions" % (gentime, len(executions))
     print "z3 solver took %f seconds for checking %d * 32 assertions" % (solvertime, len(executions))
     print "z3backend took approx. %f seconds of %f" % (time.time() - start - solvertime - gentime, time.time() - start)
 
-def test_srli_x1_x2_0_unsolvable_pypcode(riscvsharedstate):
-    opcode = 0x15093
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode, pcode=True)
 
-def test_run_angr_slt_unsolvable(riscvsharedstate):
-    opcode = 0x003120b3# 0x00002033 #0x0010a0b3 # slt x1 x1 x1
-
-    executions =  readangr.run_angr_opcodes(opcodes=[opcode], pcode=False)
-    execution = executions[0]
-
-    w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
-    code = readangr.get_code_from_execution(execution)
-
-    set_default_registers(riscvsharedstate, w_regs)
-
-    interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
-    
-    branch_size = readangr.get_branch_size_from_execution(execution)
-    z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
-
-    registers_size = readangr.get_arch_from_execution(execution).registers_size
-    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-    angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
-
-    z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
-
-    reg_init_reg_name_mapping = readangr.get_init_reg_names_from_execution(execution)
-
-    unreach_error_consts = interp.sharedstate._unreachable_error_constants
-    unreach_error_consts["memory"] = init_mem
-
-    z3types = interp.sharedstate._build_type_dict()
-
-    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_to_z3_mapping, unreach_error_consts, z3types)
-
-    z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbosity=1)
-
-
-def test_run_angr_reg50_error(riscvsharedstate):
-    opcode = 0xa2944c13 # xori x24 x8 -1495
-    opcode = 0xff44c13
-    executions =  readangr.run_angr_opcodes(opcodes=[opcode], verbosity=1, pcode=False)
-    execution = executions[0]
-
-    w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
-    code = readangr.get_code_from_execution(execution)
-
-    set_default_registers(riscvsharedstate, w_regs)
-
-    interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
-    
-    branch_size = readangr.get_branch_size_from_execution(execution)
-    z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
-    
-    registers_size = readangr.get_arch_from_execution(execution).registers_size
-    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-    angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
-
-    z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
-
-    unreach_error_consts = interp.sharedstate._unreachable_error_constants
-    unreach_error_consts["memory"] = init_mem
-
-    z3types = interp.sharedstate._build_type_dict()
-
-    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_to_z3_mapping, unreach_error_consts, z3types)
-
-    z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbosity=1)
-
-
-def test_run_angr_reference_error(riscvsharedstate):
-    opcode = 0xef206093 # xori x1 x0 -270
-
-    executions = readangr.run_angr_opcodes(opcodes=[opcode], pcode=False)
-    execution = executions[0]
-
-    w_regs, init_reg_name_to_z3_mapping = readangr.create_wrapped_init_register_values_rv64(execution)
-    code = readangr.get_code_from_execution(execution)
-
-    set_default_registers(riscvsharedstate, w_regs)
-
-    interp, init_mem = z3backend_executor.execute_machine_code_rv64(code, riscvsharedstate, True, w_regs, {}, 0)
-    
-    branch_size = readangr.get_branch_size_from_execution(execution)
-    z3backend_executor._rv64_patch_pc_for_angr_jump(interp, branch_size, code)
-    
-    registers_size = readangr.get_arch_from_execution(execution).registers_size
-    z3b_regs_smtlib = z3backend_executor.extract_regs_smtlib2(interp, registers_size)
-    angr_regs_smtlib = readangr.get_result_regs_from_execution(execution)
-
-    z3b_regs_smtlib = z3backend_executor.filter_unpatch_rv64_registers(z3b_regs_smtlib)
-
-    unreach_error_consts = interp.sharedstate._unreachable_error_constants
-    unreach_error_consts["memory"] = init_mem
-
-    z3types = interp.sharedstate._build_type_dict()
-
-    exprs = z3backend_executor.build_assertions_regs(z3b_regs_smtlib, angr_regs_smtlib, init_reg_name_to_z3_mapping, unreach_error_consts, z3types)
-
-    z3backend_executor.solve_assert_z3_unequality_exprs(exprs, failfast=False, verbosity=1)
-
-def test_run_angr_missing_pc_reg(riscvsharedstate):
-    opcode = 0x417 # AUIPC x8 0 ~ x8 = pc + (0 << 12)
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_run_angr_clui_vs_lui_x0_7_angr_error(riscvsharedstate):
+def test_angr_clui_vs_lui_x0_7_angr_error(riscvsharedstate):
     opcode_lui_x0 = 0x7037 # LUI x0 7
     opcode_clui_x1 = 0x609d # clui x1 1
     opcode_clui_x0 = 0x601d # cLUI x0 7
@@ -443,160 +399,47 @@ def test_run_angr_clui_vs_lui_x0_7_angr_error(riscvsharedstate):
 def test_z3backend_clz_x5_x6(riscvsharedstate):
     opcode = 0x60029313
 
-    misa = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
-    mstatus = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
-    satp = z3btypes.ConstantSmallBitVector(0, 64)
-    cur_privilege = z3backend_executor.get_rv64_usermode_cur_privilege_w_value(riscvsharedstate)
-    mie = z3backend_executor.get_rv64_mie_0_w_value(riscvsharedstate)
-    mip = z3backend_executor.get_rv64_mip_0_w_value(riscvsharedstate)
-
     registers = {}
 
-    registers["misa"] = misa
-    registers["mstatus"] = mstatus
-    registers["satp"] = satp
-    registers["cur_privilege"] = cur_privilege
-    registers["mie"] = mie
-    registers["mip"] = mip
+    registers["misa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
+    registers["mstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
+    registers["satp"] = z3btypes.ConstantSmallBitVector(0, 64)
+    registers["cur_privilege"] = z3backend_executor.get_rv64_usermode_cur_privilege_w_value(riscvsharedstate)
+    registers["mie"] = z3backend_executor.get_rv64_mie_0_w_value(riscvsharedstate)
+    registers["mip"] = z3backend_executor.get_rv64_mip_0_w_value(riscvsharedstate)
     registers["x5"] = z3btypes.ConstantSmallBitVector(3, 64)
 
-    interp, init_mem = z3backend_executor.execute_machine_code_rv64([opcode], riscvsharedstate, True, registers, {}, 1)
+    interp, _ = z3backend_executor.execute_machine_code_rv64([opcode], riscvsharedstate, True, registers, None, 1)
     
     assert int(str(z3.simplify(interp.registers["zx6"].toz3()))) == 62
 
+###### memory related failures ########
 
-"""def test_load_x17_m120_x17_failed(riscvsharedstate):
-    # angr cannot load abstract addrs
-    opcode = 0xf888a883
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)"""
+def test_vexingz3_storew_x7_0_x7(riscvsharedstate):
+    opcode = 0x0073a023
+    run_vexingz3_opcode_assert_equal(riscvsharedstate, opcode, ["x7"])
 
-### regression tests, TODO: move into separate file
-### keep these tests, to not repeat the same mistakes again
+##############################
 
-def test_rtype_mul(riscvsharedstate):
-    opcode = 0x027383b3 # mul x7, x7, x7
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
+### currently failing, because of a bug that is not here in pydrofoil / z3backend ###
 
-def test_sra_generic_bv_error(riscvsharedstate):
-    opcode = 0x400050b3 # sra x0, x0, x1
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
+def test_angr_pcode_srliw_x31_x5_31(riscvsharedstate):
+    opcode = 0x1f2df9b
+    run_angr_opcode_assert_equal(riscvsharedstate, opcode, pcode=False)
+    run_angr_opcode_assert_equal(riscvsharedstate, opcode, pcode=True)
 
-def test_srai_x1_x1_0_failed(riscvsharedstate):
-    opcode = 0x4000d093
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_srli_x1_x2_0_unsolvable(riscvsharedstate):
-    opcode = 0x15093
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_srai_x2_x1_1_failed(riscvsharedstate):
-    opcode = 0x40115093
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_srli_x16_x12_31_failed(riscvsharedstate):
-    opcode = 0x1f65813
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_slti_x18_x20_m1908_failed(riscvsharedstate):
-    opcode = 0x88ca2913
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_srli_x2_x18_36_failed(riscvsharedstate):
-    opcode = 0x2495113
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_generic_bv_shiftr_o_i_error(riscvsharedstate):
-    opcode = 0x418d53b3
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_srli_x8_x11_13_failed(riscvsharedstate):
-    opcode = 0x49395037
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_sll_x22_x14_x6_failed(riscvsharedstate):
-    opcode = 0x671b33
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_run_sraw_rshift_error(riscvsharedstate):
-    opcode = 0x403cdbbb
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_sllw_x15_x18_x1_failed(riscvsharedstate):
-    opcode = 0x1917bb
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_sra_x7_x11_x27_failed(riscvsharedstate):
-    opcode = 0x41b5d3b3
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_srli_x22_x13_45_failed(riscvsharedstate):
-    opcode = 0x2d6db13
-    run_angr_opcode_assert_equal (riscvsharedstate, opcode)
-
-def test_sllw_x27_x21_x4_failed(riscvsharedstate):
-    opcode = 0x4a9dbb
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_addiw_x6_x19_2009_angr_weird_formula(riscvsharedstate):
-    opcode = 0x7d99831b
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_addiw_x10_x20_x9_unsolvable(riscvsharedstate):
-    opcode = 0xaa24b3
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_c_addi_x9_m3_failed(riscvsharedstate):
-    opcode = 0x14f5
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_c_addi_x26_m22_failed(riscvsharedstate):
-    opcode = 0x1d29
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_run_z3backend_illegal_c_lui(riscvsharedstate):
-    opcode = 0x7075 # cLUI HINT
-    graph_decode_compressed = riscvsharedstate.funcs['zencdec_compressed_backwards']
-    interp = z3backend.RiscvInterpreter(graph_decode_compressed, [z3btypes.ConstantSmallBitVector(opcode, 32)],
-                                         riscvsharedstate.copy())
-    
-    interp.registers["zmisa"] = z3backend_executor.get_rv64_usermode_misa_w_value(riscvsharedstate)
-    interp.registers["zmstatus"] = z3backend_executor.get_rv64_usermode_mstatus_w_value(riscvsharedstate)
-    interp.registers["zsatp"] = z3btypes.ConstantSmallBitVector(0, 64)
-
-    ast = interp.run()
-    assert "HINT" in str(ast)
-
-def test_btype_generic_bv_simplify_occurence(riscvsharedstate):
-    """ problem in comparison logic.
-    angr returns valeus of false branch after any branch; thuspc is 4 """
-    opcode = 0x649eeb63 # BLTU x29 x9 1622
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_jal_x1_8_failed(riscvsharedstate):
-    opcode = 0x008000ef
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_c_addi_x5_0_angr_error(riscvsharedstate):
+def test_angr_c_addi_x5_0_angr_error(riscvsharedstate):
     # rv64 isa manual unprivileged architecture chapter 27.5.2 Integer Register-Immediate Operations 
     # c_addi xn_0 is a hint, but angr crashes (standard, NOT costum)
     opcode = 0x028d
     run_angr_opcode_assert_equal(riscvsharedstate, opcode)
 
-def test_c_srli64_x8_angr_error(riscvsharedstate):
+def test_angr_c_srli64_x8_angr_error(riscvsharedstate):
     # costum hint: rv64 isa manual unprivileged architecture chapter 27.7 HINT instructions
     opcode = 0x8001
     run_angr_opcode_assert_equal(riscvsharedstate, opcode)
 
-def test_c_srli64_x11(riscvsharedstate):
+def test_angr_c_srli64_x11(riscvsharedstate):
+    # TODO: check if this is a hint
     opcode = 0x8181
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_c_sltu_x12_x0_x0(riscvsharedstate):
-    opcode = 0x3633
-    run_angr_opcode_assert_equal(riscvsharedstate, opcode)
-
-def test_bltu_x29_x9_1622(riscvsharedstate):
-    """ problem in comparison logic.
-        angr returns values of false branch after any branch; thus pc is 4 """
-    opcode = 0x649eeb63
     run_angr_opcode_assert_equal(riscvsharedstate, opcode)

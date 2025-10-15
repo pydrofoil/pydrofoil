@@ -136,6 +136,10 @@ def create_wrapped_init_register_values(execution, pc_ip_reg_size=None): # TODO:
     
     return w_regs, init_name_z3_mapping
 
+def create_init_memory(execution, addr_size_bytes, cell_size_bytes):
+    mem_name = str(get_init_mem_from_execution(execution))
+    return z3.Array(mem_name, z3.BitVecSort(addr_size_bytes * 8), z3.BitVecSort(cell_size_bytes * 8))
+
 def init_rv64_zero_reg(w_regs, init_name_z3_mapping, init_regs):
     w_regs["zero"] = ConstantSmallBitVector(0, 64)
     w_regs["x0"] = w_regs["zero"] 
@@ -151,6 +155,8 @@ def init_sail_registers(w_regs, init_name_z3_mapping):
     init_name_z3_mapping[str(w_regs["have_exception"].toz3())] = w_regs["have_exception"].toz3()
     # copied htif_tohost from supportcodriscv
     w_regs["htif_tohost"] = ConstantSmallBitVector(0x80001000, 64) 
+    w_regs["htif_cmd_write"] = ConstantSmallBitVector(0x0, 1) 
+    w_regs["htif_payload_writes"] = ConstantSmallBitVector(0x0, 4) 
 
 def init_sail_rv64_registers(w_regs, init_name_z3_mapping):
     """ init sail registers like `have_exception` """
@@ -220,7 +226,7 @@ def get_result_regs_from_execution(execution):
     """ returns mapping register_name: smtlib2 expr e.g. 'x12':'(bvadd #x0000000000000073 (concat #x00000000000000 zero_267_8))' """
     return execution.result_reg_values
 
-def get_init_mem_names_from_execution(execution):
+def get_init_mem_from_execution(execution):
     """ returns mapping addr:init_mem_bitvec_name e.g. '12345': bitvec_12345_6767846 """
     return execution.init_memory
 

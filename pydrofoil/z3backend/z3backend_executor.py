@@ -107,6 +107,36 @@ def get_rv64_mip_0_w_value(riscvsharedstate):
     mip_z3type = riscvsharedstate.get_z3_struct_type(mip)
     return StructConstant([ConstantSmallBitVector(0x0, 64)], mip, mip_z3type)
 
+def get_rv64_mtvec_0_w_value(riscvsharedstate):
+    mtvec = Struct('zMtvec', ('zbits',), (SmallFixedBitVector(64),))
+    mtvec_z3type = riscvsharedstate.get_z3_struct_type(mtvec)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], mtvec, mtvec_z3type)
+
+def get_rv64_utvec_0_w_value(riscvsharedstate):
+    utvec = Struct('zMtvec', ('zbits',), (SmallFixedBitVector(64),)) # utvec and mtvec share the same struct
+    utvec_z3type = riscvsharedstate.get_z3_struct_type(utvec)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], utvec, utvec_z3type)
+
+def get_rv64_stvec_0_w_value(riscvsharedstate):
+    stvec = Struct('zMtvec', ('zbits',), (SmallFixedBitVector(64),)) # stvec and mtvec share the same struct
+    stvec_z3type = riscvsharedstate.get_z3_struct_type(stvec)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], stvec, stvec_z3type)
+
+def get_rv64_mcause_0_w_value(riscvsharedstate):
+    mcause = Struct('zMcause', ('zbits',), (SmallFixedBitVector(64),))
+    mcause_z3type = riscvsharedstate.get_z3_struct_type(mcause)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], mcause, mcause_z3type)
+
+def get_rv64_ucause_0_w_value(riscvsharedstate):
+    ucause = Struct('zMcause', ('zbits',), (SmallFixedBitVector(64),)) # ucause and mcause share the same struct
+    ucause_z3type = riscvsharedstate.get_z3_struct_type(ucause)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], ucause, ucause_z3type)
+
+def get_rv64_scause_0_w_value(riscvsharedstate):
+    scause = Struct('zMcause', ('zbits',), (SmallFixedBitVector(64),)) # scause and mcause share the same struct
+    scause_z3type = riscvsharedstate.get_z3_struct_type(scause)
+    return StructConstant([ConstantSmallBitVector(0x0, 64)], scause, scause_z3type)
+
 def get_rv64_mtime_0_value(riscvsharedstate):
     return ConstantSmallBitVector(0x0, 64)
 
@@ -260,11 +290,6 @@ def build_assertion_mem(pydrofoil_mem_smt, other_mem_smt, init_reg_name_to_z3, o
     regs_and_other_decls.update(init_reg_name_to_z3)
     regs_and_other_decls.update(other_z3_decls) # containes e.g. error_in_typecast_... or unreachable_const_of_....
     smtlib_expr = "(assert(distinct %s %s))" % (pydrofoil_mem_smt, other_mem_smt)
-    fp = "/home/christophj/Dokumente/Uni/Projektarbeit/pydrofoil/sail-riscv/pydrofoil/riscv/test/smt.smt"
-    with open(fp, "w") as ofile:
-        ofile.write(str(pydrofoil_mem_smt))
-        ofile.write("\n##################\n")
-        ofile.write(str(other_mem_smt))
     return z3.parse_smt2_string(smtlib_expr, decls=regs_and_other_decls, sorts=z3types)
 
 def solve_assert_z3_unequality_exprs(exprs, constraints=[], failfast=True, verbosity=0):

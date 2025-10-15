@@ -1,6 +1,7 @@
 import os, subprocess, tempfile
 import shutil
 import time
+import z3
 
 #####################################
 # copied from readangr.py
@@ -79,3 +80,7 @@ def run_vexingz3_opcodes(opcodes=[], arch="rv64", verbosity=0):
         os.remove(copy_path + "c") 
     file.close()
     return executions
+
+def create_init_memory(execution, addr_size_bytes, cell_size_bytes):
+    mem_name = str(execution.init_memory)
+    return z3.Array(mem_name, z3.BitVecSort(addr_size_bytes * 8), z3.BitVecSort(cell_size_bytes * 8))

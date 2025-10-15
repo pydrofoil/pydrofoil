@@ -101,6 +101,14 @@ def set_default_registers(riscvsharedstate, w_regs):
     w_regs["mtimecmp"] = z3backend_executor.get_rv64_mtimecmp_0_value(riscvsharedstate)
     w_regs["medeleg"] = z3backend_executor.get_rv64_medeleg_0_w_value(riscvsharedstate)
     # do we need mideleg?
+    # xcause and xtvec needed for memory write
+    w_regs["mcause"] = z3backend_executor.get_rv64_mcause_0_w_value(riscvsharedstate)
+    w_regs["ucause"] = z3backend_executor.get_rv64_ucause_0_w_value(riscvsharedstate)
+    w_regs["scause"] = z3backend_executor.get_rv64_scause_0_w_value(riscvsharedstate)
+    w_regs["mtvec"] = z3backend_executor.get_rv64_mtvec_0_w_value(riscvsharedstate)
+    w_regs["utvec"] = z3backend_executor.get_rv64_utvec_0_w_value(riscvsharedstate)
+    w_regs["stvec"] = z3backend_executor.get_rv64_stvec_0_w_value(riscvsharedstate)
+
 
 def get_rv64_mem_base_size():
     return 0x80000000, 0x4000000
@@ -109,7 +117,7 @@ def build_reg_memory_acc_constraints(regs, reg_z3_mapping):
     constraints = []
     ram_base, ram_size = get_rv64_mem_base_size()
     for reg in regs:
-        constraints.append(ram_base <= reg_z3_mapping[reg] )<= (ram_base + ram_size)
+        constraints.append(ram_base <= reg_z3_mapping[reg])
         constraints.append(reg_z3_mapping[reg] <= (ram_base + ram_size))
         constraints.append(reg_z3_mapping[reg] % 4 == 0)
     return constraints

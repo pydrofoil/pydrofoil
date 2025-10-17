@@ -1,5 +1,5 @@
 import z3
-from pydrofoil.z3backend.z3btypes import BooleanConstant, Z3BoolValue, Z3BoolNotValue, Z3Value
+from pydrofoil.z3backend.z3btypes import BooleanConstant, Z3BoolValue, Z3BoolNotValue, Z3SmallBitVector
 
 ### BooleanConstant ###
 
@@ -20,8 +20,8 @@ def test_booleanconstant_not_():
 
 def test_booleanconstant_if():
     """ Test if with BooleanConstant as condition """
-    w_val_a = Z3Value(z3.BitVec("a", 32))
-    w_val_b = Z3Value(z3.BitVec("b", 32))
+    w_val_a = Z3SmallBitVector(z3.BitVec("a", 32))
+    w_val_b = Z3SmallBitVector(z3.BitVec("b", 32))
     
     w_cond_true = BooleanConstant(True)
     w_if_true = w_cond_true._create_w_z3_if(w_val_a, w_val_b)
@@ -37,7 +37,7 @@ def test_booleanconstant_if():
 def test_booleanconstant_or():
     """ Test or on BooleanConstant """
     w_true = BooleanConstant(True)
-    w_val_a = Z3Value(z3.Bool("a"))
+    w_val_a = Z3BoolValue(z3.Bool("a"))
     
     w_or_res = w_true._create_w_z3_or(w_val_a)
 
@@ -89,8 +89,8 @@ def test_z3boolvalue_if():
     """ Test if with Z3BoolValue as condition """
     a = z3.BitVec("a", 32)
     b = z3.BitVec("b", 32)
-    w_val_a = Z3Value(a)
-    w_val_b = Z3Value(b)
+    w_val_a = Z3SmallBitVector(a)
+    w_val_b = Z3SmallBitVector(b)
     
     x = z3.Bool("x")
     w_cond = Z3BoolValue(x)
@@ -105,7 +105,7 @@ def test_z3boolvalue_or():
     x = z3.Bool("x")
     a = z3.Bool("a")
     w_val = Z3BoolValue(x)
-    w_val_other = Z3Value(a)
+    w_val_other = Z3BoolValue(a)
     
     w_or_res = w_val._create_w_z3_or(w_val_other)
 
@@ -174,8 +174,8 @@ def test_z3boolnotvalue_if():
     """ Test if with Z3BoolNotValue as condition """
     a = z3.BitVec("a", 32)
     b = z3.BitVec("b", 32)
-    w_val_a = Z3Value(a)
-    w_val_b = Z3Value(b)
+    w_val_a = Z3SmallBitVector(a)
+    w_val_b = Z3SmallBitVector(b)
     
     x = z3.Bool("x")
     w_cond = Z3BoolNotValue(x)
@@ -191,7 +191,7 @@ def test_z3boolnotvalue_or():
     x = z3.Bool("x")
     a = z3.Bool("a")
     w_val = Z3BoolNotValue(x)
-    w_val_other = Z3Value(a)
+    w_val_other = Z3BoolValue(a)
     
     w_or_res = w_val._create_w_z3_or(w_val_other)
 

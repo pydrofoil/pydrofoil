@@ -46,8 +46,8 @@ def test_decode_and_execute_addi(riscvsharedstate):
 
     print("start executing", ast)
     graph = riscvsharedstate.funcs['zexecute_zITYPE']
-    ast.w_val.vals_w[1] = z3btypes.Z3Value(z3.FreshConst(z3.BitVecSort(5)))
-    ast.w_val.vals_w[2] = z3btypes.Z3Value(z3.FreshConst(z3.BitVecSort(5)))
+    ast.w_val.vals_w[1] = z3btypes.Z3SmallBitVector(z3.FreshConst(z3.BitVecSort(5)))
+    ast.w_val.vals_w[2] = z3btypes.Z3SmallBitVector(z3.FreshConst(z3.BitVecSort(5)))
     interp = z3backend.RiscvInterpreter(graph, [ast], riscvsharedstate.copy())
     res = interp.run()
 
@@ -79,7 +79,7 @@ def test_decode_all(riscvsharedstate):
     graph = riscvsharedstate.funcs['zencdec_backwards']
     print("start executing", graph)
     inst = z3.BitVec("inst", 32)
-    interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3Value(inst)], riscvsharedstate.copy())
+    interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3SmallBitVector(inst)], riscvsharedstate.copy())
     res = interp.run()
 
     assert isinstance(res, z3btypes.Z3Value)
@@ -106,7 +106,7 @@ def test_decode_execute_itype(riscvsharedstate):# func_zstep
 def test_execute_jal(riscvsharedstate):
     graph = riscvsharedstate.funcs['zencdec_backwards']
     print("start executing", graph)
-    interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3Value(z3.BitVec("z3mergez3var", 32))], riscvsharedstate.copy())
+    interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3SmallBitVector(z3.BitVec("z3mergez3var", 32))], riscvsharedstate.copy())
     instr_ast = interp.run()
 
     assert isinstance(instr_ast, z3btypes.Z3Value)
@@ -124,7 +124,7 @@ def test_decode_execute_all_abstract(riscvsharedstate):
 
     graph = riscvsharedstate.funcs['zencdec_backwards']
     print("start executing", graph)
-    interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3Value(z3.BitVec("z3mergez3var", 32))], riscvsharedstate.copy())
+    interp = z3backend.RiscvInterpreter(graph, [z3btypes.Z3SmallBitVector(z3.BitVec("z3mergez3var", 32))], riscvsharedstate.copy())
     _set_init_registers(riscvsharedstate, interp)
     instr_ast = interp.run()
 

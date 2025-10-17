@@ -152,7 +152,7 @@ def test_load_angr_executions_wrap_regs(riscvsharedstate):
     assert w_regs_0["x0"].toz3().size() == 64
     assert w_regs_0["pc"].toz3().size() == 64
 
-    assert w_regs_0["x7"].__class__ == z3btypes.Z3Value
+    assert w_regs_0["x7"].__class__ == z3btypes.Z3SmallBitVector
     assert w_regs_0["pc"].__class__ == z3btypes.ConstantSmallBitVector
 
     assert w_regs_0["pc"].value == 0
@@ -162,7 +162,7 @@ def test_load_angr_executions_wrap_regs(riscvsharedstate):
     assert w_regs_1["x0"].toz3().size() == 64
     assert w_regs_1["pc"].toz3().size() == 64
 
-    assert w_regs_1["x7"].__class__ == z3btypes.Z3Value
+    assert w_regs_1["x7"].__class__ == z3btypes.Z3SmallBitVector
     assert w_regs_1["pc"].__class__ == z3btypes.ConstantSmallBitVector
 
     assert w_regs_1["pc"].value == 0
@@ -199,7 +199,7 @@ def test_complete_pregenerated_executions(riscvsharedstate):
 
         z3backend_executor.solve_assert_z3_unequality_exprs(exprs, [], False)
 
-def test_gen_code_run_vexingz3_all_types(riscvsharedstate):
+def test_gen_code_run_vexingz3_all_types(riscvsharedstate): # 1.71664e+07 ms
     
     start = time.time()
     executions, gentime = readvexingz3.gen_code_run_vexingz3(num_ops=2**7, arch="rv64", verbosity=0)

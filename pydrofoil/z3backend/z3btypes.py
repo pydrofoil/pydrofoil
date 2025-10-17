@@ -1,5 +1,6 @@
 import z3
 from pydrofoil import types
+from pydrofoil.z3backend.knownbits import KnownBits
 
 class Value(object):
 
@@ -300,7 +301,30 @@ class Z3Value(Value):
 
     def not_(self):
         assert 0,  "ilegal"
+
+class Z3SmallBitVector(Z3Value):
+    """ class for fixed size bitvectors and knownbits. 
+        Will be used for partially abstract values.
+        e.g. passing an addi opcode to a decode graph, with opcode bits set, but the e.g. target register abstract"""
+
+    def __init__(self, val, knownbits=KnownBits(0, -1)):
+        assert isinstance(val, z3.z3.BitVecRef)
+        self.value = val
+        self.knownbits = knownbits
+
+    def toz3(self):
+        return self.value
     
+    def same_value(self, other):
+        if (self.value.eq(other.toz3())  # syntactical equality
+            and isinstance(other, Z3SmallBitVector) # same class
+            and self.knownbits.know_same(other.knownbits)):# same knownbits
+                return True
+        return False
+    
+    def copy(self):
+        return Z3SmallBitVector(self.value, self.knownbits.copy())
+
 class Z3CastedValue(Z3Value):
     
     def __init__(self, val, cast_func, cast_params):
@@ -347,9 +371,10 @@ class Z3StringValue(Z3Value):
         return str(self.value)
     
     def same_value(self, other):
-        if not isinstance(other, StringConstant):
-            return False
-        return self.value == other.value
+        if not isinstance(other, Z3StringValue): return False
+        if self.toz3().eq(other.toz3()): # syntactical equality
+            return True
+        return False
 
 class Z3GenericBitVector(Z3Value):
     """ Z3 level Generic BV,value is a z3 fixedsize bv """
@@ -374,7 +399,8 @@ class Z3GenericBitVector(Z3Value):
 class Z3DeferredIntGenericBitVector(Z3Value):
     def __init__(self, z3_bv_tuple):
         """ Idea: create this class instead of crashing on failing to get a width for a generic bv from z3
-            and hope this class dies somewhere without being directly used """
+            and hope this class dies somewhere without being directly used,
+            or it is uesd somewhere where we know a width for the generic bv e.g., cast to fixed bv """
         self.z3_bv_tuple = z3_bv_tuple
       
     def toz3(self):
@@ -408,11 +434,14 @@ class Z3BoolValue(Z3Value):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
         if w_true.same_value(w_false): return w_true
         if self.value.eq(z3.BoolVal(True)) or self.value.eq(z3.BoolVal(False)): import pdb; pdb.set_trace()
-        if isinstance(w_true, ConstantInt) or isinstance(w_true, ConstantGenericInt):
-            ## Handle this explicitly ## 
-            cls = Z3Value
-        elif w_true.toz3().sort() == z3.BoolSort():
+        if w_true.toz3().sort() == z3.BoolSort():
             cls = Z3BoolValue
+        elif (isinstance(w_true, ConstantGenericBitVector) or isinstance(w_false, ConstantGenericBitVector)
+              or isinstance(w_true, Z3GenericBitVector) or isinstance(w_false, Z3GenericBitVector)
+              or isinstance(w_true, Z3DeferredIntGenericBitVector) or isinstance(w_false, Z3DeferredIntGenericBitVector)):
+            cls = Z3DeferredIntGenericBitVector
+        elif isinstance(w_true, Z3SmallBitVector) or isinstance(w_false, Z3SmallBitVector):
+            cls = Z3SmallBitVector
         else:
             cls = Z3Value
         if isinstance(self, Z3BoolNotValue):

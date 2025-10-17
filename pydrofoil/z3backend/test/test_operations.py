@@ -92,7 +92,7 @@ DummyGraph.Dummy = DummyGraph()
 def test_signed_bv(interp, bv_con):
     w_width = z3btypes.ConstantInt(bv_con.resolved_type.width)
 
-    w_bv_abs = z3btypes.Z3Value(z3.BitVec("bitvec", w_width.value))
+    w_bv_abs = z3btypes.Z3SmallBitVector(z3.BitVec("bitvec", w_width.value))
     w_bv_con = interp.convert(bv_con)
 
     # res can be negative
@@ -130,8 +130,8 @@ def test_bitvector_concat_bv_bv(interp, bv_tuple):
     w_con_bv0 = z3btypes.ConstantSmallBitVector(bv0.value, bv0.resolved_type.width)
     w_con_bv1 = z3btypes.ConstantSmallBitVector(bv1.value, bv1.resolved_type.width)
 
-    w_abs_bv0 = z3btypes.Z3Value(z3.BitVec("abs_bv0", bv0.resolved_type.width))
-    w_abs_bv1 = z3btypes.Z3Value(z3.BitVec("abs_bv1", bv1.resolved_type.width))
+    w_abs_bv0 = z3btypes.Z3SmallBitVector(z3.BitVec("abs_bv0", bv0.resolved_type.width))
+    w_abs_bv1 = z3btypes.Z3SmallBitVector(z3.BitVec("abs_bv1", bv1.resolved_type.width))
 
     res_val = (bv0.value << bv1.resolved_type.width) + bv1.value
 
@@ -172,8 +172,8 @@ def test_eq_anything_bv(interp, bv_tuple):
     w_con_bv0 = z3btypes.ConstantSmallBitVector(bv0.value, bv0.resolved_type.width)
     w_con_bv1 = z3btypes.ConstantSmallBitVector(bv1.value, bv1.resolved_type.width)
 
-    w_abs_bv0 = z3btypes.Z3Value(z3.BitVec("abs_bv0", bv0.resolved_type.width))
-    w_abs_bv1 = z3btypes.Z3Value(z3.BitVec("abs_bv1", bv1.resolved_type.width))
+    w_abs_bv0 = z3btypes.Z3SmallBitVector(z3.BitVec("abs_bv0", bv0.resolved_type.width))
+    w_abs_bv1 = z3btypes.Z3SmallBitVector(z3.BitVec("abs_bv1", bv1.resolved_type.width))
 
     equal = bv0.value == bv1.value
 

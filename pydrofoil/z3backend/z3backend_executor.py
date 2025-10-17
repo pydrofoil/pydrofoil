@@ -3,7 +3,7 @@ import time
 import os
 from pydrofoil import types
 from pydrofoil.types import *
-from pydrofoil.z3backend.z3btypes import ConstantSmallBitVector, UnionConstant, StructConstant, Z3Value
+from pydrofoil.z3backend.z3btypes import ConstantSmallBitVector, UnionConstant, StructConstant, Z3SmallBitVector
 from pydrofoil.z3backend import z3btypes
 from pydrofoil.z3backend.z3backend import RiscvInterpreter
 
@@ -168,12 +168,12 @@ def _rv64_patch_pc_for_angr_jump(interp, branch_size, code):
         if _rv64_ends_bb(c): return
     # otherwise angr executes a jump that is not a part of the executed code to end the bb
     # as the condition of the jump is always false, the pc is just incremented by the jump isntructions size
-    if isinstance(interp.registers["zPC"], z3btypes.ConstantSmallBitVector):
+    if isinstance(interp.registers["zPC"], ConstantSmallBitVector):
         pc_val = interp.registers["zPC"].value
-        interp.registers["zPC"] = z3btypes.ConstantSmallBitVector(pc_val + branch_size, 64)
+        interp.registers["zPC"] = ConstantSmallBitVector(pc_val + branch_size, 64)
     else:
         pc_val = interp.registers["zPC"].toz3()
-        interp.registers["zPC"] = z3btypes.Z3Value(pc_val + z3.BitVecVal(branch_size, pc_val.sort().size()))
+        interp.registers["zPC"] = Z3SmallBitVector(pc_val + z3.BitVecVal(branch_size, pc_val.sort().size()))
 
 def execute_machine_code_rv64(code, rv64sharedstate, ismthd, init_regs_w, init_mem, verbosity=0):
     ### executor must only be used via _method_call or _func_call ###
@@ -219,7 +219,7 @@ def execute_machine_code_rv64(code, rv64sharedstate, ismthd, init_regs_w, init_m
             executor.registers["znextPC"] = ConstantSmallBitVector(pc_val + opcode_size, 64)
         else:
             pc_val = executor.registers["zPC"].toz3()
-            executor.registers["znextPC"] = Z3Value(pc_val + z3.BitVecVal(opcode_size, pc_val.sort().size()))
+            executor.registers["znextPC"] = Z3SmallBitVector(pc_val + z3.BitVecVal(opcode_size, pc_val.sort().size()))
 
         executor._reset_env()
 

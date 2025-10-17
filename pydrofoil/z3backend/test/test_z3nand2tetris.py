@@ -161,7 +161,7 @@ def test_nand_decode_compute_backwards():
     assert res.variant == "zC_D"
 
     x = z3.BitVec("x", 6)
-    interp = z3backend.NandInterpreter(graph, [z3btypes.Z3Value(x)], shared_state.copy())
+    interp = z3backend.NandInterpreter(graph, [z3btypes.Z3SmallBitVector(x)], shared_state.copy())
     res = interp.run()
     assert isinstance(res, z3btypes.Z3Value)
     assert str(res.value).endswith("""                                        If(And(Not(x == 42),
@@ -250,7 +250,7 @@ def test_nand_decode_jump_backwards():
     assert res.variant == "zJGE"
 
     x = z3.BitVec("x", 3)
-    interp = z3backend.NandInterpreter(graph, [z3btypes.Z3Value(x)], shared_state.copy())
+    interp = z3backend.NandInterpreter(graph, [z3btypes.Z3SmallBitVector(x)], shared_state.copy())
     res = interp.run()
     assert isinstance(res, z3btypes.Z3Value)
     assert str(res.value).endswith("""               zJGE,
@@ -485,7 +485,7 @@ def test_nand_compute_value():
     # abstract
     abs_za = z3.BitVec("za", 1)
     abs_zop = sharedstate.get_abstract_enum_const_of_type("zarithmetic_op", "zop")
-    interp = z3backend.NandInterpreter(graph, [z3btypes.Z3Value(abs_za), z3btypes.Z3Value(abs_zop)], sharedstate.copy())# op = ?
+    interp = z3backend.NandInterpreter(graph, [z3btypes.Z3SmallBitVector(abs_za), z3btypes.Z3Value(abs_zop)], sharedstate.copy())# op = ?
     res = interp.run()
     assert isinstance(res, z3btypes.Z3Value)
     #assert str(res).endswith("""~If(za == 0,init_zA!1716,""") TODO: correct this, as soon as res is stable again
@@ -559,7 +559,7 @@ def test_nand_decode():
         _, backedges = graphalgorithms.find_loopheaders_backedges(g)
         sharedstate.backedges[g] = backedges
 
-    merge = z3backend.Z3Value(z3.BitVec("zmergez3var", 16))
+    merge = z3backend.Z3SmallBitVector(z3.BitVec("zmergez3var", 16))
     interp = z3backend.NandInterpreter(graph, [merge], sharedstate.copy())
     res = interp.run()
     assert isinstance(res, z3backend.Z3Value)
@@ -577,7 +577,7 @@ def test_nand_decode():
     assert res.w_val.variant_name == "zCINST"
     interp.w_raises.toz3() == False
 
-    merge = z3backend.Z3Value(z3.BitVecVal(0b1110101010000000, 16))
+    merge = z3backend.Z3SmallBitVector(z3.BitVecVal(0b1110101010000000, 16))
     interp = z3backend.NandInterpreter(graph, [merge],  sharedstate.copy())
     res = interp.run()
     z3res = z3.simplify(res.value)
@@ -589,7 +589,7 @@ zSomezIUinstrzIzKzK(zCINST(a(0,
     assert z3.simplify(interp.w_raises.toz3()) == False # TODO: sometimes its a python False and sometimes its a z3 expr (ok for z3 as py True is auto casted to z3 on use but assert failes)
 
 
-    merge = z3backend.Z3Value(z3.BitVecVal(0b10000000, 16))
+    merge = z3backend.Z3SmallBitVector(z3.BitVecVal(0b10000000, 16))
     interp = z3backend.NandInterpreter(graph, [merge],  sharedstate.copy())
     res = interp.run()
     z3res = z3.simplify(res.value)
@@ -859,7 +859,7 @@ def get_double_diamond_graph():
 def test_merge_abstract():
     graph = get_double_diamond_graph()
     
-    avar = z3btypes.Z3Value(z3.BitVec('a', 1))
+    avar = z3btypes.Z3SmallBitVector(z3.BitVec('a', 1))
     bvar = z3btypes.Z3BoolValue(z3.Bool('b'))
 
     sharedstate = z3backend.SharedState(dict(f=graph), NAND_REGISTERS)

@@ -1,4 +1,4 @@
-from pydrofoil.z3backend.z3btypes import Z3Value, ConstantSmallBitVector, Z3BoolValue, BooleanConstant
+from pydrofoil.z3backend.z3btypes import ConstantSmallBitVector, Z3BoolValue, BooleanConstant, Z3SmallBitVector
 import z3
 import os, subprocess, tempfile
 import shutil
@@ -114,11 +114,11 @@ def create_wrapped_init_register_values(execution, pc_ip_reg_size=None): # TODO:
             
         rval = z3.BitVec(init_regs[registername], 8 * arch.registers_size[registername]) # registers_size is in bytes, z3 in bits
         init_name_z3_mapping[init_regs[registername]] = rval
-        w_regs[registername] = Z3Value(rval)
+        w_regs[registername] = Z3SmallBitVector(rval)
 
         for alias in aliaslist:
             init_name_z3_mapping[init_regs[alias]] = rval
-            w_regs[alias] = Z3Value(rval)
+            w_regs[alias] = Z3SmallBitVector(rval)
             #all_regs.remove(alias)
 
         #all_regs.remove(registername)

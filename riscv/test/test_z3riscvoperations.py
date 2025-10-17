@@ -18,7 +18,7 @@ def riscv_first_shared_state():
 @pytest.fixture(scope='session')
 def abs_zast_session(riscv_first_shared_state):
     bv = z3.BitVec("z3mergevar", 32)
-    return z3backend.RiscvInterpreter(riscv_first_shared_state.funcs["zencdec_backwards"], [z3btypes.Z3Value(bv)],
+    return z3backend.RiscvInterpreter(riscv_first_shared_state.funcs["zencdec_backwards"], [z3btypes.Z3SmallBitVector(bv)],
                                        riscv_first_shared_state.copy()).run(), bv
 
 @pytest.fixture(scope='function')

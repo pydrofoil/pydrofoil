@@ -11,6 +11,16 @@ constant_knownbits = strategies.builds(
     strategies.integers()
 )
 
+def build_knownbits_from_ints(value, unknowns):
+    ones = value & ~unknowns
+    return KnownBits(ones, unknowns), value
+    
+random_knownbits = strategies.builds(
+    lambda value, unknowns: build_knownbits_from_ints(value, unknowns),
+    strategies.integers(),
+    strategies.integers()
+)
+
 ###
 
 def test_init_well_formed():
@@ -70,6 +80,11 @@ def test_constant_contains(kb_c):
     # dont need to call _check_well_formed as thats done on init
     assert knownbits.contains(constant)
 
+@given(random_knownbits)
+def test_random_contains(kb_c):
+    knownbits, constant = kb_c
+    assert knownbits.contains(constant) 
+
 @given(constant_knownbits)
 def test_constant_is_constant(kb_c):
     knownbits, _ = kb_c
@@ -77,8 +92,15 @@ def test_constant_is_constant(kb_c):
     assert knownbits.is_constant()
 
 @given(constant_knownbits, constant_knownbits)
-def test_constant_is_constant(kb_c0, kb_c1):
+def test_constant_know_same(kb_c0, kb_c1):
     knownbits0, constant0 = kb_c0
     knownbits1, constant1 = kb_c1
     same = constant0 == constant1
+    assert same == knownbits0.know_same(knownbits1)
+
+@given(random_knownbits, random_knownbits)
+def test_random_know_same(kb_c0, kb_c1):
+    knownbits0, _ = kb_c0
+    knownbits1, _ = kb_c1
+    same = (knownbits0.ones == knownbits1.ones) & (knownbits0.unknowns == knownbits1.unknowns)
     assert same == knownbits0.know_same(knownbits1)

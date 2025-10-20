@@ -286,6 +286,7 @@ class Z3Value(Value):
     
     def __init__(self, val):
         if "_generic_bv_val_width_tup" in  str(val.sort()): import pdb; pdb.set_trace()
+        assert not isinstance(val, z3.z3.BitVecRef)
         self.value = val
 
     def toz3(self):
@@ -440,7 +441,8 @@ class Z3BoolValue(Z3Value):
               or isinstance(w_true, Z3GenericBitVector) or isinstance(w_false, Z3GenericBitVector)
               or isinstance(w_true, Z3DeferredIntGenericBitVector) or isinstance(w_false, Z3DeferredIntGenericBitVector)):
             cls = Z3DeferredIntGenericBitVector
-        elif isinstance(w_true, Z3SmallBitVector) or isinstance(w_false, Z3SmallBitVector):
+        elif (isinstance(w_true, Z3SmallBitVector) or isinstance(w_false, Z3SmallBitVector)
+              or isinstance(w_true, ConstantSmallBitVector) or isinstance(w_false, ConstantSmallBitVector)):
             cls = Z3SmallBitVector
         else:
             cls = Z3Value

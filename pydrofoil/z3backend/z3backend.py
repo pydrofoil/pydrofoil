@@ -936,15 +936,15 @@ class Interpreter(object):
             self._debug_print("simplifying generic bv width now", True)
             const_width = z3.simplify(width)
             self._debug_print("finish simplifying", True)
-            #assert isinstance(const_width, z3.z3.IntNumRef), "cant cast int 2 bv without constant width"
             if isinstance(const_width, z3.z3.IntNumRef):
                 long_width = const_width.as_long()
                 w_val = Z3GenericBitVector(z3.Int2BV(value, long_width), long_width, self.sharedstate._genericbvz3type)
             else:
-                self._debug_print("couldnt find concrete generic bv width for %s, making z3_lazy_int_generic_bv" % str(res)[:77], True)
+                self._debug_print("couldnt find concrete generic bv width for %s, making Z3DeferredIntGenericBitVector" % str(res)[:77], True)
                 w_val = Z3DeferredIntGenericBitVector(res)
             return Packed(w_val) if packed else w_val
-        # TODO: check all ir types and w classes here?
+        if isinstance(res, z3.z3.BitVecRef):
+            return Packed(Z3SmallBitVector(res)) if packed else Z3SmallBitVector(res)
         return Packed(Z3Value(res)) if packed else Z3Value(res)
 
     def exec_field_write(self, op):
@@ -1021,7 +1021,8 @@ class Interpreter(object):
                     return Z3DeferredIntGenericBitVector(z3_cast_instance)
             elif z3_cast_instance.sort() == z3.BoolSort():
                 return Z3BoolValue(z3_cast_instance)
-            # TODO:check for all types and classes here again?
+            elif isinstance(z3_cast_instance, z3.z3.BitVecRef):
+                return Z3SmallBitVector(z3_cast_instance)
             return Z3Value(z3_cast_instance)
         elif isinstance(instance, UnionConstant):
             assert op.name == instance.variant_name

@@ -72,6 +72,21 @@ def test_str():
     assert str(KnownBits(0b10000, 0b1111)) == "1????"
     assert str(KnownBits(0b1001, 0b01100110)) == "??01??1"
 
+def test_abstract_invert():
+    kb0 = KnownBits(0b0111, 0b1000)
+    inv_kb0 = kb0.abstract_invert()
+
+    assert str(inv_kb0) == "...1?000"
+    assert inv_kb0.abstract_invert().ones == kb0.ones
+    assert inv_kb0.unknowns == kb0.unknowns
+
+    kb0 = KnownBits(0b1010100111, 0b0100011000)
+    inv_kb0 = kb0.abstract_invert()
+
+    assert str(inv_kb0) == "...10?010??000"
+    assert inv_kb0.abstract_invert().ones == kb0.ones
+    assert inv_kb0.unknowns == kb0.unknowns
+
 ## hypothesis tests ##
 
 @given(constant_knownbits)
@@ -104,3 +119,16 @@ def test_random_know_same(kb_c0, kb_c1):
     knownbits1, _ = kb_c1
     same = (knownbits0.ones == knownbits1.ones) & (knownbits0.unknowns == knownbits1.unknowns)
     assert same == knownbits0.know_same(knownbits1)
+
+@given(random_knownbits)
+def test_simple_invert(kb_c):
+    knownbits, _ = kb_c
+    inv_knownbits = knownbits.abstract_invert()
+
+    if str(knownbits).startswith("...1"):
+        assert not str(inv_knownbits).startswith("...")
+    elif str(knownbits).startswith("...?"):
+        assert str(inv_knownbits).startswith("...?")
+    else:
+        # all preceeding digits are 0
+        assert str(inv_knownbits).startswith("...1")

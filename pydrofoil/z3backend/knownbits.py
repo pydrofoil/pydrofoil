@@ -80,4 +80,5 @@ class KnownBits(object):
         
 ##      transfer functions      ##
 
-# TODO;
+    def abstract_invert(self):
+        return KnownBits(self.zeros(), self.unknowns)

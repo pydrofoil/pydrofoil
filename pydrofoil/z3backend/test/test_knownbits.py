@@ -87,6 +87,14 @@ def test_abstract_invert():
     assert inv_kb0.abstract_invert().ones == kb0.ones
     assert inv_kb0.unknowns == kb0.unknowns
 
+def test_abstract_and():
+    kb0 = KnownBits(0b01100111, 0b00011000)
+    kb1 = KnownBits(0b01010111, 0b00101000)
+
+    kb_and = kb0.abstract_and(kb1)
+
+    assert str(kb_and) == "1???111"
+
 ## hypothesis tests ##
 
 @given(constant_knownbits)
@@ -121,7 +129,7 @@ def test_random_know_same(kb_c0, kb_c1):
     assert same == knownbits0.know_same(knownbits1)
 
 @given(random_knownbits)
-def test_simple_invert(kb_c):
+def test_random_simple_invert(kb_c):
     knownbits, value = kb_c
     inv_knownbits = knownbits.abstract_invert()
     inv_value = ~value
@@ -129,7 +137,7 @@ def test_simple_invert(kb_c):
     assert inv_knownbits.contains(inv_value)
 
 @given(random_knownbits)
-def test_str_invert(kb_c):
+def test_random_str_invert(kb_c):
     knownbits, _ = kb_c
     inv_knownbits = knownbits.abstract_invert()
 
@@ -140,3 +148,13 @@ def test_str_invert(kb_c):
     else:
         # all preceeding digits are 0
         assert str(inv_knownbits).startswith("...1")
+
+@given(random_knownbits, random_knownbits)
+def test_random_and_contains(kb_c0, kb_c1):
+    knownbits0, constant0 = kb_c0
+    knownbits1, constant1 = kb_c1
+
+    constant_and = constant0 & constant1
+    knownbits_and = knownbits0.abstract_and(knownbits1)
+
+    assert knownbits_and.contains(constant_and)

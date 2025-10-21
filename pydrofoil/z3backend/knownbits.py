@@ -82,3 +82,8 @@ class KnownBits(object):
 
     def abstract_invert(self):
         return KnownBits(self.zeros(), self.unknowns)
+    
+    def abstract_and(self, other):
+        ones = self.ones & other.ones
+        knowns = self.zeros() | other.zeros() | ones
+        return KnownBits(ones, ~knowns)

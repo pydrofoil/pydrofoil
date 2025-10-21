@@ -122,6 +122,14 @@ def test_random_know_same(kb_c0, kb_c1):
 
 @given(random_knownbits)
 def test_simple_invert(kb_c):
+    knownbits, value = kb_c
+    inv_knownbits = knownbits.abstract_invert()
+    inv_value = ~value
+    
+    assert inv_knownbits.contains(inv_value)
+
+@given(random_knownbits)
+def test_str_invert(kb_c):
     knownbits, _ = kb_c
     inv_knownbits = knownbits.abstract_invert()
 

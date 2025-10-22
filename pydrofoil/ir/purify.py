@@ -97,7 +97,9 @@ def topo_sort_graphs(caller_map):
         for caller_name in caller_names:
             callee_map[caller_name].add(func_name)
 
-    incoming = {name: callers.copy() for name, callers in caller_map.items()}
+    incoming = {
+        name: callers.copy() for name, callers in caller_map.items() if callers
+    }
     no_incoming = [name for name, callers in caller_map.items() if not callers]
     topoorder = []
     while no_incoming:

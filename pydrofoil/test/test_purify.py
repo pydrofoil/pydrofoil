@@ -1,3 +1,4 @@
+import itertools
 import pytest
 
 from pydrofoil import ir, types
@@ -95,7 +96,7 @@ def _get_example_calls_simple():
     i1 = block.emit(
         ir.Operation,
         "add_i_i_must_fit",
-        [a, ir.MachineIntConstant(9)],
+        [a, i0],
         types.MachineInt(),
     )
     block.next = ir.Return(i1)
@@ -115,7 +116,7 @@ flag = Argument('flag', Bool())
 block0 = Block()
 i2 = block0.emit(Comment, 'inlined zalmost_pure', [], Unit(), None, None)
 i3 = block0.emit(Operation, 'almost_pure_pure_core', [a, flag], MachineInt(), None, None)
-i4 = block0.emit(Operation, 'add_i_i_must_fit', [a, MachineIntConstant(9)], MachineInt(), None, None)
+i4 = block0.emit(Operation, 'add_i_i_must_fit', [a, i3], MachineInt(), None, None)
 block0.next = Return(i4, None)
 graph = Graph('purifiable_after_inline_pure_core', [a, flag], block0)"""
 
@@ -206,3 +207,73 @@ def test_with_struct():
         mockcodegen.all_graph_by_name["almost_pure_with_struct_pure_core"],
         pure_core_str,
     )
+
+
+def _get_example_almost_calls_almost():
+    # This example calls the example graph from '_get_example_simple'
+    block = ir.Block()
+    a = ir.Argument("a", types.MachineInt())
+
+    i0 = block.emit(ir.Operation, "zalmost_pure", [a], types.MachineInt())
+    # This function is also almost pure
+    i1 = block.emit(ir.GlobalRead, "flag2", [], types.MachineInt())
+    i2 = block.emit(
+        ir.Operation,
+        "add_i_i_must_fit",
+        [a, i1],
+        types.MachineInt(),
+    )
+    i3 = block.emit(
+        ir.Operation,
+        "add_i_i_must_fit",
+        [i0, i2],
+        types.MachineInt(),
+    )
+    block.next = ir.Return(i3)
+
+    graph = ir.Graph("zpurifiable_after_inline", [a], block)
+
+    purified_str = """
+a = Argument('a', MachineInt())
+block0 = Block()
+i1 = block0.emit(GlobalRead, 'flag', [], Bool(), None, None)
+i2 = block0.emit(GlobalRead, 'flag2', [], MachineInt(), None, None)
+i3 = block0.emit(Operation, 'purifiable_after_inline_pure_core', [a, i1, i2], MachineInt(), None, None)
+block0.next = Return(i3, None)
+graph = Graph('zpurifiable_after_inline', [a], block0)
+"""
+    pure_core_str = """
+a = Argument('a', MachineInt())
+flag = Argument('flag', Bool())
+flag2 = Argument('flag2', MachineInt())
+block0 = Block()
+i3 = block0.emit(Comment, 'inlined zalmost_pure', [], Unit(), None, None)
+i4 = block0.emit(Operation, 'almost_pure_pure_core', [a, flag], MachineInt(), None, None)
+i5 = block0.emit(Operation, 'add_i_i_must_fit', [a, flag2], MachineInt(), None, None)
+i6 = block0.emit(Operation, 'add_i_i_must_fit', [i4, i5], MachineInt(), None, None)
+block0.next = Return(i6, None)
+graph = Graph('purifiable_after_inline_pure_core', [a, flag, flag2], block0)
+"""
+
+    return graph, purified_str, pure_core_str
+
+
+def test_almost_pure_calls_almost_pure():
+    # We test all permutations of the graphs to ensure that the algorithm is
+    # agnostic to the order.
+    for perm in itertools.permutations(range(2)):
+        callee_graph, _, _ = _get_example_simple()
+        (
+            caller_graph,
+            purifed_str,
+            pure_core_str,
+        ) = _get_example_almost_calls_almost()
+        graphs = (callee_graph, caller_graph)
+        codegen = MockCodegen({graphs[i].name: graphs[i] for i in perm})
+        purify_all_graphs(codegen)
+
+        compare(caller_graph, purifed_str)
+        compare(
+            codegen.all_graph_by_name["purifiable_after_inline_pure_core"],
+            pure_core_str,
+        )

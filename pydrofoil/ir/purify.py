@@ -7,6 +7,7 @@ The result is a function that splits the reading of the state and the pure part
 into 2 functions.
 """
 from __future__ import print_function
+import collections
 from pydrofoil import makecode, ir, types
 
 from collections import defaultdict
@@ -87,19 +88,46 @@ def purify(codegen, graph):
     return new_graph
 
 
+def topo_sort_graphs(caller_map):
+    # type: (dict[str, set[str]]) -> list[str]
+
+    # Build callee map from caller map
+    callee_map = collections.defaultdict(set)
+    for func_name, caller_names in caller_map.items():
+        for caller_name in caller_names:
+            callee_map[caller_name].add(func_name)
+
+    incoming = {name: callers.copy() for name, callers in caller_map.items()}
+    no_incoming = [name for name, callers in caller_map.items() if not callers]
+    topoorder = []
+    while no_incoming:
+        g = no_incoming.pop()
+        topoorder.append(g)
+        for child in callee_map[g]:
+            incoming[child].discard(g)
+            if not incoming[child]:
+                no_incoming.append(child)
+                del incoming[child]
+    # check result
+    assert set(topoorder) == set(caller_map)  # Fail on cycles for now
+    assert len(set(topoorder)) == len(topoorder)
+    return topoorder
+
+
 def purify_all_graphs(codegen):
     # type: (makecode.Codegen) -> None
     codegen.print_highlevel_task("PURIFY")
     effects, caller_map = compute_all_effects_and_call_graph(codegen)
-    work_list = set(codegen.all_graph_by_name.values())
+    work_list = [
+        codegen.all_graph_by_name[name]
+        for name in reversed(topo_sort_graphs(caller_map))
+    ]
     purified = set()  # type: set[ir.Graph]
     modified = set()  # type: set[ir.Graph]
 
-    while work_list:
-        graph = work_list.pop()
-        if graph not in purified and _can_purify(
-            codegen, effects[graph.name], graph
-        ):
+    for graph in work_list:
+        assert graph not in purified
+        if _can_purify(codegen, effects[graph.name], graph):
             purify(codegen, graph)
             print("PURIFIED", graph.name)
             codegen.inlinable_functions[graph.name] = graph
@@ -109,7 +137,7 @@ def purify_all_graphs(codegen):
                 caller_graph = codegen.all_graph_by_name[caller_name]
                 ir.inline(caller_graph, codegen)
                 modified.add(caller_graph)
-                work_list.add(caller_graph)
+
     for graph in modified:
         ir.light_simplify(graph, codegen)
 

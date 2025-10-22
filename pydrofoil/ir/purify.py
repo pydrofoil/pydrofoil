@@ -82,6 +82,7 @@ def purify(codegen, graph):
     new_graph.replace_ops(replacements)
     graph.startblock = block
     codegen.all_graph_by_name[new_graph_name] = new_graph
+    codegen.add_global(new_graph_name, new_graph_name)
     graph.check()
     new_graph.check()
     return new_graph

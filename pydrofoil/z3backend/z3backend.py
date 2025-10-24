@@ -597,6 +597,8 @@ class Interpreter(object):
         if isinstance(wcond, BooleanConstant):
             if wcond.value == True: return true
             return false
+        elif true.eq(false): # syntactical equality
+            return true
         elif wcond.toz3().eq(z3.BoolVal(True)):
             return true
         elif wcond.toz3().eq(z3.BoolVal(False)):

@@ -82,13 +82,26 @@ def test_is_range_known():
     assert KnownBits(0b0111, 0b1000).is_range_known(2,0)
     assert not KnownBits(0b0111, 0b1000).is_range_known(3,3)
     #
-    assert KnownBits(0b10000, 0b1111).is_range_known(16384,4)
+    assert KnownBits(0b10000, 0b1111).is_range_known(165,4)
     assert not KnownBits(0b10000, 0b1111).is_range_known(3,0)
     #
     assert KnownBits(0b1001, 0b01100110).is_range_known(0,0)
     assert KnownBits(0b1001, 0b01100110).is_range_known(4,3)
     assert not KnownBits(0b1001, 0b01100110).is_range_known(2,1)
 
+def test_get_known_range_int():
+    assert KnownBits(0b0111, 0b1000).get_known_range_int(2,0) == 0b111
+    with pytest.raises(AssertionError):
+        assert KnownBits(0b0111, 0b1000).get_known_range_int(3,0)
+
+    assert KnownBits(0b10000, 0b1111).get_known_range_int(165,4) == 1
+    with pytest.raises(AssertionError):
+        KnownBits(0b10000, 0b1111).get_known_range_int(3,0)
+
+    assert KnownBits(0b1001, 0b01100110).get_known_range_int(0,0) == 1
+    assert KnownBits(0b1001, 0b01100110).get_known_range_int(4,3) == 1
+    with pytest.raises(AssertionError):
+        KnownBits(0b1001, 0b01100110).get_known_range_int(2,1)
 
 def test_abstract_invert():
     kb0 = KnownBits(0b0111, 0b1000)

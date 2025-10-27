@@ -73,11 +73,24 @@ class KnownBits(object):
 ## methods needed for z3backend ##
     
     def know_same(self, other):
-        return (self.ones == other.ones) & (self.unknowns == other.unknowns)
+        return (self.ones == other.ones) and (self.unknowns == other.unknowns)
     
     def copy(self):
         return KnownBits(self.ones, self.unknowns)
-        
+
+    @staticmethod
+    def extract(value, high, low):
+        mask = 2 ** (high + 1) - 1
+        return (value & mask) >> low
+    
+    def is_range_known(self, start, stop):
+        mask = (2 ** (start + 1) - 1) ^ (2 ** stop - 1)
+        return (self.knowns() & mask) == mask
+
+    def get_known_range_int(self, start, stop):
+        assert self.is_range_known(start, stop)
+        return KnownBits.extract(self.ones, start, stop) 
+
 ##      transfer functions      ##
 
     def abstract_invert(self):

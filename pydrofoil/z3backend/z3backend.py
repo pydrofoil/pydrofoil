@@ -1192,14 +1192,14 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector):
             return ConstantSmallBitVector(~arg0.value, op.resolved_type.width)
         else:
-            return Z3SmallBitVector(~arg0.toz3())
+            return Z3SmallBitVector(~arg0.toz3(), arg0.abstract_invert())
 
     def exec_and_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
             return ConstantSmallBitVector(arg0.value & arg1.value, op.resolved_type.width) 
         else:
-            return Z3SmallBitVector(arg0.toz3() & arg1.toz3())
+            return Z3SmallBitVector(arg0.toz3() & arg1.toz3(), arg0.knownbits.abstract_and(arg1.knownbits))
         
     def exec_xor_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
@@ -1374,11 +1374,22 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector) or isinstance(arg0, ConstantGenericBitVector):
             return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
         else:
+            if arg0.knownbits.is_range_known(arg1.value, arg2.value):
+                #print(arg1.value, arg2.value)
+                #if not (arg1.value, arg2.value) == (11, 7):
+                #import pdb; pdb.set_trace()
+                return ConstantSmallBitVector(arg0.knownbits.get_known_range_int(arg1.value, arg2.value), op.resolved_type.width)
+            #else:
+            #    print("unkown:", arg0.__str__(), arg1.value, arg2.value)
+            #    if (arg1.value, arg2.value) == (14, 12):
+            #        import pdb; pdb.set_trace()
+
             return Z3SmallBitVector(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
         
     def exec_vector_subrange_o_i_i_unwrapped_res(self, op):
         """ slice generic bitvector as arg0[arg1:arg2] both inclusive (bv read from right)"""
         arg0, arg1, arg2 = self.getargs(op)
+        #import pdb; pdb.set_trace()
         assert isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt), "abstract slicing not allowed"
         if isinstance(arg0, ConstantGenericBitVector) and isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt):
             mask_high = 2 ** (arg1.value + 1) - 1
@@ -1390,6 +1401,7 @@ class Interpreter(object):
 
     def exec_vector_subrange_o_i_i(self, op):
         arg0, arg1, arg2 = self.getargs(op)
+        #import pdb; pdb.set_trace()
         assert isinstance(arg1, ConstantInt) and isinstance(arg2, ConstantInt), "abstract slicing not allowed"
         if isinstance(arg0, ConstantGenericBitVector):
             mask_high = 2 ** (arg1.value + 1) - 1
@@ -1403,6 +1415,7 @@ class Interpreter(object):
         """ returns int2bv(arg1)[arg0: arg2] (read from right)
             arg0 = len, arg1 = value, arg2 = start"""
         # o = generic int in this case
+        #import pdb; pdb.set_trace()
         arg0, arg1, arg2 = self.getargs(op)
         if ((isinstance(arg0, ConstantInt) or isinstance(arg0, ConstantGenericInt)) 
             and (isinstance(arg1, ConstantInt) or isinstance(arg1, ConstantGenericInt))
@@ -1422,6 +1435,7 @@ class Interpreter(object):
         """ returns int2bv(arg1)[arg0: arg2] (read from right)
             arg0 = len, arg1 = value, arg2 = start"""
         # o = generic int in this case
+        #import pdb; pdb.set_trace()
         arg0, arg1, arg2 = self.getargs(op)
         if ((isinstance(arg0, ConstantInt) or isinstance(arg0, ConstantGenericInt)) 
             and (isinstance(arg1, ConstantInt) or isinstance(arg1, ConstantGenericInt))

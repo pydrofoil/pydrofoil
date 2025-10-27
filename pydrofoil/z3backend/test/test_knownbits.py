@@ -54,6 +54,7 @@ def test_is_constant():
     assert not KnownBits(16384, 1).is_constant()
 
 def test_knowns():
+    # -0b111111111 = -512 + 1 => -511
     assert KnownBits(0b0111, 0b1000).knowns() == -9 # in 8 bit 11110111 = -8 -1 = -9
     assert KnownBits(0b10000, 0b1111).knowns() == -16 # in 8 bit 11110000 = -8 -4 -2 -1 -1 = -16
     assert KnownBits(0b1001, 0b01100110).knowns() == -103 # in 8 bit 10011001 = -64 -32 -4 -2 -1 = -103
@@ -71,6 +72,23 @@ def test_str():
     assert str(KnownBits(0b0111, 0b1000)) == "?111"
     assert str(KnownBits(0b10000, 0b1111)) == "1????"
     assert str(KnownBits(0b1001, 0b01100110)) == "??01??1"
+
+def test_extract():
+    assert KnownBits.extract(0b0011111000, 8, 3) == 0b011111
+    assert KnownBits.extract(0b01100110, 6, 1) == 0b110011
+    assert KnownBits.extract(0b111001100111, 6, 3) == 0b1100
+
+def test_is_range_known():
+    assert KnownBits(0b0111, 0b1000).is_range_known(2,0)
+    assert not KnownBits(0b0111, 0b1000).is_range_known(3,3)
+    #
+    assert KnownBits(0b10000, 0b1111).is_range_known(16384,4)
+    assert not KnownBits(0b10000, 0b1111).is_range_known(3,0)
+    #
+    assert KnownBits(0b1001, 0b01100110).is_range_known(0,0)
+    assert KnownBits(0b1001, 0b01100110).is_range_known(4,3)
+    assert not KnownBits(0b1001, 0b01100110).is_range_known(2,1)
+
 
 def test_abstract_invert():
     kb0 = KnownBits(0b0111, 0b1000)

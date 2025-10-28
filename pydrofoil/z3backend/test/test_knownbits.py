@@ -14,12 +14,22 @@ constant_knownbits = strategies.builds(
 def build_knownbits_from_ints(value, unknowns):
     ones = value & ~unknowns
     return KnownBits(ones, unknowns), value
+
+
+def _get_random_range(data):
+    a = data.draw(strategies.integers(0, 64))
+    b = data.draw(strategies.integers(a, 64))
+    return b, a
     
 random_knownbits = strategies.builds(
     lambda value, unknowns: build_knownbits_from_ints(value, unknowns),
     strategies.integers(),
     strategies.integers()
 )
+
+random_range = strategies.builds(
+    _get_random_range,
+    strategies.data())
 
 ###
 
@@ -79,6 +89,8 @@ def test_extract():
     assert KnownBits.extract(0b111001100111, 6, 3) == 0b1100
 
 def test_is_range_known():
+    assert not KnownBits(0b0, 0b1).is_range_known(0,0)
+    #
     assert KnownBits(0b0111, 0b1000).is_range_known(2,0)
     assert not KnownBits(0b0111, 0b1000).is_range_known(3,3)
     #
@@ -177,7 +189,7 @@ def test_random_str_invert(kb_c):
     elif str(knownbits).startswith("...?"):
         assert str(inv_knownbits).startswith("...?")
     else:
-        # all preceeding digits are 0
+        # all preceeding digits are 1
         assert str(inv_knownbits).startswith("...1")
 
 @given(random_knownbits, random_knownbits)
@@ -189,3 +201,35 @@ def test_random_and_contains(kb_c0, kb_c1):
     knownbits_and = knownbits0.abstract_and(knownbits1)
 
     assert knownbits_and.contains(constant_and)
+
+@given(random_knownbits, random_range)
+def test_random_is_range_known_str(kb_c, rand_range):
+    knownbits, _ = kb_c
+    start, stop = rand_range
+    
+    is_known = knownbits.is_range_known(start, stop)
+    str_knownbits = str(knownbits)
+
+
+    #if "?" in str(knownbits): import pdb; pdb.set_trace()
+
+    # string indexing like with a bv read from right
+
+    if str_knownbits.startswith("...?"):
+        prefix = "?"
+        cutoff = 4
+    elif str_knownbits.startswith("...1"):
+        prefix = "1"
+        cutoff = 4
+    else:
+        prefix = "0"
+        cutoff = 0
+
+    str_knownbits = (prefix * (cutoff + start - len(str_knownbits) + 1)) + str_knownbits[cutoff:]
+
+    unknown_in_range = "?" in str_knownbits[::-1][stop:start + 1]
+
+    if is_known:
+        assert not unknown_in_range
+    else:
+        assert unknown_in_range

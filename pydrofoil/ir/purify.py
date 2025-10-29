@@ -88,41 +88,46 @@ def purify(codegen, graph):
     return new_graph
 
 
-def topo_sort_graphs(caller_map):
+def leaves_without_cycles_topologically(caller_map):
     # type: (dict[str, set[str]]) -> list[str]
 
     # Build callee map from caller map
     callee_map = collections.defaultdict(set)
     for func_name, caller_names in caller_map.items():
+        callee_map[func_name] # make sure the key exists
         for caller_name in caller_names:
             callee_map[caller_name].add(func_name)
 
-    incoming = {
-        name: callers.copy() for name, callers in caller_map.items() if callers
+    outgoing = {
+        name: callees.copy() for name, callees in callee_map.items() if callees
     }
-    no_incoming = [name for name, callers in caller_map.items() if not callers]
-    topoorder = []
-    while no_incoming:
-        g = no_incoming.pop()
-        topoorder.append(g)
-        for child in callee_map[g]:
-            incoming[child].discard(g)
-            if not incoming[child]:
-                no_incoming.append(child)
-                del incoming[child]
+    no_outgoing = [name for name, callees in callee_map.items() if not callees]
+    result = []
+    while no_outgoing:
+        g = no_outgoing.pop()
+        result.append(g)
+        for parent in caller_map[g]:
+            outgoing[parent].discard(g)
+            if not outgoing[parent]:
+                no_outgoing.append(parent)
+                del outgoing[parent]
     # check result
-    assert set(topoorder) == set(caller_map)  # Fail on cycles for now
-    assert len(set(topoorder)) == len(topoorder)
-    return topoorder
+    import pdb;pdb.set_trace()
+    assert set(result).issubset(set(caller_map))  # cycles not included
+    assert len(set(result)) == len(result)
+    return result
 
 
 def purify_all_graphs(codegen):
     # type: (makecode.Codegen) -> None
     codegen.print_highlevel_task("PURIFY")
     effects, caller_map = compute_all_effects_and_call_graph(codegen)
+    for name in codegen.all_graph_by_name:
+        caller_map[name] # make sure all functions exist
+    print(caller_map)
     work_list = [
         codegen.all_graph_by_name[name]
-        for name in reversed(topo_sort_graphs(caller_map))
+        for name in leaves_without_cycles_topologically(caller_map)
     ]
     purified = set()  # type: set[ir.Graph]
     modified = set()  # type: set[ir.Graph]

@@ -91,10 +91,12 @@ def purify(codegen, graph):
 def leaves_without_cycles_topologically(caller_map):
     # type: (dict[str, set[str]]) -> list[str]
 
+    # Caller map maps function names to their callers.
+
     # Build callee map from caller map
     callee_map = collections.defaultdict(set)
     for func_name, caller_names in caller_map.items():
-        callee_map[func_name] # make sure the key exists
+        callee_map[func_name]  # make sure the key exists
         for caller_name in caller_names:
             callee_map[caller_name].add(func_name)
 
@@ -112,30 +114,34 @@ def leaves_without_cycles_topologically(caller_map):
                 no_outgoing.append(parent)
                 del outgoing[parent]
     # check result
-    import pdb;pdb.set_trace()
     assert set(result).issubset(set(caller_map))  # cycles not included
     assert len(set(result)) == len(result)
     return result
 
 
 def purify_all_graphs(codegen):
-    # type: (makecode.Codegen) -> None
+    # type: (makecode.Codegen) -> set[ir.Graph]
     codegen.print_highlevel_task("PURIFY")
     effects, caller_map = compute_all_effects_and_call_graph(codegen)
     for name in codegen.all_graph_by_name:
-        caller_map[name] # make sure all functions exist
+        caller_map[name]  # make sure all functions exist
     print(caller_map)
     work_list = [
         codegen.all_graph_by_name[name]
         for name in leaves_without_cycles_topologically(caller_map)
     ]
+    # Set of graphs that we introduced a pure core for.
     purified = set()  # type: set[ir.Graph]
+    # Set of graphs that were modified (purified + callers of purified).
     modified = set()  # type: set[ir.Graph]
+    # Set of newly introduced pure cores
+    pure_cores = set()  # type: set[ir.Graph]
 
     for graph in work_list:
         assert graph not in purified
         if _can_purify(codegen, effects[graph.name], graph):
-            purify(codegen, graph)
+            new_graph = purify(codegen, graph)
+            pure_cores.add(new_graph)
             print("PURIFIED", graph.name)
             codegen.inlinable_functions[graph.name] = graph
             purified.add(graph)
@@ -147,6 +153,8 @@ def purify_all_graphs(codegen):
 
     for graph in modified:
         ir.light_simplify(graph, codegen)
+
+    return pure_cores
 
 
 def _can_purify(codegen, effect_info, graph):

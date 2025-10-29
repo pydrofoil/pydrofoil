@@ -374,11 +374,59 @@ class Codegen(specialize.FixpointSpecializer):
     def emit_extra_graph(self, graph, functyp):
         pyname = "func_" + graph.name
         self.add_global(graph.name, pyname, functyp)
-        args = [arg.name for arg in graph.args]
-        first = "def %s(machine, %s):" % (pyname, ", ".join(args))
 
         def emit_extra(graph, codegen):
-            with self.emit_indent(first):
+            args = [arg.name for arg in graph.args]
+            joined_args = ", ".join(args)
+            first = "def %s(machine, %s):" % (pyname, joined_args)
+            is_pure = False
+            if "pure_core" in graph.name:
+                import pdb
+
+                pdb.set_trace()
+            if graph in codegen._purified_graphs:
+                is_pure = True
+            if is_pure:
+                # regular:
+                # def f(machine, a, b, c):
+                #     body_generated_from_graph
+
+                # if pure:
+                # def f(machine, a, b, c):
+                #     if jit.isconstant(a) and jit.isconstant(b) and jit.isconstant(c):
+                #         return elidable_f(a, b, c)
+                #     return impl_f(machine, a, b, c)
+                # @jit.elidable
+                # def elidable_f(a, b, c):
+                #     return f_impl(None, a, b, c)
+                # def impl_f(machine, a, b, c):
+                #     body_generated_from_graph
+                impl_func = "impl_%s" % pyname
+                impl_call = "return %s(machine, %s)" % (
+                    impl_func,
+                    joined_args,
+                )
+                elidable_func = "elidable_%s" % pyname
+                with codegen.emit_indent(first):
+                    with codegen.emit_indent(
+                        "if %s:"
+                        % " and ".join(
+                            "jit.isconstant(%s)" % arg for arg in args
+                        )
+                    ):
+                        codegen.emit(
+                            "return %s(%s)" % (elidable_func, joined_args)
+                        )
+                    codegen.emit(impl_call)
+                codegen.emit("@jit.elidable")
+                with codegen.emit_indent(
+                    "def %s(%s):" % (elidable_func, joined_args)
+                ):
+                    codegen.emit("machine = None")
+                    codegen.emit(impl_call)
+                first = "def %s(machine, %s):" % (impl_func, joined_args)
+
+            with codegen.emit_indent(first):
                 emit_function_code(graph, None, codegen)
             argument_converters = (
                 "["
@@ -429,7 +477,8 @@ class Codegen(specialize.FixpointSpecializer):
     def _purify_graphs(self):
         from pydrofoil.ir.purify import purify_all_graphs
 
-        purify_all_graphs(self)
+        purified = purify_all_graphs(self)
+        self._purified_graphs = purified
 
     def finish_graphs(self):
         self.print_persistent_msg("============== FINISHING ==============")
@@ -1458,7 +1507,9 @@ class __extend__(parse.Function):
         codegen.emit()
 
     @contextmanager
-    def _scope(self, codegen, pyname, method=False, actual_args=None):
+    def _scope(
+        self, codegen, pyname, method=False, actual_args=None, pure=False
+    ):
         # extra_args is a list of tuples (name, typ)
         if actual_args is not None:
             args = [arg.name for arg in actual_args]

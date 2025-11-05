@@ -149,6 +149,7 @@ class _EffectComputationState(object):
                 elif op.name in self.graph_map:
                     callees = [op.name]
                 else:
+                    effect_info = effect_info.add_called_builtin(op.name)
                     continue
                 for callee_name in callees:
                     effect_info = effect_info.extend(

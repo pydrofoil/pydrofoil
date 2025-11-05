@@ -30,10 +30,10 @@ def test_all_effects():
     d = get_example_nand()
     all_effects = compute_all_effects(d)
     assert set(all_effects.keys()) == set(d.keys())
-    assert all_effects["zcompute_value"] == local_effects(d["zcompute_value"])
+    assert all_effects["zcompute_value"] == local_effects(d["zcompute_value"]).add_called_builtin("my_read_mem")
     assert all_effects["zexecute_zCINST"] == local_effects(
         d["zexecute_zCINST"]
-    ).extend(local_effects(d["zcompute_value"]))
+    ).extend(local_effects(d["zcompute_value"]).add_called_builtin('my_read_mem').add_called_builtin('zassign_dest').add_called_builtin('zmaybe_jump'))
 
 
 def _get_example_cse_global_with_effect_info():
@@ -135,6 +135,7 @@ def _get_example_cse_field_with_effect_info():
     c2 = block_f.emit(FieldAccess, "x", [t], Bool())
     d2 = block_f.emit(FieldAccess, "y", [t], Bool())
     block_f.emit(Operation, "@dummy", [a, b, c, d, a2, b2, c2, d2], Unit())
+    block_f.emit(Operation, "dummy_without_at", [a, b, c, d, a2, b2, c2, d2], Unit())
     block_f.next = Return(UnitConstant.UNIT)
     graph_f = Graph("f", [s, t], block_f)
 
@@ -160,7 +161,7 @@ def test_cse_field():
     assert effect_info["f"] == EffectInfo(
         struct_writes=frozenset({(s, "x"), (t, "y"), (u, "x")}),
         struct_reads=frozenset({(s, "x"), (s, "y"), (t, "x"), (t, "y")}),
-        called_builtins=frozenset({"@dummy"}),
+        called_builtins=frozenset({"@dummy", "dummy_without_at"}),
     )
 
     codegen = MockCodegen(graphs)
@@ -181,6 +182,7 @@ i6 = block0.emit(Operation, 'g', [s, t], Unit(), None, None)
 i7 = block0.emit(FieldAccess, 'x', [s], Bool(), None, None)
 i8 = block0.emit(FieldAccess, 'y', [t], Bool(), None, None)
 i9 = block0.emit(Operation, '@dummy', [i2, i3, i4, i5, i7, i3, i4, i8], Unit(), None, None)
+i10 = block0.emit(Operation, 'dummy_without_at', [i2, i3, i4, i5, i7, i3, i4, i8], Unit(), None, None)
 block0.next = Return(UnitConstant.UNIT, None)
 graph = Graph('f', [s, t], block0)""",
     )
@@ -197,4 +199,4 @@ def test_effectinfo_methods():
     effect_info = compute_all_effects(graphs, methods)
     assert effect_info["c1"] == EffectInfo(
         register_writes=frozenset(["zx1", "zx2"])
-    )
+    ).add_called_builtin('first').add_called_builtin('second')

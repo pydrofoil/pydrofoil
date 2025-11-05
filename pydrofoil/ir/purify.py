@@ -25,6 +25,8 @@ def purify(codegen, graph):
             global_reads[op.name].append(op)
             block.operations[i] = None  # type: ignore
         block.operations = [op for op in block.operations if op is not None]
+    if "f32Add" in graph.name:
+        import pdb;pdb.set_trace()
 
     # Build the new body of 'graph'.
     # Reads all global state once and calls the pure part as a new function.

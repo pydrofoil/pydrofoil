@@ -20,7 +20,7 @@ class MockCodegen(object):
     def get_effects(self, _):
         pass
 
-    def print_debug_msg(self, _):
+    def print_debug_msg(self, *args, **kwargs):
         pass
 
     def print_highlevel_task(self, *args, **kwargs):

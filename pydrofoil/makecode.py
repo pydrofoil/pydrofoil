@@ -379,13 +379,7 @@ class Codegen(specialize.FixpointSpecializer):
             args = [arg.name for arg in graph.args]
             joined_args = ", ".join(args)
             first = "def %s(machine, %s):" % (pyname, joined_args)
-            is_pure = False
-            if "pure_core" in graph.name:
-                import pdb
-
-                pdb.set_trace()
-            if graph in codegen._purified_graphs:
-                is_pure = True
+            is_pure = graph in codegen._purified_graphs
             if is_pure:
                 # regular:
                 # def f(machine, a, b, c):

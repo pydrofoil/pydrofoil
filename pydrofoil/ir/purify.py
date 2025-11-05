@@ -143,6 +143,9 @@ def purify_all_graphs(codegen):
             pure_cores.add(new_graph)
             codegen.print_debug_msg("PURIFIED", graph.name)
             codegen.inlinable_functions[graph.name] = graph
+            # make sure that the purified functions are entrypoints,
+            # so that they stay exposed to the plugin API
+            codegen.add_extra_entrypoint(graph.name)
             purified.add(graph)
             modified.add(graph)
             for caller_name in caller_map[graph.name]:

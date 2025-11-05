@@ -497,3 +497,9 @@ class FixpointSpecializer(object):
     def print_persistent_msg(self, *args):
         print
         print " ".join(str(x) for x in args)
+
+    def add_extra_entrypoint(self, name):
+        # type: (str) -> None
+        if self.program_entrypoints is None:
+            self.program_entrypoints = []
+        self.program_entrypoints.append(name)

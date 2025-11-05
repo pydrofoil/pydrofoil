@@ -125,7 +125,6 @@ def purify_all_graphs(codegen):
     effects, caller_map = compute_all_effects_and_call_graph(codegen)
     for name in codegen.all_graph_by_name:
         caller_map[name]  # make sure all functions exist
-    print(caller_map)
     work_list = [
         codegen.all_graph_by_name[name]
         for name in leaves_without_cycles_topologically(caller_map)
@@ -142,7 +141,7 @@ def purify_all_graphs(codegen):
         if _can_purify(codegen, effects[graph.name], graph):
             new_graph = purify(codegen, graph)
             pure_cores.add(new_graph)
-            print("PURIFIED", graph.name)
+            codegen.print_debug_msg("PURIFIED", graph.name)
             codegen.inlinable_functions[graph.name] = graph
             purified.add(graph)
             modified.add(graph)

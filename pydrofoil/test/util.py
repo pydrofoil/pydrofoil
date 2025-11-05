@@ -28,3 +28,6 @@ class MockCodegen(object):
 
     def add_graph(self, graph, emit_function=None, *args, **kwargs):
         self.all_graph_by_name[graph.name] = graph
+
+    def add_extra_entrypoint(self, *args, **kwargs):
+        pass

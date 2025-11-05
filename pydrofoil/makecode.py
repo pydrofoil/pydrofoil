@@ -377,6 +377,9 @@ class Codegen(specialize.FixpointSpecializer):
 
         def emit_extra(graph, codegen):
             args = [arg.name for arg in graph.args]
+            arg_is_unit = [
+                arg.resolved_type is types.Unit() for arg in graph.args
+            ]
             joined_args = ", ".join(args)
             first = "def %s(machine, %s):" % (pyname, joined_args)
             is_pure = graph in codegen._purified_graphs
@@ -402,11 +405,14 @@ class Codegen(specialize.FixpointSpecializer):
                 )
                 elidable_func = "elidable_%s" % pyname
                 with codegen.emit_indent(first):
+                    is_constant_checks = []
+                    for arg, is_unit in zip(args, arg_is_unit):
+                        if not is_unit:
+                            is_constant_checks.append(
+                                "jit.isconstant(%s)" % arg
+                            )
                     with codegen.emit_indent(
-                        "if %s:"
-                        % " and ".join(
-                            "jit.isconstant(%s)" % arg for arg in args
-                        )
+                        "if %s:" % " and ".join(is_constant_checks)
                     ):
                         codegen.emit(
                             "return %s(%s)" % (elidable_func, joined_args)

@@ -1,0 +1,296 @@
+import itertools
+import pytest
+
+from pydrofoil import ir, types
+from pydrofoil.ir.purify import (
+    purify,
+    purify_all_graphs,
+    leaves_without_cycles_topologically,
+)
+from pydrofoil.test.test_ir import compare
+from pydrofoil.test.util import MockCodegen
+
+
+def _get_example_simple():
+    a = ir.Argument("a", types.MachineInt())
+    block1 = ir.Block()
+    block2 = ir.Block()
+    block3 = ir.Block()
+    block4 = ir.Block()
+
+    i2 = block1.emit(ir.GlobalRead, "flag", [], types.Bool(), None, None)
+    block1.next = ir.ConditionalGoto(i2, block2, block3)
+    block2.next = ir.Goto(block4)
+    block3.next = ir.Goto(block4)
+    i3 = block4.emit_phi(
+        [block2, block3],
+        [ir.MachineIntConstant(4), ir.MachineIntConstant(5)],
+        types.MachineInt(),
+    )
+    block4.next = ir.Return(i3)
+    graph = ir.Graph("zalmost_pure", [a], block1)
+    purified_str = """
+a = Argument('a', MachineInt())
+block0 = Block()
+i1 = block0.emit(GlobalRead, 'flag', [], Bool(), None, None)
+i2 = block0.emit(Operation, 'almost_pure_pure_core', [a, i1], MachineInt(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('zalmost_pure', [a], block0)
+"""
+    pure_core_str = """
+a = Argument('a', MachineInt())
+flag = Argument('flag', Bool())
+block0 = Block()
+block1 = Block()
+block2 = Block()
+block3 = Block()
+block0.next = ConditionalGoto(flag, block1, block3, None)
+block1.next = Goto(block2, None)
+i2 = block2.emit_phi([block1, block3], [MachineIntConstant(4), MachineIntConstant(5)], MachineInt())
+block2.next = Return(i2, None)
+block3.next = Goto(block2, None)
+graph = Graph('almost_pure_pure_core', [a, flag], block0)
+"""
+    return graph, purified_str, pure_core_str
+
+
+def test_simple():
+    graph, purified_str, pure_core_str = _get_example_simple()
+    mockcodegen = MockCodegen({"zalmost_pure": graph})
+    purify(mockcodegen, graph)
+
+    compare(graph, purified_str)
+    compare(
+        mockcodegen.all_graph_by_name["almost_pure_pure_core"],
+        pure_core_str,
+    )
+
+
+def _get_example_pure():
+    block1 = ir.Block()
+    block1.next = ir.Return(ir.IntConstant(42))
+    graph_str = """
+block0 = Block()
+block0.next = Return(IntConstant(42), None)
+graph = Graph('zalready_pure', [], block0)"""
+    return ir.Graph("zalready_pure", [], block1), graph_str
+
+
+def test_purify_all_graphs():
+    purifiable_graph, purified_str, pure_core_str = _get_example_simple()
+    pure_graph, pure_str = _get_example_pure()
+
+    codegen = MockCodegen({g.name: g for g in (purifiable_graph, pure_graph)})
+    purify_all_graphs(codegen)
+
+    compare(purifiable_graph, purified_str)
+    compare(
+        codegen.all_graph_by_name["almost_pure_pure_core"],
+        pure_core_str,
+    )
+    compare(pure_graph, pure_str)
+
+
+def _get_example_calls_simple():
+    # This example calls the example graph from '_get_example_simple'
+    block = ir.Block()
+    a = ir.Argument("a", types.MachineInt())
+
+    i0 = block.emit(ir.Operation, "zalmost_pure", [a], types.MachineInt())
+    i1 = block.emit(
+        ir.Operation,
+        "add_i_i_must_fit",
+        [a, i0],
+        types.MachineInt(),
+    )
+    block.next = ir.Return(i1)
+
+    graph = ir.Graph("zpurifiable_after_inline", [a], block)
+
+    purified_str = """
+a = Argument('a', MachineInt())
+block0 = Block()
+i1 = block0.emit(GlobalRead, 'flag', [], Bool(), None, None)
+i2 = block0.emit(Operation, 'purifiable_after_inline_pure_core', [a, i1], MachineInt(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('zpurifiable_after_inline', [a], block0)"""
+    pure_core_str = """
+a = Argument('a', MachineInt())
+flag = Argument('flag', Bool())
+block0 = Block()
+i2 = block0.emit(Comment, 'inlined zalmost_pure', [], Unit(), None, None)
+i3 = block0.emit(Operation, 'almost_pure_pure_core', [a, flag], MachineInt(), None, None)
+i4 = block0.emit(Operation, 'add_i_i_must_fit', [a, i3], MachineInt(), None, None)
+block0.next = Return(i4, None)
+graph = Graph('purifiable_after_inline_pure_core', [a, flag], block0)"""
+
+    return graph, purified_str, pure_core_str
+
+
+def test_inline_in_callers():
+    callee_graph, _, _ = _get_example_simple()
+    caller_graph, purifed_str, pure_core_str = _get_example_calls_simple()
+
+    codegen = MockCodegen({g.name: g for g in (callee_graph, caller_graph)})
+    purify_all_graphs(codegen)
+
+    compare(caller_graph, purifed_str)
+    compare(
+        codegen.all_graph_by_name["purifiable_after_inline_pure_core"],
+        pure_core_str,
+    )
+
+
+def _get_example_with_struct():
+    bvtyp = types.SmallFixedBitVector(64)
+    structtyp = types.Struct("zMisa", ("zbits",), (bvtyp,))
+
+    block1 = ir.Block()
+    block2 = ir.Block()
+    block3 = ir.Block()
+    block4 = ir.Block()
+
+    i2 = block1.emit(ir.GlobalRead, "misa", [], structtyp)
+    i3 = block1.emit(ir.FieldAccess, "zbits", [i2], bvtyp)
+
+    i4 = block1.emit(
+        ir.Operation,
+        "@eq",
+        [
+            i3,
+            ir.SmallBitVectorConstant(0, bvtyp),
+        ],
+        types.Bool(),
+    )
+    block1.next = ir.ConditionalGoto(i4, block2, block3)
+    block2.next = ir.Goto(block4)
+    block3.next = ir.Goto(block4)
+    i3 = block4.emit_phi(
+        [block2, block3],
+        [ir.MachineIntConstant(4), ir.MachineIntConstant(5)],
+        types.MachineInt(),
+    )
+    block4.next = ir.Return(i3)
+    graph = ir.Graph("almost_pure_with_struct", [], block1)
+
+    purified_str = """
+zMisa = Struct('zMisa', ('zbits',), (SmallFixedBitVector(64),))
+block0 = Block()
+i0 = block0.emit(GlobalRead, 'misa', [], zMisa, None, None)
+i1 = block0.emit(FieldAccess, 'zbits', [i0], SmallFixedBitVector(64), None, None)
+i2 = block0.emit(Operation, 'almost_pure_with_struct_pure_core', [i1], MachineInt(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('almost_pure_with_struct', [], block0)"""
+    pure_core_str = """
+zMisa = Struct('zMisa', ('zbits',), (SmallFixedBitVector(64),))
+misa = Argument('misa', SmallFixedBitVector(64))
+block0 = Block()
+block1 = Block()
+block2 = Block()
+block3 = Block()
+i1 = block0.emit(StructConstruction, 'zMisa', [misa], zMisa, None, None)
+i2 = block0.emit(FieldAccess, 'zbits', [i1], SmallFixedBitVector(64), None, None)
+i3 = block0.emit(Operation, '@eq', [i2, SmallBitVectorConstant(0x0, SmallFixedBitVector(64))], Bool(), None, None)
+block0.next = ConditionalGoto(i3, block1, block3, None)
+block1.next = Goto(block2, None)
+i4 = block2.emit_phi([block1, block3], [MachineIntConstant(4), MachineIntConstant(5)], MachineInt())
+block2.next = Return(i4, None)
+block3.next = Goto(block2, None)
+graph = Graph('almost_pure_with_struct_pure_core', [misa], block0)"""
+
+    return graph, purified_str, pure_core_str
+
+
+def test_with_struct():
+    graph, purified_str, pure_core_str = _get_example_with_struct()
+    mockcodegen = MockCodegen({"almost_pure_with_struct": graph})
+    purify_all_graphs(mockcodegen)
+
+    compare(graph, purified_str)
+    compare(
+        mockcodegen.all_graph_by_name["almost_pure_with_struct_pure_core"],
+        pure_core_str,
+    )
+
+
+def _get_example_almost_calls_almost():
+    # This example calls the example graph from '_get_example_simple'
+    block = ir.Block()
+    a = ir.Argument("a", types.MachineInt())
+
+    i0 = block.emit(ir.Operation, "zalmost_pure", [a], types.MachineInt())
+    # This function is also almost pure
+    i1 = block.emit(ir.GlobalRead, "flag2", [], types.MachineInt())
+    i2 = block.emit(
+        ir.Operation,
+        "add_i_i_must_fit",
+        [a, i1],
+        types.MachineInt(),
+    )
+    i3 = block.emit(
+        ir.Operation,
+        "add_i_i_must_fit",
+        [i0, i2],
+        types.MachineInt(),
+    )
+    block.next = ir.Return(i3)
+
+    graph = ir.Graph("zpurifiable_after_inline", [a], block)
+
+    purified_str = """
+a = Argument('a', MachineInt())
+block0 = Block()
+i1 = block0.emit(GlobalRead, 'flag', [], Bool(), None, None)
+i2 = block0.emit(GlobalRead, 'flag2', [], MachineInt(), None, None)
+i3 = block0.emit(Operation, 'purifiable_after_inline_pure_core', [a, i1, i2], MachineInt(), None, None)
+block0.next = Return(i3, None)
+graph = Graph('zpurifiable_after_inline', [a], block0)
+"""
+    pure_core_str = """
+a = Argument('a', MachineInt())
+flag = Argument('flag', Bool())
+flag2 = Argument('flag2', MachineInt())
+block0 = Block()
+i3 = block0.emit(Comment, 'inlined zalmost_pure', [], Unit(), None, None)
+i4 = block0.emit(Operation, 'almost_pure_pure_core', [a, flag], MachineInt(), None, None)
+i5 = block0.emit(Operation, 'add_i_i_must_fit', [a, flag2], MachineInt(), None, None)
+i6 = block0.emit(Operation, 'add_i_i_must_fit', [i4, i5], MachineInt(), None, None)
+block0.next = Return(i6, None)
+graph = Graph('purifiable_after_inline_pure_core', [a, flag, flag2], block0)
+"""
+
+    return graph, purified_str, pure_core_str
+
+
+def test_almost_pure_calls_almost_pure():
+    # We test all permutations of the graphs to ensure that the algorithm is
+    # agnostic to the order.
+    for perm in itertools.permutations(range(2)):
+        callee_graph, _, _ = _get_example_simple()
+        (
+            caller_graph,
+            purifed_str,
+            pure_core_str,
+        ) = _get_example_almost_calls_almost()
+        graphs = (callee_graph, caller_graph)
+        codegen = MockCodegen({graphs[i].name: graphs[i] for i in perm})
+        purify_all_graphs(codegen)
+
+        compare(caller_graph, purifed_str)
+        compare(
+            codegen.all_graph_by_name["purifiable_after_inline_pure_core"],
+            pure_core_str,
+        )
+
+
+def test_topo_with_cycles():
+    from collections import defaultdict
+
+    caller_map = defaultdict(set)
+    # a <-> b -> c -> d
+    caller_map["a"].add("b")
+    caller_map["b"].add("a")
+    caller_map["c"].add("b")
+    caller_map["d"].add("c")
+    res = leaves_without_cycles_topologically(caller_map)
+    assert res == ["d", "c"]

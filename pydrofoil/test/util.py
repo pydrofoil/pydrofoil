@@ -20,5 +20,14 @@ class MockCodegen(object):
     def get_effects(self, _):
         pass
 
-    def print_debug_msg(self, _):
+    def print_debug_msg(self, *args, **kwargs):
+        pass
+
+    def print_highlevel_task(self, *args, **kwargs):
+        pass
+
+    def add_graph(self, graph, emit_function=None, *args, **kwargs):
+        self.all_graph_by_name[graph.name] = graph
+
+    def add_extra_entrypoint(self, *args, **kwargs):
         pass

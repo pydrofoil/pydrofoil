@@ -1,4 +1,7 @@
 from pydrofoil.effectinfo import compute_all_effects, local_effects, EffectInfo
+from pydrofoil import (
+    operations,
+)  # Need to import this for __extend__ definitions
 from pydrofoil.test.test_ir import compare
 from pydrofoil.test.examples import *
 
@@ -17,14 +20,20 @@ def test_local_effects_read():
     assert effects.register_reads == {"zx%s" % i for i in range(1, 32)}
 
 
+def test_local_effects_builtins():
+    graph = get_example_builtins()
+    effects = local_effects(graph)
+    assert effects.called_builtins == {"@ones_i", "@zeros_i"}
+
+
 def test_all_effects():
     d = get_example_nand()
     all_effects = compute_all_effects(d)
     assert set(all_effects.keys()) == set(d.keys())
-    assert all_effects["zcompute_value"] == local_effects(d["zcompute_value"])
-    assert all_effects["zexecute_zCINST"] == local_effects(d["zexecute_zCINST"]).extend(
-        local_effects(d["zcompute_value"])
-    )
+    assert all_effects["zcompute_value"] == local_effects(d["zcompute_value"]).add_called_builtin("my_read_mem")
+    assert all_effects["zexecute_zCINST"] == local_effects(
+        d["zexecute_zCINST"]
+    ).extend(local_effects(d["zcompute_value"]).add_called_builtin('my_read_mem').add_called_builtin('zassign_dest').add_called_builtin('zmaybe_jump'))
 
 
 def _get_example_cse_global_with_effect_info():
@@ -76,6 +85,7 @@ def test_cse_global():
     assert effect_info["f"] == EffectInfo(
         register_writes=frozenset({"reg_b"}),
         register_reads=frozenset({"reg_a", "reg_b"}),
+        called_builtins=frozenset({"@dummy"}),
     )
 
     codegen = MockCodegen(graphs)
@@ -125,6 +135,7 @@ def _get_example_cse_field_with_effect_info():
     c2 = block_f.emit(FieldAccess, "x", [t], Bool())
     d2 = block_f.emit(FieldAccess, "y", [t], Bool())
     block_f.emit(Operation, "@dummy", [a, b, c, d, a2, b2, c2, d2], Unit())
+    block_f.emit(Operation, "dummy_without_at", [a, b, c, d, a2, b2, c2, d2], Unit())
     block_f.next = Return(UnitConstant.UNIT)
     graph_f = Graph("f", [s, t], block_f)
 
@@ -150,6 +161,7 @@ def test_cse_field():
     assert effect_info["f"] == EffectInfo(
         struct_writes=frozenset({(s, "x"), (t, "y"), (u, "x")}),
         struct_reads=frozenset({(s, "x"), (s, "y"), (t, "x"), (t, "y")}),
+        called_builtins=frozenset({"@dummy", "dummy_without_at"}),
     )
 
     codegen = MockCodegen(graphs)
@@ -170,19 +182,21 @@ i6 = block0.emit(Operation, 'g', [s, t], Unit(), None, None)
 i7 = block0.emit(FieldAccess, 'x', [s], Bool(), None, None)
 i8 = block0.emit(FieldAccess, 'y', [t], Bool(), None, None)
 i9 = block0.emit(Operation, '@dummy', [i2, i3, i4, i5, i7, i3, i4, i8], Unit(), None, None)
+i10 = block0.emit(Operation, 'dummy_without_at', [i2, i3, i4, i5, i7, i3, i4, i8], Unit(), None, None)
 block0.next = Return(UnitConstant.UNIT, None)
 graph = Graph('f', [s, t], block0)""",
     )
 
+
 def test_effectinfo_methods():
     graphs = get_method_example()
     methods = {
-        'execute':
-               {"execute_first": graphs["execute_first"],
-                "execute_second": graphs["execute_second"]}
+        "execute": {
+            "execute_first": graphs["execute_first"],
+            "execute_second": graphs["execute_second"],
+        }
     }
     effect_info = compute_all_effects(graphs, methods)
-    assert effect_info['c1'] == EffectInfo(
-        register_writes=frozenset(['zx1', 'zx2'])
-    )
-
+    assert effect_info["c1"] == EffectInfo(
+        register_writes=frozenset(["zx1", "zx2"])
+    ).add_called_builtin('first').add_called_builtin('second')

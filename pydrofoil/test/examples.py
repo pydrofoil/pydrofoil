@@ -641,3 +641,11 @@ def get_method_example():
         "execute_second": graph_execute_second,
         "c1": graph_c1,
     }
+
+
+def get_example_builtins():
+    block = Block()
+    block.emit(Operation, "@ones_i", [IntConstant(5)], types.GenericBitVector())
+    block.emit(Operation, "@zeros_i", [IntConstant(5)], types.GenericBitVector())
+    block.next = Return(UnitConstant.UNIT)
+    return Graph("f", [], block)

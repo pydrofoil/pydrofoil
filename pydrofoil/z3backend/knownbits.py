@@ -100,3 +100,12 @@ class KnownBits(object):
         ones = self.ones & other.ones
         knowns = self.zeros() | other.zeros() | ones
         return KnownBits(ones, ~knowns)
+    
+    # TODO: as cf for reference for this code snippet
+    def abstract_union(self, other):
+        """ compute the union of the unknowns, i.e., the intersection of knowns """
+        same_ones = ~(self.ones ^ other.ones)
+        both = self.unknowns | other.unknowns
+        unknowns = ~(same_ones & ~both)
+        ones = self.ones & ~unknowns
+        return KnownBits(ones, unknowns)

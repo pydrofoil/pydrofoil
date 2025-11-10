@@ -138,6 +138,14 @@ def test_abstract_and():
 
     assert str(kb_and) == "1???111"
 
+def test_abstract_union():
+    kb0 = KnownBits(0b01100111, 0b00011000)
+    kb1 = KnownBits(0b01010111, 0b00101000)
+
+    kb_and = kb0.abstract_union(kb1)
+
+    assert str(kb_and) == "1???111"
+
 ## hypothesis tests ##
 
 @given(constant_knownbits)
@@ -233,3 +241,35 @@ def test_random_is_range_known_str(kb_c, rand_range):
         assert not unknown_in_range
     else:
         assert unknown_in_range
+
+def _adapt_kb_string_size(kb_string, size):
+    to_fill = size - len(kb_string)
+    if to_fill > 0:
+        if kb_string.startswith("..."):
+            kb_string = kb_string.replace("...?", '?' * (4 + to_fill))
+            kb_string = kb_string.replace("...1", '1' * (4 + to_fill))
+        else:
+            kb_string = '0' * to_fill + kb_string
+    else:
+        kb_string = kb_string.replace("...?", "????").replace("...1", "1111")
+    return kb_string
+
+@given(random_knownbits, random_knownbits)
+def test_random_abstract_union(kb_c0, kb_c1):
+    knownbits0, _ = kb_c0
+    knownbits1, _ = kb_c1
+
+    knownbits0_str = str(knownbits0)
+    knownbits1_str = str(knownbits1)
+
+    knownbits_union = knownbits0.abstract_union(knownbits1)
+    knownbits_union_str = str(knownbits_union).replace("...?", "????").replace("...1", "1111")
+
+    knownbits0_str = _adapt_kb_string_size(knownbits0_str, len(knownbits_union_str))
+    knownbits1_str = _adapt_kb_string_size(knownbits1_str, len(knownbits_union_str))
+
+    for i in range(-1, -len(knownbits_union_str)-1):
+        if knownbits0_str[i] == knownbits1_str[i]: # both positions are the same => union pos must be the same 
+            assert knownbits_union_str[i] == knownbits0_str[i]
+        else: # else position is unknown
+            assert knownbits_union_str[i] == '?'

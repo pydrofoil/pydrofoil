@@ -311,9 +311,11 @@ class Z3SmallBitVector(Z3Value):
     def __init__(self, val, knownbits=KnownBits(0, -1)):
         assert isinstance(val, z3.z3.BitVecRef)
         self.value = val
+        assert isinstance(knownbits, KnownBits)
         self.knownbits = knownbits
 
     def toz3(self):
+        # TODO: use knownbits here
         return self.value
     
     def same_value(self, other):
@@ -435,20 +437,34 @@ class Z3BoolValue(Z3Value):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""
         if w_true.same_value(w_false): return w_true
         if self.value.eq(z3.BoolVal(True)) or self.value.eq(z3.BoolVal(False)): import pdb; pdb.set_trace()
+        # TODO: return self ifw_true is true and w_false is false
+        args = []
         if w_true.toz3().sort() == z3.BoolSort():
             cls = Z3BoolValue
         elif (isinstance(w_true, ConstantGenericBitVector) or isinstance(w_false, ConstantGenericBitVector)
               or isinstance(w_true, Z3GenericBitVector) or isinstance(w_false, Z3GenericBitVector)
               or isinstance(w_true, Z3DeferredIntGenericBitVector) or isinstance(w_false, Z3DeferredIntGenericBitVector)):
             cls = Z3DeferredIntGenericBitVector
-        elif (isinstance(w_true, Z3SmallBitVector) or isinstance(w_false, Z3SmallBitVector)
-              or isinstance(w_true, ConstantSmallBitVector) or isinstance(w_false, ConstantSmallBitVector)):
-            cls = Z3SmallBitVector
+        elif isinstance(w_true, Z3SmallBitVector) or isinstance(w_true, ConstantSmallBitVector): # w_false must have fitting wtype
+            cls = Z3SmallBitVector 
+            if isinstance(w_true, ConstantSmallBitVector):
+                true_known = KnownBits.from_constant(w_true.value)
+            else:
+                true_known = w_true.knownbits
+            if isinstance(w_false, ConstantSmallBitVector):
+                false_known = KnownBits.from_constant(w_false.value)
+            else:
+                false_known = w_false.knownbits
+            args.append(true_known.abstract_union(false_known))
         else:
             cls = Z3Value
+        if str(w_true) == str(w_false): 
+            return w_true
         if isinstance(self, Z3BoolNotValue):
-            return cls(z3.If(self.value, w_false.toz3(), w_true.toz3()))
-        return cls(z3.If(self.value, w_true.toz3(), w_false.toz3()))
+            args = [z3.If(self.value, w_false.toz3(), w_true.toz3())] + args
+        else:
+            args = [z3.If(self.value, w_true.toz3(), w_false.toz3())] + args
+        return cls(*args)
     
     def _create_w_z3_or(self, w_other):
         """ create z3 if, but only if w_true and w_false are non Constant or unequal"""

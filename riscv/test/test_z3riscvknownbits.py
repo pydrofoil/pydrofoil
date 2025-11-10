@@ -78,13 +78,14 @@ def test_execute_addi_abstract_target_reg(riscvsharedstate):
         solver.add(z3.Extract(11, 7, opcode.toz3()) == z3.BitVecVal(i, 5)) # 11, 7
         solver.add(init_x7.toz3() == 115)
         slv = solver.check(value.toz3() != 115 + 117)
+        # TODO: check  that other regs are unchanged
         assert slv == z3.unsat
 
 def test_execute_addi_abstract_source_reg(riscvsharedstate):
     """ Execute a addi x7, xn, 115 execution with abstract target register """
     decode_graph = riscvsharedstate.funcs['zencdec_backwards']
 
-    #                                 115       x?   opc   x7    opc                only xn? unknown
+    #                                 115       xn?   opc   x7    opc                only xn? unknown
     #                           0b000001110011_00000_000_00111_0010011, 0b000000000000_11111_000_00000_0000000
     known = knownbits.KnownBits(0b00000111001100000000001110010011,     0b00000000000011111000000000000000)
     opcode = z3btypes.Z3SmallBitVector(z3.BitVec("z3mergez3var", 32), known)
@@ -108,7 +109,7 @@ def test_execute_addi_abstract_source_reg(riscvsharedstate):
     
     start = time.time()
     res = interp._concrete_method_call(execute_graphs, [instr_ast])
-    print "executing took %s seconds" % str(time.time()- start)
+    print "executing took %s seconds" % str(time.time() - start)
 
     x7_value = interp.registers["zx7"]
 

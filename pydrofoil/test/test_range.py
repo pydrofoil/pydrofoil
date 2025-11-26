@@ -671,3 +671,15 @@ def test_make_gt_hypothesis_enum(ra, rb):
         for b in range(rb.low, rb.high + 1):
             if a > b:
                 assert r.contains(a)
+
+
+def test_range_sets_constructor():
+    assert RangeSet({0, 1, 17}).lower == 0
+    assert RangeSet({0, 1, 17}).upper == 17
+    assert isinstance(RangeSet(set(range(10000))), Range)
+
+
+def test_range_sets_add():
+    assert RangeSet({2, 5, 7}).add(RangeSet({0, 1})) == RangeSet(
+        {2, 3, 5, 6, 7, 8}
+    )

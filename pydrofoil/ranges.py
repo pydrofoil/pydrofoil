@@ -10,6 +10,8 @@ MAX_CONSIDERED_NUMBER_OF_BITS = 128
 
 _RECOMPUTE_LIMIT = 100
 
+_RANGE_SET_MAX = 8
+
 
 def int_c_div(x, y):
     r = x // y
@@ -19,6 +21,14 @@ def int_c_div(x, y):
 
 
 class Range(object):
+    def __new__(cls, low=None, high=None):
+        # type: (type, int | None, int | None) -> Range
+        if high is not None and low is not None:
+            number_of_elements = high - low + 1
+            if number_of_elements <= _RANGE_SET_MAX:
+                return RangeSet(values=set(range(low, high + 1)))
+        return object.__new__(cls)
+
     def __init__(self, low=None, high=None):
         # both can be None
         self.low = low  # type: int | None
@@ -29,6 +39,13 @@ class Range(object):
     @staticmethod
     def fromconst(value):
         return Range(value, value)
+
+    @staticmethod
+    def fromset(values):
+        # type: (set[int]) -> Range
+        if len(values) <= _RANGE_SET_MAX:
+            return RangeSet(values)
+        return Range(min(values), max(values))
 
     def is_bounded(self):
         return self.low is not None and self.high is not None
@@ -376,6 +393,45 @@ class Range(object):
             else:
                 high = 2 ** (number_of_bits) - 1
         return cls(low, high)
+
+
+class RangeSet(Range):
+    def __new__(cls, values):  # Override to use default implementation
+        # type: (set[int]) -> RangeSet
+        return object.__new__(cls)
+
+    def __init__(self, values, high=None):
+        # type: (set[int] | int, int | None) -> None
+        if not isinstance(values, set):
+            assert high is not None
+            assert high == max(self._values)
+            assert values == min(self._values)
+            return
+        else:
+            self._values = values
+            Range.__init__(self, min(values), max(values))
+
+    def __repr__(self):
+        return "Range.fromset(%r)" % self._values
+
+    def __eq__(self, other):
+        if not isinstance(other, RangeSet):
+            return False
+        return self._values == other._values
+
+    def add(self, other):
+        # type: (Range) -> Range
+        if not isinstance(other, RangeSet):
+            return super(RangeSet, self).add(other)
+        values = {x + y for x in self._values for y in other._values}
+        return Range.fromset(values)
+
+    def sub(self, other):
+        # type: (Range) -> Range
+        if not isinstance(other, RangeSet):
+            return super(RangeSet, self).sub(other)
+        values = {x - y for x in self._values for y in other._values}
+        return Range.fromset(values)
 
 
 UNBOUNDED = Range(None, None)

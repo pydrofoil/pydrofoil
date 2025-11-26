@@ -1,6 +1,6 @@
 import sys
 
-from pydrofoil.ranges import Range, int_c_div, TRUE, FALSE, BOOL
+from pydrofoil.ranges import Range, RangeSet, int_c_div, TRUE, FALSE, BOOL
 
 from pydrofoil.bitvector import Integer
 from rpython.rlib.rarithmetic import LONG_BIT
@@ -55,8 +55,15 @@ bounded = strategies.builds(
 
 constant = strategies.builds(lambda x: (Range(x, x), x), ints)
 
+
+rangesets = strategies.builds(
+    lambda value, values: (Range.fromset({value}.union(values)), value),
+    ints,
+    strategies.sets(ints, min_size=1, max_size=16),
+)
+
 bound_with_contained_number = strategies.one_of(
-    unbounded, lower_bounded, upper_bounded, constant, bounded
+    unbounded, lower_bounded, upper_bounded, constant, bounded, rangesets
 )
 
 smallbounds = strategies.builds(
@@ -674,12 +681,12 @@ def test_make_gt_hypothesis_enum(ra, rb):
 
 
 def test_range_sets_constructor():
-    assert RangeSet({0, 1, 17}).lower == 0
-    assert RangeSet({0, 1, 17}).upper == 17
-    assert isinstance(RangeSet(set(range(10000))), Range)
+    assert Range.fromset({0, 1, 17}).low == 0
+    assert Range.fromset({0, 1, 17}).high == 17
+    assert type(Range.fromset(set(range(10000)))) == Range
 
 
 def test_range_sets_add():
-    assert RangeSet({2, 5, 7}).add(RangeSet({0, 1})) == RangeSet(
-        {2, 3, 5, 6, 7, 8}
-    )
+    assert Range.fromset({2, 5, 7}).add(
+        Range.fromset({0, 1})
+    ) == Range.fromset({2, 3, 5, 6, 7, 8})

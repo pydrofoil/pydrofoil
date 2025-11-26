@@ -1,6 +1,6 @@
 import sys
 
-from pydrofoil.absinterp import Range, UNBOUNDED, TRUE, FALSE, BOOL, int_c_div
+from pydrofoil.ranges import Range, int_c_div, TRUE, FALSE, BOOL
 
 from pydrofoil.bitvector import Integer
 from rpython.rlib.rarithmetic import LONG_BIT

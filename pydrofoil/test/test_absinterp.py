@@ -1,13 +1,12 @@
-from pydrofoil.absinterp import (
-    analyze,
+from pydrofoil.ranges import (
     BOOL,
-    UNBOUNDED,
-    TRUE,
     FALSE,
     MACHINEINT,
     Range,
 )
+
 from pydrofoil.absinterp import (
+    analyze,
     optimize_with_range_info,
     MININT,
     MAXINT,

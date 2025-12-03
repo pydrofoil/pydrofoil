@@ -1,6 +1,14 @@
 import sys
 
-from pydrofoil.ranges import Range, RangeSet, int_c_div, TRUE, FALSE, BOOL
+from pydrofoil.ranges import (
+    Range,
+    RangeSet,
+    int_c_div,
+    TRUE,
+    FALSE,
+    BOOL,
+    _RANGE_SET_MAX,
+)
 
 from pydrofoil.bitvector import Integer
 from rpython.rlib.rarithmetic import LONG_BIT
@@ -70,7 +78,18 @@ smallbounds = strategies.builds(
     lambda start, width: Range(start, start + width),
     ints,
     strategies.integers(min_value=1, max_value=50),
+) | strategies.builds(
+    lambda elements: Range.fromset(elements),
+    strategies.sets(
+        strategies.integers(), min_size=1, max_size=_RANGE_SET_MAX
+    ),
 )
+
+
+def iter_all_elements(ra):
+    if isinstance(ra, RangeSet):
+        return iter(ra._values)
+    return range(ra.low, ra.high + 1)
 
 
 def test_add_example():
@@ -92,8 +111,8 @@ def test_add_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_add_hypothesis_enum(ra, rb):
     r = ra.add(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             assert r.contains(a + b)
     # check precision, somewhat
     assert not r.contains(ra.low - 1 + rb.low)
@@ -117,7 +136,7 @@ def test_neg_hypothesis(ta):
 @given(smallbounds)
 def test_neg_hypothesis_enum(ra):
     r = ra.neg()
-    for a in range(ra.low, ra.high + 1):
+    for a in iter_all_elements(ra):
         assert r.contains(-a)
     assert not r.contains(-(ra.low - 1))
     assert not r.contains(-(ra.high + 1))
@@ -165,8 +184,8 @@ def test_sub_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_sub_hypothesis_enum(ra, rb):
     r = ra.sub(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             assert r.contains(a - b)
 
 
@@ -192,9 +211,9 @@ def test_union_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_union_hypothesis_enum(ra, rb):
     r = ra.union(rb)
-    for a in range(ra.low, ra.high + 1):
+    for a in iter_all_elements(ra):
         assert r.contains(a)
-    for b in range(rb.low, rb.high + 1):
+    for b in iter_all_elements(rb):
         assert r.contains(b)
     assert not r.contains(min(ra.low, rb.low) - 1)
     assert not r.contains(max(ra.high, rb.high) + 1)
@@ -214,16 +233,32 @@ def test_intersect_example():
     assert Range(None, 10).intersect(Range(15, 20)) == None
 
 
+def test_intersect_example_rangeset():
+    assert Range.fromset({0, 100}).intersect(Range(1, 50)) == None
+    assert Range.fromset({0, 20, 30, 100}).intersect(
+        Range(1, 50)
+    ) == Range.fromset({20, 30})
+
+
 @given(smallbounds, smallbounds)
-def test_intersect_hypothesis(ra, rb):
+def test_intersect_hypothesis_small(ra, rb):
     r = ra.intersect(rb)
     seen_value = False
-    for val in range(ra.low, ra.high + 1):
+    for val in iter_all_elements(ra):
         if rb.contains(val):
             seen_value = True
             assert r.contains(val)
     if not seen_value:
         assert r is None
+
+
+@given(bound_with_contained_number, bound_with_contained_number)
+def test_intersect_hypothesis(ta, tb):
+    ra, a = ta
+    rb, b = tb
+    r = ra.intersect(rb)
+    if a == b:
+        assert r.contains(a)
 
 
 def test_le_example():
@@ -252,8 +287,8 @@ def test_le_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_le_hypothesis_enum(ra, rb):
     r = ra.le(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             assert r.contains(a <= b)
 
 
@@ -283,8 +318,8 @@ def test_ge_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_ge_hypothesis_enum(ra, rb):
     r = ra.ge(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             assert r.contains(a >= b)
 
 
@@ -315,8 +350,8 @@ def test_lt_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_lt_hypothesis_enum(ra, rb):
     r = ra.lt(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             assert r.contains(a < b)
 
 
@@ -338,8 +373,8 @@ def test_eq_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_eq_hypothesis_enum(ra, rb):
     r = ra.eq(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             assert r.contains(a == b)
 
 
@@ -354,8 +389,8 @@ def test_gt_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_gt_hypothesis_enum(ra, rb):
     r = ra.gt(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             assert r.contains(a > b)
 
 
@@ -380,8 +415,8 @@ def test_tdiv_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_tdiv_hypothesis_enum(ra, rb):
     r = ra.tdiv(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             if b == 0:
                 continue
             assert r.contains(int_c_div(a, b))
@@ -409,6 +444,18 @@ def test_emod_hypothesis(ta, tb):
     if b:
         res = Integer.fromlong(a).emod(Integer.fromlong(b)).tolong()
         assert r.contains(res)
+
+
+@given(smallbounds, smallbounds)
+def test_emod_hypothesis_enum(ra, rb):
+    r = ra.emod(rb)
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
+            if b == 0:
+                continue
+            assert r.contains(
+                Integer.fromlong(a).emod(Integer.fromlong(b)).tolong()
+            )
 
 
 def test_max():
@@ -458,7 +505,7 @@ def test_min_hypothesis(ta, tb):
 
 
 def test_lshift_example():
-    assert Range(8, 8).lshift(Range(0, 3)) == Range(8, 64)
+    assert Range(8, 8).lshift(Range(0, 3)) == Range.fromset({8, 16, 32, 64})
     assert Range(8, 16).lshift(Range(0, 3)) == Range(8, 128)
     assert Range(-1, 16).lshift(Range(0, 3)) == Range(-8, 128)
     assert Range(1, 1).lshift(Range(0, None)) == Range(1, None)
@@ -477,14 +524,14 @@ def test_lshift_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_lshift_hypothesis_enum(ra, rb):
     r = ra.lshift(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             if 0 <= b <= 64:
                 assert r.contains(a << b)
 
 
 def test_rshift_example():
-    assert Range(8, 8).rshift(Range(0, 3)) == Range(1, 8)
+    assert Range(8, 8).rshift(Range(0, 3)) == Range.fromset({8, 4, 2, 1})
     assert Range(8, 16).rshift(Range(0, 3)) == Range(1, 16)
     assert Range(-1, 16).rshift(Range(0, 3)) == Range(-1, 16)
 
@@ -501,8 +548,8 @@ def test_rshift_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_rshift_hypothesis_enum(ra, rb):
     r = ra.rshift(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             if 0 <= b <= 64:
                 assert r.contains(a >> b)
 
@@ -517,20 +564,22 @@ def test_ediv_hypothesis(ta, tb):
     ra, a = ta
     rb, b = tb
     r = ra.ediv(rb)
-    if a >= 0 and b > 0:
-        assert r.contains(a // b)
+    if b:
+        assert r.contains(
+            Integer.fromlong(a).ediv(Integer.fromlong(b)).tolong()
+        )
 
 
 @given(smallbounds, smallbounds)
 def test_ediv_hypothesis_enum(ra, rb):
     r = ra.ediv(rb)
-    for a in range(ra.low, ra.high + 1):
-        if a < 0:
-            continue
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             if b == 0:
                 continue
-            assert r.contains(a // b)
+            assert r.contains(
+                Integer.fromlong(a).ediv(Integer.fromlong(b)).tolong()
+            )
 
 
 def test_mul_example():
@@ -551,8 +600,8 @@ def test_mul_hypothesis(ta, tb):
 @given(smallbounds, smallbounds)
 def test_mul_hypothesis_enum(ra, rb):
     r = ra.mul(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             assert r.contains(a * b)
 
 
@@ -581,8 +630,8 @@ def test_make_le_hypothesis(ta, tb):
 def test_make_le_hypothesis_enum(ra, rb):
     assume(ra.le(rb) != FALSE)
     r = ra.make_le(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             if a <= b:
                 assert r.contains(a)
 
@@ -612,8 +661,8 @@ def test_make_lt_hypothesis(ta, tb):
 def test_make_lt_hypothesis_enum(ra, rb):
     assume(ra.lt(rb) != FALSE)
     r = ra.make_lt(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             if a < b:
                 assert r.contains(a)
 
@@ -643,8 +692,8 @@ def test_make_ge_hypothesis(ta, tb):
 def test_make_ge_hypothesis_enum(ra, rb):
     assume(ra.ge(rb) != FALSE)
     r = ra.make_ge(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             if a >= b:
                 assert r.contains(a)
 
@@ -674,8 +723,8 @@ def test_make_gt_hypothesis(ta, tb):
 def test_make_gt_hypothesis_enum(ra, rb):
     assume(ra.gt(rb) != FALSE)
     r = ra.make_gt(rb)
-    for a in range(ra.low, ra.high + 1):
-        for b in range(rb.low, rb.high + 1):
+    for a in iter_all_elements(ra):
+        for b in iter_all_elements(rb):
             if a > b:
                 assert r.contains(a)
 

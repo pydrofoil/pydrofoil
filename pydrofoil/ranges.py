@@ -2,6 +2,7 @@ import sys
 from typing import Iterable
 
 from pydrofoil import ir, makecode, types
+from pydrofoil.bitvector import Integer
 
 MININT = -sys.maxint - 1
 MAXINT = sys.maxint
@@ -187,6 +188,7 @@ class Range(object):
         return Range(low, high)
 
     def lshift(self, other):
+        # we check for an upper bound of 64 to not compute impossibly huge numbers
         if (
             self.is_bounded()
             and other.is_bounded()
@@ -271,6 +273,8 @@ class Range(object):
 
     def intersect(self, other):
         # type: (Range) -> Range | None
+        if isinstance(other, RangeSet):
+            return other.intersect(self)
         low = high = None
         if self.low is not None and other.low is not None:
             low = max(self.low, other.low)
@@ -419,6 +423,10 @@ class RangeSet(Range):
             return False
         return self._values == other._values
 
+    def contains(self, number):
+        # type: (int) -> bool
+        return number in self._values
+
     def add(self, other):
         # type: (Range) -> Range
         if not isinstance(other, RangeSet):
@@ -426,12 +434,121 @@ class RangeSet(Range):
         values = {x + y for x in self._values for y in other._values}
         return Range.fromset(values)
 
+    def neg(self):
+        # type: () -> Range
+        return Range.fromset({-x for x in self._values})
+
+    def abs(self):
+        # type: () -> Range
+        return Range.fromset({abs(x) for x in self._values})
+
     def sub(self, other):
         # type: (Range) -> Range
         if not isinstance(other, RangeSet):
             return super(RangeSet, self).sub(other)
         values = {x - y for x in self._values for y in other._values}
         return Range.fromset(values)
+
+    def mul(self, other):
+        # type: (Range) -> Range
+        if not isinstance(other, RangeSet):
+            return super(RangeSet, self).mul(other)
+        values = {x * y for x in self._values for y in other._values}
+        return Range.fromset(values)
+
+    def tdiv(self, other):
+        # type: (Range) -> Range
+        if not isinstance(other, RangeSet) or 0 in other._values:
+            return super(RangeSet, self).tdiv(other)
+        values = {int_c_div(x, y) for x in self._values for y in other._values}
+        return Range.fromset(values)
+
+    def ediv(self, other):
+        # type: (Range) -> Range
+        if not isinstance(other, RangeSet) or 0 in other._values:
+            return super(RangeSet, self).ediv(other)
+        values = {
+            Integer.fromlong(x).ediv(Integer.fromlong(y)).tolong()
+            for x in self._values
+            for y in other._values
+        }
+        return Range.fromset(values)
+
+    def emod(self, other):
+        # type: (Range) -> Range
+        if not isinstance(other, RangeSet) or 0 in other._values:
+            return super(RangeSet, self).emod(other)
+        values = {
+            Integer.fromlong(x).emod(Integer.fromlong(y)).tolong()
+            for x in self._values
+            for y in other._values
+        }
+        return Range.fromset(values)
+
+    def lshift(self, other):
+        # type: (Range) -> Range
+        if (
+            isinstance(other, RangeSet)
+            and other.low is not None
+            and other.high is not None
+            and 0 <= other.low
+            and other.high <= 64
+        ):
+            return Range.fromset(
+                {x << y for x in self._values for y in other._values}
+            )
+        return super(RangeSet, self).lshift(other)
+
+    def rshift(self, other):
+        # type: (Range) -> Range
+        if (
+            isinstance(other, RangeSet)
+            and other.low is not None
+            and 0 <= other.low
+            and other.high is not None
+            and other.high <= MAXINT
+        ):
+            return Range.fromset(
+                {x >> y for x in self._values for y in other._values}
+            )
+        return super(RangeSet, self).rshift(other)
+
+    def max(self, other):
+        # type: (Range) -> Range
+        if isinstance(other, RangeSet):
+            return Range.fromset(
+                {max(x, y) for x in self._values for y in other._values}
+            )
+        return super(RangeSet, self).max(other)
+
+    def min(self, other):
+        # type: (Range) -> Range
+        if isinstance(other, RangeSet):
+            return Range.fromset(
+                {min(x, y) for x in self._values for y in other._values}
+            )
+        return super(RangeSet, self).min(other)
+
+    def union(self, other):
+        # type: (Range) -> Range
+        if isinstance(other, RangeSet):
+            return Range.fromset(self._values | other._values)
+        return super(RangeSet, self).union(other)
+
+    def intersect(self, other):
+        # type: (Range) -> Range | None
+        intersection = {x for x in self._values if other.contains(x)}
+        if intersection:
+            return Range.fromset(intersection)
+        return None
+
+    def make_le_const(self, const):
+        # type: (int) -> Range
+        return Range.fromset({val for val in self._values if val <= const})
+
+    def make_ge_const(self, const):
+        # type: (int) -> Range
+        return Range.fromset({val for val in self._values if val >= const})
 
 
 UNBOUNDED = Range(None, None)

@@ -337,29 +337,50 @@ SPECIALIZABLE_BUILTINS = frozenset("""
 
 @ir.repeat
 def split_for_arg_constness(graph, codegen):
+    from pydrofoil.absinterp import analyze
+    from pydrofoil.ranges import RangeSet
+
+    values = analyze(graph, codegen)
+
     for block in graph.iterblocks():
         for index, op in enumerate(block.operations):
             if not isinstance(op, ir.Operation):
                 continue
-            if op.name not in codegen.specialization_functions and op.name not in SPECIALIZABLE_BUILTINS:
+            if (
+                op.name not in codegen.specialization_functions
+                and op.name not in SPECIALIZABLE_BUILTINS
+            ):
                 continue
             for argindex, arg in enumerate(op.args):
-                if not isinstance(arg, ir.Phi):
+                if arg.resolved_type is types.Bool():
                     continue
-                if arg.resolved_type is not types.MachineInt():
+                bound = values[block].get(arg)
+                if not isinstance(bound, RangeSet):
                     continue
-                if all(isinstance(prev, ir.Constant) and 0 <= prev.number <= 64 for prev in arg.prevvalues):
-                    break
+                break
             else:
                 continue
+            import pdb
+
+            pdb.set_trace()
+
+            def make_const(v):
+                if arg.resolved_type == types.MachineInt():
+                    return ir.MachineIntConstant(v)
+                elif arg.resolved_type == types.Int():
+                    return ir.IntConstant(v)
+                else:
+                    assert 0
+
+            prevvalues = [make_const(x) for x in bound._values]
             newblock = block.split(index, keep_op=True)
             switchblock = newblock.split(len(newblock.operations), keep_op=True)
             replacements = {}
             ops_from_newblock = set(newblock.operations)
             callvalues = {copied_op: [] for copied_op in newblock.operations}
             prevblocks = []
-            for valueindex, constvalue in enumerate(arg.prevvalues):
-                last = valueindex == len(arg.prevvalues) - 1
+            for valueindex, constvalue in enumerate(prevvalues):
+                last = valueindex == len(prevvalues) - 1
                 if not last:
                     callblock = ir.Block()
                     nextblock = ir.Block()

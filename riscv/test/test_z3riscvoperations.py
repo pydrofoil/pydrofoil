@@ -99,7 +99,7 @@ def test_sign_error(riscvsharedstate, abs_zast):
     zast, bv_zast = abs_zast
 
     graph = riscvsharedstate.funcs["zexecute_zITYPE"]
-    interp = z3backend.RiscvInterpreter(graph, [zast], riscvsharedstate)# interp must be init correctly
+    interp = z3backend.RiscvInterpreter(graph, [zast], riscvsharedstate.copy())# interp must be init correctly
     # TODO: introduce new constructor for using it just for func calls like in executor ...
 
     init_memory = interp.memory
@@ -154,7 +154,7 @@ def test_sign_error(riscvsharedstate, abs_zast):
     assert solver.check(z3.Not(bv_zast == z3.BitVecVal(0b10000000000100000000000010010011,32))) == z3.unsat
 
     # z3.simplify(z3.substitute(res_reg.toz3(), (bv_zast, z3.BitVecVal(0b10000000000100000000000010010011,32))))
-    print "target reg  is %s" % str(li_params[1])
+    print "target reg is %s" % str(li_params[1])
     print z3.simplify(z3.substitute(res_reg.toz3(), (bv_zast, z3.BitVecVal(0b10000000000100000000000010010011,32))))
     #for num in range(1,31):
     #    print z3.simplify(z3.substitute(call_regs["zx"+str(num)].toz3(), (bv_zast, z3.BitVecVal(0b10000000000100000000000010010011,32))))
@@ -175,7 +175,8 @@ def test_func_call_rv64_li(riscvsharedstate, abs_zast, li_params):
     zast, bv_zast = abs_zast
 
     graph = riscvsharedstate.funcs["zexecute_zITYPE"]
-    interp = z3backend.RiscvInterpreter(graph, [zast], riscvsharedstate)# interp must be init correctly
+    interp = z3backend.RiscvInterpreter(graph, [zast], riscvsharedstate.copy())# interp must be init correctly
+    assert interp.forknum == 0
     # TODO: introduce new constructor for using it just for func calls like in executor ...
 
     init_memory = interp.memory
@@ -218,7 +219,7 @@ def test_method_call_rv64_li(riscvsharedstate, abs_zast, li_params):
 
     zast, bv_zast = abs_zast
 
-    interp = z3backend.RiscvInterpreter(riscvsharedstate.funcs["zexecute_zITYPE"], [zast], riscvsharedstate)# interp must be init correctly
+    interp = z3backend.RiscvInterpreter(riscvsharedstate.funcs["zexecute_zITYPE"], [zast], riscvsharedstate.copy())# interp must be init correctly
 
     init_memory = interp.memory
 

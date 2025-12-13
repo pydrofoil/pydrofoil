@@ -249,7 +249,9 @@ class Interpreter(object):
         self.args = args
         assert len(args) == len(graph.args)
         self.environment = {graph.args[i]:args[i] for i in range(len(args))} # assume args are an instance of some z3backend.Value subclass
-        self.registers = self._init_isa_registers()
+        self.registers = {}
+        if self.sharedstate.fork_counter == 0: # only do this the first time on the top level instance
+            self.registers = self._init_isa_registers()
         # TODO: Make this optional: only execute _init_non_isa_registers if they are not present already
         # These registers should be set from the outside, e.g., in z3backend_executor
         # Add htif_... register to  _init_non_isa_registers
@@ -271,8 +273,7 @@ class Interpreter(object):
         for key, typ in self.sharedstate.registers.iteritems():
             cls = self.sharedstate.get_w_class_for_rtype_abstract(typ)
             registers[key] = cls(self.sharedstate.convert_type_or_instance_to_z3_instance(typ, "init_" + key))
-            if self.sharedstate.fork_counter == 0: # only do this the first time,else wecreate a very large amount of unneded constants
-                self.sharedstate._unreachable_error_constants[str(registers[key].toz3())] = registers[key].toz3()# TODO: maybe create separate field for registers in sharedstate
+            self.sharedstate._unreachable_error_constants[str(registers[key].toz3())] = registers[key].toz3()# TODO: maybe create separate field for registers in sharedstate
         return registers
 
     def _init_non_isa_registers(self):
@@ -1192,14 +1193,16 @@ class Interpreter(object):
         if isinstance(arg0, ConstantSmallBitVector):
             return ConstantSmallBitVector(~arg0.value, op.resolved_type.width)
         else:
-            return Z3SmallBitVector(~arg0.toz3(), arg0.abstract_invert())
+            return Z3SmallBitVector(~arg0.toz3(), arg0.knownbits.abstract_invert())
 
     def exec_and_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
         if isinstance(arg0, ConstantSmallBitVector) and isinstance(arg1, ConstantSmallBitVector):
             return ConstantSmallBitVector(arg0.value & arg1.value, op.resolved_type.width) 
         else:
-            return Z3SmallBitVector(arg0.toz3() & arg1.toz3(), arg0.knownbits.abstract_and(arg1.knownbits))
+            arg0_known = arg0.knownbits if isinstance(arg0, Z3SmallBitVector) else KnownBits.from_constant(arg0.value)
+            arg1_known = arg1.knownbits if isinstance(arg1, Z3SmallBitVector) else KnownBits.from_constant(arg1.value)
+            return Z3SmallBitVector(arg0.toz3() & arg1.toz3(), arg0_known.abstract_and(arg1_known))
         
     def exec_xor_vec_bv_bv(self, op):
         arg0, arg1 = self.getargs(op) 
@@ -1375,15 +1378,7 @@ class Interpreter(object):
             return ConstantSmallBitVector(supportcode.vector_subrange_fixed_bv_i_i(None, arg0.value, arg1.value, arg2.value), op.resolved_type.width)
         else:
             if arg0.knownbits.is_range_known(arg1.value, arg2.value):
-                #print(arg1.value, arg2.value)
-                #if not (arg1.value, arg2.value) == (11, 7):
-                #import pdb; pdb.set_trace()
                 return ConstantSmallBitVector(arg0.knownbits.get_known_range_int(arg1.value, arg2.value), op.resolved_type.width)
-            #else:
-            #    print("unkown:", arg0.__str__(), arg1.value, arg2.value)
-            #    if (arg1.value, arg2.value) == (14, 12):
-            #        import pdb; pdb.set_trace()
-
             return Z3SmallBitVector(z3.Extract(arg1.value, arg2.value, arg0.toz3()))
         
     def exec_vector_subrange_o_i_i_unwrapped_res(self, op):

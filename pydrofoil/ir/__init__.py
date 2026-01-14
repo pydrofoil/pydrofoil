@@ -48,6 +48,7 @@ from pydrofoil.ir.operations import (
     Goto,
     ConditionalGoto,
     RangeCheck,
+    ValueSetCheck
 )
 
 from rpython.tool.udir import udir

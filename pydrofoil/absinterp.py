@@ -308,6 +308,21 @@ class AbstractInterpreter(object):
         self.current_values[op.args[0]] = newbound
         return None
 
+    def analyze_ValueSetCheck(self, op):
+        # type: (ir.ValueSetCheck) -> None
+        argbounds = self._argbounds(op)
+        oldbound = argbounds[0]
+        values = set()
+        for v in argbounds[2:]:
+            assert v is not None
+            assert v.isconstant()
+            values.add(v.low)
+        assert oldbound is not None
+        newbound = Range.fromset(values).intersect(oldbound)
+        assert newbound is not None
+        self.current_values[op.args[0]] = newbound
+        return None
+
     def analyze_PackPackedField(self, op):
         # type: (ir.PackPackedField) -> None
         (arg,) = self._argbounds(op)

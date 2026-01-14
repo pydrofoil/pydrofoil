@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Iterable, cast
 from pydrofoil import types, bitvector
 from rpython.rlib.rarithmetic import r_uint
 
@@ -687,5 +687,34 @@ class RangeCheck(Operation):
                 UnitConstant.UNIT if high is None else IntConstant(high),
                 StringConstant(message),
             ],
+            types.Unit(),
+        )
+
+
+class ValueSetCheck(Operation):
+    """
+    Result of a range analysis that consists of a small set of values.
+
+    May be used by other analyses.
+
+    Parameters
+    ----------
+    value: Value | Return
+        The value that this range refers to.
+    values: Iterable[int]
+        Possible values for `value`.
+    message: str, optional
+        A message to display in the generated assert-statement.
+    """
+
+    def __init__(self, value, values, message=""):
+        # type: (Value | Return, Iterable[int], str) -> None
+        super(ValueSetCheck, self).__init__(
+            "$valuesetcheck",
+            [
+                value,
+                StringConstant(message),
+            ]
+            + [IntConstant(v) for v in values],
             types.Unit(),
         )

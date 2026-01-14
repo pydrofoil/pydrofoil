@@ -854,8 +854,8 @@ def test_startlevel():
     block8.next = Goto(block2, None)
     graph = Graph("zAArch64_S1StartLevel_specialized_o", [zwalkparams], block0)
     values = analyze(graph, fakecodegen)
-    assert values[block2][i8] == Range(9, 13)
-    assert values[block2][i9] == Range(12, 16)
+    assert values[block2][i8] == Range.fromset({9, 11, 13})
+    assert values[block2][i9] == Range.fromset(set([12, 14, 16]))
     assert values[block2][i11] == Range(-16, 51)
     assert values[block3][i11] == Range(-16, -1)
     assert values[block3][i15] == Range(-1, 0)
@@ -1001,7 +1001,9 @@ def test_gt_condition():
     assert values[block2][i1] == Range(7, 63)
     assert values[block1][i1] == Range(0, 6)
     assert values[block3][i1] == Range(0, 63)
-    assert values[block3][i3] == Range(2, 16)
+    assert values[block3][i3] == Range.fromset(
+        set([10, 11, 12, 13, 14, 15, 16, 2])
+    )
 
 
 def test_eq_condition():
@@ -1246,12 +1248,12 @@ def test_decode():
         block0,
     )
     values = analyze(graph, fakecodegen)
-    assert values[block0][i9] == Range(8, 64)
+    assert values[block0][i9] == Range.fromset(set([8, 16, 32, 64]))
     assert values[block2][i15] == Range(0, 6)
     assert values[block3][i15] == Range(3, 6)
     assert values[block5][i15] == Range(0, 2)
-    assert values[block7][i23] == Range(0, 128)
-    assert values[block7][i25] == Range(0, 64)
+    assert values[block7][i23] == Range.fromset(set([1, 2, 4, 8]))
+    assert values[block7][i25] == Range.fromset(set([0, 1, 2, 4, 8]))
 
 
 def test_same_condition_twice():
@@ -1623,8 +1625,55 @@ def test_with_mul():
     block8.next = Goto(block2, None)
     graph = Graph("zAArch32_S2InconsistentSL", [zwalkparams], block0)
     values = analyze(graph, fakecodegen)
-    assert values[block2][i12] == Range(9, 52)
-    assert values[block2][i16] == Range(34, 85)
+    assert values[block2][i12] == Range.fromset(
+        set([9, 11, 13, 18, 22, 26, 27, 33, 39, 36, 44, 52])
+    )
+    assert values[block2][i16] == Range.fromset(
+        set(
+            [
+                34,
+                36,
+                38,
+                40,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                49,
+                51,
+                52,
+                53,
+                54,
+                55,
+                56,
+                57,
+                58,
+                59,
+                60,
+                61,
+                62,
+                63,
+                64,
+                65,
+                66,
+                67,
+                68,
+                69,
+                70,
+                71,
+                72,
+                73,
+                75,
+                77,
+                79,
+                81,
+                83,
+                85,
+            ]
+        )
+    )
 
 
 def test_int_to_int64():
@@ -2238,3 +2287,19 @@ def test_loop_bug():
     graph = Graph("zFloorPow2_specialized_i", [zx], block0, True)
     values = analyze(graph, fakecodegen)
     assert values[block3][i5].contains_range(Range(0, None))
+
+
+def test_value_set_check():
+    zx = Argument("zx", MachineInt())
+    block0 = Block()
+    block0.emit(
+        ValueSetCheck,
+        "$valuesetcheck",
+        [zx, StringConstant("argument x of function f")]
+        + [MachineIntConstant(x) for x in (1, 2, 4, 5, 9)],
+        Unit(),
+    )
+    block0.next = Return(zx)
+    g = Graph("g", [zx], block0, False)
+    values = analyze(g, fakecodegen)
+    assert values[block0][zx] == Range.fromset({1, 2, 4, 5, 9})

@@ -498,7 +498,7 @@ class CodeEmitter(object):
                 "if not (%s): raise supportcode.SailError(%s)"
                 % (
                     " or ".join(
-                        "%s.eq(%s)" % (arg_value, self._get_arg(v))
+                        "%s.eq(%s.value)" % (arg_value, self._get_arg(v))
                         for v in values_dict
                     ),
                     arg_message,

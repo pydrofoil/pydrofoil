@@ -715,6 +715,6 @@ class ValueSetCheck(Operation):
                 value,
                 StringConstant(message),
             ]
-            + [IntConstant(v) for v in values],
+            + [IntConstant(v) for v in sorted(values)],
             types.Unit(),
         )

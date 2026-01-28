@@ -9,9 +9,7 @@ MAXINT = sys.maxint
 
 MAX_CONSIDERED_NUMBER_OF_BITS = 128
 
-_RECOMPUTE_LIMIT = 100
-
-_RANGE_SET_MAX = 128
+_RANGE_SET_MAX = 16
 
 
 def int_c_div(x, y):

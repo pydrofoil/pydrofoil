@@ -584,7 +584,40 @@ def test_ediv_hypothesis_enum(ra, rb):
 
 def test_mul_example():
     assert Range(10, 100).mul(Range(1, 10)) == Range(10, 1000)
-    assert Range(-2, 3).mul(Range(-3, 7)) == Range(-14, 21)
+    assert Range(-2, 3).mul(Range(-3, 7)) == Range.fromset(
+        set(
+            [
+                -14,
+                -12,
+                -10,
+                -9,
+                -8,
+                -7,
+                -6,
+                -5,
+                -4,
+                -3,
+                -2,
+                -1,
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                12,
+                14,
+                15,
+                18,
+                21,
+            ]
+        )
+    )
     assert Range(2, None).mul(Range(3, None)) == Range(6, None)
     assert Range(None, -2).mul(Range(None, -6)) == Range(12, None)
 

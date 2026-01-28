@@ -209,7 +209,7 @@ def test_read_mem_exclusive_o_o_o_i():
         (types.GenericBitVector(), Range(0, None)),
         (types.Int(), Range(4, 8)),
     )
-    assert new_range == Range(32, 64)
+    assert new_range == Range.fromset(set([32, 40, 48, 56, 64]))
 
 
 def test_vector_update_subrange_o_i_i_o():

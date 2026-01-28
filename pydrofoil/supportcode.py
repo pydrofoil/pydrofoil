@@ -776,7 +776,6 @@ def eq(machine, ia, ib):
 
     if isinstance(ia, bitvector.Integer):
         assert isinstance(ib, bitvector.Integer)
-        import pdb; pdb.set_trace()
         return ia.eq(ib)
     import pdb
 

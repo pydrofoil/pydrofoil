@@ -443,7 +443,10 @@ def split_for_arg_constness(graph, codegen):
             ):
                 continue
             for argindex, arg in enumerate(op.args):
-                if arg.resolved_type is types.Bool():
+                if (
+                    arg.resolved_type is types.Bool()
+                    or arg.resolved_type is types.GenericBitVector()
+                ):  # TODO: support GenericBitVector constants (ie bitvectors of known length)
                     continue
                 bound = values[block].get(arg)
                 if not isinstance(bound, RangeSet):

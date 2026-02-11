@@ -465,9 +465,7 @@ def split_for_arg_constness(graph, codegen):
 
             prevvalues = [make_const(x) for x in bound._values]
             newblock = block.split(index, keep_op=True)
-            switchblock = newblock.split(
-                len(newblock.operations), keep_op=True
-            )
+            switchblock = newblock.split(1, keep_op=True)
             replacements = {}
             ops_from_newblock = set(newblock.operations)
             callvalues = {copied_op: [] for copied_op in newblock.operations}

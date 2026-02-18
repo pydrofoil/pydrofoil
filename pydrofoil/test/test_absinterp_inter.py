@@ -593,3 +593,98 @@ def test_method():
         graphs["execute_first"], types.Int()
     )
     assert loc.bound == Range.fromset(set([28, 47]))
+
+
+def test_remove_constant_valuesetcheck():
+    block0 = ir.Block()
+    i1 = block0.emit(
+        ir.ValueSetCheck,
+        "$valuesetcheck",
+        [
+            ir.IntConstant(5),
+            ir.StringConstant(""),
+            ir.IntConstant(5),
+            ir.IntConstant(10),
+        ],
+        types.Unit(),
+    )
+    block0.next = ir.Return(ir.UnitConstant.UNIT, None)
+    graph = ir.Graph("f", [], block0)
+
+    ir.light_simplify(graph, MockCodegen({"f": graph}))
+    compare(
+        graph,
+        """
+block0 = Block()
+block0.next = Return(UnitConstant.UNIT, None)
+graph = Graph('f', [], block0)
+""",
+    )
+
+
+def test_constant_valuesetcheck_argument_to_constant_bool():
+    block0 = ir.Block()
+    block1 = ir.Block()
+    block2 = ir.Block()
+    x = ir.Argument("x", types.Bool())
+    i1 = block0.emit(
+        ir.ValueSetCheck,
+        "$valuesetcheck",
+        [
+            x,
+            ir.StringConstant(""),
+            ir.IntConstant(1),
+        ],
+        types.Unit(),
+    )
+    block0.next = ir.ConditionalGoto(x, block1, block2)
+    block1.next = ir.Return(ir.MachineIntConstant(10))
+    block2.next = ir.Return(ir.MachineIntConstant(20))
+    graph = ir.Graph("f", [x], block0)
+    ir.light_simplify(graph, MockCodegen({"f": graph}))
+    compare(
+        graph,
+        """x = Argument('x', Bool())
+block0 = Block()
+i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [x, StringConstant(''), IntConstant(1)], Unit(), None, None)
+block0.next = Return(MachineIntConstant(10), None)
+graph = Graph('f', [x], block0)""",
+    )
+
+
+@pytest.mark.xfail(
+    reason="we don't replace the argument of further ops with a constant (yet), after a valuesetcheck with one possible value"
+)
+def test_constant_valuesetcheck_argument_to_constant_int():
+    block0 = ir.Block()
+    block1 = ir.Block()
+    block2 = ir.Block()
+    x = ir.Argument("x", types.Int())
+    i1 = block0.emit(
+        ir.ValueSetCheck,
+        "$valuesetcheck",
+        [
+            x,
+            ir.StringConstant(""),
+            ir.IntConstant(1),
+        ],
+        types.Unit(),
+    )
+    i2 = block0.emit(
+        ir.Operation,
+        "some_unknown_operation",
+        [x],
+        types.Int(),
+    )
+    block0.next = ir.Return(i2)
+    graph = ir.Graph("f", [x], block0)
+    ir.light_simplify(graph, MockCodegen({"f": graph}))
+    compare(
+        graph,
+        """x = Argument('x', Int())
+block0 = Block()
+i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [x, StringConstant(''), IntConstant(1)], Unit(), None, None)
+i2 = block0.emit(Operation, 'some_unknown_operation', [IntConstant(1)], Int(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('f', [x], block0)""",
+    )

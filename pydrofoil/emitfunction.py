@@ -472,19 +472,8 @@ class CodeEmitter(object):
         values_dict = {arg.number: None for arg in op.args[2:]}
         values = op.args[2:]
 
-
         if op.args[0].resolved_type == types.Bool():
-            if len(values_dict) == 1:
-                expected_value = list(values_dict)[0]
-                self.codegen.emit(
-                    "if %s%s: raise supportcode.SailError(%s)"
-                    % (
-                        "not " if expected_value else "",
-                        arg_value,
-                        arg_message,
-                    )
-                )
-            return
+            assert 0, "should have been optimized away by absinterp"
         elif op.args[0].resolved_type == types.MachineInt():
             self.codegen.emit(
                 "if %s not in %s: raise supportcode.SailError(%s)"
@@ -500,7 +489,7 @@ class CodeEmitter(object):
                 "if not (%s): raise supportcode.SailError(%s)"
                 % (
                     " or ".join(
-                        "%s.eq(%s.value)" % (arg_value, self._get_arg(v))
+                        "%s.eq(%s)" % (arg_value, self._get_arg(v))
                         for v in values
                     ),
                     arg_message,

@@ -881,6 +881,15 @@ class IntOpOptimizer(ir.LocalOptimizer):
                     )
                 )
 
+    def _optimize_ValueSetCheck(self, op, block, index):
+        args = self._args(op)
+        arg0 = args[0]
+        if isinstance(
+            arg0, (ir.IntConstant, ir.MachineIntConstant, ir.BooleanConstant)
+        ):
+            return ir.REMOVE
+        return None
+
     def _optimize_RangeCheck(self, op, block, index):
         arg0, arg1, arg2, arg3 = self._args(op)
         if isinstance(

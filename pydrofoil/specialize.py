@@ -448,8 +448,10 @@ def split_for_arg_constness(graph, codegen):
                     or arg.resolved_type is types.GenericBitVector()
                 ):  # TODO: support GenericBitVector constants (ie bitvectors of known length)
                     continue
-                bound = values[block].get(arg)
+                bound = values[block].get(arg) if block in values else None
                 if not isinstance(bound, RangeSet):
+                    continue
+                if not 1 < len(bound._values) <= 8:
                     continue
                 break
             else:

@@ -48,7 +48,7 @@ from pydrofoil.ir.operations import (
     Goto,
     ConditionalGoto,
     RangeCheck,
-    ValueSetCheck
+    ValueSetCheck,
 )
 
 from rpython.tool.udir import udir
@@ -2306,6 +2306,7 @@ class BaseOptimizer(object):
         raise NoMatchException
 
     def _extract_number(self, arg):
+        # TODO give method better name, _extract_machineintconstant maybe?
         if isinstance(arg, MachineIntConstant):
             return arg
         num = self._extract_machineint(arg)
@@ -2892,16 +2893,13 @@ class LocalOptimizer(BaseOptimizer):
         else:
             if arg1num.number == 0 and self._must_be_non_negative(arg0):
                 return BooleanConstant.FALSE
-        if arg0.resolved_type is not types.Int():
-            try:
-                arg0, arg1 = self._extract_number(arg0), self._extract_number(
-                    arg1
-                )
-            except NoMatchException:
-                pass
-            else:
-                return BooleanConstant.frombool(arg0.number < arg1.number)
+        try:
+            arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+        except NoMatchException:
+            pass
         else:
+            return BooleanConstant.frombool(arg0.number < arg1.number)
+        if arg0.resolved_type is types.Int():
             try:
                 arg0, arg1 = self._extract_machineint(
                     arg0
@@ -2922,16 +2920,13 @@ class LocalOptimizer(BaseOptimizer):
         arg0, arg1 = self._args(op)
         if arg0 is arg1:
             return BooleanConstant.FALSE
-        if arg0.resolved_type is not types.Int():
-            try:
-                arg0, arg1 = self._extract_number(arg0), self._extract_number(
-                    arg1
-                )
-            except NoMatchException:
-                pass
-            else:
-                return BooleanConstant.frombool(arg0.number > arg1.number)
+        try:
+            arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+        except NoMatchException:
+            pass
         else:
+            return BooleanConstant.frombool(arg0.number > arg1.number)
+        if arg0.resolved_type is types.Int():
             try:
                 arg0, arg1 = self._extract_machineint(
                     arg0
@@ -3017,16 +3012,13 @@ class LocalOptimizer(BaseOptimizer):
         arg0, arg1 = self._args(op)
         if arg0 is arg1:
             return BooleanConstant.TRUE
-        if arg0.resolved_type is not types.Int():
-            try:
-                arg0, arg1 = self._extract_number(arg0), self._extract_number(
-                    arg1
-                )
-            except NoMatchException:
-                pass
-            else:
-                return BooleanConstant.frombool(arg0.number <= arg1.number)
+        try:
+            arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+        except NoMatchException:
+            pass
         else:
+            return BooleanConstant.frombool(arg0.number <= arg1.number)
+        if arg0.resolved_type is types.Int():
             if (
                 isinstance(arg0, Operation)
                 and arg0.name == "@add_unsigned_bv64_unsigned_bv64_wrapped_res"
@@ -3060,16 +3052,13 @@ class LocalOptimizer(BaseOptimizer):
         arg0, arg1 = self._args(op)
         if arg0 is arg1:
             return BooleanConstant.TRUE
-        if arg0.resolved_type is not types.Int():
-            try:
-                arg0, arg1 = self._extract_number(arg0), self._extract_number(
-                    arg1
-                )
-            except NoMatchException:
-                pass
-            else:
-                return BooleanConstant.frombool(arg0.number >= arg1.number)
+        try:
+            arg0, arg1 = self._extract_number(arg0), self._extract_number(arg1)
+        except NoMatchException:
+            pass
         else:
+            return BooleanConstant.frombool(arg0.number >= arg1.number)
+        if arg0.resolved_type is types.Int():
             try:
                 arg0, arg1 = self._extract_machineint(
                     arg0

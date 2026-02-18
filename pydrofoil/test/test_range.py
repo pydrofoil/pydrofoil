@@ -772,3 +772,7 @@ def test_range_sets_add():
     assert Range.fromset({2, 5, 7}).add(
         Range.fromset({0, 1})
     ) == Range.fromset({2, 3, 5, 6, 7, 8})
+
+def test_range_set_is_dense():
+    assert Range.fromset({0, 1, 2, 3}).is_dense()
+    assert not Range.fromset({0, 1, 3}).is_dense()

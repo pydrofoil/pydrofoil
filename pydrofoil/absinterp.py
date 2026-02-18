@@ -1075,17 +1075,17 @@ def _make_check(location, value, block, index, has_changed_before):
     if not _is_bounded_typed(bound, value.resolved_type):
         return has_changed_before
 
-    new_instruction = (
-        ir.RangeCheck(
+    if isinstance(bound, RangeSet) and not bound.is_dense():
+        new_instruction = ir.ValueSetCheck(
+            value, bound._values, location.message
+        )
+    else:
+        new_instruction = ir.RangeCheck(
             value,
             bound.low,
             bound.high,
             location.message,
         )
-        if not isinstance(bound, RangeSet)
-        else ir.ValueSetCheck(value, bound._values, location.message)
-    )
-
     block.operations.insert(index, new_instruction)
     return True
 

@@ -421,6 +421,12 @@ class RangeSet(Range):
             return False
         return self._values == other._values
 
+    def is_dense(self):
+        """ returns True if there are no holes in the range """
+        # type: () -> bool
+        as_range = set(range(self.low, self.high + 1))
+        return self._values == as_range
+
     def contains(self, number):
         # type: (int) -> bool
         return number in self._values

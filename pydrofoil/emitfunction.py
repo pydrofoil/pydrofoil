@@ -470,6 +470,8 @@ class CodeEmitter(object):
         arg_message = self._get_arg(op.args[1])
         # Since there are no sets in RPython, we use a dictionary in the code.
         values_dict = {arg.number: None for arg in op.args[2:]}
+        values = op.args[2:]
+
 
         if op.args[0].resolved_type == types.Bool():
             if len(values_dict) == 1:
@@ -499,7 +501,7 @@ class CodeEmitter(object):
                 % (
                     " or ".join(
                         "%s.eq(%s.value)" % (arg_value, self._get_arg(v))
-                        for v in values_dict
+                        for v in values
                     ),
                     arg_message,
                 )
@@ -510,7 +512,7 @@ class CodeEmitter(object):
                 % (
                     " or ".join(
                         "%s.eq_packed(%s)" % (self._get_arg(v), arg_value)
-                        for v in values_dict
+                        for v in values
                     ),
                     arg_message,
                 )

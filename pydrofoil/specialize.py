@@ -431,7 +431,7 @@ def split_for_arg_constness(graph, codegen):
     from pydrofoil.absinterp import analyze
     from pydrofoil.ranges import RangeSet
 
-    values = analyze(graph, codegen)
+    values = None
 
     for block in graph.iterblocks():
         for index, op in enumerate(block.operations):
@@ -443,11 +443,15 @@ def split_for_arg_constness(graph, codegen):
             ):
                 continue
             for argindex, arg in enumerate(op.args):
+                if isinstance(arg, ir.Constant):
+                    continue
                 if (
                     arg.resolved_type is types.Bool()
                     or arg.resolved_type is types.GenericBitVector()
                 ):  # TODO: support GenericBitVector constants (ie bitvectors of known length)
                     continue
+                if values is None:
+                    values = analyze(graph, codegen)
                 bound = values[block].get(arg) if block in values else None
                 if not isinstance(bound, RangeSet):
                     continue

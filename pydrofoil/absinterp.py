@@ -888,6 +888,12 @@ class IntOpOptimizer(ir.LocalOptimizer):
             arg0, (ir.IntConstant, ir.MachineIntConstant, ir.BooleanConstant)
         ):
             return ir.REMOVE
+        if arg0.resolved_type is types.Int() and all(
+            isinstance(arg, ir.IntConstant) and MININT <= arg.number <= MAXINT
+            for arg in args[2:]
+        ):
+            arg0 = self._extract_machineint(arg0)
+            op.args[0] = arg0
         return None
 
     def _optimize_RangeCheck(self, op, block, index):

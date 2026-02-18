@@ -520,9 +520,9 @@ def test_apply_interprocedural_optimizations():
         """
 x = Argument('x', Int())
 block0 = Block()
-i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [x, StringConstant("Argument 'x' of function 'f'"), IntConstant(5), IntConstant(10), IntConstant(15)], Unit(), None, None)
-i2 = block0.emit(Operation, 'zz5izDzKz5i64', [x], MachineInt(), None, None)
-i3 = block0.emit(Operation, '@add_i_i_must_fit', [i2, MachineIntConstant(1)], MachineInt(), None, None)
+i1 = block0.emit(Operation, 'zz5izDzKz5i64', [x], MachineInt(), None, None)
+i2 = block0.emit(ValueSetCheck, '$valuesetcheck', [i1, StringConstant("Argument 'x' of function 'f'"), IntConstant(5), IntConstant(10), IntConstant(15)], Unit(), None, None)
+i3 = block0.emit(Operation, '@add_i_i_must_fit', [i1, MachineIntConstant(1)], MachineInt(), None, None)
 i4 = block0.emit(Operation, 'zz5i64zDzKz5i', [i3], Int(), None, None)
 block0.next = Return(i4, None)
 graph = Graph('f', [x], block0)
@@ -687,4 +687,39 @@ i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [x, StringConstant(''), IntCon
 i2 = block0.emit(Operation, 'some_unknown_operation', [IntConstant(1)], Int(), None, None)
 block0.next = Return(i2, None)
 graph = Graph('f', [x], block0)""",
+    )
+
+
+def test_optimize_valuesetcheck_to_machineint():
+    block0 = ir.Block()
+    x = ir.Argument("x", types.MachineInt())
+    i0 = block0.emit(
+        ir.Operation,
+        ir.INT64_TO_INT_NAME,
+        [x],
+        types.Int(),
+    )
+    i1 = block0.emit(
+        ir.ValueSetCheck,
+        "$valuesetcheck",
+        [
+            i0,
+            ir.StringConstant(""),
+            ir.IntConstant(1),
+            ir.IntConstant(5),
+        ],
+        types.Unit(),
+    )
+    block0.next = ir.Return(x)
+    graph = ir.Graph("f", [x], block0)
+    ir.light_simplify(graph, MockCodegen({"f": graph}))
+    compare(
+        graph,
+        """
+x = Argument('x', MachineInt())
+block0 = Block()
+i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [x, StringConstant(''), IntConstant(1), IntConstant(5)], Unit(), None, None)
+block0.next = Return(x, None)
+graph = Graph('f', [x], block0)
+""",
     )

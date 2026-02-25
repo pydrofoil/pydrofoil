@@ -811,9 +811,9 @@ def get_main(outriscv, rv64):
     Globals._pydrofoil_enum_read_ifetch_value = outriscv.Enum_zread_kind.zRead_ifetch
 
     if rv64:
-        prefix = "rv64"
+        prefix = "cheri-rv64"
     else:
-        prefix = "rv32"
+        prefix = "cheri-rv32"
 
     def get_printable_location(pc, do_show_times, insn_limit, tick, need_step_no, g):
         if tick:

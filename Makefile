@@ -432,8 +432,96 @@ regen-cheri-riscv-ir-files: isla/isla-sail/plugin.cmxs ## Regenerate the JIB IR 
 		sail-riscv/model/riscv_step.sail \
 		sail-riscv/model/riscv_analysis.sail \
 		sail-riscv/model/main.sail \
-		-o  ${PWD}/cheririscv/cheririscv_model_rv64
+		-o  ${PWD}/cheririscv/cheririscv_model_rv64 \
+		&& \
+		isla-sail -O -Oconstant_fold -memo_z3 -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
+		--isla-preserve encdec_forwards \
+		sail-riscv/model/prelude.sail \
+		sail-riscv/model/riscv_xlen32.sail \
+		sail-riscv/model/riscv_flen_D.sail \
+		sail-riscv/model/riscv_vlen.sail \
+		src/cheri_prelude.sail \
+		src/cheri_types.sail \
+		src/cheri_prelude_64.sail \
+		src/cheri_mem_metadata.sail \
+		sail-riscv/model/prelude_mem.sail \
+		src/cheri_cap_common.sail \
+		sail-riscv/model/riscv_types_common.sail \
+		src/cheri_riscv_types.sail \
+		sail-riscv/model/riscv_types.sail \
+		src/cheri_reg_type.sail \
+		sail-riscv/model/riscv_freg_type.sail \
+		sail-riscv/model/riscv_csr_map.sail \
+		src/cheri_scr_map.sail \
+		src/cheri_vmem_types.sail \
+		sail-riscv/model/riscv_regs.sail \
+		sail-riscv/model/riscv_sys_regs.sail \
+		sail-riscv/model/riscv_pmp_regs.sail \
+		sail-riscv/model/riscv_pmp_control.sail \
+		src/cheri_sys_regs.sail \
+		src/cheri_regs.sail \
+		src/cheri_pc_access.sail \
+		sail-riscv/model/riscv_vreg_type.sail \
+		sail-riscv/model/riscv_vext_regs.sail \
+		sail-riscv/model/riscv_next_regs.sail \
+		src/cheri_sys_exceptions.sail \
+		sail-riscv/model/riscv_sync_exception.sail \
+		sail-riscv/model/riscv_next_control.sail \
+		sail-riscv/model/riscv_softfloat_interface.sail \
+		sail-riscv/model/riscv_fdext_regs.sail \
+		sail-riscv/model/riscv_fdext_control.sail \
+		sail-riscv/model/riscv_csr_ext.sail \
+		sail-riscv/model/riscv_sys_control.sail \
+		sail-riscv/model/riscv_addr_checks_common.sail \
+		src/cheri_addr_checks.sail \
+		src/cheri_misa_ext.sail \
+		sail-riscv/model/riscv_platform.sail \
+		sail-riscv/model/riscv_mem.sail \
+		src/cheri_mem.sail \
+		src/cheri_pte.sail \
+		src/cheri_ptw.sail \
+		sail-riscv/model/riscv_vmem_common.sail \
+		sail-riscv/model/riscv_vmem_tlb.sail \
+		sail-riscv/model/riscv_vmem_sv32.sail \
+		sail-riscv/model/riscv_vmem_rv32.sail \
+		sail-riscv/model/riscv_insts_begin.sail \
+		sail-riscv/model/riscv_insts_base.sail \
+		sail-riscv/model/riscv_insts_aext.sail \
+		sail-riscv/model/riscv_insts_cext.sail \
+		sail-riscv/model/riscv_insts_mext.sail \
+		sail-riscv/model/riscv_insts_next.sail \
+		sail-riscv/model/riscv_insts_hints.sail \
+		sail-riscv/model/riscv_insts_zicsr.sail \
+		sail-riscv/model/riscv_insts_fext.sail \
+		sail-riscv/model/riscv_insts_cfext.sail \
+		sail-riscv/model/riscv_insts_dext.sail \
+		sail-riscv/model/riscv_insts_cdext.sail \
+		sail-riscv/model/riscv_insts_zba.sail \
+		sail-riscv/model/riscv_insts_zbb.sail \
+		sail-riscv/model/riscv_insts_zbc.sail \
+		sail-riscv/model/riscv_insts_zbs.sail \
+		src/cheri_insts_begin.sail \
+		src/cheri_insts.sail \
+		src/cheri_insts_cext.sail \
+		src/cheri_insts_end.sail \
+		sail-riscv/model/riscv_jalr_seq.sail  \
+		sail-riscv/model/riscv_insts_end.sail  \
+		sail-riscv/model/riscv_step_common.sail \
+		src/cheri_step_ext.sail \
+		src/cheri_decode_ext.sail \
+		sail-riscv/model/riscv_fetch.sail \
+		sail-riscv/model/riscv_step.sail \
+		sail-riscv/model/main.sail \
+		-o ${PWD}/cheririscv/cheririscv_model_rv32
 
+
+.PHONY: pydrofoil-cheririscv-test
+pydrofoil-cheririscv-test: pypy2/rpython/bin/rpython pypy_binary/bin/python pypy2/rpython/bin/rpython cheririscv/cheririscv_model_rv64.ir ## Run the CHERI-RISC-V emulator unit tests
+	PYTHONPATH=. ./pypy_binary/bin/python pypy2/pytest.py -v cheririscv/
+
+.PHONY: pydrofoil-cheririscv
+pydrofoil-cheririscv: pypy_binary/bin/python pypy2/rpython/bin/rpython cheririscv/cheririscv_model_rv64.ir ## Build the Pydrofoil CHERI-RISC-V emulator
+	PYTHONPATH=. ./pypy_binary/bin/python  ${RPYTHON_DIR}/bin/rpython -Ojit --output=pydrofoil-cheririscv cheririscv/targetcheririscv.py
 
 
 ## Housekeeping targets:

@@ -9,7 +9,7 @@ import os
 thisdir = os.path.dirname(__file__)
 
 riscvirs = [
-    os.path.join(thisdir, ""),
+    os.path.join(thisdir, "cheririscv_model_rv32.ir"),
     os.path.join(thisdir, "cheririscv_model_rv64.ir"),
 ]
 outriscvpys = [
@@ -32,7 +32,6 @@ def should_inline(name):
 
 
 def _make_code(rv64=True):
-    assert rv64
     print "making python code"
     with open(riscvirs[rv64], "rb") as f:
         s = f.read()

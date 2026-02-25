@@ -736,9 +736,13 @@ def extract_global_value(graph, name):
     if name != lastop.name:
         return
     value = lastop.args[0]
-    if not isinstance(value, (StructConstruction, Constant)):
-        return
-    return value
+    if isinstance(value, Constant):
+        return value
+    if isinstance(value, StructConstruction):
+        if any(isinstance(arg, (PackPackedField, FieldAccess)) for arg in value.args):
+            return None
+        return value
+    return None
 
 
 INT_TO_INT64_NAME = "zz5izDzKz5i64"

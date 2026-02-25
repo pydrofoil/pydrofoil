@@ -16,6 +16,11 @@ def cheririscvmain():
     from cheririscv.targetcheririscv import make_code
     return make_code()
 
+@pytest.fixture(scope='session')
+def cheririscvmain32():
+    from cheririscv.targetcheririscv import make_code
+    return make_code(False)
+
 def test_cheri_oob_write(cheririscvmain):
     cheririscvmain(['executable', oob_write_elf, "--verbose", "--inst-limit", "400"])
 
@@ -53,3 +58,6 @@ def test_dis_instructions(cheririscvmain):
         m.run_sail(1, False)
         assert outriscv.func_zassembly_forwards(m, outriscv.func_zext_decode(m, m._reg_zinstbits)) == instr
 
+
+def test_32bit(cheririscvmain32):
+    pass # only to check whether it generates python code

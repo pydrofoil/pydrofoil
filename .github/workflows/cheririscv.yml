@@ -1,4 +1,4 @@
-name: CHERIoT
+name: CHERI-RISC-V
 
 on:
   push:

@@ -8,7 +8,8 @@ Welcome to Pydrofoil's documentation!
 
 Pydrofoil is an experimental emulator-generator for ISA models written in
 `Sail`__. It can generate emulators for RISC-V__, ARM__, CHERIoT__ based on
-their respective Sail models. The Pydrofoil-generated emulators achieve fast
+their respective Sail models (there is also experimental support for
+Cheri-RISC-V). The Pydrofoil-generated emulators achieve fast
 performance by doing dynamic binary translation (aka just-in-time compilation)
 from guest instructions into host machine instructions. It's built on top of
 the `RPython meta-jit compiler`__ and reuses all its optimizations, backends,

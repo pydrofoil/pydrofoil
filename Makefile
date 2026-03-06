@@ -280,7 +280,7 @@ sail-cheriot/src/cheri_cap_common.sail: ## Clone the sail-cheriot submodule
 
 .PHONY: regen-cheriot-ir-files
 regen-cheriot-ir-files: sail-cheriot/src/cheri_cap_common.sail isla/isla-sail/plugin.cmxs ## Build CHERIoT IR
-	PATH=${realpath isla/isla-sail/}:${PATH} && export PATH && eval `opam config env --switch=sail/ --set-switch` && \
+	PATH="${realpath isla/isla-sail/}:${PATH}" && export PATH && eval `opam config env --switch=sail/ --set-switch` && \
 	cd sail-cheriot && \
 	isla-sail  -c_preserve _set_Misa_C -O -Oconstant_fold -memo_z3  -c_include riscv_prelude.h -c_include riscv_platform.h -c_no_main \
 		sail-riscv/model/prelude.sail \
@@ -376,7 +376,7 @@ sail/libsail.opam: ## Clone the sail submodule
 	git submodule update --init --depth 1
 
 sail/_opam/bin/sail: sail/libsail.opam ## Build sail switch
-	opam switch create sail/ -y
+	opam switch import ../state-20260306084635.export --switch sail/ -y
 
 isla/isla-sail/plugin.cmxs: sail/_opam/bin/sail isla/isla-sail/Makefile ## build isla-sail
 	eval `opam config env --switch=sail/ --set-switch` && cd isla/isla-sail && $(MAKE)

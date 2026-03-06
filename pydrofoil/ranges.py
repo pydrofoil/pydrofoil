@@ -9,7 +9,7 @@ MAXINT = sys.maxint
 
 MAX_CONSIDERED_NUMBER_OF_BITS = 128
 
-_RANGE_SET_MAX = 16
+_RANGE_SET_MAX = 5
 
 
 def int_c_div(x, y):
@@ -422,7 +422,7 @@ class RangeSet(Range):
         return self._values == other._values
 
     def is_dense(self):
-        """ returns True if there are no holes in the range """
+        """returns True if there are no holes in the range"""
         # type: () -> bool
         as_range = set(range(self.low, self.high + 1))
         return self._values == as_range

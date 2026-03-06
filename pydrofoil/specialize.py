@@ -425,6 +425,8 @@ SPECIALIZABLE_BUILTINS = frozenset(
 """.split()
 )
 
+_ARG_CONSTNESS_SPLIT_MAX_BLOCKS = 128
+
 
 @ir.repeat
 def split_for_arg_constness(graph, codegen):
@@ -432,6 +434,8 @@ def split_for_arg_constness(graph, codegen):
     from pydrofoil.ranges import RangeSet
 
     values = None
+    if graph.has_more_than_n_blocks(_ARG_CONSTNESS_SPLIT_MAX_BLOCKS):
+        return False
 
     for block in graph.iterblocks():
         for index, op in enumerate(block.operations):

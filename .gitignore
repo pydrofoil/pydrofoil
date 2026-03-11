@@ -25,3 +25,5 @@ riscv/generated/
 arm/generated/
 cheriot/generated/
 pydrofoil/test/nand2tetris/generated/
+sail/_opam/
+cheriot/cheriot_model_rv32.ir

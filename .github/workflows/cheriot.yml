@@ -56,7 +56,7 @@ jobs:
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       run: |
         opam init --disable-sandboxing -y
-        opam switch create sail/ -y
+        make sail/_opam/bin/sail
 
     - name: Save cached opam
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'

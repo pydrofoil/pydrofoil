@@ -376,7 +376,7 @@ sail/libsail.opam: ## Clone the sail submodule
 	git submodule update --init --depth 1
 
 sail/_opam/bin/sail: sail/libsail.opam ## Build sail switch
-	opam switch import ../state-20260306084635.export --switch sail/ -y
+	opam switch import opam-state.export --switch sail/ -y
 
 isla/isla-sail/plugin.cmxs: sail/_opam/bin/sail isla/isla-sail/Makefile ## build isla-sail
 	eval `opam config env --switch=sail/ --set-switch` && cd isla/isla-sail && $(MAKE)

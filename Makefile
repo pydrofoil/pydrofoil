@@ -350,7 +350,7 @@ regen-cheriot-ir-files: sail-cheriot/src/cheri_cap_common.sail isla/isla-sail/pl
 
 pypy_binary/bin/python:  ## Download a PyPy binary
 	mkdir -p pypy_binary
-	python3 get_pypy_to_download.py
+	python3 get_pypy_to_download.py 7.3.20
 	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
 	rm pypy.tar.bz2
 	./pypy_binary/bin/python -m ensurepip

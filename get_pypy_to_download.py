@@ -11,8 +11,10 @@ import platform
 import tarfile
 import io
 
-
-want_nightly = "--nightly" in sys.argv
+if len(sys.argv) == 1:
+    version = "stable"
+else:
+    version = sys.argv[1]
 
 response = request.urlopen('https://downloads.python.org/pypy/versions.json')
 if not (response.getcode(), 200):
@@ -31,23 +33,19 @@ found_versions = []
 for d in data:
     if not d["python_version"].startswith("2.7"):
         continue
-    if want_nightly:
-        if d["pypy_version"] != "nightly":
-            continue
-    else:
+    if version == "stable":
         if not d["stable"]:
             continue
+    elif d["pypy_version"] != version:
+        continue
     for f in d["files"]:
         if f["arch"] == lookup_arch(uname.machine) and f["platform"] == uname.system.lower():
             found_versions.append((d, f))
             break
+
 if not found_versions:
-    if want_nightly:
-        kind = "nightly"
-    else:
-        kind = "stable"
     raise RuntimeError(
-        f"No known {kind} PyPy2.7 build for {uname.machine}-{uname.system}"
+        f"No known {version} PyPy2.7 build for {uname.machine}-{uname.system}"
     )
 if len(found_versions) > 1:
     found_versions.sort(key=lambda x: x[0].get('date', None))

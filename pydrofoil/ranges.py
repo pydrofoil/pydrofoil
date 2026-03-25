@@ -472,7 +472,7 @@ class RangeSet(Range):
         if not isinstance(other, RangeSet) or 0 in other._values:
             return super(RangeSet, self).ediv(other)
         values = {
-            Integer.fromlong(x).ediv(Integer.fromlong(y)).tolong()
+            int(Integer.fromlong(x).ediv(Integer.fromlong(y)).tolong())
             for x in self._values
             for y in other._values
         }

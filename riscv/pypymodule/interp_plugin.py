@@ -804,6 +804,13 @@ class MachineAbstractBase(object):
         self.machine.g.rv_ram_base = start
         self.machine.g.rv_ram_size = size
 
+    def descr_get_htif_tohost(self, space):
+        return BitVector.from_ruint(64, self.machine.g.rv_htif_tohost)
+
+    @unwrap_spec(tohost=r_uint)
+    def descr_set_htif_tohost(self, space, tohost):
+        self.machine.g.rv_htif_tohost = tohost
+
 
 class MemoryObserver(mem_mod.MemBase):
     _immutable_fields_ = ["wrapped"]
@@ -930,6 +937,8 @@ W_RISCV64.typedef = TypeDef(
     types=GetSetProperty(W_RISCV64.descr_get_types),
     lowlevel=GetSetProperty(W_RISCV64.descr_get_lowlevel),
     _set_sail_memory_bounds=interp2app(W_RISCV64.descr_set_sail_memory_bounds),
+    _get_htif_tohost=interp2app(W_RISCV64.descr_get_htif_tohost),
+    _set_htif_tohost=interp2app(W_RISCV64.descr_set_htif_tohost),
 )
 
 
@@ -971,6 +980,8 @@ W_RISCV32.typedef = TypeDef(
     types=GetSetProperty(W_RISCV32.descr_get_types),
     lowlevel=GetSetProperty(W_RISCV32.descr_get_lowlevel),
     _set_sail_memory_bounds=interp2app(W_RISCV32.descr_set_sail_memory_bounds),
+    _get_htif_tohost=interp2app(W_RISCV32.descr_get_htif_tohost),
+    _set_htif_tohost=interp2app(W_RISCV32.descr_set_htif_tohost),
 )
 
 # bitvector support

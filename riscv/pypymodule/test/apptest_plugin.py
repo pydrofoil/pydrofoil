@@ -655,6 +655,13 @@ def test_set_sail_memory_bounds():
     assert len(mem) == 1
 
 
+def test_set_htif_tohost():
+    cpu = _pydrofoil.RISCV64()
+    assert cpu._get_htif_tohost() == 0x80001000
+    cpu._set_htif_tohost(0x80001100)
+    assert cpu._get_htif_tohost() == 0x80001100
+
+
 def test_step_monitor_mem_with_callbacks():
     mem = {}
 

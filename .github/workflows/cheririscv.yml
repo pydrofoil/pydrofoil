@@ -71,7 +71,7 @@ jobs:
     - name: Generate ir files
       run: |
         touch sail/_opam/bin/sail
-        make regen-cheririscv-ir-files
+        make regen-cheri-riscv-ir-files
 
     - name: Test with pytest
       run: |

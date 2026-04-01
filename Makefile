@@ -350,7 +350,7 @@ regen-cheriot-ir-files: sail-cheriot/src/cheri_cap_common.sail isla/isla-sail/pl
 
 pypy_binary/bin/python:  ## Download a PyPy binary
 	mkdir -p pypy_binary
-	python3 get_pypy_to_download.py
+	python3 get_pypy_to_download.py 7.3.20
 	tar -C pypy_binary --strip-components=1 -xf pypy.tar.bz2
 	rm pypy.tar.bz2
 	./pypy_binary/bin/python -m ensurepip
@@ -376,7 +376,7 @@ sail/libsail.opam: ## Clone the sail submodule
 	git submodule update --init --depth 1
 
 sail/_opam/bin/sail: sail/libsail.opam ## Build sail switch
-	opam switch create sail/ -y
+	opam switch import opam-state.export --switch sail/ -y
 
 isla/isla-sail/plugin.cmxs: sail/_opam/bin/sail isla/isla-sail/Makefile ## build isla-sail
 	eval `opam config env --switch=sail/ --set-switch` && cd isla/isla-sail && $(MAKE)

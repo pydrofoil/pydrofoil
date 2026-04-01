@@ -33,9 +33,9 @@ jobs:
       with:
         python-version: "pypy-2.7-v7.3.10"
 
-    - name: Download PyPy nightly and install dependencies
+    - name: Download PyPy and install dependencies
       run: |
-        make pypy_binary_nightly
+        make pypy_binary/bin/python
         make pypy2/rpython/bin/rpython
 
     - name: Restore cached IR

@@ -12,7 +12,7 @@ from pypy.interpreter.typedef import (
     descr_get_dict,
     make_weakref_descr,
 )
-from pypy.interpreter.gateway import unwrap_spec, interpindirect2app, applevel
+from pypy.interpreter.gateway import unwrap_spec, interpindirect2app, applevel, WrappedDefault
 from pypy.interpreter.module import Module
 
 from riscv import supportcoderiscv
@@ -621,12 +621,20 @@ class MachineAbstractBase(object):
         if dtb:
             self.machine.g._create_dtb()
         init_mem(space, self.machine, MemoryObserver)
-        if w_callbacks:
-            mem = ApplevelCallbackMemory(
-                space,
-                w_callbacks.w_mem_read8_intercept,
-                w_callbacks.w_mem_write8_intercept,
-            )
+        if w_callbacks and (not space.is_none(w_callbacks.w_mem_read8_intercept) or not space.is_none(w_callbacks.w_mem_read_intercept)):
+            if not space.is_none(w_callbacks.w_mem_read8_intercept):
+                mem = ApplevelCallbackMemory8(
+                    space,
+                    w_callbacks.w_mem_read8_intercept,
+                    w_callbacks.w_mem_write8_intercept,
+                )
+            else:
+                assert not space.is_none(w_callbacks.w_mem_read_intercept)
+                mem = ApplevelCallbackMemory(
+                    space,
+                    w_callbacks.w_mem_read_intercept,
+                    w_callbacks.w_mem_write_intercept,
+                )
             observer = self.machine.g.mem
             assert isinstance(observer, MemoryObserver)
             observer.wrapped = mem
@@ -843,7 +851,7 @@ class MemoryObserver(mem_mod.MemBase):
         return self.wrapped.memory_info()
 
 
-class ApplevelCallbackMemory(mem_mod.MemBase):
+class ApplevelCallbackMemory8(mem_mod.MemBase):
     def __init__(self, space, w_read, w_write):
         self.space = space
         self.w_read = w_read
@@ -894,6 +902,38 @@ class ApplevelCallbackMemory(mem_mod.MemBase):
         w_addr = BitVector.from_ruint(64, addr)
         w_value = BitVector.from_ruint(64, value)
         self.space.call_function(self.w_write, w_addr, w_value)
+
+    def memory_info(self):
+        return [(self.min_addr, self.max_addr)]
+
+
+class ApplevelCallbackMemory(mem_mod.MemBase):
+    def __init__(self, space, w_read, w_write):
+        self.space = space
+        self.w_read = w_read
+        self.w_write = w_write
+        self.min_addr = r_uint(2 ** 64 - 1)
+        self.max_addr = r_uint(0)
+
+    def _aligned_read(self, start_addr, num_bytes, executable_flag):
+        space = self.space
+        w_res = space.call_function(
+            self.w_read, BitVector.from_ruint(64, start_addr), space.newint(num_bytes),
+        )
+        res = space.interp_w(BitVector, w_res)
+        if res.size() != num_bytes * 8:
+            raise oefmt(space.w_ValueError,
+                        "expected bitvector of width %s, got %s",
+                        num_bytes * 8, res.size())
+        return res.touint(8 * num_bytes)
+
+    def _aligned_write(self, start_addr, num_bytes, value):
+        space = self.space
+        self.min_addr = min(start_addr, self.min_addr)
+        self.max_addr = max(start_addr + num_bytes - 1, self.max_addr)
+        w_addr = BitVector.from_ruint(64, start_addr)
+        w_value = BitVector.from_ruint(num_bytes * 8, value)
+        space.call_function(self.w_write, w_addr, space.newint(num_bytes), w_value)
 
     def memory_info(self):
         return [(self.min_addr, self.max_addr)]
@@ -1267,11 +1307,13 @@ app_hash_union = app.interphook("hash_union")
 
 
 class W_Callbacks(W_Root):
-    _immutable_fields_ = ["w_mem_read8_intercept", "w_mem_write8_intercept"]
+    _immutable_fields_ = ["w_mem_read8_intercept", "w_mem_write8_intercept", "w_mem_read_intercept", "w_mem_write_intercept"]
 
-    def __init__(self, w_mem_read8_intercept, w_mem_write8_intercept):
+    def __init__(self, w_mem_read8_intercept, w_mem_write8_intercept, w_mem_read_intercept, w_mem_write_intercept):
         self.w_mem_read8_intercept = w_mem_read8_intercept
         self.w_mem_write8_intercept = w_mem_write8_intercept
+        self.w_mem_read_intercept = w_mem_read_intercept
+        self.w_mem_write_intercept = w_mem_write_intercept
 
     def descr_repr(self, space):
         res = ["_pydrofoil.Callbacks("]
@@ -1281,18 +1323,38 @@ class W_Callbacks(W_Root):
         if self.w_mem_write8_intercept:
             res.append("mem_write8_intercept=")
             res.append(space.text_w(self.w_mem_write8_intercept))
+        if self.w_mem_read_intercept:
+            res.append("mem_read_intercept=")
+            res.append(space.text_w(self.w_mem_read_intercept))
+        if self.w_mem_write_intercept:
+            res.append("mem_write_intercept=")
+            res.append(space.text_w(self.w_mem_write_intercept))
         res.append(")")
         return space.newtext("".join(res))
 
 
+@unwrap_spec(
+    w_mem_read8_intercept=WrappedDefault(None),
+    w_mem_write8_intercept=WrappedDefault(None),
+    w_mem_read_intercept=WrappedDefault(None),
+    w_mem_write_intercept=WrappedDefault(None),
+)
 def callbacks_descr_new(
     space,
     w_subtype,
     __kwonly__,
     w_mem_read8_intercept=None,
     w_mem_write8_intercept=None,
+    w_mem_read_intercept=None,
+    w_mem_write_intercept=None,
 ):
-    return W_Callbacks(w_mem_read8_intercept, w_mem_write8_intercept)
+    if space.is_none(w_mem_read_intercept) != space.is_none(w_mem_write_intercept):
+        raise oefmt(space.w_ValueError, "mem_read_intercept and mem_write_intercept need to be set together")
+    if space.is_none(w_mem_read8_intercept) != space.is_none(w_mem_write8_intercept):
+        raise oefmt(space.w_ValueError, "mem_read8_intercept and mem_write8_intercept need to be set together")
+    if not (space.is_none(w_mem_read_intercept) or space.is_none(w_mem_read8_intercept)):
+        raise oefmt(space.w_ValueError, "can't pass both mem_read_intercept and mem_read8_intercept")
+    return W_Callbacks(w_mem_read8_intercept, w_mem_write8_intercept, w_mem_read_intercept, w_mem_write_intercept)
 
 
 W_Callbacks.typedef = TypeDef(

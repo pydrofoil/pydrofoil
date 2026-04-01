@@ -708,7 +708,7 @@ def test_step_intercept_mem_with_read_write_size():
         assert len(value) == numbytes * 8
         for i in range(numbytes):
             mem[addr + i] = value[:8]
-            value = value >> 8
+            value = value.logical_rshift(8)
 
     callbacks = _pydrofoil.Callbacks(
         mem_read_intercept=read, mem_write_intercept=write
@@ -717,9 +717,7 @@ def test_step_intercept_mem_with_read_write_size():
     cpu.run(100)
     assert cpu.read_register("pc") == 0x800001F0
     print(mem)
-    assert mem[
-        _pydrofoil.bitvector(64, 0x0000000010000000)
-    ] == _pydrofoil.bitvector(64, 0x34202F7304C0006F)
+    assert read(_pydrofoil.bitvector(64, 0x0000000080000000), 8) == _pydrofoil.bitvector(64, 0x34202F7304C0006F)
     assert cpu.memory_info() == [(0x1000, 0x80001047)]
 
 

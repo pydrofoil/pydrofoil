@@ -923,7 +923,7 @@ class ApplevelCallbackMemory(mem_mod.MemBase):
         res = space.interp_w(BitVector, w_res)
         if res.size() != num_bytes * 8:
             raise oefmt(space.w_ValueError,
-                        "expected bitvector of width %s, got %s",
+                        "expected bitvector of width %d, got %d",
                         num_bytes * 8, res.size())
         return res.touint(8 * num_bytes)
 

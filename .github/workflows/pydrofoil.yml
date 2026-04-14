@@ -38,7 +38,7 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
-        make pypy_binary_nightly
+        make pypy_binary/bin/python
         make pypy2/rpython/bin/rpython
 
     - name: Test with pytest

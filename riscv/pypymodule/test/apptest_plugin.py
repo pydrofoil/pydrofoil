@@ -643,6 +643,13 @@ def test_set_sail_memory_bounds():
     assert len(mem) == 1
 
 
+def test_set_htif_tohost():
+    cpu = _pydrofoil.RISCV64()
+    assert cpu._get_htif_tohost() == 0x80001000
+    cpu._set_htif_tohost(0x80001100)
+    assert cpu._get_htif_tohost() == 0x80001100
+
+
 def test_step_monitor_mem_with_callbacks():
     mem = {}
 
@@ -669,6 +676,37 @@ def test_step_monitor_mem_with_callbacks():
         ("read", 0x000000000000100E, 2, 0x0182),
         ("read", 0x0000000000001018, 8, 0x0000000080000000),
     ]
+
+
+def test_step_intercept_mem_with_read_write_size():
+    mem = {}  # stores bytes
+
+    def read(addr, numbytes):
+        value = None
+        for i in range(numbytes - 1, -1, -1):
+            nextbyte = mem.get(addr + i, _pydrofoil.bitvector(8, 0))
+            if value is None:
+                value = nextbyte
+            else:
+                value = value @ nextbyte
+        assert len(value) == numbytes * 8
+        return value
+
+    def write(addr, numbytes, value):
+        assert len(value) == numbytes * 8
+        for i in range(numbytes):
+            mem[addr + i] = value[:8]
+            value = value.logical_rshift(8)
+
+    callbacks = _pydrofoil.Callbacks(
+        mem_read_intercept=read, mem_write_intercept=write
+    )
+    cpu = _pydrofoil.RISCV64(addielf, callbacks=callbacks)
+    cpu.run(100)
+    assert cpu.read_register("pc") == 0x800001F0
+    print(mem)
+    assert read(_pydrofoil.bitvector(64, 0x0000000080000000), 8) == _pydrofoil.bitvector(64, 0x34202F7304C0006F)
+    assert cpu.memory_info() == [(0x1000, 0x80001047)]
 
 
 # ________________________________________________

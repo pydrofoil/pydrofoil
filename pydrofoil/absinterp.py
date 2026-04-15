@@ -301,9 +301,9 @@ class AbstractInterpreter(object):
         # type: (ir.RangeCheck) -> None
         oldbound, low, high, _ = self._argbounds(op)
         assert oldbound is not None
-        assert low is not None and low.isconstant()
-        assert high is not None and high.isconstant()
-        if oldbound.intersect(Range(low.low, high.high)) is not None:
+        low_int = low.low if low is not None else None
+        high_int = high.high if high is not None else None
+        if oldbound.intersect(Range(low_int, high_int)) is not None:
             newbound = oldbound
             if low is not None:
                 newbound = newbound.make_ge(low)

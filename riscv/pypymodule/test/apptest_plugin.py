@@ -90,11 +90,22 @@ def test_step_ticks():
     for i in range(100):
         assert cpu.read_register("mtime") == 0
         cpu.step()
-    cpu.step()
     assert cpu.read_register("mtime") == 1
     for i in range(100):
         assert cpu.read_register("mtime") == 1
         cpu.step()
+    assert cpu.read_register("mtime") == 2
+
+
+def test_run_ticks():
+    cpu = _pydrofoil.RISCV64(addielf)
+    for i in range(100):
+        assert cpu.read_register("mtime") == 0
+        cpu.run(1)
+    assert cpu.read_register("mtime") == 1
+    for i in range(100):
+        assert cpu.read_register("mtime") == 1
+        cpu.run(1)
     assert cpu.read_register("mtime") == 2
 
 

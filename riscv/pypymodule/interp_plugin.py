@@ -82,8 +82,8 @@ init_sail = wrap_fn(supportcoderiscv.init_sail)
 
 
 @wrap_fn
-def run_sail(machine, insn_limit, do_show_times):
-    machine.run_sail(insn_limit, do_show_times)
+def run_sail(machine, insn_limit, do_show_times, insn_cnt):
+    return machine.run_sail(insn_limit, do_show_times, insn_cnt)
 
 
 @wrap_fn
@@ -651,7 +651,6 @@ class MachineAbstractBase(object):
 
         self._step_no = 0
         self._insn_cnt = 0  # used to check whether a tick has been reached
-        self._tick = False  # should the next step tick
 
     def reset(self):
         initialize_registers(self.space, self.machine)
@@ -661,17 +660,17 @@ class MachineAbstractBase(object):
         """Execute a single instruction."""
         from pydrofoil.bitvector import Integer
 
-        if self._tick:
-            self.machine.tick_clock()
-            self.machine.tick_platform()
-            self._tick = False
         stepped = self.machine.step(Integer.fromint(self._step_no))
         if stepped:
             self._step_no += 1
             self._insn_cnt += 1
-            if self._insn_cnt == self.machine.g.rv_insns_per_tick:
-                self._tick = True
-                self._insn_cnt = 0
+            self._maybe_tick()
+
+    def _maybe_tick(self):
+        if self._insn_cnt >= self.machine.g.rv_insns_per_tick:
+            self._insn_cnt = 0
+            self.machine.tick_clock()
+            self.machine.tick_platform()
 
     def step_monitor_mem(self):
         """EXPERIMENTAL: Execute a single instruction and monitor memory
@@ -781,7 +780,8 @@ class MachineAbstractBase(object):
             do_show_times = True
         else:
             do_show_times = False
-        run_sail(self.space, self.machine, limit, do_show_times)
+        self._insn_cnt = run_sail(self.space, self.machine, limit, do_show_times, self._insn_cnt)
+        self._maybe_tick()
 
     @unwrap_spec(verbosity=bool)
     def set_verbosity(self, verbosity):

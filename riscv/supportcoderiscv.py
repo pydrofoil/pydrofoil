@@ -870,14 +870,13 @@ def get_main(outriscv, rv64):
             return outriscv.func_zassembly_forwards(
                 self, ast)
 
-        def run_sail(self, insn_limit, do_show_times):
+        def run_sail(self, insn_limit, do_show_times, insn_cnt=0, print_at_end=False):
             self.step_no = 0
             # we update self.step_no only every TICK, *unless*:
             # - we want to continually print kps
             # - we want to print every instruction
             # - we are less than one TICK away from the insn_limit
             need_step_no = do_show_times or self.g.config_print_instr or (insn_limit and insn_limit - self.step_no < self.g.rv_insns_per_tick)
-            insn_cnt = 0
             tick = False
 
             self.g.interval_start = self.g.total_start = time.time()
@@ -963,6 +962,7 @@ def get_main(outriscv, rv64):
             print "Perf: %s Kips" % (self.step_no / 1000. / (interval_end - self.g.total_start), )
             if ctrlc:
                 raise ExitNow
+            return insn_cnt
 
 
     Machine.rv64 = rv64

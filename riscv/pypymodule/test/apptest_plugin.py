@@ -665,6 +665,19 @@ def test_set_htif_tohost():
     assert cpu._get_htif_tohost() == 0x80001100
 
 
+def test_set_instructions_per_tick():
+    cpu = _pydrofoil.RISCV64(addielf)
+    cpu._set_instructions_per_tick(10)
+    for i in range(10):
+        assert cpu.read_register("mtime") == 0
+        cpu.step()
+    assert cpu.read_register("mtime") == 1
+    for i in range(10):
+        assert cpu.read_register("mtime") == 1
+        cpu.step()
+    assert cpu.read_register("mtime") == 2
+
+
 def test_step_monitor_mem_with_callbacks():
     mem = {}
 

@@ -817,6 +817,10 @@ class MachineAbstractBase(object):
     def descr_set_htif_tohost(self, space, tohost):
         self.machine.g.rv_htif_tohost = tohost
 
+    @unwrap_spec(insns_per_tick=int)
+    def descr_set_instructions_per_tick(self, space, insns_per_tick):
+        self.machine.g.rv_insns_per_tick = insns_per_tick
+
 
 class MemoryObserver(mem_mod.MemBase):
     _immutable_fields_ = ["wrapped"]
@@ -984,6 +988,7 @@ W_RISCV64.typedef = TypeDef(
     _set_sail_memory_bounds=interp2app(W_RISCV64.descr_set_sail_memory_bounds),
     _get_htif_tohost=interp2app(W_RISCV64.descr_get_htif_tohost),
     _set_htif_tohost=interp2app(W_RISCV64.descr_set_htif_tohost),
+    _set_instructions_per_tick=interp2app(W_RISCV64.descr_set_instructions_per_tick),
 )
 
 
@@ -1027,6 +1032,7 @@ W_RISCV32.typedef = TypeDef(
     _set_sail_memory_bounds=interp2app(W_RISCV32.descr_set_sail_memory_bounds),
     _get_htif_tohost=interp2app(W_RISCV32.descr_get_htif_tohost),
     _set_htif_tohost=interp2app(W_RISCV32.descr_set_htif_tohost),
+    _set_instructions_per_tick=interp2app(W_RISCV32.descr_set_instructions_per_tick),
 )
 
 # bitvector support

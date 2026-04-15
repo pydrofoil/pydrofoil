@@ -82,8 +82,8 @@ init_sail = wrap_fn(supportcoderiscv.init_sail)
 
 
 @wrap_fn
-def run_sail(machine, insn_limit, do_show_times, insn_cnt):
-    return machine.run_sail(insn_limit, do_show_times, insn_cnt)
+def run_sail(machine, insn_limit, do_show_times, insn_cnt, print_at_end):
+    return machine.run_sail(insn_limit, do_show_times, insn_cnt, print_at_end)
 
 
 @wrap_fn
@@ -780,7 +780,7 @@ class MachineAbstractBase(object):
             do_show_times = True
         else:
             do_show_times = False
-        self._insn_cnt = run_sail(self.space, self.machine, limit, do_show_times, self._insn_cnt)
+        self._insn_cnt = run_sail(self.space, self.machine, limit, do_show_times, self._insn_cnt, False)
         self._maybe_tick()
 
     @unwrap_spec(verbosity=bool)

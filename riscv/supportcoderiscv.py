@@ -949,17 +949,20 @@ def get_main(outriscv, rv64):
             p = rsignal.pypysig_getaddr_occurred()
             ctrlc = False
             if we_are_translated() and p.c_value < 0:
-                print "CTRL-C was pressed"
+                if print_at_end:
+                    print "CTRL-C was pressed"
                 ctrlc = True
             elif self._reg_zhtif_exit_code == 0:
-                print "SUCCESS"
+                if print_at_end:
+                    print "SUCCESS"
             else:
                 print "FAILURE:", self._reg_zhtif_exit_code
                 if not we_are_translated():
                     raise ValueError
-            print "Instructions: %s" % (self.step_no, )
-            print "Total time (s): %s" % (interval_end - self.g.total_start)
-            print "Perf: %s Kips" % (self.step_no / 1000. / (interval_end - self.g.total_start), )
+            if print_at_end:
+                print "Instructions: %s" % (self.step_no, )
+                print "Total time (s): %s" % (interval_end - self.g.total_start)
+                print "Perf: %s Kips" % (self.step_no / 1000. / (interval_end - self.g.total_start), )
             if ctrlc:
                 raise ExitNow
             return insn_cnt

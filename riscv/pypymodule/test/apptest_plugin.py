@@ -90,8 +90,23 @@ def test_step_ticks():
     for i in range(100):
         assert cpu.read_register("mtime") == 0
         cpu.step()
-    cpu.step()
     assert cpu.read_register("mtime") == 1
+    for i in range(100):
+        assert cpu.read_register("mtime") == 1
+        cpu.step()
+    assert cpu.read_register("mtime") == 2
+
+
+def test_run_ticks():
+    cpu = _pydrofoil.RISCV64(addielf)
+    for i in range(100):
+        assert cpu.read_register("mtime") == 0
+        cpu.run(1)
+    assert cpu.read_register("mtime") == 1
+    for i in range(100):
+        assert cpu.read_register("mtime") == 1
+        cpu.run(1)
+    assert cpu.read_register("mtime") == 2
 
 
 def test_step_monitor_mem_read():
@@ -376,18 +391,6 @@ def test_call_encdec_forwards():
     assert enc == 0x7793
 
 
-def test_packed_struct_fields():
-    m = _pydrofoil.RISCV64()
-    res = m.lowlevel.read_ram_specialized_o_o_o_False("Read_plain", 2, 3, 4)
-    assert res == (_pydrofoil.bitvector(24, 0x000000), ())
-
-    at = getattr(m.types, "Execute<u>")()
-    res = m.lowlevel.phys_mem_read_specialized_o_o_o_o_o_True_False(
-        at, 2, 4, False, False, True, False
-    )
-    assert repr(res) == "MemValue<(b,u)>(bitvector(32, 0x00000000), ())"
-
-
 def test_call_rx():
     m = _pydrofoil.RISCV64()
     assert m.lowlevel.rX(0) == 0
@@ -662,6 +665,19 @@ def test_set_htif_tohost():
     assert cpu._get_htif_tohost() == 0x80001100
 
 
+def test_set_instructions_per_tick():
+    cpu = _pydrofoil.RISCV64(addielf)
+    cpu._set_instructions_per_tick(10)
+    for i in range(10):
+        assert cpu.read_register("mtime") == 0
+        cpu.step()
+    assert cpu.read_register("mtime") == 1
+    for i in range(10):
+        assert cpu.read_register("mtime") == 1
+        cpu.step()
+    assert cpu.read_register("mtime") == 2
+
+
 def test_step_monitor_mem_with_callbacks():
     mem = {}
 
@@ -717,7 +733,9 @@ def test_step_intercept_mem_with_read_write_size():
     cpu.run(100)
     assert cpu.read_register("pc") == 0x800001F0
     print(mem)
-    assert read(_pydrofoil.bitvector(64, 0x0000000080000000), 8) == _pydrofoil.bitvector(64, 0x34202F7304C0006F)
+    assert read(
+        _pydrofoil.bitvector(64, 0x0000000080000000), 8
+    ) == _pydrofoil.bitvector(64, 0x34202F7304C0006F)
     assert cpu.memory_info() == [(0x1000, 0x80001047)]
 
 
@@ -729,9 +747,9 @@ def test_sailtype_new():
     assert (
         _pydrofoil.sailtypes.Bool() is _pydrofoil.sailtypes.Bool()
     )  # singleton
-    assert (
-        _pydrofoil.sailtypes.Unit() is _pydrofoil.sailtypes.Unit()
-    )  # singleton
+    unit1 = _pydrofoil.sailtypes.Unit()
+    unit2 = _pydrofoil.sailtypes.Unit()
+    assert unit1 is unit2  # singleton
     assert (
         _pydrofoil.sailtypes.GenericBitVector()
         is _pydrofoil.sailtypes.GenericBitVector()

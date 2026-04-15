@@ -1,18 +1,12 @@
 import sys
 from rpython.rlib import jit
 from rpython.rlib import objectmodel
-from rpython.rlib.rarithmetic import r_uint, intmask, ovfcheck
+from rpython.rlib.rarithmetic import r_uint
 from rpython.rlib.unroll import unrolling_iterable
 from pypy.interpreter.baseobjspace import W_Root
 from pypy.interpreter.error import oefmt, oefmt_attribute_error, OperationError
-from pypy.interpreter.typedef import (
-    TypeDef,
-    interp2app,
-    GetSetProperty,
-    descr_get_dict,
-    make_weakref_descr,
-)
-from pypy.interpreter.gateway import unwrap_spec, interpindirect2app, applevel, WrappedDefault
+from pypy.interpreter.typedef import TypeDef, interp2app, GetSetProperty
+from pypy.interpreter.gateway import unwrap_spec, applevel, WrappedDefault
 from pypy.interpreter.module import Module
 
 from riscv import supportcoderiscv
@@ -88,8 +82,8 @@ init_sail = wrap_fn(supportcoderiscv.init_sail)
 
 
 @wrap_fn
-def run_sail(machine, insn_limit, do_show_times):
-    machine.run_sail(insn_limit, do_show_times)
+def run_sail(machine, insn_limit, do_show_times, insn_cnt, print_at_end):
+    return machine.run_sail(insn_limit, do_show_times, insn_cnt, print_at_end)
 
 
 @wrap_fn
@@ -621,7 +615,10 @@ class MachineAbstractBase(object):
         if dtb:
             self.machine.g._create_dtb()
         init_mem(space, self.machine, MemoryObserver)
-        if w_callbacks and (not space.is_none(w_callbacks.w_mem_read8_intercept) or not space.is_none(w_callbacks.w_mem_read_intercept)):
+        if w_callbacks and (
+            not space.is_none(w_callbacks.w_mem_read8_intercept)
+            or not space.is_none(w_callbacks.w_mem_read_intercept)
+        ):
             if not space.is_none(w_callbacks.w_mem_read8_intercept):
                 mem = ApplevelCallbackMemory8(
                     space,
@@ -654,7 +651,6 @@ class MachineAbstractBase(object):
 
         self._step_no = 0
         self._insn_cnt = 0  # used to check whether a tick has been reached
-        self._tick = False  # should the next step tick
 
     def reset(self):
         initialize_registers(self.space, self.machine)
@@ -664,16 +660,17 @@ class MachineAbstractBase(object):
         """Execute a single instruction."""
         from pydrofoil.bitvector import Integer
 
-        if self._tick:
-            self.machine.tick_clock()
-            self.machine.tick_platform()
-            self._tick = False
         stepped = self.machine.step(Integer.fromint(self._step_no))
         if stepped:
             self._step_no += 1
             self._insn_cnt += 1
-            if self._insn_cnt == self.machine.g.rv_insns_per_tick:
-                self._tick = True
+            self._maybe_tick()
+
+    def _maybe_tick(self):
+        if self._insn_cnt >= self.machine.g.rv_insns_per_tick:
+            self._insn_cnt = 0
+            self.machine.tick_clock()
+            self.machine.tick_platform()
 
     def step_monitor_mem(self):
         """EXPERIMENTAL: Execute a single instruction and monitor memory
@@ -783,7 +780,8 @@ class MachineAbstractBase(object):
             do_show_times = True
         else:
             do_show_times = False
-        run_sail(self.space, self.machine, limit, do_show_times)
+        self._insn_cnt = run_sail(self.space, self.machine, limit, do_show_times, self._insn_cnt, False)
+        self._maybe_tick()
 
     @unwrap_spec(verbosity=bool)
     def set_verbosity(self, verbosity):
@@ -818,6 +816,10 @@ class MachineAbstractBase(object):
     @unwrap_spec(tohost=r_uint)
     def descr_set_htif_tohost(self, space, tohost):
         self.machine.g.rv_htif_tohost = tohost
+
+    @unwrap_spec(insns_per_tick=int)
+    def descr_set_instructions_per_tick(self, space, insns_per_tick):
+        self.machine.g.rv_insns_per_tick = insns_per_tick
 
 
 class MemoryObserver(mem_mod.MemBase):
@@ -918,13 +920,18 @@ class ApplevelCallbackMemory(mem_mod.MemBase):
     def _aligned_read(self, start_addr, num_bytes, executable_flag):
         space = self.space
         w_res = space.call_function(
-            self.w_read, BitVector.from_ruint(64, start_addr), space.newint(num_bytes),
+            self.w_read,
+            BitVector.from_ruint(64, start_addr),
+            space.newint(num_bytes),
         )
         res = space.interp_w(BitVector, w_res)
         if res.size() != num_bytes * 8:
-            raise oefmt(space.w_ValueError,
-                        "expected bitvector of width %d, got %d",
-                        num_bytes * 8, res.size())
+            raise oefmt(
+                space.w_ValueError,
+                "expected bitvector of width %d, got %d",
+                num_bytes * 8,
+                res.size(),
+            )
         return res.touint(8 * num_bytes)
 
     def _aligned_write(self, start_addr, num_bytes, value):
@@ -933,7 +940,9 @@ class ApplevelCallbackMemory(mem_mod.MemBase):
         self.max_addr = max(start_addr + num_bytes - 1, self.max_addr)
         w_addr = BitVector.from_ruint(64, start_addr)
         w_value = BitVector.from_ruint(num_bytes * 8, value)
-        space.call_function(self.w_write, w_addr, space.newint(num_bytes), w_value)
+        space.call_function(
+            self.w_write, w_addr, space.newint(num_bytes), w_value
+        )
 
     def memory_info(self):
         return [(self.min_addr, self.max_addr)]
@@ -979,6 +988,7 @@ W_RISCV64.typedef = TypeDef(
     _set_sail_memory_bounds=interp2app(W_RISCV64.descr_set_sail_memory_bounds),
     _get_htif_tohost=interp2app(W_RISCV64.descr_get_htif_tohost),
     _set_htif_tohost=interp2app(W_RISCV64.descr_set_htif_tohost),
+    _set_instructions_per_tick=interp2app(W_RISCV64.descr_set_instructions_per_tick),
 )
 
 
@@ -1022,6 +1032,7 @@ W_RISCV32.typedef = TypeDef(
     _set_sail_memory_bounds=interp2app(W_RISCV32.descr_set_sail_memory_bounds),
     _get_htif_tohost=interp2app(W_RISCV32.descr_get_htif_tohost),
     _set_htif_tohost=interp2app(W_RISCV32.descr_set_htif_tohost),
+    _set_instructions_per_tick=interp2app(W_RISCV32.descr_set_instructions_per_tick),
 )
 
 # bitvector support
@@ -1307,9 +1318,20 @@ app_hash_union = app.interphook("hash_union")
 
 
 class W_Callbacks(W_Root):
-    _immutable_fields_ = ["w_mem_read8_intercept", "w_mem_write8_intercept", "w_mem_read_intercept", "w_mem_write_intercept"]
+    _immutable_fields_ = [
+        "w_mem_read8_intercept",
+        "w_mem_write8_intercept",
+        "w_mem_read_intercept",
+        "w_mem_write_intercept",
+    ]
 
-    def __init__(self, w_mem_read8_intercept, w_mem_write8_intercept, w_mem_read_intercept, w_mem_write_intercept):
+    def __init__(
+        self,
+        w_mem_read8_intercept,
+        w_mem_write8_intercept,
+        w_mem_read_intercept,
+        w_mem_write_intercept,
+    ):
         self.w_mem_read8_intercept = w_mem_read8_intercept
         self.w_mem_write8_intercept = w_mem_write8_intercept
         self.w_mem_read_intercept = w_mem_read_intercept
@@ -1348,13 +1370,34 @@ def callbacks_descr_new(
     w_mem_read_intercept=None,
     w_mem_write_intercept=None,
 ):
-    if space.is_none(w_mem_read_intercept) != space.is_none(w_mem_write_intercept):
-        raise oefmt(space.w_ValueError, "mem_read_intercept and mem_write_intercept need to be set together")
-    if space.is_none(w_mem_read8_intercept) != space.is_none(w_mem_write8_intercept):
-        raise oefmt(space.w_ValueError, "mem_read8_intercept and mem_write8_intercept need to be set together")
-    if not (space.is_none(w_mem_read_intercept) or space.is_none(w_mem_read8_intercept)):
-        raise oefmt(space.w_ValueError, "can't pass both mem_read_intercept and mem_read8_intercept")
-    return W_Callbacks(w_mem_read8_intercept, w_mem_write8_intercept, w_mem_read_intercept, w_mem_write_intercept)
+    if space.is_none(w_mem_read_intercept) != space.is_none(
+        w_mem_write_intercept
+    ):
+        raise oefmt(
+            space.w_ValueError,
+            "mem_read_intercept and mem_write_intercept need to be set together",
+        )
+    if space.is_none(w_mem_read8_intercept) != space.is_none(
+        w_mem_write8_intercept
+    ):
+        raise oefmt(
+            space.w_ValueError,
+            "mem_read8_intercept and mem_write8_intercept need to be set together",
+        )
+    if not (
+        space.is_none(w_mem_read_intercept)
+        or space.is_none(w_mem_read8_intercept)
+    ):
+        raise oefmt(
+            space.w_ValueError,
+            "can't pass both mem_read_intercept and mem_read8_intercept",
+        )
+    return W_Callbacks(
+        w_mem_read8_intercept,
+        w_mem_write8_intercept,
+        w_mem_read_intercept,
+        w_mem_write_intercept,
+    )
 
 
 W_Callbacks.typedef = TypeDef(

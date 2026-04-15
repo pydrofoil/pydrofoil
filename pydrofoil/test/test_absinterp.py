@@ -2303,3 +2303,23 @@ def test_value_set_check():
     g = Graph("g", [zx], block0, False)
     values = analyze(g, fakecodegen)
     assert values[block0][zx] == Range.fromset({1, 2, 4, 5, 9})
+
+
+def test_rangecheck_with_empty_set():
+    block0 = Block()
+    i2 = block0.emit(
+        RangeCheck,
+        "$rangecheck",
+        [
+            IntConstant(0),
+            IntConstant(1),
+            IntConstant(10),
+            StringConstant("Argument 'zwidth' of function 'zwithin_phys_mem'"),
+        ],
+        Unit(),
+        None,
+        None,
+    )
+    block0.next = Return(UnitConstant.UNIT)
+    g = Graph("g", [], block0)
+    values = analyze(g, fakecodegen)  # does not crash

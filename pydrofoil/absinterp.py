@@ -301,12 +301,15 @@ class AbstractInterpreter(object):
         # type: (ir.RangeCheck) -> None
         oldbound, low, high, _ = self._argbounds(op)
         assert oldbound is not None
-        newbound = oldbound
-        if low is not None:
-            newbound = newbound.make_ge(low)
-        if high is not None:
-            newbound = newbound.make_le(high)
-        self.current_values[op.args[0]] = newbound
+        assert low is not None and low.isconstant()
+        assert high is not None and high.isconstant()
+        if oldbound.intersect(Range(low.low, high.high)) is not None:
+            newbound = oldbound
+            if low is not None:
+                newbound = newbound.make_ge(low)
+            if high is not None:
+                newbound = newbound.make_le(high)
+            self.current_values[op.args[0]] = newbound
         return None
 
     def analyze_ValueSetCheck(self, op):
@@ -320,6 +323,7 @@ class AbstractInterpreter(object):
             values.add(v.low)
         assert oldbound is not None
         newbound = Range.fromset(values).intersect(oldbound)
+        # this can actually happen in dead code, see above. let's wait for a case where it actually does
         assert newbound is not None
         self.current_values[op.args[0]] = newbound
         return None

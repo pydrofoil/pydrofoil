@@ -324,7 +324,8 @@ class AbstractInterpreter(object):
         assert oldbound is not None
         newbound = Range.fromset(values).intersect(oldbound)
         # this can actually happen in dead code, see above. let's wait for a case where it actually does
-        assert newbound is not None
+        if newbound is None:
+            newbound = Range(None, None)  # Fallback to TOP
         self.current_values[op.args[0]] = newbound
         return None
 

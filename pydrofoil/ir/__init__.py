@@ -4655,7 +4655,7 @@ class LocalOptimizer(BaseOptimizer):
 
     def optimize_packed_field_cast_smallfixedbitvector(self, op):
         arg0, arg1 = self._args(op)
-        if isinstance(arg1, Operation):
+        if isinstance(arg1, Operation) and not isinstance(arg1, FieldAccess):
             if arg1.name == "@pack_smallfixedbitvector":
                 assert arg0.number == arg1.args[0].number
                 return arg1.args[1]

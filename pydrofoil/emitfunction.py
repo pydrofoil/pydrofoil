@@ -465,6 +465,73 @@ class CodeEmitter(object):
         else:
             assert 0, "unknown type in RangeCheck"
 
+    def emit_op_ValueSetCheck(self, op):
+        arg_value = self._get_arg(op.args[0])
+        arg_message = self._get_arg(op.args[1])
+        # Since there are no sets in RPython, we use a dictionary in the code.
+        values_dict = {arg.number: None for arg in op.args[2:]}
+        values = op.args[2:]
+
+        if op.args[0].resolved_type == types.Bool():
+            if len(values_dict) == 1:
+                expected_value = list(values_dict)[0]
+                self.codegen.emit(
+                    "if %s%s: raise supportcode.SailError(%s)"
+                    % (
+                        "not " if expected_value else "",
+                        arg_value,
+                        arg_message,
+                    )
+                )
+            return
+        elif op.args[0].resolved_type == types.MachineInt():
+            self.codegen.emit(
+                "if %s not in %s: raise supportcode.SailError(%s)"
+                % (
+                    arg_value,
+                    values_dict,
+                    arg_message,
+                )
+            )
+            return
+        if op.args[0].resolved_type == types.Int():
+            self.codegen.emit(
+                "if not (%s): raise supportcode.SailError(%s)"
+                % (
+                    " or ".join(
+                        "%s.eq(%s)" % (arg_value, self._get_arg(v))
+                        for v in values
+                    ),
+                    arg_message,
+                )
+            )
+        elif op.args[0].resolved_type == types.Packed(types.Int()):
+            self.codegen.emit(
+                "if not (%s): raise supportcode.SailError(%s)"
+                % (
+                    " or ".join(
+                        "%s.eq_packed(%s)" % (self._get_arg(v), arg_value)
+                        for v in values
+                    ),
+                    arg_message,
+                )
+            )
+        elif op.args[0].resolved_type == types.GenericBitVector():
+            self.codegen.emit(
+                ("if %s.size() not in %s: raise supportcode.SailError(%s)")
+                % (arg_value, values_dict, arg_message)
+            )
+        elif op.args[0].resolved_type == types.Packed(
+            types.GenericBitVector()
+        ):
+            self.codegen.emit(
+                "if %s[0] not in %s: raise supportcode.SailError(%s)"
+                % (arg_value, values_dict, arg_message)
+            )
+            pass
+        else:
+            assert 0, "unknown type in RangeCheck"
+
     # ________________________________________________
     # jumps etc
 

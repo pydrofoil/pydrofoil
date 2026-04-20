@@ -13,3 +13,6 @@
 [submodule "sail-cheriot"]
 	path = sail-cheriot
 	url = https://github.com/CHERIoT-Platform/cheriot-sail
+[submodule "sail-cheri-riscv"]
+	path = sail-cheri-riscv
+	url = https://github.com/CTSRD-CHERI/sail-cheri-riscv

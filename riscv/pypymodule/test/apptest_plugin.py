@@ -739,6 +739,14 @@ def test_step_intercept_mem_with_read_write_size():
     assert cpu.memory_info() == [(0x1000, 0x80001047)]
 
 
+def test_set_term_fd():
+    cpu = _pydrofoil.RISCV64(linuxbbl, dtb=True)
+    cpu.set_term_fd(2)
+    assert cpu.get_term_fd() == 2
+    cpu.run(100)
+    assert cpu.read_register("x15") == 0x0000000030030000
+
+
 # ________________________________________________
 # testing the sail types
 

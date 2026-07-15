@@ -821,6 +821,13 @@ class MachineAbstractBase(object):
     def descr_set_instructions_per_tick(self, space, insns_per_tick):
         self.machine.g.rv_insns_per_tick = insns_per_tick
 
+    @unwrap_spec(term_fd=int)
+    def descr_set_term_fd(self, space, term_fd):
+        self.machine.g.term_fd = term_fd
+
+    def descr_get_term_fd(self, space):
+        return space.newint(self.machine.g.term_fd)
+
 
 class MemoryObserver(mem_mod.MemBase):
     _immutable_fields_ = ["wrapped"]
@@ -989,6 +996,8 @@ W_RISCV64.typedef = TypeDef(
     _get_htif_tohost=interp2app(W_RISCV64.descr_get_htif_tohost),
     _set_htif_tohost=interp2app(W_RISCV64.descr_set_htif_tohost),
     _set_instructions_per_tick=interp2app(W_RISCV64.descr_set_instructions_per_tick),
+    set_term_fd=interp2app(W_RISCV64.descr_set_term_fd),
+    get_term_fd=interp2app(W_RISCV64.descr_get_term_fd),
 )
 
 
@@ -1033,6 +1042,8 @@ W_RISCV32.typedef = TypeDef(
     _get_htif_tohost=interp2app(W_RISCV32.descr_get_htif_tohost),
     _set_htif_tohost=interp2app(W_RISCV32.descr_set_htif_tohost),
     _set_instructions_per_tick=interp2app(W_RISCV32.descr_set_instructions_per_tick),
+    set_term_fd=interp2app(W_RISCV32.descr_set_term_fd),
+    get_term_fd=interp2app(W_RISCV32.descr_get_term_fd),
 )
 
 # bitvector support

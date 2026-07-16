@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 
 from pydrofoil import parse, types
+from pydrofoil.mangle import _fix_name
 
 class TypingContext(object):
     def __init__(self):
@@ -17,22 +18,27 @@ class TypingContext(object):
         self.add_global_name("throw_location", types.String())
 
     def add_named_type(self, name, typ):
+        name = _fix_name(name)
         assert isinstance(typ, types.Type)
         assert name not in self.namedtypes
         self.namedtypes[name] = typ
 
     def get_named_type(self, name):
+        name = _fix_name(name)
         return self.namedtypes[name]
 
     def add_global_name(self, name, typ):
+        name = _fix_name(name)
         assert isinstance(typ, types.Type)
         self.globalnames[name] = typ
 
     def add_local_name(self, name, typ):
+        name = _fix_name(name)
         assert isinstance(typ, types.Type)
         self.localnames[name] = typ
 
     def gettyp(self, name):
+        name = _fix_name(name)
         if self.localnames is None or name not in self.localnames:
             return self.globalnames[name]
         return self.localnames[name]

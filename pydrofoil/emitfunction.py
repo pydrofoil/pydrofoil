@@ -334,12 +334,20 @@ class CodeEmitter(object):
         return self._op_helper(op, pyname)
 
     def emit_op_VectorInit(self, op):
-        oftyp = op.resolved_type.typ
-        self._op_helper(
-            op,
-            "[%s] * %s"
-            % (oftyp.uninitialized_value, self._get_arg(op.args[0])),
-        )
+        arg = self._get_arg(op.args[0])
+        if op.resolved_type is types.GenericBitVector():
+            self._op_helper(
+                op,
+                "bitvector.from_ruint(%s, r_uint(0))"
+                % (arg, ),
+            )
+        else:
+            oftyp = op.resolved_type.typ
+            self._op_helper(
+                op,
+                "[%s] * %s"
+                % (oftyp.uninitialized_value, arg),
+            )
 
     def emit_op_VectorUpdate(self, op):
         oftyp = op.resolved_type.typ

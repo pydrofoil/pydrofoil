@@ -1,6 +1,6 @@
 import collections
 from pydrofoil import absinterp, ir, types
-from pydrofoil.test.test_ir import compare, check_optimize
+from pydrofoil.test.test_ir import FakeCodeGen, compare, check_optimize
 from pydrofoil.test.util import MockCodegen
 
 
@@ -356,3 +356,42 @@ block0.next = Return(i4, None)
 graph = Graph('f', [a, b], block0)
 """,
     )
+
+
+def test_constant_fold_gteq():
+    # We want constant comparisons to be constant folded in the first pass
+    for name, result in [
+        ("@gteq", "FALSE"),
+        ("@gt", "FALSE"),
+        ("@lteq", "TRUE"),
+        ("@lt", "TRUE"),
+    ]:
+        block0 = ir.Block()
+        block1 = ir.Block()
+        block2 = ir.Block()
+        i0 = block0.emit(
+            ir.Operation,
+            name,
+            [
+                ir.IntConstant(5),
+                ir.IntConstant(15),
+            ],
+            types.Bool(),
+        )
+        block0.next = ir.ConditionalGoto(i0, block1, block2)
+        block1.next = ir.Return(i0, None)
+        block2.next = ir.Return(i0, None)
+        graph = ir.Graph("f", [], block0)
+
+        ir.LocalOptimizer(graph, FakeCodeGen()).optimize()
+        compare(
+            graph,
+            """
+block0 = Block()
+block1 = Block()
+block0.next = Goto(block1, None)
+block1.next = Return(BooleanConstant.%s, None)
+graph = Graph('f', [], block0)
+"""
+            % result,
+        )

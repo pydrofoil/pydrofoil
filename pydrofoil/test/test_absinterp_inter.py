@@ -332,7 +332,7 @@ def test_rewrite():
         """
 x = Argument('x', Int())
 block0 = Block()
-i1 = block0.emit(RangeCheck, '$rangecheck', [x, IntConstant(5), IntConstant(15), StringConstant("Argument 'x' of function 'f'")], Unit(), None, None)
+i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [x, StringConstant("Argument 'x' of function 'f'"), IntConstant(5), IntConstant(10), IntConstant(15)], Unit(), None, None)
 i2 = block0.emit(Operation, 'add_int', [x, IntConstant(1)], Int(), None, None)
 block0.next = Return(i2, None)
 graph = Graph('f', [x], block0)""",
@@ -342,7 +342,7 @@ graph = Graph('f', [x], block0)""",
         """
 block0 = Block()
 i0 = block0.emit(Operation, 'f', [IntConstant(15)], Int(), None, None)
-i1 = block0.emit(RangeCheck, '$rangecheck', [i0, IntConstant(6), IntConstant(16), StringConstant("Result of function 'f'")], Unit(), None, None)
+i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [i0, StringConstant("Result of function 'f'"), IntConstant(6), IntConstant(11), IntConstant(16)], Unit(), None, None)
 block0.next = Return(UnitConstant.UNIT, None)
 graph = Graph('c2', [], block0)""",
     )
@@ -351,9 +351,9 @@ graph = Graph('c2', [], block0)""",
         """
 block0 = Block()
 i0 = block0.emit(Operation, 'f', [IntConstant(5)], Int(), None, None)
-i1 = block0.emit(RangeCheck, '$rangecheck', [i0, IntConstant(6), IntConstant(16), StringConstant("Result of function 'f'")], Unit(), None, None)
+i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [i0, StringConstant("Result of function 'f'"), IntConstant(6), IntConstant(11), IntConstant(16)], Unit(), None, None)
 i2 = block0.emit(Operation, 'f', [IntConstant(10)], Int(), None, None)
-i3 = block0.emit(RangeCheck, '$rangecheck', [i2, IntConstant(6), IntConstant(16), StringConstant("Result of function 'f'")], Unit(), None, None)
+i3 = block0.emit(ValueSetCheck, '$valuesetcheck', [i2, StringConstant("Result of function 'f'"), IntConstant(6), IntConstant(11), IntConstant(16)], Unit(), None, None)
 block0.next = Return(UnitConstant.UNIT, None)
 graph = Graph('c1', [], block0)""",
     )
@@ -423,7 +423,7 @@ i1 = block0.emit(StructConstruction, 'T', [IntConstant(30), IntConstant(40)], T,
 i2 = block0.emit(StructConstruction, 'U', [IntConstant(50), IntConstant(60)], U, None, None)
 i3 = block0.emit(Operation, 'g', [i0, i1, i2], U, None, None)
 i4 = block0.emit(FieldAccess, 'x', [i3], Int(), None, None)
-i5 = block0.emit(RangeCheck, '$rangecheck', [i4, IntConstant(10), IntConstant(50), StringConstant("Access to field 'x' of struct 'U'")], Unit(), None, None)
+i5 = block0.emit(ValueSetCheck, '$valuesetcheck', [i4, StringConstant("Access to field 'x' of struct 'U'"), IntConstant(10), IntConstant(40), IntConstant(50)], Unit(), None, None)
 block0.next = Return(i4, None)
 graph = Graph('f', [], block0)""",
     )
@@ -441,7 +441,7 @@ i3 = block0.emit(FieldAccess, 'x', [s], Int(), None, None)
 i4 = block0.emit(RangeCheck, '$rangecheck', [i3, IntConstant(10), IntConstant(10), StringConstant("Access to field 'x' of struct 'S'")], Unit(), None, None)
 i5 = block0.emit(FieldWrite, 'y', [t, i3], Unit(), None, None)
 i6 = block0.emit(FieldAccess, 'y', [t], Int(), None, None)
-i7 = block0.emit(RangeCheck, '$rangecheck', [i6, IntConstant(10), IntConstant(40), StringConstant("Access to field 'y' of struct 'T'")], Unit(), None, None)
+i7 = block0.emit(ValueSetCheck, '$valuesetcheck', [i6, StringConstant("Access to field 'y' of struct 'T'"), IntConstant(10), IntConstant(40)], Unit(), None, None)
 i8 = block0.emit(FieldWrite, 'x', [u, i6], Unit(), None, None)
 block0.next = Return(u, None)
 graph = Graph('g', [s, t, u], block0)""",
@@ -461,7 +461,7 @@ myunion = Union('myunion', ('first', 'second'), (Int(), Int()))
 block0 = Block()
 i0 = block0.emit(Operation, 'g', [], myunion, None, None)
 i1 = block0.emit(UnionCast, 'first', [i0], Int(), None, None)
-i2 = block0.emit(RangeCheck, '$rangecheck', [i1, IntConstant(5), IntConstant(10), StringConstant("Variant 'first' of union 'myunion'")], Unit(), None, None)
+i2 = block0.emit(ValueSetCheck, '$valuesetcheck', [i1, StringConstant("Variant 'first' of union 'myunion'"), IntConstant(5), IntConstant(10)], Unit(), None, None)
 block0.next = Return(i1, None)
 graph = Graph('f', [], block0)""",
     )
@@ -521,7 +521,7 @@ def test_apply_interprocedural_optimizations():
 x = Argument('x', Int())
 block0 = Block()
 i1 = block0.emit(Operation, 'zz5izDzKz5i64', [x], MachineInt(), None, None)
-i2 = block0.emit(RangeCheck, '$rangecheck', [i1, IntConstant(5), IntConstant(15), StringConstant("Argument 'x' of function 'f'")], Unit(), None, None)
+i2 = block0.emit(ValueSetCheck, '$valuesetcheck', [i1, StringConstant("Argument 'x' of function 'f'"), IntConstant(5), IntConstant(10), IntConstant(15)], Unit(), None, None)
 i3 = block0.emit(Operation, '@add_i_i_must_fit', [i1, MachineIntConstant(1)], MachineInt(), None, None)
 i4 = block0.emit(Operation, 'zz5i64zDzKz5i', [i3], Int(), None, None)
 block0.next = Return(i4, None)
@@ -540,7 +540,7 @@ def test_entry_point_args():
 
 def _get_graphs_interprocedural_range_method():
     # Graph that returns x+b
-    # Graph that returns x+b
+    # Graph that returns y+b
     # called as method on myunion
     u = types.Union("myunion", ("first", "second"), (types.Int(), types.Int()))
     # Graph that calls with 5 and 10 and one that call with 15
@@ -592,4 +592,134 @@ def test_method():
     loc = locmanager.get_location_for_result(
         graphs["execute_first"], types.Int()
     )
-    assert loc.bound == Range(28, 47)
+    assert loc.bound == Range.fromset(set([28, 47]))
+
+
+def test_remove_constant_valuesetcheck():
+    block0 = ir.Block()
+    i1 = block0.emit(
+        ir.ValueSetCheck,
+        "$valuesetcheck",
+        [
+            ir.IntConstant(5),
+            ir.StringConstant(""),
+            ir.IntConstant(5),
+            ir.IntConstant(10),
+        ],
+        types.Unit(),
+    )
+    block0.next = ir.Return(ir.UnitConstant.UNIT, None)
+    graph = ir.Graph("f", [], block0)
+
+    ir.light_simplify(graph, MockCodegen({"f": graph}))
+    compare(
+        graph,
+        """
+block0 = Block()
+block0.next = Return(UnitConstant.UNIT, None)
+graph = Graph('f', [], block0)
+""",
+    )
+
+
+def test_constant_valuesetcheck_argument_to_constant_bool():
+    block0 = ir.Block()
+    block1 = ir.Block()
+    block2 = ir.Block()
+    x = ir.Argument("x", types.Bool())
+    i1 = block0.emit(
+        ir.ValueSetCheck,
+        "$valuesetcheck",
+        [
+            x,
+            ir.StringConstant(""),
+            ir.IntConstant(1),
+        ],
+        types.Unit(),
+    )
+    block0.next = ir.ConditionalGoto(x, block1, block2)
+    block1.next = ir.Return(ir.MachineIntConstant(10))
+    block2.next = ir.Return(ir.MachineIntConstant(20))
+    graph = ir.Graph("f", [x], block0)
+    ir.light_simplify(graph, MockCodegen({"f": graph}))
+    compare(
+        graph,
+        """x = Argument('x', Bool())
+block0 = Block()
+i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [x, StringConstant(''), IntConstant(1)], Unit(), None, None)
+block0.next = Return(MachineIntConstant(10), None)
+graph = Graph('f', [x], block0)""",
+    )
+
+
+@pytest.mark.xfail(
+    reason="we don't replace the argument of further ops with a constant (yet), after a valuesetcheck with one possible value"
+)
+def test_constant_valuesetcheck_argument_to_constant_int():
+    block0 = ir.Block()
+    block1 = ir.Block()
+    block2 = ir.Block()
+    x = ir.Argument("x", types.Int())
+    i1 = block0.emit(
+        ir.ValueSetCheck,
+        "$valuesetcheck",
+        [
+            x,
+            ir.StringConstant(""),
+            ir.IntConstant(1),
+        ],
+        types.Unit(),
+    )
+    i2 = block0.emit(
+        ir.Operation,
+        "some_unknown_operation",
+        [x],
+        types.Int(),
+    )
+    block0.next = ir.Return(i2)
+    graph = ir.Graph("f", [x], block0)
+    ir.light_simplify(graph, MockCodegen({"f": graph}))
+    compare(
+        graph,
+        """x = Argument('x', Int())
+block0 = Block()
+i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [x, StringConstant(''), IntConstant(1)], Unit(), None, None)
+i2 = block0.emit(Operation, 'some_unknown_operation', [IntConstant(1)], Int(), None, None)
+block0.next = Return(i2, None)
+graph = Graph('f', [x], block0)""",
+    )
+
+
+def test_optimize_valuesetcheck_to_machineint():
+    block0 = ir.Block()
+    x = ir.Argument("x", types.MachineInt())
+    i0 = block0.emit(
+        ir.Operation,
+        ir.INT64_TO_INT_NAME,
+        [x],
+        types.Int(),
+    )
+    i1 = block0.emit(
+        ir.ValueSetCheck,
+        "$valuesetcheck",
+        [
+            i0,
+            ir.StringConstant(""),
+            ir.IntConstant(1),
+            ir.IntConstant(5),
+        ],
+        types.Unit(),
+    )
+    block0.next = ir.Return(x)
+    graph = ir.Graph("f", [x], block0)
+    ir.light_simplify(graph, MockCodegen({"f": graph}))
+    compare(
+        graph,
+        """
+x = Argument('x', MachineInt())
+block0 = Block()
+i1 = block0.emit(ValueSetCheck, '$valuesetcheck', [x, StringConstant(''), IntConstant(1), IntConstant(5)], Unit(), None, None)
+block0.next = Return(x, None)
+graph = Graph('f', [x], block0)
+""",
+    )

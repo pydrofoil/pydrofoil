@@ -1355,6 +1355,10 @@ class Integer(object):
         # type: (Integer) -> Integer
         raise NotImplementedError("abstract base class")
 
+    def eq(self, other):
+        # type: (Integer) -> Integer
+        raise NotImplementedError("abstract base class")
+
 
 class SmallInteger(Integer):
     _immutable_fields_ = ["val"]

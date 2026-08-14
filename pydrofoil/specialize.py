@@ -30,8 +30,17 @@ def usefully_specializable(graph):
                 return False
             restype = block.next.value.resolved_type
         numblocks += 1
-    if not any(isinstance(arg.resolved_type, (types.Int, types.GenericBitVector, types.MachineInt, types.Bool)) for arg in graph.args):
-        if restype is not types.Int() and restype is not types.GenericBitVector():
+    if not any(
+        isinstance(
+            arg.resolved_type,
+            (types.Int, types.GenericBitVector, types.MachineInt, types.Bool),
+        )
+        for arg in graph.args
+    ):
+        if (
+            restype is not types.Int()
+            and restype is not types.GenericBitVector()
+        ):
             return False
     return numblocks < 100
 
@@ -50,7 +59,9 @@ class Specializer(object):
         optimizer = ir.BaseOptimizer(graph, codegen)
         for index, arg in enumerate(graph.args):
             if arg.resolved_type is types.Int():
-                anticipated = optimizer.anticipated_casts.get(graph.startblock, set())
+                anticipated = optimizer.anticipated_casts.get(
+                    graph.startblock, set()
+                )
                 if (arg, types.MachineInt()) in anticipated:
                     self.demanded_argtyps[index] = types.MachineInt()
         self.cache = {}
@@ -67,22 +78,30 @@ class Specializer(object):
         if key in self.cache:
             value = self.cache[key]
             if value is None:
-                return None # recursive graph building, will be fixed later
+                return None  # recursive graph building, will be fixed later
             stubgraph, restype = value
         else:
             if len(self.cache) > 64:
-                self.codegen.print_debug_msg("TOO MANY VARIANTS!", self.graph.name)
+                self.codegen.print_debug_msg(
+                    "TOO MANY VARIANTS!", self.graph.name
+                )
                 return None
-            self.cache[key] = None # meaning "in progress"
+            self.cache[key] = None  # meaning "in progress"
             stubgraph, restype = self._make_stub(key)
             self.cache[key] = stubgraph, restype
         self.dependencies.add(optimizer.graph)
         if call.name == stubgraph.name:
-            return None # no change in optimization level
-        newcall = optimizer.newop(stubgraph.name, args, restype, call.sourcepos, call.varname_hint)
-        return self._reconstruct_result(restype, call.resolved_type, newcall, optimizer)
+            return None  # no change in optimization level
+        newcall = optimizer.newop(
+            stubgraph.name, args, restype, call.sourcepos, call.varname_hint
+        )
+        return self._reconstruct_result(
+            restype, call.resolved_type, newcall, optimizer
+        )
 
-    def _reconstruct_result(self, restype, original_restype, newcall, optimizer):
+    def _reconstruct_result(
+        self, restype, original_restype, newcall, optimizer
+    ):
         if restype is original_restype:
             return newcall
         if restype is types.MachineInt():
@@ -91,22 +110,34 @@ class Specializer(object):
             else:
                 assert original_restype is types.Packed(types.Int())
                 return optimizer.newop(
-                        "@pack_machineint", [newcall], original_restype)
+                    "@pack_machineint", [newcall], original_restype
+                )
         if isinstance(restype, types.SmallFixedBitVector):
             if original_restype is types.GenericBitVector():
                 return optimizer.newcast(newcall, types.GenericBitVector())
             else:
-                assert original_restype is types.Packed(types.GenericBitVector())
+                assert original_restype is types.Packed(
+                    types.GenericBitVector()
+                )
                 return optimizer.newop(
-                        "@pack_smallfixedbitvector", [ir.MachineIntConstant(restype.width), newcall], original_restype)
+                    "@pack_smallfixedbitvector",
+                    [ir.MachineIntConstant(restype.width), newcall],
+                    original_restype,
+                )
         if isinstance(restype, types.Struct):
             fields = []
-            for fieldtyp, fieldtyp_orig, name in zip(restype.typs, original_restype.internaltyps, restype.names):
+            for fieldtyp, fieldtyp_orig, name in zip(
+                restype.typs, original_restype.internaltyps, restype.names
+            ):
                 field = ir.FieldAccess(name, [newcall], fieldtyp)
                 optimizer.newoperations.append(field)
-                converted_field = self._reconstruct_result(fieldtyp, fieldtyp_orig, field, optimizer)
+                converted_field = self._reconstruct_result(
+                    fieldtyp, fieldtyp_orig, field, optimizer
+                )
                 fields.append(converted_field)
-            result = ir.StructConstruction(original_restype.name, fields, original_restype)
+            result = ir.StructConstruction(
+                original_restype.name, fields, original_restype
+            )
             optimizer.newoperations.append(result)
             return result
 
@@ -121,11 +152,11 @@ class Specializer(object):
             if typ != oldarg.resolved_type:
                 if typ is types.MachineInt():
                     if value is not None:
-                        sargs.append(str(value).replace('-', 'minus'))
+                        sargs.append(str(value).replace("-", "minus"))
                         arg = ir.MachineIntConstant(value)
                     else:
-                        sargs.append('i')
-                    op = ir.Operation('zz5i64zDzKz5i', [arg], types.Int())
+                        sargs.append("i")
+                    op = ir.Operation("zz5i64zDzKz5i", [arg], types.Int())
                     ops.append(op)
                     callargs.append(op)
                 else:
@@ -133,24 +164,37 @@ class Specializer(object):
                     op = ir.Cast(arg, oldarg.resolved_type)
                     ops.append(op)
                     callargs.append(op)
-                    sargs.append('bv%s' % (typ.width, ))
+                    sargs.append("bv%s" % (typ.width,))
             else:
                 if value is not None:
-                    sargs.append(str(value).replace('-', 'minus'))
+                    sargs.append(str(value).replace("-", "minus"))
                     if typ is types.Bool():
-                        callargs.append(ir.BooleanConstant.TRUE if value else ir.BooleanConstant.FALSE)
+                        callargs.append(
+                            ir.BooleanConstant.TRUE
+                            if value
+                            else ir.BooleanConstant.FALSE
+                        )
                     else:
                         assert typ is types.MachineInt()
                         callargs.append(ir.MachineIntConstant(value))
                 else:
                     callargs.append(arg)
-                    sargs.append('o')
+                    sargs.append("o")
         ops.append(ir.Operation(self.graph.name, callargs, self.resulttyp))
         block = ir.Block(ops)
         block.next = ir.Return(ops[-1])
-        graph = ir.Graph(self.graph.name + "_specialized_" + "_".join(sargs), args, block)
+        graph = ir.Graph(
+            self.graph.name + "_specialized_" + "_".join(sargs), args, block
+        )
         self.codegen.print_debug_msg("MAKING SPECIALIZATION", graph.name)
-        ir._inline(graph, self.codegen, block, len(ops) - 1, self.graph, add_comment=False)
+        ir._inline(
+            graph,
+            self.codegen,
+            block,
+            len(ops) - 1,
+            self.graph,
+            add_comment=False,
+        )
         graph.has_loop = self.graph.has_loop
         ir.light_simplify(graph, self.codegen)
         # check whether we can specialize on the return type
@@ -170,7 +214,9 @@ class Specializer(object):
         # only support a single return block for now
         returnblock = self._extract_single_return_block(graph)
         if returnblock:
-            res, nameextension = self._find_result(graph, returnblock, returnblock.next.value)
+            res, nameextension = self._find_result(
+                graph, returnblock, returnblock.next.value
+            )
             if res:
                 returnblock.next.value = res
                 resulttyp = res.resolved_type
@@ -192,7 +238,11 @@ class Specializer(object):
             return False
         old_resulttyp = returnblock.next.value.resolved_type
         resulttyp, nameextension = self.find_result_type(graph)
-        if nameextension and resulttyp is not old_resulttyp and resulttyp is not self.resulttyp:
+        if (
+            nameextension
+            and resulttyp is not old_resulttyp
+            and resulttyp is not self.resulttyp
+        ):
             # bit annoying name manipulation
             name = graph.name
             if old_resulttyp is not self.resulttyp:
@@ -222,68 +272,98 @@ class Specializer(object):
                 pass
         elif returnvalue.resolved_type is types.GenericBitVector():
             try:
-                res, resulttyp = optimizer._extract_smallfixedbitvector(returnvalue)
+                res, resulttyp = optimizer._extract_smallfixedbitvector(
+                    returnvalue
+                )
             except ir.NoMatchException:
                 pass
             else:
                 return res, "bv%s" % resulttyp.width
         elif returnvalue.resolved_type is types.Packed(types.Int()):
-            if type(returnvalue) is ir.Operation and returnvalue.name == '@pack_machineint':
+            if (
+                type(returnvalue) is ir.Operation
+                and returnvalue.name == "@pack_machineint"
+            ):
                 res = returnvalue.args[0]
                 resulttyp = res.resolved_type
                 return res, "i"
-        elif returnvalue.resolved_type is types.Packed(types.GenericBitVector()):
-            if type(returnvalue) is ir.Operation and returnvalue.name == '@pack_smallfixedbitvector':
+        elif returnvalue.resolved_type is types.Packed(
+            types.GenericBitVector()
+        ):
+            if (
+                type(returnvalue) is ir.Operation
+                and returnvalue.name == "@pack_smallfixedbitvector"
+            ):
                 res = returnvalue.args[1]
                 resulttyp = res.resolved_type
                 return res, "bv%s" % resulttyp.width
-        elif isinstance(returnvalue.resolved_type, types.Struct) and returnvalue.resolved_type.tuplestruct and isinstance(returnvalue, ir.StructConstruction):
+        elif (
+            isinstance(returnvalue.resolved_type, types.Struct)
+            and returnvalue.resolved_type.tuplestruct
+            and isinstance(returnvalue, ir.StructConstruction)
+        ):
             fields = []
             extensions = []
             fieldtyps = []
             useful = False
             for value in returnvalue.args:
-                res, nameextension = self._find_result(graph, returnblock, value, optimizer)
+                res, nameextension = self._find_result(
+                    graph, returnblock, value, optimizer
+                )
                 if res is not None:
                     useful = True
                     fields.append(res)
                     extensions.append(nameextension)
                 else:
                     fields.append(value)
-                    extensions.append('o')
+                    extensions.append("o")
                 fieldtyps.append(fields[-1].resolved_type)
             if useful:
-                names = tuple(['%s_%s' % (name, index) for index, name in enumerate(extensions)])
+                names = tuple(
+                    [
+                        "%s_%s" % (name, index)
+                        for index, name in enumerate(extensions)
+                    ]
+                )
                 fieldtyps = tuple(fieldtyps)
                 origname = returnvalue.resolved_type.name
-                name = "tup_%s_%s" % (origname, '_'.join(extensions))
+                name = "tup_%s_%s" % (origname, "_".join(extensions))
                 newtyp = types.Struct(name, names, fieldtyps, True)
-                self.codegen.add_struct_type(newtyp.name, "TupSpec_" + newtyp.name, newtyp)
+                self.codegen.add_struct_type(
+                    newtyp.name, "TupSpec_" + newtyp.name, newtyp
+                )
                 newres = ir.StructConstruction(newtyp.name, fields, newtyp)
                 returnblock.operations.append(newres)
-                return newres, "_".join(['tup'] + extensions + ['put'])
+                return newres, "_".join(["tup"] + extensions + ["put"])
         return None, None
 
     def _extract_key(self, call, optimizer):
         key = []
         args = []
         useful = False
-        for arg, argtyp, demanded_argtyp in zip(call.args, self.argtyps, self.demanded_argtyps):
+        for arg, argtyp, demanded_argtyp in zip(
+            call.args, self.argtyps, self.demanded_argtyps
+        ):
             if argtyp is types.Int() or argtyp is types.MachineInt():
                 try:
                     arg = optimizer._extract_machineint(arg)
                 except ir.NoMatchException:
                     pass
                 else:
-                    if isinstance(arg, ir.MachineIntConstant) and 0 <= arg.number <= 64:
+                    if (
+                        isinstance(arg, ir.MachineIntConstant)
+                        and 0 <= arg.number <= 64
+                    ):
                         value = arg.number
                     else:
-                        #if isinstance(arg, ir.Phi) and all(isinstance(prev, ir.Constant) for prev in arg.prevvalues):
+                        # if isinstance(arg, ir.Phi) and all(isinstance(prev, ir.Constant) for prev in arg.prevvalues):
                         #    import pdb;pdb.set_trace()
                         value = None
                     key.append((types.MachineInt(), value))
                     args.append(arg)
-                    useful = argtyp is types.Int() or value is not None or useful
+                    useful = (
+                        argtyp is types.Int() or value is not None or useful
+                    )
                     continue
             elif isinstance(argtyp, types.GenericBitVector):
                 try:
@@ -295,7 +375,9 @@ class Specializer(object):
                     args.append(arg)
                     useful = True
                     continue
-            elif isinstance(argtyp, types.Bool) and isinstance(arg, ir.BooleanConstant):
+            elif isinstance(argtyp, types.Bool) and isinstance(
+                arg, ir.BooleanConstant
+            ):
                 key.append((argtyp, arg.value))
                 args.append(arg)
                 useful = True
@@ -308,7 +390,10 @@ class Specializer(object):
             key.append((arg.resolved_type, None))
             args.append(arg)
         if not useful:
-            if self.resulttyp is not types.Int() and self.resulttyp is not types.GenericBitVector():
+            if (
+                self.resulttyp is not types.Int()
+                and self.resulttyp is not types.GenericBitVector()
+            ):
                 return None, None
             # for Int and GenericBitVector we might still benefit from result type specialization
         key = tuple(key)
@@ -322,48 +407,87 @@ class SpecializingOptimizer(ir.BaseOptimizer):
         ir.BaseOptimizer.__init__(self, graph, codegen, *args, **kwargs)
 
     def _optimize_op(self, block, index, op):
-        if (isinstance(op, ir.Operation) and
-                op.name in self.codegen.specialization_functions):
+        if (
+            isinstance(op, ir.Operation)
+            and op.name in self.codegen.specialization_functions
+        ):
             specializer = self.codegen.specialization_functions[op.name]
             newop = specializer.specialize_call(op, self)
             if newop:
                 return newop
         return ir.BaseOptimizer._optimize_op(self, block, index, op)
 
-SPECIALIZABLE_BUILTINS = frozenset("""
+
+SPECIALIZABLE_BUILTINS = frozenset(
+    """
 @zero_extend_o_i @undefined_bitvector_i
 @zeros_i
-""".split())
+""".split()
+)
+
+_ARG_CONSTNESS_SPLIT_MAX_BLOCKS = 128
+
 
 @ir.repeat
 def split_for_arg_constness(graph, codegen):
+    from pydrofoil.absinterp import analyze
+    from pydrofoil.ranges import RangeSet
+
+    values = None
+    if graph.has_more_than_n_blocks(_ARG_CONSTNESS_SPLIT_MAX_BLOCKS):
+        return False
+
     for block in graph.iterblocks():
         for index, op in enumerate(block.operations):
             if not isinstance(op, ir.Operation):
                 continue
-            if op.name not in codegen.specialization_functions and op.name not in SPECIALIZABLE_BUILTINS:
+            if (
+                op.name not in codegen.specialization_functions
+                and op.name not in SPECIALIZABLE_BUILTINS
+            ):
                 continue
             for argindex, arg in enumerate(op.args):
-                if not isinstance(arg, ir.Phi):
+                if isinstance(arg, ir.Constant):
                     continue
-                if arg.resolved_type is not types.MachineInt():
+                if (
+                    arg.resolved_type is types.Bool()
+                    or arg.resolved_type is types.GenericBitVector()
+                ):  # TODO: support GenericBitVector constants (ie bitvectors of known length)
                     continue
-                if all(isinstance(prev, ir.Constant) and 0 <= prev.number <= 64 for prev in arg.prevvalues):
-                    break
+                if values is None:
+                    values = analyze(graph, codegen)
+                bound = values[block].get(arg) if block in values else None
+                if not isinstance(bound, RangeSet):
+                    continue
+                if not 1 < len(bound._values) <= 8:
+                    continue
+                break
             else:
                 continue
+
+            def make_const(v):
+                if arg.resolved_type == types.MachineInt():
+                    return ir.MachineIntConstant(v)
+                elif arg.resolved_type == types.Int():
+                    return ir.IntConstant(v)
+                else:
+                    assert 0
+
+            prevvalues = [make_const(x) for x in bound._values]
             newblock = block.split(index, keep_op=True)
-            switchblock = newblock.split(len(newblock.operations), keep_op=True)
+            switchblock = newblock.split(1, keep_op=True)
             replacements = {}
             ops_from_newblock = set(newblock.operations)
             callvalues = {copied_op: [] for copied_op in newblock.operations}
             prevblocks = []
-            for valueindex, constvalue in enumerate(arg.prevvalues):
-                last = valueindex == len(arg.prevvalues) - 1
+            for valueindex, constvalue in enumerate(prevvalues):
+                last = valueindex == len(prevvalues) - 1
                 if not last:
                     callblock = ir.Block()
                     nextblock = ir.Block()
-                    cond = block.emit(ir.Operation, "@eq", [arg, constvalue], types.Bool())
+                    cond = block.emit(
+                        ir.Operation, "@eq", [arg, constvalue], types.Bool()
+                    )
                     block.next = ir.ConditionalGoto(cond, callblock, nextblock)
                     block = nextblock
                 else:
@@ -385,7 +509,9 @@ def split_for_arg_constness(graph, codegen):
             for copied_op in newblock.operations:
                 if copied_op.resolved_type is types.Unit():
                     continue
-                phi = ir.Phi(prevblocks, callvalues[copied_op], copied_op.resolved_type)
+                phi = ir.Phi(
+                    prevblocks, callvalues[copied_op], copied_op.resolved_type
+                )
                 switchblock.operations.insert(0, phi)
                 replacements[copied_op] = phi
             graph.replace_ops(replacements)
@@ -399,16 +525,17 @@ class FixpointSpecializer(object):
     def __init__(self, entrypoints=None):
         import collections
         import py
+
         self.specialization_todo = collections.deque()
         self.specialization_todo_set = set()
         self.inlinable_functions = {}
         self.specialization_functions = {}
-        self.all_graph_by_name = {} # type: dict[str, ir.Graph]
-        self.method_graphs_by_name = {} # type: dict[str, dict[str, ir.Graph]]
-        self.inline_dependencies = defaultdict(set) # graph -> {graphs}
+        self.all_graph_by_name = {}  # type: dict[str, ir.Graph]
+        self.method_graphs_by_name = {}  # type: dict[str, dict[str, ir.Graph]]
+        self.inline_dependencies = defaultdict(set)  # graph -> {graphs}
         self.program_entrypoints = entrypoints  # type: None | list[str]
         # attributes for printing
-        self._highlevel_task_msg = ''
+        self._highlevel_task_msg = ""
         self._terminal_columns = py.io.get_terminal_width()
 
     def schedule_graph_specialization(self, graph):
@@ -421,14 +548,19 @@ class FixpointSpecializer(object):
         assert oldname != graph.name
         del self.all_graph_by_name[oldname]
         self.all_graph_by_name[graph.name] = graph
-        self.specialization_functions[graph.name] = self.specialization_functions[oldname]
+        self.specialization_functions[
+            graph.name
+        ] = self.specialization_functions[oldname]
 
     def specialize_all(self):
         import sys
+
         todo = self.specialization_todo
         while todo:
             graph = todo.popleft()
-            self.print_highlevel_task("(todo: %s) OPTIMIZING %s" % (len(todo), graph.name))
+            self.print_highlevel_task(
+                "(todo: %s) OPTIMIZING %s" % (len(todo), graph.name)
+            )
             self.specialization_todo_set.remove(graph)
             changed = ir.optimize(graph, self)
             schedule_deps = None
@@ -475,22 +607,30 @@ class FixpointSpecializer(object):
                 spec = self.specialization_functions[graph.name]
                 if graph.name in spec.name_to_restyp:
                     restyp = spec.name_to_restyp[graph.name]
-                    typ = types.Function(types.Tuple(tuple(a.resolved_type for a in graph.args)), restyp)
-            if graph.name.endswith("pure_core"): # ouch
+                    typ = types.Function(
+                        types.Tuple(
+                            tuple(a.resolved_type for a in graph.args)
+                        ),
+                        restyp,
+                    )
+            if graph.name.endswith("pure_core"):  # ouch
                 restyp = graph.find_return_type()
-                typ = types.Function(types.Tuple(tuple(a.resolved_type for a in graph.args)), restyp)
+                typ = types.Function(
+                    types.Tuple(tuple(a.resolved_type for a in graph.args)),
+                    restyp,
+                )
             l.append((graph, typ))
         return l
 
     def print_highlevel_task(self, *args):
         msg = " ".join(str(x) for x in args)
         self._highlevel_task_msg = "\033[1K\r%s" % msg
-        print self._highlevel_task_msg[:self._terminal_columns],
+        print self._highlevel_task_msg[: self._terminal_columns],
         sys.stdout.flush()
 
     def print_debug_msg(self, *args):
         msg = self._highlevel_task_msg + " " + " ".join(str(x) for x in args)
-        msg = msg[:self._terminal_columns]
+        msg = msg[: self._terminal_columns]
         print msg,
         sys.stdout.flush()
 
